@@ -83,6 +83,24 @@ def test_spec_gate_categories():
     print("PASS test_spec_gate_categories")
 
 
+def test_incremental_smt_decision_identical():
+    """STAGE 1.2: solver reuse returns the SAME verdicts as fresh per-goal solving (incl. a REFUTED)."""
+    import z3_adapter as Z
+    import incremental_smt as IS
+    vt = {"a": "Int", "b": "Int"}
+    P = Z.parse_predicate
+    shared = [P("a>=0", vt), P("b>=0", vt), P("a<=10", vt), P("b<=10", vt)]
+    goals = [P("a+b>=0", vt),   # PROVEN
+             P("a*a>=0", vt),   # PROVEN
+             P("a>=1", vt),     # REFUTED (a=0 is allowed) — proves it isn't vacuously proving all
+             P("a<=100", vt)]   # PROVEN
+    inc = IS.prove_batch_incremental(shared, goals, vt)
+    fresh = IS.prove_batch_fresh(shared, goals, vt)
+    assert inc == fresh, f"incremental disagreed with fresh: {inc} vs {fresh}"
+    assert inc[2] == "REFUTED" and inc[0] == inc[1] == inc[3] == "PROVEN", inc
+    print(f"PASS test_incremental_smt_decision_identical ({inc})")
+
+
 def test_proof_cache_lossless_and_hits():
     """STAGE 2.1: structural cache reuses verdicts losslessly (incl. α-renamed goals)."""
     import z3_adapter as Z

@@ -87,3 +87,21 @@ invariant under consistent variable renaming; the per-var type guards Int-vs-Rea
   cached **2.3×** (0.244s→0.107s). On *trivial* proofs, ~**0.9×** (keying overhead ≈ solve time) — the
   cache helps only when per-proof solve time ≫ keying. Both numbers measured and reported.
 - Test: `test_proof_cache_lossless_and_hits`.
+
+---
+
+## STAGE 1.2 — incremental SMT / solver reuse [SPEED · decision-identical] — DONE
+
+`incremental_smt.py`: assert the shared assumption prefix once into one Z3 solver, then push/¬goal/
+check/pop per goal (reusing learned clauses), vs a fresh solver per goal.
+
+- **Decision-identical:** 0 disagreements vs fresh solving (verified per-goal, incl. a REFUTED case so
+  it's clearly not vacuously proving everything). Test: `test_incremental_smt_decision_identical`.
+- **Fair A/B (20 linear goals over an 18-fact shared prefix, both strategies decide every goal):
+  incremental 0.017s vs fresh 0.068s = 3.97× faster.**
+- **Honest caveat (the "find the slow cases" ask):** the win comes from not re-asserting the shared
+  prefix; it shrinks toward 1× when the prefix is small or per-goal solving dominates. Separately,
+  on a *nonlinear* workload the fresh path hit Z3's 5s timeout on several goals while the reused
+  solver resolved them — this inflates the raw ratio to ~1600×, but that is a **timeout artifact**
+  (UNKNOWN-vs-PROVEN, Z3-version-dependent), **not** a fair clause-reuse speedup, so it is *not* the
+  headline number. The honest, fair figure is ~4× on this shared-prefix workload.
