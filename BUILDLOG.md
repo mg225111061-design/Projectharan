@@ -120,3 +120,34 @@ on-mode for Opus 4.8), no removed params (`budget_tokens`/`temperature` would 40
   4.8); HARAN's default system prompt is smaller, so it silently won't cache until a large stable
   context is placed in the prefix. (2) TTFT / cost savings can only be **measured with a live key** →
   **[TBD: needs key]**. The code is correct and tested for shape; the runtime benefit is not claimed.
+
+---
+
+## Headline closure coverage (measured, representative 8-item corpus)
+
+`closure_classifier.closure_ratio` on a mix (polynomial sums, geometric, linear recurrences,
+data-dependent): **88% CLOSED, 12% NO_STRUCTURE (Ω(N), honestly recognized), 0% UNKNOWN, 0% false.**
+The 3 recurrences (fib/pell/tribonacci) are CLOSED **only because of STAGE 3.1** — without the new
+C-finite engine they were UNKNOWN, i.e. this corpus would have been **5/8 = 62%**. So 3.1 lifted
+measured closure coverage **62% → 88%** here. Honest scope: this is coverage on a representative
+corpus of arithmetic/recurrence code (HARAN's stated domain), not a claim about arbitrary programs;
+the data-dependent summand is correctly **not** closed (Ω(N) information floor), never faked.
+
+---
+
+## Stages not completed — honest status (no fake progress)
+
+- **STAGE 2.2 verifier-guided tree search — PARTIAL/BLOCKED.** The search scaffold (branch/backtrack
+  with fold as an O(1) value-estimator for pruning) needs MULTIPLE candidate generations per node,
+  which requires a live model; the mock provides one scripted sequence. Live convergence can't be
+  measured without a key → not implemented rather than faked. fold-as-estimator primitive already
+  exists (`closure_classifier.classify_fn`).
+- **STAGE 2.3 piCoq parallel proof — BLOCKED.** No `coqc` in this environment (verified: not on PATH).
+  Proof-level dependency tracking + parallel re-check can't run real Coq proofs here; a simulated-DAG
+  scheduler would be theatre, not a measured Coq speedup, so it was not shipped.
+- **STAGE 3.2 SMT portfolio — PARTIAL.** Only z3 is installed (cvc5 / Bitwuzla absent — verified).
+  A multi-solver first-to-finish race needs ≥2 solvers; the sound sequential fallback (jeff→sympy→z3)
+  already exists in `discharge_correctness`. Multi-solver portfolio is **[needs cvc5/bitwuzla install]**.
+- **STAGE 3.4 RLVR post-training — BLOCKED.** No training infrastructure / base-model weights / GPU in
+  this environment. The verifier already emits the pass/fail + anti-vacuity signal (STAGE 1.3 gate) an
+  RLVR reward would consume, but training itself cannot be run or measured here → not attempted.
