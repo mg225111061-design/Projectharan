@@ -52,3 +52,22 @@ boundary). Previously a refutation surfaced exactly **1** point.
   write→verify→**fix** prompt (to measure convergence-rounds reduction) needs (a) a live model key and
   (b) multi-CX surfacing from `mr_haran` obligations — integration point identified; live convergence
   measurement is **[TBD: needs key]**, not claimed.
+
+---
+
+## STAGE 3.1 — fold-engine extension: pure-Python C-finite (SPEED flagship) [lossless] — DONE
+
+`cfinite.py`: exact-integer companion-matrix evaluation (O(log n) power-by-squaring) + O(n) naive
+reference; `verify_cfinite` certifies CLOSED only when the two are **identical** across several n
+(equal by theorem → lossless, not an approximation). Wired into `closure_classifier.classify_recurrence`,
+replacing the absent Rust `cfinite_nth` binary.
+
+- **Coverage (recurrence corpus fib/pell/tribonacci/lucas/jacobsthal): 0% → 100% CLOSED O(log n).**
+  Previously every recurrence was UNKNOWN ("cfinite_nth engine not built").
+- **Value-exact:** fib(10)=55, fib(40)=102334155, pell(8)=408; companion≡naive for all n∈[0,60).
+- **Measured wall-clock speedup (this pure-Python impl, identical bignum result):**
+  n=20000 → **25×**, n=100000 → **39×**, n=300000 → **41×** (O(log n) vs O(n) ring ops).
+- Tests: `test_cfinite_lossless_and_coverage`. Fold/sympy path untouched (triangular still CLOSED).
+- Honesty: O(log n) is *ring operations*; wall-clock includes bignum-multiply cost, so the measured
+  ratio (not "thousands of x") is what's reported, with n stated. CLOSED is issued only after the
+  exact-equality check — a mis-extracted recurrence would fail it, never a false CLOSED.

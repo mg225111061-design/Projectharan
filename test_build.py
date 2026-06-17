@@ -83,6 +83,33 @@ def test_spec_gate_categories():
     print("PASS test_spec_gate_categories")
 
 
+def test_cfinite_lossless_and_coverage():
+    """STAGE 3.1: C-finite recurrences classify as CLOSED O(log n); companion ≡ naive (lossless)."""
+    import cfinite
+    from haran_parser import parse
+    import closure_classifier as CC
+    # exact value spot-checks against known sequences
+    assert cfinite.companion_nth([1, 1], [0, 1], 10) == 55                 # fib(10)
+    assert cfinite.companion_nth([1, 1], [0, 1], 40) == 102334155          # fib(40)
+    assert cfinite.companion_nth([2, 1], [0, 1], 8) == 408                 # pell(8)
+    # lossless: companion == naive across many n (including non-trivial ones)
+    for n in range(0, 60):
+        assert cfinite.companion_nth([1, 1], [0, 1], n) == cfinite.naive_nth([1, 1], [0, 1], n)
+    # coverage: a recurrence corpus that was UNKNOWN (Rust binary absent) is now CLOSED
+    corpus = {
+        "fib":  "fn f(n: Nat) -> Nat { match n { 0 => 0 1 => 1 _ => f(n-1) + f(n-2) } }",
+        "pell": "fn p(n: Nat) -> Nat { match n { 0 => 0 1 => 1 _ => 2*p(n-1) + p(n-2) } }",
+        "trib": "fn t(n: Nat) -> Nat { match n { 0 => 0 1 => 0 2 => 1 _ => t(n-1)+t(n-2)+t(n-3) } }",
+        "lucas":"fn l(n: Nat) -> Nat { match n { 0 => 2 1 => 1 _ => l(n-1) + l(n-2) } }",
+    }
+    closed = sum(1 for s in corpus.values() if CC.classify_fn(parse(s).items[0]).kind == "CLOSED")
+    assert closed == len(corpus), f"only {closed}/{len(corpus)} recurrences CLOSED"
+    # the fold path is untouched: a polynomial fold still collapses (sympy/gosper)
+    tri = parse("fn t(n: Nat) -> Nat\n  ensures result = n*(n+1)/2\n{ fold k in 1..n { k } }").items[0]
+    assert CC.classify_fn(tri).kind == "CLOSED"
+    print(f"PASS test_cfinite_lossless_and_coverage ({closed}/{len(corpus)} recurrences CLOSED, lossless)")
+
+
 def test_counterexample_diversification_sound_and_distinct():
     """STAGE 3.3: multiple DISTINCT counterexamples, each a genuine violation (SOUND)."""
     import z3_adapter as Z

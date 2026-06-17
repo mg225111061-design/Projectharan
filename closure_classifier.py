@@ -257,14 +257,18 @@ def classify_recurrence(fn: A.FnDecl) -> Optional[ClosureVerdict]:
     if rec is None:
         return None
     c, init = rec
-    oks = [_cfinite_match(c, init, n) for n in (8, 16, 24)]
-    if all(o is True for o in oks):
-        return ClosureVerdict("CLOSED", "cfinite", f"companion-matrix power (order {len(c)}, c={c})",
-                              f"C-finite: O(log n) companion ≡ O(n) naive (cfinite.rs), verified n∈{{8,16,24}}",
-                              "O(log n)")
-    if any(o is None for o in oks):
-        return ClosureVerdict("UNKNOWN", "cfinite", "—", "cfinite_nth engine not built", "none")
-    return ClosureVerdict("UNKNOWN", "cfinite", "—", "companion≠naive (extraction wrong?)", "none")
+    # STAGE 3.1: pure-Python companion-matrix verifier (exact integers, no Rust binary needed).
+    # CLOSED only when the O(log n) companion power ≡ the O(n) naive recurrence across several n —
+    # they are equal by theorem, so this is a LOSSLESS speedup, not an approximation.
+    import cfinite
+    ok, ns = cfinite.verify_cfinite(c, init)
+    if ok:
+        return ClosureVerdict(
+            "CLOSED", "cfinite", f"companion-matrix power (order {len(c)}, c={c})",
+            f"C-finite: O(log n) companion-matrix power ≡ O(n) naive recurrence, exact-int verified "
+            f"n∈{sorted(set(ns))} (pure-python)", "O(log n)")
+    return ClosureVerdict("UNKNOWN", "cfinite", "—",
+                          "companion-matrix ≠ naive (recurrence extraction unsound?)", "none")
 
 
 def classify_fn(fn: A.FnDecl) -> ClosureVerdict:
