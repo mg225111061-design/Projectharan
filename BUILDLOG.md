@@ -151,3 +151,32 @@ the data-dependent summand is correctly **not** closed (Ω(N) information floor)
 - **STAGE 3.4 RLVR post-training — BLOCKED.** No training infrastructure / base-model weights / GPU in
   this environment. The verifier already emits the pass/fail + anti-vacuity signal (STAGE 1.3 gate) an
   RLVR reward would consume, but training itself cannot be run or measured here → not attempted.
+
+---
+
+## STAGE 0.1 follow-up — Claude request matched to spec (key-free), so it works when a key is added
+
+Goal: make the live request 100% spec-conformant *without* a key, so adding a real key Just Works.
+Method: a **dummy-key probe against the real public API** (`ANTHROPIC_BASE_URL=https://api.anthropic.com`,
+verified) — a fake key returns **401 if the shape is accepted**, **400 if not**.
+
+- **Line-by-line spec check (claude-api skill) + verified:**
+  - model `claude-opus-4-8` — valid current id ✓
+  - `thinking:{type:"adaptive"}` — the only on-mode for Opus 4.8 ✓ (SDK 0.109.2 knows `ThinkingConfigAdaptiveParam`)
+  - `system` as a list block + `cache_control:{ephemeral}` ✓
+  - `messages=[{role:user,...}]`, no assistant prefill ✓
+  - **no** `temperature`/`top_p`/`top_k`/`budget_tokens` (all 400 on Opus 4.8) ✓
+  - **Probe result:** current request → **401 (shape accepted)** for BOTH `create` and `stream`.
+- **Honest limit of the probe:** auth is checked **before** body validation (a forbidden `temperature`
+  *also* 401'd), so 401 proves parsing/routing/SDK-acceptance, **not** semantic param validity. Param
+  400-freedom therefore rests on the **spec match** + an offline tripwire (below), not on the probe alone.
+- **Robustness fixes (spec-aligned, key-free):**
+  - default `max_tokens` 4096 → **16000** (skill's non-streaming default; less truncation; verified
+    non-streaming-safe — SDK's streaming-required guard trips ~21–32k).
+  - live path **auto-streams** when `max_tokens > 21000` (never hits the SDK's `ValueError`).
+  - `_assert_spec_conformant(kwargs)` tripwire: rejects `temperature`/`top_p`/`top_k`, `budget_tokens`,
+    bad `thinking.type`, prefill, bad `max_tokens`/`messages` — so a future edit can't silently 400.
+    Test: `test_spec_conformance_tripwire` (8 400-causers all rejected).
+- **`scripts/test_claude.py`** for the user's own live test: `--shape` (key-free 401 check) and the real
+  call (reads `$HARAN_KEY`, one call, dropped). README updated with the exact commands.
+- **Still honest:** a real **live success** can only be confirmed with a real key → **user's step**.

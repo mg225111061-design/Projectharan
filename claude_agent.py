@@ -29,6 +29,23 @@ from typing import Callable, Optional
 
 DEFAULT_MODEL = "claude-opus-4-8"   # claude-api skill default; user may override per call.
 
+# Output headroom. The claude-api skill recommends ~16000 for non-streaming (keeps requests under the
+# SDK's ~10-min timeout guard, which trips around ~21–32k); HARAN code + adaptive thinking needs room,
+# and 4096 risked truncation (a `max_tokens` stop, not a 400). Verified non-streaming-safe at 16000.
+DEFAULT_MAX_TOKENS = 16000
+# Above this the SDK *requires* streaming (raises ValueError otherwise); we auto-switch to streaming.
+SAFE_NONSTREAM_MAX_TOKENS = 21000
+
+# Models known-valid at build time (per claude-api skill). Used only to WARN on a likely typo — we do
+# NOT hard-reject an unknown id (a newer model could be valid); an unknown id only trips the soft check.
+_KNOWN_MODELS = {
+    "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+    "claude-sonnet-4-6", "claude-haiku-4-5", "claude-fable-5",
+}
+# Parameters that return HTTP 400 on Opus 4.8 / 4.7 / Fable 5 (removed sampling params + fixed thinking
+# budget). The request must NEVER carry these — see claude-api skill "Thinking & Effort" / error-codes.
+_FORBIDDEN_KEYS = ("temperature", "top_p", "top_k")
+
 SYSTEM_PROMPT = (
     "You are a careful engineer writing HARAN, a small verified language. Return ONLY one HARAN "
     "function and nothing else (no prose, no markdown fences). Shape: "
@@ -120,6 +137,30 @@ def _mock_generate(prompt: str, model: str, stream: bool,
     return GenResult(text=text, live=False, model=model, source="mock-sim")
 
 
+def _assert_spec_conformant(kwargs: dict) -> None:
+    """Offline tripwire: reject any request body that would 400 on Opus 4.8 (per the claude-api spec).
+    A pure check (no network/key) so a future edit can't silently reintroduce a 400-causer. Raises
+    ClaudeError (key-safe) on violation; returns None when the shape is spec-conformant."""
+    for k in _FORBIDDEN_KEYS:
+        if k in kwargs:
+            raise ClaudeError(f"spec violation: '{k}' is removed on Opus 4.8/4.7/Fable 5 (would 400) — drop it")
+    th = kwargs.get("thinking")
+    if th is not None:
+        if not isinstance(th, dict) or th.get("type") not in ("adaptive", "disabled"):
+            raise ClaudeError("spec violation: thinking.type must be 'adaptive' or 'disabled' on Opus 4.8 "
+                              "(enabled+budget_tokens would 400)")
+        if "budget_tokens" in th:
+            raise ClaudeError("spec violation: thinking.budget_tokens is removed on Opus 4.8 (would 400)")
+    mt = kwargs.get("max_tokens")
+    if not isinstance(mt, int) or mt <= 0:
+        raise ClaudeError("spec violation: max_tokens must be a positive int")
+    msgs = kwargs.get("messages")
+    if not isinstance(msgs, list) or not msgs:
+        raise ClaudeError("spec violation: messages must be a non-empty list")
+    if msgs[-1].get("role") == "assistant":
+        raise ClaudeError("spec violation: trailing assistant prefill is rejected on Opus 4.8 (would 400)")
+
+
 def _build_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: int, thinking: bool) -> dict:
     """Assemble messages.create/stream kwargs (pure — testable without a network/key).
 
@@ -138,6 +179,7 @@ def _build_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: in
     }
     if thinking:
         kwargs["thinking"] = {"type": "adaptive"}   # Opus 4.8 / skill default for non-trivial work
+    _assert_spec_conformant(kwargs)                 # tripwire: never ship a body that would 400
     return kwargs
 
 
@@ -156,8 +198,11 @@ def _live_generate(prompt: str, api_key: str, model: str, system: Optional[str],
 
     client = anthropic.Anthropic(api_key=api_key)
     kwargs = _build_kwargs(prompt, system, model, max_tokens, thinking)
+    # The SDK raises ValueError for non-streaming requests with a large max_tokens (≈10-min guard);
+    # auto-switch to streaming so a big generation never crashes (skill: stream for high max_tokens).
+    use_stream = stream or max_tokens > SAFE_NONSTREAM_MAX_TOKENS
     try:
-        if stream:
+        if use_stream:
             with client.messages.stream(**kwargs) as s:
                 for chunk in s.text_stream:
                     if on_delta:
@@ -184,7 +229,7 @@ def _live_generate(prompt: str, api_key: str, model: str, system: Optional[str],
 
 def claude_generate(prompt: str, api_key: Optional[str] = None, *,
                     model: str = DEFAULT_MODEL, system: Optional[str] = None,
-                    max_tokens: int = 4096, thinking: bool = True, stream: bool = False,
+                    max_tokens: int = DEFAULT_MAX_TOKENS, thinking: bool = True, stream: bool = False,
                     on_delta: Optional[Callable[[str], None]] = None,
                     mock_response: Optional[str] = None) -> GenResult:
     """Generate code with Claude (real) or a labeled simulation (mock).

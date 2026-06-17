@@ -44,6 +44,31 @@ def test_prompt_caching_request_shape():
     print("PASS test_prompt_caching_request_shape")
 
 
+def test_spec_conformance_tripwire():
+    """The offline tripwire must reject every known 400-causer and accept the real request body."""
+    ok = CA._build_kwargs("p", None, "claude-opus-4-8", CA.DEFAULT_MAX_TOKENS, True)
+    CA._assert_spec_conformant(ok)                       # the real body is conformant
+    assert CA.DEFAULT_MAX_TOKENS <= CA.SAFE_NONSTREAM_MAX_TOKENS  # default stays non-streaming-safe
+    base = {"model": "claude-opus-4-8", "max_tokens": 10, "messages": [{"role": "user", "content": "x"}]}
+    bad_cases = [
+        {**base, "temperature": 0.5},                                  # removed on 4.8 → 400
+        {**base, "top_p": 0.9},
+        {**base, "top_k": 5},
+        {**base, "thinking": {"type": "enabled", "budget_tokens": 1024}},  # removed → 400
+        {**base, "thinking": {"type": "adaptive", "budget_tokens": 5}},     # stray budget → 400
+        {"model": "m", "max_tokens": 10, "messages": [{"role": "assistant", "content": "prefill"}]},  # prefill → 400
+        {**base, "max_tokens": 0},                                     # invalid
+        {"model": "m", "max_tokens": 10, "messages": []},              # empty
+    ]
+    for bad in bad_cases:
+        try:
+            CA._assert_spec_conformant(bad)
+            assert False, f"tripwire MISSED a 400-causer: {bad}"
+        except CA.ClaudeError:
+            pass
+    print(f"PASS test_spec_conformance_tripwire ({len(bad_cases)} 400-causers all rejected)")
+
+
 def test_redact_key_still_holds():
     # belt-and-suspenders: the masking primitive itself
     assert "sk-ant-" not in CA.redact_key("prefix sk-ant-abc123 suffix").replace("sk-***REDACTED***", "")

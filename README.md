@@ -17,6 +17,27 @@ Open `http://localhost:8000`, optionally paste your Claude API key, and start ty
 - **No key →** everything runs as a labeled **SIM** (the flow works offline).
 - **With a key →** real Claude generation + MR.JEFFREY verification (live stages, `LIVE` tag).
 
+## Verify the live Claude call (with your key)
+The request is matched to the current Anthropic spec: model **`claude-opus-4-8`**, **adaptive thinking**
+(`thinking:{type:"adaptive"}` — the only on-mode for Opus 4.8), `system` prefix with `cache_control`,
+`max_tokens=16000` (non-streaming-safe; auto-streams above ~21k). It carries **no** `temperature` /
+`top_p` / `top_k` / `budget_tokens` and **no** assistant prefill — all of which return HTTP 400 on
+Opus 4.8. An offline tripwire (`claude_agent._assert_spec_conformant`) fails the build if any of those
+ever reappear.
+```
+# key-free shape check — sends a DUMMY key to the public API; 401 ⇒ the shape is accepted:
+python3 scripts/test_claude.py --shape
+
+# real call — uses YOUR key for exactly one request, then drops it (never stored/logged):
+export HARAN_KEY=sk-ant-...
+python3 scripts/test_claude.py        # prints LIVE OK + token usage + a snippet, or a redacted error
+python server.py                      # then use the app live at http://localhost:8000
+```
+> Note (honest): the `--shape` probe proves the request parses/routes and is rejected *only* for the
+> key (401) — auth is checked before body validation, so it does not by itself prove every body param;
+> param-level 400-freedom is guaranteed by the spec match + the tripwire above. A real **live** call
+> can only be confirmed with a real key (the line above) — that step is yours.
+
 ## Make this a standalone GitHub repo (4 commands)
 This folder is self-contained. Create the repo on github.com (or `gh repo create mrjeffrey-web --private`),
 then from inside `haran-web/`:
