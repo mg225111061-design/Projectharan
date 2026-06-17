@@ -105,3 +105,18 @@ check/pop per goal (reusing learned clauses), vs a fresh solver per goal.
   solver resolved them — this inflates the raw ratio to ~1600×, but that is a **timeout artifact**
   (UNKNOWN-vs-PROVEN, Z3-version-dependent), **not** a fair clause-reuse speedup, so it is *not* the
   headline number. The honest, fair figure is ~4× on this shared-prefix workload.
+
+---
+
+## STAGE 1.1 — prompt caching [SPEED · lossless] — IMPLEMENTED (measurement needs key)
+
+`claude_agent._build_kwargs` (extracted, pure, testable): the stable `system` prefix now carries
+`cache_control:{ephemeral}`; the volatile per-round user prompt (with the counterexample) follows it,
+so a write→verify→fix loop reuses the cached prefix. Verified shape: `thinking:{adaptive}` (the only
+on-mode for Opus 4.8), no removed params (`budget_tokens`/`temperature` would 400). Test:
+`test_prompt_caching_request_shape`.
+
+- **Honest limits:** (1) Anthropic caches a prefix only above the model minimum (~4096 tokens on Opus
+  4.8); HARAN's default system prompt is smaller, so it silently won't cache until a large stable
+  context is placed in the prefix. (2) TTFT / cost savings can only be **measured with a live key** →
+  **[TBD: needs key]**. The code is correct and tested for shape; the runtime benefit is not claimed.

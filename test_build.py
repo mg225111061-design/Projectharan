@@ -31,6 +31,19 @@ def test_error_surfacing_shows_cause_hides_key():
     print("PASS test_error_surfacing_shows_cause_hides_key")
 
 
+def test_prompt_caching_request_shape():
+    """STAGE 1.1: the live request puts an ephemeral cache breakpoint on the stable system prefix,
+    with the volatile per-round prompt after it. (Pure shape check — no key/network needed.)"""
+    k = CA._build_kwargs("USER_PROMPT_WITH_COUNTEREXAMPLE", None, "claude-opus-4-8", 4096, True)
+    assert isinstance(k["system"], list) and k["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert k["system"][0]["text"] == CA.SYSTEM_PROMPT          # stable prefix is the system prompt
+    assert k["messages"][0]["role"] == "user"                  # volatile prompt comes AFTER
+    assert k["messages"][0]["content"] == "USER_PROMPT_WITH_COUNTEREXAMPLE"
+    assert k["thinking"] == {"type": "adaptive"}               # valid on Opus 4.8 (only on-mode)
+    assert "budget_tokens" not in str(k) and "temperature" not in k   # removed params → would 400
+    print("PASS test_prompt_caching_request_shape")
+
+
 def test_redact_key_still_holds():
     # belt-and-suspenders: the masking primitive itself
     assert "sk-ant-" not in CA.redact_key("prefix sk-ant-abc123 suffix").replace("sk-***REDACTED***", "")

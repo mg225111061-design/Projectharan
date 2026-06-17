@@ -120,6 +120,27 @@ def _mock_generate(prompt: str, model: str, stream: bool,
     return GenResult(text=text, live=False, model=model, source="mock-sim")
 
 
+def _build_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: int, thinking: bool) -> dict:
+    """Assemble messages.create/stream kwargs (pure — testable without a network/key).
+
+    STAGE 1.1 — prompt caching: the STABLE `system` prefix carries `cache_control:{ephemeral}` so that
+    repeated calls in one write→verify→fix loop reuse it (caching is a prefix match — system is stable;
+    the per-round user prompt, which carries the changing counterexample, is volatile and comes after).
+    NOTE (honest): Anthropic caches a prefix only once it exceeds the model minimum (Opus 4.8 ≈ 4096
+    tokens) — a small system prompt silently won't cache (`cache_creation_input_tokens: 0`). The win
+    materialises when a large stable context sits in the system prefix. TTFT/cost is [TBD: needs key]."""
+    sys_text = system or SYSTEM_PROMPT
+    kwargs = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+        "system": [{"type": "text", "text": sys_text, "cache_control": {"type": "ephemeral"}}],
+    }
+    if thinking:
+        kwargs["thinking"] = {"type": "adaptive"}   # Opus 4.8 / skill default for non-trivial work
+    return kwargs
+
+
 def _live_generate(prompt: str, api_key: str, model: str, system: Optional[str],
                    max_tokens: int, thinking: bool, stream: bool,
                    on_delta: Optional[Callable[[str], None]]) -> GenResult:
@@ -134,14 +155,7 @@ def _live_generate(prompt: str, api_key: str, model: str, system: Optional[str],
         ) from e
 
     client = anthropic.Anthropic(api_key=api_key)
-    kwargs = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": prompt}],
-        "system": system or SYSTEM_PROMPT,
-    }
-    if thinking:
-        kwargs["thinking"] = {"type": "adaptive"}   # Opus 4.8 / skill default for non-trivial work
+    kwargs = _build_kwargs(prompt, system, model, max_tokens, thinking)
     try:
         if stream:
             with client.messages.stream(**kwargs) as s:
