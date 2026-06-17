@@ -136,6 +136,59 @@ def prove_forall(goal, var_types: Dict[str, str], assumptions: List = ()) -> Pro
     return ProofResult("UNKNOWN", "z3", f"Z3 returned {r}")
 
 
+# --------------------------------------------------------- STAGE 3.3: counterexample diversification
+def _violation_tag(goal, env, model, real) -> str:
+    """For an (in)equality goal lhs⊙rhs, tag HOW this model violates it: 'lhs<rhs' / 'lhs>rhs' /
+    'boundary' (equal) / '—'. Helps a fixer see the SHAPE of the failure, not just one point."""
+    if not isinstance(goal, A.Bin) or goal.op not in ("=", "==", "≠", "!=", "<", "≤", "<=", ">", "≥", ">="):
+        return "—"
+    try:
+        import sympy  # noqa: F401
+        lv = model.eval(_to_z3(goal.lhs, env, real), model_completion=True)
+        rv = model.eval(_to_z3(goal.rhs, env, real), model_completion=True)
+        d = z3.simplify(lv - rv)
+        if d.as_long() < 0 if d.is_int() else (float(d.as_fraction()) < 0):
+            return "lhs<rhs"
+        return "lhs>rhs" if (d.as_long() if d.is_int() else float(d.as_fraction())) > 0 else "boundary"
+    except Exception:  # noqa: BLE001
+        return "—"
+
+
+def find_counterexamples(goal, var_types: Dict[str, str], assumptions: List = (), k: int = 4):
+    """Find up to k DISTINCT counterexamples to ∀goal — each a real Z3 model of ¬goal under the
+    assumptions (SOUND: every returned point genuinely violates goal). Block-and-resolve forces
+    distinct points; each is tagged with the violation shape. Returns (verdict, [cx,...]) where
+    verdict ∈ PROVEN (no CX — negation unsat) | REFUTED (≥1 CX) | UNKNOWN | UNAVAILABLE."""
+    if not _Z3:
+        return ("UNAVAILABLE", [])
+    real = all(t == "Real" for t in var_types.values()) or not var_types
+    env = {n: (z3.Real(n) if t == "Real" else z3.Int(n)) for n, t in var_types.items()}
+    try:
+        s = z3.Solver()
+        s.set("timeout", 5000)
+        for a in assumptions:
+            s.add(_to_z3(a, env, real))
+        s.add(z3.Not(_to_z3(goal, env, real)))
+    except _Unsupported:
+        return ("UNKNOWN", [])
+    r = s.check()
+    if r == z3.unsat:
+        return ("PROVEN", [])
+    if r != z3.sat:
+        return ("UNKNOWN", [])
+    cxs = []
+    while len(cxs) < k:
+        m = s.model()
+        vals = {n: m.eval(env[n], model_completion=True) for n in var_types}
+        cxs.append({"point": {n: str(v) for n, v in vals.items()},
+                    "violation": _violation_tag(goal, env, m, real)})
+        # block this exact point so the next model must differ in ≥1 variable (genuine diversity)
+        s.add(z3.Or(*[env[n] != vals[n] for n in var_types]))
+        if s.check() != z3.sat:
+            break
+    return ("REFUTED", cxs)
+
+
 # --------------------------------------------------------- convenience: parse a predicate string
 def parse_predicate(expr_str: str, params: Dict[str, str]):
     """Parse a HARAN boolean expression (the ensures) given param types. Returns the ensures AST."""

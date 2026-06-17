@@ -36,3 +36,19 @@ so a vacuous spec returns tier `VACUOUS` instead of a meaningless `PROVEN`.
 - Tests: `test_spec_gate*`, `test_gate_wired_into_proof_path`.
 - Honesty: rejects only when Z3 *proves* vacuity (unsat) — sound, FP=0 by construction; whatever Z3
   can't model passes through to the normal verifier.
+
+---
+
+## STAGE 3.3 — counterexample diversification (SMART ICE) [ACCURACY · SOUND] — DONE
+
+`z3_adapter.find_counterexamples(goal, var_types, k)`: block-and-resolve to return up to k **distinct**
+counterexamples, each a real Z3 model of ¬goal (SOUND), tagged by violation shape (lhs<rhs / lhs>rhs /
+boundary). Previously a refutation surfaced exactly **1** point.
+
+- **Measured:** on `∀a,b: a*b ≥ a+b` it returns **4 distinct** counterexamples; an independent Python
+  re-check confirms **all 4 genuinely violate** the goal (0 spurious). A true goal (`n*n ≥ 0`) → PROVEN, 0 CX.
+- Test: `test_counterexample_diversification_sound_and_distinct`.
+- Honest scope: the capability + soundness are proven here. Feeding the *diverse set* into the live
+  write→verify→**fix** prompt (to measure convergence-rounds reduction) needs (a) a live model key and
+  (b) multi-CX surfacing from `mr_haran` obligations — integration point identified; live convergence
+  measurement is **[TBD: needs key]**, not claimed.

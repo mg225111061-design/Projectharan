@@ -83,6 +83,26 @@ def test_spec_gate_categories():
     print("PASS test_spec_gate_categories")
 
 
+def test_counterexample_diversification_sound_and_distinct():
+    """STAGE 3.3: multiple DISTINCT counterexamples, each a genuine violation (SOUND)."""
+    import z3_adapter as Z
+    goal = Z.parse_predicate("a*b >= a+b", {"a": "Int", "b": "Int"})
+    verdict, cxs = Z.find_counterexamples(goal, {"a": "Int", "b": "Int"}, k=4)
+    assert verdict == "REFUTED"
+    assert len(cxs) >= 3, f"expected several CXs, got {len(cxs)}"
+    pts = {(c["point"]["a"], c["point"]["b"]) for c in cxs}
+    assert len(pts) == len(cxs), "counterexamples must be distinct"
+    # SOUND: re-check each in plain Python — every returned point must actually violate the goal
+    for c in cxs:
+        a, b = int(c["point"]["a"]), int(c["point"]["b"])
+        assert not (a * b >= a + b), f"returned a non-counterexample: {c}"
+        assert c["violation"] in ("lhs<rhs", "lhs>rhs", "boundary", "—")
+    # a TRUE goal yields PROVEN with zero counterexamples
+    v2, c2 = Z.find_counterexamples(Z.parse_predicate("n*n >= 0", {"n": "Int"}), {"n": "Int"})
+    assert v2 == "PROVEN" and c2 == []
+    print(f"PASS test_counterexample_diversification ({len(cxs)} distinct, all sound)")
+
+
 def test_gate_wired_into_proof_path():
     """The gate must actually change the proof verdict: real spec PROVEN, vacuous spec VACUOUS."""
     import prove_exact as PE
