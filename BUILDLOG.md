@@ -20,3 +20,19 @@ and the per-stage measurement scripts. No fabricated numbers; blocked items say 
 - **0.2 app end-to-end (mock mode) — VERIFIED (live curl).** `/health`→`{"ok":true}`; `/`→serves page;
   `/api/generate` coding→`PROVEN` + closed form `n*(n+1)/2`; chat→plain reply `verified:false`
   (label separation intact); `/api/stream`→real `classify→generate→token→verify→optimize→done` stages.
+
+---
+
+## STAGE 1.3 — Clover spec consistency gate [ACCURACY · SOUND] — DONE
+
+`spec_gate.py`: a real Z3 decision procedure classifies the `ensures` spec (treating `result`+params
+as free): VACUOUS_TRUE (¬spec unsat), CONTRADICTORY (spec unsat), VACUOUS_PRECOND (`requires` unsat),
+OK, or UNMODELED (lists/opaque → passed through, never judged). **Wired into `prove_exact.prove_correctness`**
+so a vacuous spec returns tier `VACUOUS` instead of a meaningless `PROVEN`.
+
+- **Measured (12-spec corpus): catch_rate = 1.0 (6/6 vacuous caught), false-positive rate = 0.0
+  (0/6 real specs wrongly rejected), 1 UNMODELED (opaque `is_sorted`, correctly passed through).**
+- No regression: agentic mock corpus still `extended solved=4 proven=4 optimized=4 wrong=0`.
+- Tests: `test_spec_gate*`, `test_gate_wired_into_proof_path`.
+- Honesty: rejects only when Z3 *proves* vacuity (unsat) — sound, FP=0 by construction; whatever Z3
+  can't model passes through to the normal verifier.

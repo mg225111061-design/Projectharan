@@ -85,6 +85,13 @@ def exhaustive_list_check(fn, ftab, ens, max_len=4, vals=4) -> Optional[Verdict]
 def prove_correctness(fn, ftab) -> Verdict:
     if fn.ensures is None:
         return Verdict("UNKNOWN", "no ensures")
+    # STAGE 1.3 — Clover spec gate (SOUND): a "PROVEN" against a spec that constrains nothing is the
+    # core soundness hole. Reject a DEMONSTRABLY-vacuous spec here, before proving. Fires only when Z3
+    # *proves* vacuity (unsat); specs Z3 can't model (lists/opaque) pass through unchanged.
+    import spec_gate
+    g = spec_gate.gate_spec(fn)
+    if g.vacuous():
+        return Verdict("VACUOUS", f"spec rejected before proof — {g.reason}")
     # 1. exact arithmetic identity → JEFF/sympy ∀
     d = discharge_correctness(fn)
     if d.verdict == "PROVEN":
