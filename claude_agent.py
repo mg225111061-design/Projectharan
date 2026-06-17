@@ -86,17 +86,25 @@ def redact_key(s: str) -> str:
 
 
 def _friendly_error(e: Exception) -> str:
-    """A user-understandable, KEY-SAFE message for a failed Claude call (U9.3). Never includes the raw
-    SDK message verbatim (avoids any chance of leaking the key); maps common cases to clear text."""
+    """A user-understandable, KEY-SAFE message for a failed Claude call (U9.3).
+
+    KEY SECURITY: the raw text is always run through redact_key() first, so any `sk-ant-…` /`sk-…`
+    token is masked before it can reach a screen or log. Within that safety envelope we now SURFACE
+    the redacted reason for the generic case (esp. 400 BadRequest) — the old code threw it away and
+    returned only the exception type, which made a malformed-request 400 impossible to diagnose. The
+    Anthropic 400 body describes the request shape (e.g. an unsupported parameter), not the key."""
     name = type(e).__name__
-    low = redact_key(str(e)).lower()
+    safe = redact_key(str(e))           # key masked here — everything below is safe to show
+    low = safe.lower()
     if "authentication" in name.lower() or "401" in low or "invalid x-api-key" in low or "api key" in low:
         return "API 키가 올바르지 않습니다 (invalid API key)."
     if "ratelimit" in name.lower() or "429" in low or "rate limit" in low:
         return "요청 한도를 초과했습니다 — 잠시 후 다시 시도해 주세요 (rate limited)."
     if "connection" in name.lower() or "timeout" in name.lower() or "network" in low:
         return "네트워크 오류 — 연결을 확인해 주세요 (network error)."
-    return f"Claude 호출에 실패했습니다 (call failed: {name})."   # type only — never the raw message
+    # generic (incl. 400 BadRequest): surface the REDACTED detail so the cause is diagnosable.
+    detail = " ".join(safe.split())[:300]               # collapse whitespace, cap length; key already masked
+    return f"Claude 호출 실패 ({name}): {detail}" if detail else f"Claude 호출 실패 ({name})."
 
 
 def _mock_generate(prompt: str, model: str, stream: bool,
