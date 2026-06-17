@@ -83,6 +83,30 @@ def test_spec_gate_categories():
     print("PASS test_spec_gate_categories")
 
 
+def test_proof_cache_lossless_and_hits():
+    """STAGE 2.1: structural cache reuses verdicts losslessly (incl. α-renamed goals)."""
+    import z3_adapter as Z
+    import proof_cache as PC
+    def g(expr, t):
+        return (Z.parse_predicate(expr, t), t, ())
+    workload = [
+        g("a*a >= 0", {"a": "Int"}),
+        g("x*x >= 0", {"x": "Int"}),                 # α-renamed equiv → hit
+        g("a + b >= b + a", {"a": "Int", "b": "Int"}),
+        g("a*a >= 0", {"a": "Int"}),                 # exact repeat → hit
+        g("a*b >= a + b", {"a": "Int", "b": "Int"}),  # distinct (REFUTED)
+    ]
+    m = PC.measure_cache(workload)
+    assert m["lossless_mismatches"] == 0, f"cache returned a wrong verdict: {m}"   # the key promise
+    assert m["hits"] >= 2, f"expected reuse, got {m}"
+    # spot-check: hit carries the cached verdict + a 'cache' marker; α-rename aliases correctly
+    PC.reset()
+    a1 = PC.prove_forall_cached(Z.parse_predicate("a*a >= 0", {"a": "Int"}), {"a": "Int"})
+    a2 = PC.prove_forall_cached(Z.parse_predicate("z*z >= 0", {"z": "Int"}), {"z": "Int"})
+    assert a1.verdict == a2.verdict == "PROVEN" and "cache" in a2.backend
+    print(f"PASS test_proof_cache_lossless_and_hits (hits={m['hits']}, mismatches=0)")
+
+
 def test_cfinite_lossless_and_coverage():
     """STAGE 3.1: C-finite recurrences classify as CLOSED O(log n); companion ≡ naive (lossless)."""
     import cfinite

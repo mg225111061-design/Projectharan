@@ -71,3 +71,19 @@ replacing the absent Rust `cfinite_nth` binary.
 - Honesty: O(log n) is *ring operations*; wall-clock includes bignum-multiply cost, so the measured
   ratio (not "thousands of x") is what's reported, with n stated. CLOSED is issued only after the
   exact-equality check — a mis-extracted recurrence would fail it, never a false CLOSED.
+
+---
+
+## STAGE 2.1 — structural proof cache [SPEED · lossless-decision] — DONE
+
+`proof_cache.py`: caches the Z3 verdict keyed on a canonical α-renamed form of the ∀-goal (+ per-var
+types + sorted assumptions). Sound because `prove_forall` proves a universally-closed statement,
+invariant under consistent variable renaming; the per-var type guards Int-vs-Real aliasing.
+
+- **Lossless: 0/N mismatches** — every cache hit is re-solved fresh in `measure_cache` and asserted
+  equal (claim verified, not just argued).
+- **Hit rate** on a reuse workload (repeats + α-renamed equivalents): **0.60**.
+- **Wall-clock speedup is honestly conditional:** on *expensive* nonlinear-int proofs (~45ms each),
+  cached **2.3×** (0.244s→0.107s). On *trivial* proofs, ~**0.9×** (keying overhead ≈ solve time) — the
+  cache helps only when per-proof solve time ≫ keying. Both numbers measured and reported.
+- Test: `test_proof_cache_lossless_and_hits`.
