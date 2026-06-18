@@ -370,6 +370,44 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s19_latency_speed():
+    """v28 S19: speed-first — watchdog (never hang), cache economics (stable prefix + padding + ledger),
+    parallel orchestration. ★zero-wrong-answer invariant★: parallel/early-exit/cache only make it faster,
+    never change the answer. Non-LLM latencies are measured; live model latency is [BLOCKED: key/egress]."""
+    import latency_budget as LB
+    import claude_agent as CA
+    import time
+    # ── watchdog: a slow stage HONEST-DEFERs fast (no hang); a fast stage returns OK with its value ──
+    slow = LB.run_with_budget(lambda: time.sleep(5) or 42, 80)
+    assert slow.status == "DEFERRED" and slow.elapsed_ms < 1500           # deferred in ~80ms, NOT 5s
+    fast = LB.run_with_budget(lambda: sum(range(1000)), 1000)
+    assert fast.status == "OK" and fast.value == 499500
+    # ── cache economics: the real prefix is byte-stable; volatile content is rejected; padding reaches the
+    #    provider min cacheable size and is itself stable ──
+    assert LB.is_stable_prefix(CA.SYSTEM_PROMPT) and not LB.is_stable_prefix("generated 2026-06-18 now")
+    padded = LB.pad_to_threshold(CA.SYSTEM_PROMPT, "anthropic")
+    assert len(padded) >= LB.CACHE_MIN_TOKENS["anthropic"] * 4 and padded == LB.pad_to_threshold(CA.SYSTEM_PROMPT)
+    assert padded.startswith(CA.SYSTEM_PROMPT)                            # original instruction preserved
+    # cache ledger: write-then-read warms; savings>0 and hit-rate>0 by the 2nd call (break-even)
+    led = LB.CacheLedger()
+    led.record({"input_tokens": 100, "cache_creation_input_tokens": 2000})   # call 1 writes the prefix
+    led.record({"input_tokens": 100, "cache_read_input_tokens": 2000})       # call 2 reads it (0.1×)
+    assert led.hit_rate() > 0 and led.savings() > 0 and led.effective_cost() < led.baseline_cost()
+    # ── wave scheduler: independent tasks share a wave; a cycle is rejected ──
+    assert LB.schedule_waves({"a": [], "b": ["a"], "c": ["a"], "d": ["b", "c"]}) == [["a"], ["b", "c"], ["d"]]
+    try:
+        LB.schedule_waves({"x": ["y"], "y": ["x"]}); assert False, "cycle not detected"
+    except ValueError:
+        pass
+    # ── ★ zero-wrong-answer ★: parallel verification == sequential (only faster), never different ──
+    m = LB.measure_parallel_orchestration([(0, 250000)] * 8, workers=4)
+    assert m.same is True and m.status in ("OPTIMIZED", "NO_GAIN")        # identical results; speed varies by box
+    assert LB.same_result(lambda x: x * x, lambda x: x * x, range(50))    # a correct fast path matches
+    assert not LB.same_result(lambda x: x * x, lambda x: x * x + 1, range(50))  # a wrong one is caught
+    print(f"PASS test_s19_latency_speed (watchdog defers {slow.elapsed_ms:.0f}ms not 5s; cache savings "
+          f"{led.savings():.0%}@2calls; parallel {m.status} {m.speedup:.2f}× same={m.same}; zero-wrong-answer)")
+
+
 def test_s18_dogfood():
     """v27 S18: HARAN re-verifies its own NON-KERNEL components by re-deriving each claim with the trusted
     core (Z3 + differential) — not by trusting the component. The kernel itself is residual TCB, NEVER
