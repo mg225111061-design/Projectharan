@@ -370,6 +370,29 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s27_missing_info():
+    """v29 S27: schema-coverage missing-info detector. Breaks silent-code-on-incomplete: a fully-specified
+    prompt is COMPLETE; a minor gap gets a REASONABLE DEFAULT + stated assumption (no ask, no block); a
+    critical gap (no task at all) escalates to S30. Completeness is vs the schema (Rice), responses fail-safe."""
+    import requirement_parser as RP
+    import missing_info_detector as MI
+    RP.reset_cache()
+    full = ("Implement a function that takes a list of integers as input and returns them sorted ascending; "
+            "raise an error on invalid input and handle the empty list.")
+    assert MI.detect_missing(RP.parse_requirements(full)).status == "COMPLETE"
+    # ── minor missing → reasonable default + stated assumption, NOT asked, NOT escalated ──
+    noin = MI.detect_missing(RP.parse_requirements("Write a function that returns the running total in O(n) time."))
+    assert noin.status == "MISSING" and "inputs" in noin.minor and noin.escalate_to_s30 is False
+    assert noin.critical == [] and any("assumed inputs" in a for a in noin.assumptions())   # default+stated
+    # ── critical missing (no goal/task) → escalate to S30 (never silent, never hard block) ──
+    nogoal = MI.detect_missing(RP.parse_requirements("The dataset is large and the deadline is tight."))
+    assert nogoal.escalate_to_s30 is True and nogoal.critical == ["goals"]
+    # the detector never BLOCKS: minor always carries a forward-able assumption set
+    assert noin.assumptions() and isinstance(noin.assumptions(), list)
+    print(f"PASS test_s27_missing_info (full→COMPLETE; minor gap→default+stated assumption no-ask; "
+          f"no-task→escalate S30; fail-safe, schema-relative)")
+
+
 def test_s26_requirement_parser():
     """v29 S26: parse a prompt into typed slots {goals/constraints/IO/prohibitions/assumptions}. Deterministic
     (key-free) extraction with a schema well-formedness guarantee; multi-part → least-to-most; cached. This
