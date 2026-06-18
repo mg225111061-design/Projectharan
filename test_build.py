@@ -1767,6 +1767,44 @@ def test_gate_wired_into_proof_path():
     print("PASS test_gate_wired_into_proof_path")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# FOLD-ENGINE EXTENSION (v32) — measured coverage on a fixed defer corpus. Discipline: every detector is
+# paired with a SOUND verifier; coverage is MEASURED (never estimated); clocks never mixed; no false fold.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+def test_foldext_stage0_defer_corpus():
+    """STAGE 0: a fixed, categorized defer corpus with a MEASURED baseline (the basis for the whole study).
+    Covers: defer_corpus_loaded, baseline_fold_rate_recorded, corpus_categorized, heldout_split_exists."""
+    import json
+    import os
+    import defer_corpus as DC
+    from defer_corpus.schema import CATEGORIES, SPLITS
+    # defer_corpus_loaded: the fixed set loads and every case is well-formed
+    cases = DC.load()
+    assert len(cases) >= 24, f"corpus too small to measure: {len(cases)}"
+    for c in cases:
+        assert c.category in CATEGORIES and c.split in SPLITS and c.expect in ("foldable", "defer")
+    assert len({c.cid for c in cases}) == len(cases), "case ids must be unique"
+    # corpus_categorized: all six structural categories present and non-empty
+    cats = DC.by_category()
+    assert all(len(cats[cat]) >= 1 for cat in CATEGORIES), f"empty category: {[c for c in CATEGORIES if not cats[c]]}"
+    # heldout_split_exists: tune and measure are both non-empty and DISJOINT (no overfit leakage)
+    tune, meas = DC.split("tune"), DC.split("measure")
+    assert tune and meas and not ({c.cid for c in tune} & {c.cid for c in meas})
+    # baseline_fold_rate_recorded: a real measured number, deterministic, and the manifest carries it
+    b1 = DC.baseline(); b2 = DC.baseline()
+    assert b1.folded == b2.folded and 0.0 <= b1.fold_rate <= 1.0      # deterministic measurement
+    assert b1.clock_b_n >= 1 and "linear-algebra" not in b1.per_category   # Clock B counted SEPARATELY (never mixed)
+    # negative controls (blackbox + *_neg) currently defer — there must be real headroom AND real traps
+    assert b1.fold_rate < 1.0, "a baseline of 100% would mean no headroom to measure"
+    doc = DC.write_manifest()
+    assert os.path.exists(DC.MANIFEST)
+    saved = json.load(open(DC.MANIFEST))
+    assert saved["baseline"]["clock_C_fold_rate"] == b1.fold_rate and saved["n_total"] == len(cases)
+    print(f"PASS test_foldext_stage0_defer_corpus ({len(cases)} cases, 6 categories; baseline Clock-C "
+          f"fold-rate {b1.folded}/{b1.n}={b1.fold_rate:.0%} (measured); +{b1.clock_b_n} Clock-B; "
+          f"tune {len(tune)}/measure {len(meas)} held-out)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

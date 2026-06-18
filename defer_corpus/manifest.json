@@ -1,0 +1,379 @@
+{
+  "n_total": 32,
+  "categories": {
+    "multivariate-poly": 8,
+    "q-holonomic": 5,
+    "ode": 8,
+    "linear-algebra": 4,
+    "combinatorial": 4,
+    "blackbox": 3
+  },
+  "splits": {
+    "tune": 11,
+    "measure": 21
+  },
+  "clock_C_categories": [
+    "multivariate-poly",
+    "q-holonomic",
+    "ode",
+    "combinatorial"
+  ],
+  "clock_B_categories": [
+    "linear-algebra"
+  ],
+  "baseline": {
+    "clock_C_fold_rate": 0.179,
+    "folded": 5,
+    "n": 28,
+    "per_category": {
+      "multivariate-poly": {
+        "n": 8,
+        "folded": 0,
+        "rate": 0.0
+      },
+      "q-holonomic": {
+        "n": 5,
+        "folded": 1,
+        "rate": 0.2
+      },
+      "ode": {
+        "n": 8,
+        "folded": 0,
+        "rate": 0.0
+      },
+      "combinatorial": {
+        "n": 4,
+        "folded": 4,
+        "rate": 1.0
+      },
+      "blackbox": {
+        "n": 3,
+        "folded": 0,
+        "rate": 0.0
+      }
+    },
+    "clock_B_n": 4
+  },
+  "cases": [
+    {
+      "cid": "b1_2var_sparse",
+      "category": "multivariate-poly",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "sparse poly 5x³y²+3xy+7 (black box)",
+      "haran": null,
+      "truth": "5*x**3*y**2 + 3*x*y + 7",
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_1var_highdeg",
+      "category": "multivariate-poly",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "sparse univariate 7x⁵+x²+9 (black box)",
+      "haran": null,
+      "truth": "7*x**5 + x**2 + 9",
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_3var",
+      "category": "multivariate-poly",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "3-var 2x²y+y³z+1 (black box)",
+      "haran": null,
+      "truth": "2*x**2*y + y**3*z + 1",
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_dense_2var",
+      "category": "multivariate-poly",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "(x+y)² = x²+2xy+y² (black box)",
+      "haran": null,
+      "truth": "x**2 + 2*x*y + y**2",
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_4var",
+      "category": "multivariate-poly",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "4-var abcd+5 (black box)",
+      "haran": null,
+      "truth": "a*b*c*d + 5",
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_2var_medium",
+      "category": "multivariate-poly",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "4-term 4x³+3x²y+2xy²+y³ (black box)",
+      "haran": null,
+      "truth": "4*x**3 + 3*x**2*y + 2*x*y**2 + y**3",
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_neg_intdiv",
+      "category": "multivariate-poly",
+      "split": "tune",
+      "expect": "defer",
+      "desc": "x//(y+1) — NOT polynomial (negative control)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b1_neg_mod",
+      "category": "multivariate-poly",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "x mod 7 — NOT polynomial (negative control)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b2_telescope",
+      "category": "q-holonomic",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "Σ q^k/((1-q^k)(1-q^{k+1})) — telescopes (q-Gosper win)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b2_qk_diff",
+      "category": "q-holonomic",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "Σ (q^k - q^{k-1}) — q-telescoping",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b2_geom",
+      "category": "q-holonomic",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "Σ q^k — geometric (baseline already closes)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { q**k } }",
+      "truth": null,
+      "baseline_folds": true
+    },
+    {
+      "cid": "b2_neg_theta",
+      "category": "q-holonomic",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "Σ q^(k²) — theta, NO closed form (negative control)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b2_neg_qharm",
+      "category": "q-holonomic",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "Σ q^k/(1-q^k) — q-harmonic, NO closed form (negative)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_exp",
+      "category": "ode",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "y'' - y = 0  → exp (Liouvillian)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_trig",
+      "category": "ode",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "y'' + y = 0  → sin/cos (Liouvillian)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_damped",
+      "category": "ode",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "y'' + 3y' + 2y = 0 → exp (Liouvillian)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_euler_cauchy",
+      "category": "ode",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "x²y'' + x y' - y = 0 → x, 1/x (Liouvillian)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_exp_shift",
+      "category": "ode",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "y'' - 4y = 0 → exp(±2x) (Liouvillian)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_neg_airy",
+      "category": "ode",
+      "split": "tune",
+      "expect": "defer",
+      "desc": "y'' - x y = 0 → Airy, NON-Liouvillian (negative control)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_neg_bessel",
+      "category": "ode",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "y'' + (1/x)y' - y = 0 → Bessel, non-Liouvillian (negative)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "a_neg_nonliouv",
+      "category": "ode",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "y'' + x² y = 0 → non-Liouvillian (truncated series only) (negative)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b3_matmul_64",
+      "category": "linear-algebra",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "dense 64×64 matmul — ABFT/Freivalds verify (Clock B)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b3_matmul_96",
+      "category": "linear-algebra",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "dense 96×96 matmul — Freivalds verify (Clock B)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b3_matmul_128",
+      "category": "linear-algebra",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "dense 128×128 matmul — Freivalds verify (Clock B)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "b3_matpow",
+      "category": "linear-algebra",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "matrix square A·A — checksum verify (Clock B)",
+      "haran": null,
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "c_tri",
+      "category": "combinatorial",
+      "split": "tune",
+      "expect": "foldable",
+      "desc": "Σ k → n(n+1)/2 (baseline folds)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { k } }",
+      "truth": null,
+      "baseline_folds": true
+    },
+    {
+      "cid": "c_sumsq",
+      "category": "combinatorial",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "Σ k² (baseline folds)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { k*k } }",
+      "truth": null,
+      "baseline_folds": true
+    },
+    {
+      "cid": "c_fib",
+      "category": "combinatorial",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "Fibonacci recurrence → C-finite (baseline folds)",
+      "haran": "fn f(n: Nat) -> Nat { match n { 0 => 0 1 => 1 _ => f(n-1)+f(n-2) } }",
+      "truth": null,
+      "baseline_folds": true
+    },
+    {
+      "cid": "c_k2k",
+      "category": "combinatorial",
+      "split": "measure",
+      "expect": "foldable",
+      "desc": "Σ k·2^k (baseline folds via Gosper)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { k * 2**k } }",
+      "truth": null,
+      "baseline_folds": true
+    },
+    {
+      "cid": "x_harmonic",
+      "category": "blackbox",
+      "split": "tune",
+      "expect": "defer",
+      "desc": "Σ 1/k — provably ABSENT (Gosper-nonsummable)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { 1 / k } }",
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "x_isprime",
+      "category": "blackbox",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "Σ is_prime(k) — data-dependent Ω(N) (no structure)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { is_prime(k) } }",
+      "truth": null,
+      "baseline_folds": false
+    },
+    {
+      "cid": "x_factorial",
+      "category": "blackbox",
+      "split": "measure",
+      "expect": "defer",
+      "desc": "Σ k! — no hypergeometric closed form (defer)",
+      "haran": "fn f(n: Nat) -> Nat { fold k in 1..n { fact(k) } }",
+      "truth": null,
+      "baseline_folds": false
+    }
+  ]
+}
