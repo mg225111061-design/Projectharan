@@ -370,6 +370,41 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s25_spec_propagation():
+    """v28 S25: bind the proof to the SEMANTIC CONTRACT, not the location. A rename/move transports the
+    proof (no re-prove); a real semantics change → REPROVE_NEEDED (justified, not a defect). Merkle-
+    incremental: only changed contracts cost prover work; a failed re-proof → DEFER."""
+    import spec_propagation as SP
+    add_ab = "def f(a, b):\n    return a + b"
+    # ── the α-key is rename/move-invariant but constant/operator/spec-SENSITIVE ──
+    assert SP.classify_change(add_ab, "def g(x, y):\n    return x + y") == "SEMANTICS_PRESERVING"   # rename
+    assert SP.classify_change(add_ab, "def f(a, b):\n    return a - b") == "SEMANTICS_CHANGED"      # operator
+    assert SP.classify_change(add_ab, "def f(a, b):\n    return a + 1") == "SEMANTICS_CHANGED"      # constant
+    assert SP.classify_change(add_ab, add_ab, "r>=0", "r>=1") == "SEMANTICS_CHANGED"                # spec
+    assert SP.semantic_key(add_ab) == SP.semantic_key("def g(x, y):\n    return x + y")             # transport key
+    # ── Merkle-incremental propagation: only CHANGED contracts cost a prove call ──
+    def prove(ob):
+        return "bad" not in ob.source        # an obligation containing 'bad' fails its re-proof → DEFER
+    store = SP.ProofStore()
+    repo0 = [SP.Obligation(f"o{i}", f"def f(a, b):\n    return a + {i}", "ensures ge0") for i in range(5)]
+    r0 = SP.propagate(repo0, prove, store)
+    assert r0.prove_calls == 5 and r0.reproved == 5                       # cold: prove everything once
+    repo1 = [SP.Obligation("o0", "def f(x, y):\n    return x + 0", "ensures ge0"),    # RENAME of o0
+             SP.Obligation("o1", "def f(a, b):\n    return a - 1", "ensures ge0"),     # semantics change
+             SP.Obligation("o2", "def f(a, b):\n    return a + 2", "ensures ge0"),     # untouched
+             SP.Obligation("o3", "def f(a, b):\n    return a + 3", "ensures ge0"),     # untouched
+             SP.Obligation("o4", "def f(a, b):\n    return a + 4", "ensures ge0"),     # untouched
+             SP.Obligation("o5", "def f(a, b):\n    return a + bad", "ensures ge0")]   # new, fails re-proof
+    r1 = SP.propagate(repo1, prove, store)
+    assert r1.statuses["o0"] == "PROPAGATED"          # rename → proof transported, NOT re-proved
+    assert r1.statuses["o1"] == "REPROVE_NEEDED"      # semantics change → re-prove (justified, not a defect)
+    assert r1.statuses["o2"] == r1.statuses["o3"] == r1.statuses["o4"] == "PROPAGATED"   # untouched
+    assert r1.statuses["o5"] == "DEFER"               # re-proof failed → honest defer
+    assert r1.prove_calls == 2 and r1.propagated == 4               # only the 2 changed obligations cost work
+    print(f"PASS test_s25_spec_propagation (rename→PROPAGATED transport; operator/constant/spec→REPROVE; "
+          f"incremental: {r1.propagated}/{r1.total} transported, prove_calls={r1.prove_calls}; fail→DEFER)")
+
+
 def test_s24_concretization_gate():
     """v28 S24: CEGAR concretization gate — run an abstract counterexample on the REAL runtime before any
     fix. ★The danger case★: a spurious counterexample against CORRECT code must yield NO_BUG and leave the
