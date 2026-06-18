@@ -1,10 +1,10 @@
 {
-  "measured_at": "2026-06-18T13:44:58.253035+00:00",
+  "measured_at": "2026-06-18T14:16:35.552771+00:00",
   "environment": "pure-Python sandbox (no numpy/native backend; egress-limited) — figures are local & machine-dependent; re-run benchmarks/measure.py to refresh.",
   "metrics": {
     "tests_passing": {
-      "value": 67,
-      "total": 67,
+      "value": 73,
+      "total": 73,
       "unit": "tests",
       "method": "run the full test_build.py suite in-process; count tests that pass (no oracle bypass)."
     },
@@ -27,14 +27,14 @@
       "method": "run the write→verify→fix loop on a seeded-bug corpus; count tasks reaching a verified fix; `wrong` (claimed-fixed-but-not) must be 0."
     },
     "proof_reuse_speedup": {
-      "value": 104.3,
+      "value": 194.7,
       "unit": "x",
-      "cold_ms": 13.147,
-      "warm_ms": 0.126,
+      "cold_ms": 12.852,
+      "warm_ms": 0.066,
       "method": "prove a batch of obligations cold (SMT solver) then warm (structural cache); wall-clock ratio (verdicts are identical — lossless)."
     },
     "fold_scale_speedup": {
-      "value": 19.0,
+      "value": 20.1,
       "unit": "x",
       "n": 150,
       "method": "prove a parametric template ONCE then certify N=150 instances by a cheap side-condition check, vs N independent SMT proofs; wall-clock ratio (the gap widens with N)."
@@ -47,7 +47,7 @@
       "method": "saturate an e-graph with sound ring rewrites, extract the lowest-cost equivalent term, PROVE input==output with Z3; report node-count reduction (e.g. x*2+x*3 → 5*x)."
     },
     "parallel_speedup": {
-      "value": 1.57,
+      "value": 2.13,
       "unit": "x",
       "cores": 4,
       "workload": "reduce(+, [square(i) for i in 0..2000000))",
@@ -93,6 +93,26 @@
       },
       "clockB_verified": "4/4",
       "method": "route each loop in the fixed defer corpus to its technique (Kovacic/Ben-Or-Tiwari/q-Gosper), each behind its own SOUND verifier; count FOLDED. baseline = current engine. Clock C fold rate only (ABFT is Clock B, counted separately). false_folds (a negative control folded) must be 0."
+    },
+    "fold_soup_lemmas": {
+      "value": 3707,
+      "unit": "verified instance-lemmas",
+      "clock": "build-time",
+      "meta_families": 4,
+      "strength_distribution": {
+        "forall-n (induction-PIT)": 39,
+        "forall-n (companion-matrix)": 3668
+      },
+      "epsilon0_via_lean": "[BLOCKED: Lean/Coq unavailable]",
+      "method": "brew genuinely-distinct fold families offline; each individually verified (induction-PIT / companion≡naive), deduped by canonical signature. Counts MEASURED; meta-families vs instances reported distinctly (no artificial splitting). ε₀-via-Lean BLOCKED (Lean unavailable)."
+    },
+    "fold_runtime_no_regression": {
+      "value": true,
+      "unit": "bool (true=no regression)",
+      "clock": "C",
+      "fold_speedup": 9525.25,
+      "lookup_us": 0.105,
+      "method": "[Clock C] median-of-k before(naive loop)/after(O(1) soup lookup + closed-form eval) at n=1e5; the AFTER path must not be slower (first success condition). Lookup is O(1) in library size."
     }
   },
   "blocked": [

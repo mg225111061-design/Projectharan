@@ -2226,6 +2226,38 @@ def test_foldext2_stageD_caching_parallel():
           f"absence cache instant defer; full cache ⇒ no runtime regression, defer byte-identical)")
 
 
+def test_foldext2_stageE_final_measure():
+    """v33 STAGE 7: five-way final measurement (never mixed) + slow-path-leak audit. Covers:
+    runtime_walltime_no_regression_total, proof_strength_distribution_measured, soup_count_real_families,
+    approx_recovered_defer_measured, builtime_cost_separate, no_slow_path_leaked_to_runtime, no_fake_latency."""
+    import final_measure as FM
+    r = FM.five_way()
+    # ★ runtime_walltime_no_regression_total (the FIRST success condition) ★
+    a1 = r["axis1_speed_guard"]
+    assert a1["regressed"] is False and a1["fold_speedup"] > 5.0 and a1["lookup_us"] < 5.0 and a1["clock"] == "C"
+    # proof_strength_distribution_measured + soup_count_real_families (honest: families vs instances)
+    a3 = r["axis3_strength"]
+    assert a3["verified_instances"] >= 3000 and a3["meta_families"] <= 7
+    assert sum(a3["strength_distribution"].values()) == a3["verified_instances"]
+    assert "BLOCKED" in a3["epsilon0_via_lean"]                       # ε₀-via-Lean honestly blocked
+    assert all("forall" in s or "omega" in s for s in a3["strength_distribution"])   # every fold strength-labeled
+    # coverage + approx_recovered_defer_measured + byte-identical defer
+    a4 = r["axis4_coverage"]
+    assert a4["disposed_rate"] == 1.0 and a4["byte_identical_defer"] is True and a4["counts"]["APPROX_FOLD"] >= 1
+    # builtime_cost_separate: build-time labeled NOT a clock
+    assert "NOT a" in r["axis5_buildtime"]["clock"]
+    # no_slow_path_leaked_to_runtime: prover=0, superopt=0, no source leaks, lookup O(1)
+    au = r["slow_path_leak_audit"]
+    assert au["clean"] is True and au["runtime_prover_process"] == 0 and au["runtime_superopt_search"] == 0
+    # no_fake_latency: the engine speedup names egglog's 87× as [BLOCKED], never claims it as measured
+    assert "BLOCKED" in r["axis2_engine"]["egglog_87x"] and r["axis2_engine"]["parallel_brew_speedup"] >= 1.0
+    print(f"PASS test_foldext2_stageE_final_measure ([1 SPEED-GUARD] {a1['fold_speedup']}× NO REGRESSION, "
+          f"lookup {a1['lookup_us']}µs; [3 STRENGTH] {a3['meta_families']} families/{a3['verified_instances']} "
+          f"instances {a3['strength_distribution']}; [4 COVERAGE] {a4['counts']} disposed 100% byte-identical; "
+          f"[5 BUILD] {r['axis5_buildtime']['soup_brew_ms']:.0f}ms separate; AUDIT clean (prover 0, superopt 0); "
+          f"ε₀/egglog [BLOCKED] honestly)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -133,6 +133,28 @@ def measure() -> dict:
                   "each behind its own SOUND verifier; count FOLDED. baseline = current engine. Clock C fold rate "
                   "only (ABFT is Clock B, counted separately). false_folds (a negative control folded) must be 0."}
 
+    # 9. v33 fold soup — brewed verified lemma library + runtime no-regression (the first success condition)
+    import final_measure as FM
+    a1 = FM.axis1_speed_guard()
+    a3 = FM.axis3_strength()
+    au = FM.slow_path_leak_audit()
+    _log(f"fold_soup: {a3['verified_instances']} verified instances / {a3['meta_families']} meta-families; "
+         f"runtime regressed={a1['regressed']} fold {a1['fold_speedup']}× lookup {a1['lookup_us']}µs; "
+         f"audit clean={au['clean']}")
+    assert a1["regressed"] is False and au["clean"] is True       # never publish if runtime regressed or a leak
+    metrics["fold_soup_lemmas"] = {
+        "value": a3["verified_instances"], "unit": "verified instance-lemmas", "clock": "build-time",
+        "meta_families": a3["meta_families"], "strength_distribution": a3["strength_distribution"],
+        "epsilon0_via_lean": a3["epsilon0_via_lean"],
+        "method": "brew genuinely-distinct fold families offline; each individually verified (induction-PIT / "
+                  "companion≡naive), deduped by canonical signature. Counts MEASURED; meta-families vs instances "
+                  "reported distinctly (no artificial splitting). ε₀-via-Lean BLOCKED (Lean unavailable)."}
+    metrics["fold_runtime_no_regression"] = {
+        "value": (not a1["regressed"]), "unit": "bool (true=no regression)", "clock": "C",
+        "fold_speedup": a1["fold_speedup"], "lookup_us": a1["lookup_us"],
+        "method": "[Clock C] median-of-k before(naive loop)/after(O(1) soup lookup + closed-form eval) at "
+                  "n=1e5; the AFTER path must not be slower (first success condition). Lookup is O(1) in library size."}
+
     # live-LLM latency / accuracy needs a key + egress — explicitly BLOCKED, never faked ---------------
     blocked.append({"metric": "live_llm_latency",
                     "reason": "needs an API key + egress to a provider; not measurable in this sandbox "
