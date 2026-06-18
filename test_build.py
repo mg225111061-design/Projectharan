@@ -2226,6 +2226,18 @@ def test_foldext2_stageD_caching_parallel():
           f"absence cache instant defer; full cache ⇒ no runtime regression, defer byte-identical)")
 
 
+def test_foldext2_stage1_engine_cache():
+    """v33 STAGE 1 (engine Clock B, PARTIAL): semantic-signature caching speedup — cold derive vs warm O(1)
+    lookup, SOUND (same verified closed form). (Rust/egg/SIMD/data-layout are [BLOCKED]: libs unavailable.)"""
+    import final_measure as FM
+    e = FM.axis_engine_semantic_cache()
+    assert e["clock"] == "B" and e["sound_same_closed_form"] is True       # cache is sound (same closed form)
+    assert e["warm_ms"] <= e["cold_ms"] and not e["regressed"]             # warm (cached) never slower
+    print(f"PASS test_foldext2_stage1_engine_cache ([Clock B] semantic cache cold {e['cold_ms']}ms → "
+          f"warm {e['warm_ms']}ms = {e['speedup']}× (sound: same verified closed form); "
+          f"Rust/egg/SIMD/data-layout [BLOCKED: libs unavailable])")
+
+
 def test_foldext2_stageE_final_measure():
     """v33 STAGE 7: five-way final measurement (never mixed) + slow-path-leak audit. Covers:
     runtime_walltime_no_regression_total, proof_strength_distribution_measured, soup_count_real_families,

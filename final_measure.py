@@ -99,6 +99,29 @@ def slow_path_leak_audit() -> dict:
             "clean": len(leaks) == 0}
 
 
+def axis_engine_semantic_cache() -> dict:
+    """[STAGE 1 — engine Clock B] semantic-signature caching: folding a summand COLD (derive via sympy
+    summation + induction-PIT) vs WARM (O(1) soup lookup of the same verified closed form). Real before/after
+    on the engine's dispatch path (not the emitted code). The cache is SOUND: same verified closed form."""
+    import sympy as sp
+    lib, _ = SL.get_library()
+    k, n = sp.Symbol("k"), sp.Symbol("n")
+
+    def cold():                                   # the expensive symbolic path the cache replaces
+        expr = k**2
+        closed = sp.simplify(sp.summation(expr, (k, 1, n)))
+        S = __import__("soup")
+        return S.induction_pit_verify(expr, closed) is not None
+
+    def warm():                                   # O(1) semantic-cache (soup) lookup
+        return lib.lookup_summand("k*k") is not None
+    ba = CL.before_after("fold_k2", "B", cold, warm, k=5)
+    # soundness: both yield the SAME verified closed form
+    same = str(sp.simplify(sp.summation(k**2, (k, 1, n)))) == lib.lookup_summand("k*k").closed_form
+    return {"clock": "B", "cold_ms": ba.before_ms, "warm_ms": ba.after_ms, "speedup": ba.ratio,
+            "sound_same_closed_form": same, "regressed": ba.regressed}
+
+
 def five_way() -> dict:
     """The full five-axis report (never mixed)."""
     return {
@@ -107,5 +130,6 @@ def five_way() -> dict:
         "axis3_strength": axis3_strength(),
         "axis4_coverage": axis4_coverage(),
         "axis5_buildtime": axis5_buildtime(),
+        "engine_semantic_cache": axis_engine_semantic_cache(),
         "slow_path_leak_audit": slow_path_leak_audit(),
     }
