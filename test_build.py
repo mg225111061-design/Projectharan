@@ -618,6 +618,110 @@ def test_stage1_clockA_bestofn():
           f"{m.sequential_ms}ms→{m.parallel_ms}ms = {m.speedup}× @p={m.p},N={m.n}; live LLM [BLOCKED])")
 
 
+def test_stage5_three_modes_selectable():
+    """v31 STAGE 5 (three_modes_selectable): the UI offers Fast / Normal / Extend, and the policy backs all
+    three. fast = single shot (budget 1), still SOUNDLY verified — the dial is DEPTH, never correctness."""
+    import agentic as AG
+    import mode_policy as MP
+    html = open("haran.html").read()
+    # three distinct pills present, in order (fast → normal → extended)
+    for dm in ('data-mode="fast"', 'data-mode="normal"', 'data-mode="extended"'):
+        assert dm in html, f"missing mode pill {dm}"
+    assert html.index('data-mode="fast"') < html.index('data-mode="normal"') < html.index('data-mode="extended"')
+    # setMode accepts all THREE (the old guard rejected 'fast' — that bug is fixed)
+    assert 'mode !== "fast" && mode !== "normal" && mode !== "extended"' in html
+    assert 'classList.toggle("mode-fast"' in html
+    # policy backs fast with the SHALLOWEST budget, and fast shares NORMAL's (sound) gate column
+    assert MP.MODE_BUDGET["fast"] == 1 < MP.MODE_BUDGET["normal"] < MP.MODE_BUDGET["extended"]
+    assert MP.BEST_OF_N["fast"] == (1, 1)
+    pf = MP.plan("fast")
+    assert pf.mode == "fast" and pf.loop_budget == 1 and pf.best_of_n == (1, 1)
+    assert set(pf.gates) == set(MP.gates_for("normal")), "fast must use the cheap-but-SOUND gate set, not extended"
+    assert pf.sound_selector_only and pf.zero_wrong_answer            # invariants hold for fast too
+    # fast still SOUNDLY verifies: one good single-shot candidate → converged + PROVEN (gate ran, not skipped)
+    r = AG.agentic_code("sum 1..n", "fast", mock_sequence=[AG._GOOD])
+    assert r.mode == "fast" and r.converged and r.iters == 1 and r.status == "VERIFIED" and r.proof_tier == "PROVEN"
+    print(f"PASS test_stage5_three_modes_selectable (fast/normal/extend pills + setMode; fast budget "
+          f"{MP.MODE_BUDGET['fast']} shares NORMAL's sound gates; fast run PROVEN in {r.iters} shot)")
+
+
+def test_stage5_progress_states_shown():
+    """v31 STAGE 5 (progress_states_shown): the pipeline emits REAL progress states (호출중/생성중(best-of-N)/
+    검증중/최적화중), each only when that work runs — no fake progress. The generate state surfaces the mode's
+    CONFIGURED best-of-N budget (not a live parallel claim)."""
+    import agentic as AG
+    import mode_policy as MP
+    html = open("haran.html").read()
+    # honest stage labels exist in BOTH languages
+    for k in ("stage_classify", "stage_generate", "stage_verify", "stage_optimize"):
+        assert html.count(k + ":") >= 2, f"stage label {k} missing in ko+en"
+    # generate state shows the mode's best-of-N budget (configured), via MODE_N + bestof_n/1shot labels
+    assert "const MODE_N = {fast:1, normal:2, extended:8}" in html
+    assert 'if(s==="generate")' in html and 'T("bestof_n")' in html and 'T("bestof_1shot")' in html
+    # agentic_stream emits the REAL stages in order, only when that work runs (mock, no network)
+    evs = [e["stage"] for e in AG.agentic_stream("sum 1..n", "normal", mock_sequence=[AG._WRONG, AG._GOOD])]
+    assert evs[0] == "generate" and "code_done" in evs and "verify" in evs
+    assert "refuted" in evs and "fix" in evs, "a refuted candidate must show the fix state (real, not faked)"
+    assert "optimize" in evs and evs[-1] == "done"
+    # per-mode honest progress set (fast/normal share the cheap stages; extended adds z3/octagon)
+    assert "z3_smt" not in MP.progress_stages("fast") and "z3_smt" in MP.progress_stages("extended")
+    print(f"PASS test_stage5_progress_states_shown (real stages {evs}; best-of-N budget surfaced on generate; "
+          f"fast/normal cheap stages ⊊ extended)")
+
+
+def test_stage5_result_shows_measured_times_labeled():
+    """v31 STAGE 5 (result_shows_measured_times_labeled): the result shows times LABELED by clock —
+    [Clock A] generation / [Clock B] verification / [Clock C] runtime(fold) — never mixed. Clock B is a
+    GENUINE measurement (HARAN runs locally even with no key)."""
+    import agentic as AG
+    import server as SV
+    # backend measures A and B SEPARATELY; B is real (>0) for a converged run; the dict carries both, labeled
+    res = [e for e in AG.agentic_stream("sum 1..n", "normal", mock_sequence=[AG._GOOD]) if e["stage"] == "done"][0]["result"]
+    assert hasattr(res, "clock_a_ms") and hasattr(res, "clock_b_ms")
+    assert res.clock_b_ms > 0.0, "Clock B (verification) must be a real measured time for a converged run"
+    rd = SV.to_result_dict(res)
+    assert "clock_a_ms" in rd and "clock_b_ms" in rd and isinstance(rd["clock_b_ms"], float)
+    assert rd["optimization"] and rd["optimization"]["optimized"]      # Clock C: a fold to closed form exists
+    # the UI renders each clock with its OWN label (A/B/C) and an explicit "never mixed" note
+    html = open("haran.html").read()
+    for lbl in ("[Clock A]", "[Clock B]", "[Clock C]"):
+        assert html.count(lbl) >= 2, f"{lbl} must appear in BOTH ko+en clock labels"
+    assert 'T("clk_a")' in html and 'T("clk_b")' in html and 'T("clk_c")' in html
+    assert "s.clock_a_ms" in html and "s.clock_b_ms" in html           # rendered from the measured summary
+    assert 'esc(fmtMs(s.clock_b_ms))' in html                           # Clock B shows the genuine measured ms
+    assert "절대 섞지" in html and "never mixed" in html                  # the three clocks are never mixed (both langs)
+    print(f"PASS test_stage5_result_shows_measured_times_labeled ([Clock A] {res.clock_a_ms}ms · "
+          f"[Clock B] {res.clock_b_ms}ms (real) · [Clock C] {rd['optimization']['closed_form']}; labeled, never mixed)")
+
+
+def test_stage5_no_fake_latency_numbers():
+    """v31 STAGE 5 (no_fake_latency_numbers): an unmeasured clock is [BLOCKED], never a fabricated number.
+    In the no-key SIM there is NO real LLM call → Clock A is BLOCKED (not '0.0ms' shown as a product latency);
+    the per-input ×N runtime win is [TBD] (not invented). Clock B stays a genuine measurement."""
+    import agentic as AG
+    import server as SV
+    html = open("haran.html").read()
+    # Clock A in SIM (no live key) is rendered as BLOCKED — the code BRANCHES on live, never prints a fake A time
+    assert "clk_blocked_sim" in html
+    assert "live ? esc(fmtMs(s.clock_a_ms))" in html, "Clock A must be gated on `live` (BLOCKED otherwise)"
+    assert "BLOCKED" in html and ("키없음" in html or "no key" in html)
+    # the per-input runtime multiplier is honestly deferred, never a fabricated ×N
+    assert "clk_xn_tbd" in html and ("[TBD: 측정필요]" in html or "[TBD: measure]" in html)
+    # NO hardcoded fake latency literals anywhere in the page (e.g. a made-up "0.5ms"/"0.3 ms")
+    import re as _re
+    fakes = _re.findall(r'(?<![\w.])0\.\d+\s?ms\b', html)
+    assert not fakes, f"fabricated sub-ms latency literal(s) found: {fakes}"
+    # the backend confirms the SIM is honestly provenanced (source=mock-sim) so the UI knows to BLOCK Clock A,
+    # and clock_a_ms is NOT a fabricated network latency (mock generator ≈ 0), while clock_b_ms is REAL.
+    res = [e for e in AG.agentic_stream("sum 1..n", "fast", mock_sequence=[AG._GOOD]) if e["stage"] == "done"][0]["result"]
+    rd = SV.to_result_dict(res)
+    assert rd["source"] == "mock-sim"                                   # → UI BLOCKs Clock A (no real call happened)
+    assert rd["clock_a_ms"] < 5.0                                       # mock gen ≈ 0; never inflated to look like an LLM
+    assert rd["clock_b_ms"] > 0.0                                       # Clock B is a genuine measured time
+    print(f"PASS test_stage5_no_fake_latency_numbers (Clock A BLOCKED in SIM (no fake number); ×N [TBD]; "
+          f"no sub-ms literals; source={rd['source']}, B={rd['clock_b_ms']}ms real)")
+
+
 def test_stage0_measurement():
     """v30 STAGE 0: every site number is a MEASUREMENT artifact. stats.json must carry value+unit+method+
     timestamp per metric (so the site can show 'how it was measured'); blocked metrics carry a reason (never

@@ -281,6 +281,8 @@ class AgenticResult:
     trace: List[ai_loop.LoopStep] = field(default_factory=list)
     gates: List[str] = field(default_factory=list)   # S10: the mathematics this mode is allowed to spend
     best_of_n: Tuple[int, int] = (1, 2)              # S10: sound-verifier-selected candidates (never learned reward)
+    clock_a_ms: float = 0.0   # [Clock A] LLM-call time (generation/fix). Mock ≈ 0 (no network) — honest.
+    clock_b_ms: float = 0.0   # [Clock B] verification time (HARAN/SMT) — real even in mock.
 
 
 def _with_history(request: str, history: Optional[List[HistoryTurn]]) -> str:
@@ -351,12 +353,17 @@ def agentic_stream(request: str, mode: str = "normal", api_key: Optional[str] = 
     fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url)
     prompt, trace = task, []
     converged, final_code, final_status = False, "", "NONE"
+    clock_a_ms = clock_b_ms = 0.0   # ★ three clocks, never mixed: A = LLM call, B = verification ★
     for i in range(budget):
         yield {"stage": "generate" if i == 0 else "fix", "iter": i + 1}   # Claude 호출중 / 반례 수정중
-        code = fn(prompt).strip()
+        _ta = time.perf_counter()
+        code = fn(prompt).strip()                                         # [Clock A] generation (network when live)
+        clock_a_ms += (time.perf_counter() - _ta) * 1000
         yield {"stage": "code_done", "code": code, "iter": i + 1}
         yield {"stage": "verify", "iter": i + 1}                          # 검증중 (HARAN, real)
-        v = ai_loop.verify_haran(code)
+        _tb = time.perf_counter()
+        v = ai_loop.verify_haran(code)                                    # [Clock B] verification (real)
+        clock_b_ms += (time.perf_counter() - _tb) * 1000
         trace.append(ai_loop.LoopStep(i + 1, "write" if i == 0 else "fix", prompt, code, v))
         final_code, final_status = code, v.status
         if v.ok:
@@ -379,7 +386,8 @@ def agentic_stream(request: str, mode: str = "normal", api_key: Optional[str] = 
         status = "UNRESOLVED" if final_status != "FAILED" else "FAILED"
     res = AgenticResult(request=request, mode=mode, source="claude-live" if api_key else "mock-sim",
                         converged=converged, iters=len(trace), status=status, final_code=final_code,
-                        proof_tier=tier, optimization=opt, ms=ms, history_len=len(history or []), trace=trace)
+                        proof_tier=tier, optimization=opt, ms=ms, history_len=len(history or []), trace=trace,
+                        clock_a_ms=round(clock_a_ms, 1), clock_b_ms=round(clock_b_ms, 1))
     yield {"stage": "done", "result": res}
 
 

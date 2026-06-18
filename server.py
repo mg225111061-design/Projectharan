@@ -107,7 +107,9 @@ def to_result_dict(res: AG.AgenticResult) -> dict:
             "converged": res.converged, "iters": res.iters, "status": res.status,
             "code": res.final_code, "proof_tier": res.proof_tier, "optimization": opt,
             "ms": round(res.ms, 2), "history_len": res.history_len, "trace": trace,
-            "gates": res.gates, "best_of_n": list(res.best_of_n)}   # S10: which mathematics this mode spent
+            "gates": res.gates, "best_of_n": list(res.best_of_n),   # S10: which mathematics this mode spent
+            # ★ three clocks, labeled & never mixed ★ (A=LLM call, B=verification; C=fold from `optimization`)
+            "clock_a_ms": getattr(res, "clock_a_ms", 0.0), "clock_b_ms": getattr(res, "clock_b_ms", 0.0)}
 
 
 def handle_generate(payload: Optional[dict]) -> dict:

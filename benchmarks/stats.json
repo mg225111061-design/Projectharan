@@ -1,10 +1,10 @@
 {
-  "measured_at": "2026-06-18T10:35:23.794159+00:00",
+  "measured_at": "2026-06-18T11:46:01.770845+00:00",
   "environment": "pure-Python sandbox (no numpy/native backend; egress-limited) — figures are local & machine-dependent; re-run benchmarks/measure.py to refresh.",
   "metrics": {
     "tests_passing": {
-      "value": 53,
-      "total": 53,
+      "value": 61,
+      "total": 61,
       "unit": "tests",
       "method": "run the full test_build.py suite in-process; count tests that pass (no oracle bypass)."
     },
@@ -27,14 +27,14 @@
       "method": "run the write→verify→fix loop on a seeded-bug corpus; count tasks reaching a verified fix; `wrong` (claimed-fixed-but-not) must be 0."
     },
     "proof_reuse_speedup": {
-      "value": 230.3,
+      "value": 210.4,
       "unit": "x",
-      "cold_ms": 8.292,
-      "warm_ms": 0.036,
+      "cold_ms": 11.573,
+      "warm_ms": 0.055,
       "method": "prove a batch of obligations cold (SMT solver) then warm (structural cache); wall-clock ratio (verdicts are identical — lossless)."
     },
     "fold_scale_speedup": {
-      "value": 27.7,
+      "value": 22.9,
       "unit": "x",
       "n": 150,
       "method": "prove a parametric template ONCE then certify N=150 instances by a cheap side-condition check, vs N independent SMT proofs; wall-clock ratio (the gap widens with N)."
@@ -47,7 +47,7 @@
       "method": "saturate an e-graph with sound ring rewrites, extract the lowest-cost equivalent term, PROVE input==output with Z3; report node-count reduction (e.g. x*2+x*3 → 5*x)."
     },
     "parallel_speedup": {
-      "value": 1.63,
+      "value": 2.48,
       "unit": "x",
       "cores": 4,
       "workload": "reduce(+, [square(i) for i in 0..2000000))",

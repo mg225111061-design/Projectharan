@@ -120,6 +120,14 @@
   .step{font-size:12.5px;color:var(--txt-dim);font-family:var(--mono);padding:3px 0;display:flex;gap:8px}
   .step .mk{flex:0 0 auto}
   .step.bad .mk{color:var(--bad)} .step.good .mk{color:var(--ok)}
+  /* v31 STAGE 5 — three labeled clocks (A:LLM call · B:verify · C:runtime), never mixed */
+  .clocks{margin-top:9px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--radius-md,12px);
+    background:var(--panel-2);font-family:var(--mono);font-size:12px;display:flex;flex-wrap:wrap;
+    align-items:center;gap:6px 9px;line-height:1.5}
+  .clocks .clk{color:var(--txt-dim);white-space:nowrap}
+  .clocks .clk-k{color:var(--accent);font-weight:700}
+  .clocks .clk-sep{color:var(--line)}
+  .clocks .clk-note{flex:0 0 100%;color:var(--txt-faint);font-size:11px;margin-top:2px}
   /* progress indicator (U5) — shows the REAL current pipeline stage */
   .progress{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--txt-dim);
     font-weight:600;padding:5px 0}
@@ -276,13 +284,17 @@
     </section>
 
     <div class="mode-select" id="modeSelect">
+      <div class="mode-pill" data-mode="fast">
+        <div class="name" data-i18n="mode_fast_name">Fast</div>
+        <div class="desc" data-i18n="mode_fast_desc">속도 우선 · 1회 생성 · 기본 검증 (검증 최소)</div>
+      </div>
       <div class="mode-pill" data-mode="normal">
-        <div class="name" data-i18n="mode_normal_name">일반</div>
-        <div class="desc" data-i18n="mode_normal_desc">빠른 속도 · 흔한 경우 · 절대 틀리지 않음</div>
+        <div class="name" data-i18n="mode_normal_name">Normal</div>
+        <div class="desc" data-i18n="mode_normal_desc">빠르고 검증됨 · 흔한 경우 · 절대 틀리지 않음</div>
       </div>
       <div class="mode-pill" data-mode="extended">
-        <div class="name" data-i18n="mode_extended_name">확장</div>
-        <div class="desc" data-i18n="mode_extended_desc">더 깊이 · 더 많이 해결 · 동일하게 정확</div>
+        <div class="name" data-i18n="mode_extended_name">Extend</div>
+        <div class="desc" data-i18n="mode_extended_desc">가장 강력 · 증명까지 · 동일하게 정확</div>
       </div>
     </div>
 
@@ -374,10 +386,12 @@ const I18N = {
     ex4: "동시성 안전한 작업 큐",
     scope_note: "이 요청은 큰 프로그램입니다. MR.JEFFREY는 작은~중간 코드를 *명세 대비* 검증·최적화합니다 (Rice: 무에서 전체 생성은 불가). 핵심 로직과 명세(ensures)를 주시면 증명합니다.",
     placeholder: "대화형 인터페이스가 여기에 들어갑니다.",
-    mode_normal_name: "일반",
-    mode_normal_desc: "빠른 속도 · 흔한 경우 · 절대 틀리지 않음",
-    mode_extended_name: "확장",
-    mode_extended_desc: "더 깊이 · 더 많이 해결 · 동일하게 정확",
+    mode_fast_name: "Fast",
+    mode_fast_desc: "속도 우선 · 1회 생성 · 기본 검증 (검증 최소)",
+    mode_normal_name: "Normal",
+    mode_normal_desc: "빠르고 검증됨 · 흔한 경우 · 절대 틀리지 않음",
+    mode_extended_name: "Extend",
+    mode_extended_desc: "가장 강력 · 증명까지 · 동일하게 정확",
     send: "실행",
     clear: "새 대화",
     key_set: "●●●● 입력됨",
@@ -400,9 +414,20 @@ const I18N = {
     you: "당신",
     tagline_normal: "가장 빠르게 — 즉각 생성",
     tagline_extended: "가장 강력하게 — 깊은 검증과 최적화",
+    asst_fast: "빠른 모드 · 단발 생성",
     asst_normal: "일반 모드 · 빠른 경로",
     asst_extended: "확장 모드 · 깊은 검증",
     m_fast: "즉각 생성 (속도 우선)",
+    // ★ v31 STAGE 5 — three clocks, NEVER mixed. Every speed number is labeled by its clock. ★
+    clk_a: "[Clock A] 생성(LLM 호출)",
+    clk_b: "[Clock B] 검증",
+    clk_c: "[Clock C] 코드실행 · fold →",
+    clk_bitexact: "bit-exact",
+    clk_xn_tbd: "×N(입력별) [TBD: 측정필요]",
+    clk_blocked_sim: "[BLOCKED: 키없음·SIM — 실호출 시간 아님]",
+    clk_note: "세 시계는 절대 섞지 않습니다 (A:호출 · B:검증 · C:실행)",
+    bestof_1shot: "1회 생성",
+    bestof_n: "best-of-N ≤ ",
     verifying: "검증 중…",
     stage_classify: "분류중..",
     stage_generate: "Claude 호출중..",
@@ -431,10 +456,12 @@ const I18N = {
     ex4: "Concurrency-safe job queue",
     scope_note: "This is a large program. MR.JEFFREY verifies & optimizes small-to-medium code *against a spec* (Rice: full generation from nothing is impossible). Give the core logic + a spec (ensures) and it proves it.",
     placeholder: "The conversational interface goes here.",
+    mode_fast_name: "Fast",
+    mode_fast_desc: "Speed first · single shot · basic verification",
     mode_normal_name: "Normal",
-    mode_normal_desc: "Fast · common case · never wrong",
-    mode_extended_name: "Extended",
-    mode_extended_desc: "Deeper · solves more · equally correct",
+    mode_normal_desc: "Fast & verified · common case · never wrong",
+    mode_extended_name: "Extend",
+    mode_extended_desc: "Most powerful · proves it · equally correct",
     send: "Run",
     clear: "New chat",
     key_set: "●●●● entered",
@@ -457,9 +484,20 @@ const I18N = {
     you: "You",
     tagline_normal: "The fastest — instant generation",
     tagline_extended: "The most powerful — deep verification & optimization",
+    asst_fast: "Fast mode · single shot",
     asst_normal: "Normal mode · fast path",
     asst_extended: "Extended mode · deep verification",
     m_fast: "instant generation (speed first)",
+    // ★ v31 STAGE 5 — three clocks, NEVER mixed. Every speed number is labeled by its clock. ★
+    clk_a: "[Clock A] generation (LLM call)",
+    clk_b: "[Clock B] verification",
+    clk_c: "[Clock C] runtime · fold →",
+    clk_bitexact: "bit-exact",
+    clk_xn_tbd: "×N(per-input) [TBD: measure]",
+    clk_blocked_sim: "[BLOCKED: no key·SIM — not a real call latency]",
+    clk_note: "the three clocks are never mixed (A:call · B:verify · C:run)",
+    bestof_1shot: "single shot",
+    bestof_n: "best-of-N ≤ ",
     verifying: "verifying…",
     stage_classify: "Classifying..",
     stage_generate: "Calling Claude..",
@@ -513,11 +551,13 @@ document.getElementById("langToggle").addEventListener("click", e=>{
   const b = e.target.closest("button"); if(b) setLang(b.getAttribute("data-lang"));
 });
 
-// ── two modes (T2): normal / extended — contrasting accent + click transition ───────────────
+// ── three modes (v31 STAGE 5): fast / normal / extended — contrasting accent + click transition ──
+// ★ All three are SOUNDLY verified — the dial is DEPTH (retries/proof power), never correctness. ★
 let MODE = "normal";
 function setMode(mode){
-  if(mode !== "normal" && mode !== "extended") return;
+  if(mode !== "fast" && mode !== "normal" && mode !== "extended") return;
   MODE = mode;
+  document.body.classList.toggle("mode-fast", mode === "fast");
   document.body.classList.toggle("mode-normal", mode === "normal");
   document.body.classList.toggle("mode-extended", mode === "extended");
   document.querySelectorAll(".mode-pill").forEach(p=>{
@@ -531,6 +571,11 @@ document.getElementById("modeSelect").addEventListener("click", e=>{
 // ── i18n helper + escaping ──────────────────────────────────────────────────────────────────
 function T(k){ return (I18N[LANG] && I18N[LANG][k] !== undefined) ? I18N[LANG][k] : k; }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+// v31 STAGE 5 helpers. MODE_N mirrors mode_policy.BEST_OF_N upper bound (CONFIGURED budget, not a live claim).
+const MODE_N = {fast:1, normal:2, extended:8};
+function asstLabel(mode){ return T(mode==="extended"?"asst_extended":(mode==="fast"?"asst_fast":"asst_normal")); }
+// honest ms formatting — shows the genuine measured number; never invents one (caller decides if a clock is BLOCKED).
+function fmtMs(ms){ const v = Number(ms); if(!isFinite(v)) return "—"; return v >= 1000 ? (v/1000).toFixed(2)+"s" : v.toFixed(1)+"ms"; }
 
 // ── client-side SIMULATION of the agentic pipeline (standalone demo) ─────────────────────────
 // ★ This is a SIM for the offline demo: it mirrors agentic.py's mock (deterministic). The REAL
@@ -610,7 +655,7 @@ function addMsg(role, inner){
 }
 function renderAssistant(res, mode){
   const sim = res.source === "mock-sim" ? `<span class="simtag">SIM</span>` : "";
-  const tag = `<span class="modetag">${esc(mode==="extended"?T("asst_extended"):T("asst_normal"))}</span>${sim}`;
+  const tag = `<span class="modetag">${esc(asstLabel(mode))}</span>${sim}`;
   if(res.scope){
     // honest scope/intent-gap response (same in both modes) — NOT a fake verification
     return `${tag}<div class="step"><span class="mk">▢</span>${esc(T("scope_note"))}</div>`;
@@ -683,16 +728,21 @@ function streamRender(mode, request){
   const m = addMsg("assistant", "");
   const bubble = m.querySelector(".bubble");
   const tagEl = document.createElement("div");
-  tagEl.innerHTML = `<span class="modetag">${esc(mode==="extended"?T("asst_extended"):T("asst_normal"))}</span>`
+  tagEl.innerHTML = `<span class="modetag">${esc(asstLabel(mode))}</span>`
                   + `<span class="simtag" data-tag>···</span>`;
   const prog = document.createElement("div"); prog.className = "progress"; prog.style.display = "none";
   prog.innerHTML = `<span class="spinner"></span><span class="pl"></span>`;
   const codeEl = document.createElement("div"); codeEl.className = "step"; codeEl.style.display = "none";
   const codeSpan = document.createElement("span"); codeSpan.className = "code"; codeEl.appendChild(codeSpan);
   const steps = document.createElement("div");
-  bubble.append(tagEl, prog, codeEl, steps);
+  const clocksEl = document.createElement("div"); clocksEl.className = "clocks"; clocksEl.style.display = "none";
+  bubble.append(tagEl, prog, codeEl, steps, clocksEl);
   let code = "";
-  const setStage = (s)=>{ prog.style.display = "flex"; prog.querySelector(".pl").textContent = T("stage_"+s);
+  // honest progress: on 'generate' show the mode's CONFIGURED best-of-N budget (not a live parallel claim).
+  const setStage = (s)=>{ prog.style.display = "flex";
+    let label = T("stage_"+s);
+    if(s==="generate"){ const n = MODE_N[MODE]||1; label += " · " + (n>1 ? (T("bestof_n")+n) : T("bestof_1shot")); }
+    prog.querySelector(".pl").textContent = label;
     msgsEl.scrollTop = msgsEl.scrollHeight; };
   const stop = ()=>{ prog.style.display = "none"; };
   const step = (mk, text, cls)=>{ const d=document.createElement("div"); d.className="step "+(cls||"");
@@ -715,8 +765,26 @@ function streamRender(mode, request){
     else if(ev.type==="ask"){ stop(); renderAsks(steps, ev.asks, request); }
     else if(ev.type==="note"){ stop(); step("▢", T("scope_note")); }
     else if(ev.type==="error"){ stop(); step("⚠", ev.message, "bad"); }
-    else if(ev.type==="done"){ stop(); const tg=tagEl.querySelector("[data-tag]");
-      if(tg) tg.textContent = (ev.summary && ev.summary.source==="claude-live") ? "LIVE" : "SIM"; }
+    else if(ev.type==="done"){ stop(); const s = ev.summary || {}; const live = s.source==="claude-live";
+      const tg=tagEl.querySelector("[data-tag]"); if(tg) tg.textContent = live ? "LIVE" : "SIM";
+      // ★ THREE CLOCKS, never mixed (directive). Each number is labeled by its clock; unmeasured = [BLOCKED]. ★
+      if(s.kind==="code"){
+        const parts = [];
+        // [Clock A] LLM call — REAL only when live. In SIM there is NO real call → BLOCKED (never a fake number).
+        parts.push(`<span class="clk"><span class="clk-k">${esc(T("clk_a"))}</span> `
+          + (live ? esc(fmtMs(s.clock_a_ms)) : `<span class="tbd">${esc(T("clk_blocked_sim"))}</span>`) + `</span>`);
+        // [Clock B] verification — GENUINELY measured (HARAN runs locally even in SIM): show the real ms.
+        parts.push(`<span class="clk"><span class="clk-k">${esc(T("clk_b"))}</span> ${esc(fmtMs(s.clock_b_ms))}</span>`);
+        // [Clock C] runtime — fold to closed form is structural/exact; per-input ×N is NOT measured inline → TBD.
+        const o = s.optimization;
+        if(o && o.optimized)
+          parts.push(`<span class="clk"><span class="clk-k">${esc(T("clk_c"))}</span> ${esc(o.closed_form)} · `
+            + `${esc(o.speedup)} · ${esc(T("clk_bitexact"))} · <span class="tbd">${esc(T("clk_xn_tbd"))}</span></span>`);
+        clocksEl.innerHTML = parts.join(`<span class="clk-sep">·</span>`)
+          + `<div class="clk-note">${esc(T("clk_note"))}</div>`;
+        clocksEl.style.display = "";
+      }
+    }
   };
 }
 
