@@ -370,6 +370,28 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s29_ambiguity():
+    """v29 S29: ambiguity → DEFAULT reasonable completion + stated assumption (NEVER asks); only a genuine
+    high-stakes fork escalates to S30. Conservative toward not-asking; deterministic lexicon (the
+    semantic-entropy / multi-sample paths are [BLOCKED: key]); fail-safe."""
+    import ambiguity_detector as AD
+    # ── a detailed prompt is CLEAR — and S29 NEVER asks ──
+    clear = AD.detect_ambiguity("Implement a function that returns the list sorted ascending in O(n log n); "
+                                "raise on invalid input.")
+    assert clear.status == "CLEAR" and clear.asks is False
+    # ── vague but clear intent → MINOR, reasonable completion + stated assumptions, NO ask ──
+    minor = AD.detect_ambiguity("Write a fast function to process the large dataset.")
+    assert minor.status == "MINOR_AMBIGUITY" and minor.asks is False
+    assert "fast" in minor.completions and "large" in minor.completions and len(minor.assumptions()) >= 2
+    # ── a genuine high-stakes fork (irreversible + open choice) → escalate to S30 ──
+    fork = AD.detect_ambiguity("Delete the old user records — soft or hard delete, your call.")
+    assert fork.status == "HIGH_STAKES_FORK" and "delete" in fork.fork and fork.asks is False
+    # ── a high-stakes WORD without an open choice is NOT escalated by S29 (S28 handles the danger) ──
+    assert AD.detect_ambiguity("Delete the temp files in ./cache after processing.").status == "CLEAR"
+    print(f"PASS test_s29_ambiguity (detailed→CLEAR no-ask; vague→MINOR reasonable-completion no-ask "
+          f"{minor.vague_terms}; irreversible+open→HIGH_STAKES_FORK→S30; conservative, never asks)")
+
+
 def test_s28_dangerous_instruction():
     """v29 S28: don't silently obey a dangerous/contradictory/infeasible instruction — FLAG + alternative.
     Danger is a CWE lexicon (HEURISTIC → flag, never hard-block); contradiction is Z3 UNSAT (SOUND);
