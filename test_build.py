@@ -148,6 +148,32 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s5_assume_guarantee():
+    """v26 S5: modular assume-guarantee + bi-abduction + opaque-boundary runtime contracts."""
+    import assume_guarantee as AG
+    inc = "fn inc(x: Int) -> Int\n  ensures result = x + 1\n{ x + 1 }"
+    use = "fn use_inc(y: Int) -> Int\n  ensures result = y + 1\n{ inc(y) }"
+    bad = "fn bad(y: Int) -> Int\n  ensures result = y + 2\n{ inc(y) }"
+    cert = AG.verify_system([inc, use, bad])
+    byname = {m.name: m for m in cert.modules}
+    assert byname["inc"].status == "MODULE_PROVEN"
+    assert byname["use_inc"].status == "MODULE_PROVEN"      # proven assuming inc's contract
+    assert byname["bad"].status == "MODULE_REFUTED"
+    # bi-abduction: caller can't discharge pos's requires b>=1 → it's abduced, then proven
+    pos = "fn pos(b: Int) -> Int\n  requires b >= 1\n  ensures result = b\n{ b }"
+    call = "fn caller(b: Int) -> Int\n  ensures result = b\n{ pos(b) }"
+    c2 = {m.name: m for m in AG.verify_system([pos, call]).modules}
+    assert c2["caller"].status == "MODULE_PROVEN" and c2["caller"].abduced_pre == ["pos.requires"]
+    # opaque boundary: no contract → cannot prove; runtime-monitored contract → proven + blame in TCB
+    netc = "fn netcaller(x: Int) -> Int\n  ensures result >= 0\n{ network(x) }"
+    assert AG.verify_system([netc]).modules[0].status == "MODULE_REFUTED"
+    mon = AG.verify_system([netc], opaque_contracts={"network": "result >= 0"})
+    m0 = mon.modules[0]
+    assert m0.status == "MODULE_PROVEN" and "network" in m0.opaque_boundaries
+    assert "network" in mon.residual_tcb()["opaque_boundaries"]
+    print("PASS test_s5_assume_guarantee")
+
+
 def test_s4_race_deadlock():
     """v26 S4: lockset data-race + lock-order deadlock on an explicit concurrency model."""
     import race_detector as RD
