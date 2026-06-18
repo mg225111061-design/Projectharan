@@ -153,6 +153,13 @@
     border:1px solid var(--accent);border-radius:var(--radius-sm);padding:13px 15px;font-size:12.5px;
     color:var(--txt);line-height:1.55;z-index:30;box-shadow:0 10px 34px -14px rgba(0,0,0,.55)}
   .key-pop[hidden]{display:none}
+  /* v26 S0: gateway selection row */
+  .gw-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .gw-sel,.gw-in{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:8px 10px;color:var(--txt);font-size:12.5px;font-family:var(--font)}
+  .gw-sel{flex:0 0 auto;cursor:pointer}
+  .gw-in{flex:1 1 140px;min-width:120px}
+  .gw-note{font-size:11px;color:var(--txt-faint);margin:0 0 10px;line-height:1.45}
   .composer-row{display:flex;gap:10px}
   .composer textarea{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);
     padding:11px 13px;color:var(--txt);font-size:14.5px;resize:none;min-height:46px;font-family:var(--font)}
@@ -271,6 +278,24 @@
             <span data-i18n="nolog_policy">Mr.Jeffrey는 API Key 노-로그 정책을 고수합니다. 여기에 넣으면 어디에도 유출되지 않고 저장되지 않습니다.</span>
           </div>
         </div>
+        <!-- v26 S0: runtime gateway selection (provider/model/baseURL). Key still per-request, LEVEL-1. -->
+        <div class="gw-row" id="gwRow">
+          <select id="providerSel" class="gw-sel" aria-label="provider / 프로바이더">
+            <option value="anthropic"      data-baseurl="" data-model="claude-opus-4-8">Claude (official)</option>
+            <option value="openai_compat"  data-baseurl="https://openrouter.ai/api/v1" data-model="">OpenRouter</option>
+            <option value="openai_compat"  data-baseurl="https://api.deepseek.com" data-model="deepseek-chat">DeepSeek</option>
+            <option value="openai_compat"  data-baseurl="" data-model="">Mistral</option>
+            <option value="openai_compat"  data-baseurl="" data-model="">GLM (Z.ai)</option>
+            <option value="openai_compat"  data-baseurl="" data-model="">MiniMax</option>
+            <option value="openai_compat"  data-baseurl="" data-model="">Qwen</option>
+            <option value="openai_compat"  data-baseurl="" data-model="">custom base URL</option>
+          </select>
+          <input id="modelInput"   class="gw-in" autocomplete="off" spellcheck="false"
+                 placeholder="모델 id / model (예: claude-opus-4-8)" aria-label="model id">
+          <input id="baseUrlInput" class="gw-in" autocomplete="off" spellcheck="false"
+                 placeholder="base URL — 비우면 기본 / blank = default" aria-label="gateway base URL">
+        </div>
+        <div class="gw-note" data-i18n="gw_note">게이트웨이/모델은 편집 가능 — 정확한 base URL·모델 id는 해당 제공자 문서로 확인하세요. (editable; verify base URL & model id with the provider's docs)</div>
         <div class="composer-row">
           <textarea id="reqInput" rows="1" data-i18n-ph="req_ph" aria-label="instruction / 지시"
                     placeholder="상상하는 모든 걸 시작해보세요"></textarea>
@@ -324,6 +349,7 @@ const I18N = {
     clear: "새 대화",
     key_set: "●●●● 입력됨",
     nolog_policy: "Mr.Jeffrey는 API Key 노-로그 정책을 고수합니다. 여기에 넣으면 어디에도 유출되지 않고 저장되지 않습니다.",
+    gw_note: "게이트웨이/모델은 편집 가능 — 정확한 base URL·모델 id는 해당 제공자 문서로 확인하세요. 키 접두사가 sk-ant-면 Claude로 자동 인식.",
     key_ph: "Claude API 키 — 매번 입력, 어디에도 저장 안 함 (선택: 없으면 시뮬레이션)",
     req_ph: "상상하는 모든 걸 시작해보세요",
     copied: "복사됨",
@@ -379,6 +405,7 @@ const I18N = {
     clear: "New chat",
     key_set: "●●●● entered",
     nolog_policy: "Mr.Jeffrey enforces a strict no-log policy for your API key: it is used only for your Claude call, never logged and never stored anywhere.",
+    gw_note: "Gateway/model are editable — verify the exact base URL & model id with the provider's docs. A key starting with sk-ant- is auto-detected as Claude.",
     key_ph: "Claude API key — entered each time, stored nowhere (optional: simulation if empty)",
     req_ph: "Start everything you imagine",
     copied: "Copied",
@@ -583,7 +610,7 @@ const BACKEND = location.protocol === "http:" || location.protocol === "https:";
 async function streamAgentic(request, mode, key, history, onEvent, force){
   const resp = await fetch("/api/stream", {
     method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({prompt:request, mode, apiKey:key, history, force: !!force})});
+    body: JSON.stringify(Object.assign({prompt:request, mode, apiKey:key, history, force: !!force}, genCfg()))});
   if(!resp.ok || !resp.body) throw new Error("stream unavailable ("+resp.status+")");
   const reader = resp.body.getReader(), dec = new TextDecoder();
   let buf = "", summary = null;
@@ -772,6 +799,29 @@ quickEl.addEventListener("click", e=>{
 });
 // V4: update the masked key confirmation as the user types (value never read into the DOM)
 keyEl.addEventListener("input", refreshDynamic);
+// v26 S0: runtime gateway selection (provider/model/baseURL). Sent in the request body; key stays per-request.
+const providerSel = document.getElementById("providerSel");
+const modelInput  = document.getElementById("modelInput");
+const baseUrlInput = document.getElementById("baseUrlInput");
+let _providerTouched = false;
+providerSel.addEventListener("change", ()=>{
+  _providerTouched = true;
+  const o = providerSel.selectedOptions[0];
+  if(o){ modelInput.value = o.dataset.model || ""; baseUrlInput.value = o.dataset.baseurl || ""; }
+});
+// key-prefix auto-detect: an sk-ant- key is definitively Anthropic → select Claude (unless the user
+// already picked a gateway). Non-anthropic keys: leave the user's choice (we can't know which gateway).
+keyEl.addEventListener("input", ()=>{
+  if(!_providerTouched && keyEl.value.trim().startsWith("sk-ant-")) providerSel.value = "anthropic";
+});
+function genCfg(){
+  const opt = providerSel.selectedOptions[0];
+  const cfg = {};
+  if(opt && opt.value) cfg.provider = opt.value;        // "anthropic" | "openai_compat"
+  const m = modelInput.value.trim();   if(m) cfg.model = m;
+  const b = baseUrlInput.value.trim(); if(b) cfg.baseUrl = b;
+  return cfg;   // undefined/empty fields omitted → server falls back to env defaults
+}
 // V5: accent * → no-log policy popover (click to open, click outside / again to close)
 const keyStar = document.getElementById("keyStar");
 const keyPop = document.getElementById("keyPop");

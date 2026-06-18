@@ -80,6 +80,12 @@ def parse_history(raw) -> List[Tuple[str, str]]:
     return out
 
 
+def _gen_cfg(p: dict):
+    """v26 S0: per-request gateway selection from the body (NON-secret: provider/model/baseUrl).
+    None → env defaults. The key is handled separately and never returned here."""
+    return (p.get("provider") or None, p.get("model") or None, p.get("baseUrl") or None)
+
+
 def to_result_dict(res: AG.AgenticResult) -> dict:
     """Serialize an AgenticResult to a JSON-able dict (never includes the key)."""
     opt = None
@@ -107,8 +113,10 @@ def handle_generate(payload: Optional[dict]) -> dict:
         return _scope_result(prompt, mode)
     history = parse_history(p.get("history"))
     api_key = p.get("apiKey") or PV.resolve_key()          # read locally only
+    provider, model, base_url = _gen_cfg(p)
     try:
-        res = AG.agentic_code(prompt, mode, api_key, history=history)
+        res = AG.agentic_code(prompt, mode, api_key, history=history,
+                              model=model or CA.DEFAULT_MODEL, provider=provider, base_url=base_url)
         return to_result_dict(res)
     except Exception as e:   # noqa: BLE001 — never leak the key in an error message
         return {"error": True, "message": f"{type(e).__name__}: {CA.redact_key(str(e))}"}
@@ -142,16 +150,17 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
     mode = p.get("mode", "normal")
     history = parse_history(p.get("history"))
     api_key = p.get("apiKey") or PV.resolve_key()
+    provider, model, base_url = _gen_cfg(p)
     if not prompt:
         yield sse_event({"type": "error", "message": "empty prompt"})
         return
     try:
         yield sse_event({"type": "stage", "stage": "classify"})           # 분류중 (local, ~instant)
-        it = IN.classify_intent(prompt, api_key)
+        it = IN.classify_intent(prompt, api_key, provider=provider, model=model, base_url=base_url)
 
         if it.intent != "CODING":                                          # chat / question
             yield sse_event({"type": "stage", "stage": "thinking"})        # 생각중
-            cr = IN.chat_reply(prompt, api_key, history)
+            cr = IN.chat_reply(prompt, api_key, history, provider=provider, model=model, base_url=base_url)
             yield sse_event({"type": "chat", "reply": cr.text})            # plain answer, NO verify label
             yield sse_event({"type": "done", "summary": {"kind": "chat", "verified": False,
                                                          "source": cr.source, "intent": it.intent}})
@@ -164,7 +173,7 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
             return
 
         if not p.get("force"):                                            # U7: 'proceed anyway' skips it
-            clarity = IN.assess_clarity(prompt, api_key)
+            clarity = IN.assess_clarity(prompt, api_key, provider=provider, model=model, base_url=base_url)
             if not clarity.clear:                                          # vague → expected questions
                 yield sse_event({"type": "ask", "asks": clarity.asks})
                 yield sse_event({"type": "done", "summary": {"kind": "ask", "asks": clarity.asks,
@@ -172,7 +181,8 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
                 return
 
         # coding pipeline — emit each real stage as it runs
-        for ev in AG.agentic_stream(prompt, mode, api_key, history=history):
+        for ev in AG.agentic_stream(prompt, mode, api_key, history=history,
+                                    provider=provider, base_url=base_url):
             st = ev["stage"]
             if st in ("generate", "fix", "verify", "optimize"):
                 d = {"type": "stage", "stage": st}
@@ -220,10 +230,12 @@ def handle_route(payload: Optional[dict]) -> dict:
     mode = p.get("mode", "normal")
     history = parse_history(p.get("history"))
     api_key = p.get("apiKey") or PV.resolve_key()
+    provider, model, base_url = _gen_cfg(p)
     if not text:
         return {"error": True, "message": "empty prompt"}
     try:
-        rr = IN.route(text, mode, api_key, history, force=bool(p.get("force")))
+        rr = IN.route(text, mode, api_key, history, force=bool(p.get("force")),
+                      provider=provider, model=model, base_url=base_url)
         out = {"kind": rr.kind, "intent": rr.intent, "source": rr.source, "verified": rr.verified}
         if rr.kind == "code":
             out["result"] = to_result_dict(rr.code_result)

@@ -114,6 +114,25 @@ def test_openai_request_shape():
     print("PASS test_openai_request_shape")
 
 
+def test_s0_runtime_provider_threading():
+    """v26 S0: provider/model/baseUrl thread from the request body through route→agentic→claude_generate
+    (network-free: no key → mock path, but the kwargs must be accepted end-to-end)."""
+    import server
+    import agentic as AG
+    import intent as IN
+    assert server._gen_cfg({"provider": "openai_compat", "model": "qwen/q", "baseUrl": "https://x/v1"}) \
+        == ("openai_compat", "qwen/q", "https://x/v1")
+    assert server._gen_cfg({}) == (None, None, None)
+    # whole chain accepts the new kwargs; no key → labeled mock (cfg accepted without error)
+    r = AG.agentic_code("sum 1..n", "normal", None, provider="openai_compat",
+                        model="qwen/q", base_url="https://x/v1")
+    assert r.source == "mock-sim"
+    rr = IN.route("sum 1..n", "normal", None, force=True, provider="openai_compat",
+                  model="qwen/q", base_url="https://x/v1")
+    assert rr.kind in ("code", "chat", "ask")
+    print("PASS test_s0_runtime_provider_threading")
+
+
 def test_redact_key_still_holds():
     # belt-and-suspenders: the masking primitive itself
     assert "sk-ant-" not in CA.redact_key("prefix sk-ant-abc123 suffix").replace("sk-***REDACTED***", "")

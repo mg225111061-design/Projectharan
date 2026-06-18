@@ -82,16 +82,19 @@ class WVFResult:
 
 
 def _claude_model_fn(api_key: Optional[str], model: str,
-                     mock_sequence: Optional[List[str]]) -> Callable[[str], str]:
+                     mock_sequence: Optional[List[str]],
+                     provider: Optional[str] = None, base_url: Optional[str] = None) -> Callable[[str], str]:
     """A `prompt -> code` callable backed by Claude. Live: each call is a real Claude turn (so the fix
     prompt, which carries the counterexample, actually drives a fix). Mock: a deterministic scripted
-    sequence (wrong → fixed) advancing one step per call — an honest SIMULATION of the model's turns."""
+    sequence (wrong → fixed) advancing one step per call — an honest SIMULATION of the model's turns.
+    `provider`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults)."""
     state = {"i": 0}
     seq = mock_sequence or [CA._MOCK_HARAN]
 
     def model_fn(prompt: str) -> str:
         if api_key:
-            return CA.claude_generate(prompt, api_key, model=model).text
+            return CA.claude_generate(prompt, api_key, model=model,
+                                      provider=provider, base_url=base_url).text
         out = seq[min(state["i"], len(seq) - 1)]
         state["i"] += 1
         return out
@@ -101,13 +104,14 @@ def _claude_model_fn(api_key: Optional[str], model: str,
 
 def write_verify_fix(request: str, api_key: Optional[str] = None, *,
                      model: str = CA.DEFAULT_MODEL, mock_sequence: Optional[List[str]] = None,
-                     max_iters: int = 3, verbose: bool = False) -> WVFResult:
+                     max_iters: int = 3, verbose: bool = False,
+                     provider: Optional[str] = None, base_url: Optional[str] = None) -> WVFResult:
     """S3: drive Claude→HARAN→fix until the code is PROVEN against its spec (or budget exhausted).
 
     Returns convergence + the full trace (each iteration's code, verdict, and the counterexample that
     was fed back). With no key, `mock_sequence` scripts the model's turns (e.g. [WRONG, GOOD]); the
-    loop and counterexamples are real regardless."""
-    fn = _claude_model_fn(api_key, model, mock_sequence)
+    loop and counterexamples are real regardless. `provider`/`base_url` (v26 S0) pick the gateway."""
+    fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url)
     loop = ai_loop.write_verify_fix(request, fn, fn, max_iters=max_iters, verbose=verbose)
     last = loop.trace[-1] if loop.trace else None
     return WVFResult(
@@ -288,14 +292,17 @@ def _with_history(request: str, history: Optional[List[HistoryTurn]]) -> str:
 def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = None, *,
                  history: Optional[List[HistoryTurn]] = None,
                  model: str = CA.DEFAULT_MODEL,
-                 mock_sequence: Optional[List[str]] = None) -> AgenticResult:
-    """THE entry point. Claude writes code for `request` (+ conversation `history`); HARAN verifies &
+                 mock_sequence: Optional[List[str]] = None,
+                 provider: Optional[str] = None, base_url: Optional[str] = None) -> AgenticResult:
+    """THE entry point. Claude/GLM writes code for `request` (+ conversation `history`); HARAN verifies &
     fixes under `mode`'s budget; if PROVEN, HARAN optimizes (closed form) and reports the Type A proof
-    tier. Returns everything + a real measured wall-clock. `api_key` is level-1 (per-call, unstored)."""
+    tier. Returns everything + a real measured wall-clock. `api_key` is level-1 (per-call, unstored).
+    `provider`/`model`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults)."""
     t0 = time.perf_counter()
     task = _with_history(request, history)
     budget = MODE_BUDGET.get(mode, 2)
-    wvf = write_verify_fix(task, api_key, model=model, mock_sequence=mock_sequence, max_iters=budget)
+    wvf = write_verify_fix(task, api_key, model=model, mock_sequence=mock_sequence, max_iters=budget,
+                           provider=provider, base_url=base_url)
 
     if wvf.converged:
         status = "VERIFIED"
@@ -328,13 +335,15 @@ def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = No
 
 def agentic_stream(request: str, mode: str = "normal", api_key: Optional[str] = None, *,
                    history: Optional[List[HistoryTurn]] = None, model: str = CA.DEFAULT_MODEL,
-                   mock_sequence: Optional[List[str]] = None):
+                   mock_sequence: Optional[List[str]] = None,
+                   provider: Optional[str] = None, base_url: Optional[str] = None):
     """Yields stage dicts: {'stage': 'generate'|'fix'|'code_done'|'verify'|'refuted'|'optimize'|'done'}.
-    The final {'stage':'done','result': AgenticResult} carries the full result (serialize as usual)."""
+    The final {'stage':'done','result': AgenticResult} carries the full result (serialize as usual).
+    `provider`/`base_url` (v26 S0) select the gateway at runtime."""
     t0 = time.perf_counter()
     task = _with_history(request, history)
     budget = MODE_BUDGET.get(mode, 2)
-    fn = _claude_model_fn(api_key, model, mock_sequence)
+    fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url)
     prompt, trace = task, []
     converged, final_code, final_status = False, "", "NONE"
     for i in range(budget):

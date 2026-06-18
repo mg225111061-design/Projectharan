@@ -105,20 +105,24 @@ _CLASSIFY_MOCK = '{"is_coding": true, "confidence": 0.55}'
 
 
 def classify_intent(text: str, api_key: Optional[str] = None, *,
-                    mock_response: Optional[str] = None) -> IntentResult:
+                    mock_response: Optional[str] = None,
+                    provider: Optional[str] = None, model: Optional[str] = None,
+                    base_url: Optional[str] = None) -> IntentResult:
     """U1: CODING / CHAT / QUESTION. Stage 1 = local keywords (sub-ms, no network). Stage 2 (only when
-    ambiguous) = a Claude call (hundreds of ms) or, with no key, a conservative mock default (CODING)."""
+    ambiguous) = a model call (hundreds of ms) or, with no key, a conservative mock default (CODING).
+    `provider`/`model`/`base_url` (v26 S0) select the gateway for the stage-2 call."""
     if not (text or "").strip():
         return IntentResult("CHAT", "keyword", 0.5)
     kw = _keyword_intent(text)
     if kw is not None:
         return kw
-    # stage 2 — ambiguous: ask Claude (real round-trip) or fall back to a conservative mock default
+    # stage 2 — ambiguous: ask the model (real round-trip) or fall back to a conservative mock default
     prompt = ('Classify this user message. Reply ONLY JSON {"is_coding": bool, "confidence": 0..1}. '
               'is_coding=true for requests to write/fix/optimize code; false for smalltalk or questions.\n'
               f"Message: {text}")
     gen = CA.claude_generate(prompt, api_key, system=_CLASSIFY_SYSTEM,
-                             mock_response=mock_response or _CLASSIFY_MOCK)
+                             mock_response=mock_response or _CLASSIFY_MOCK,
+                             provider=provider, model=model, base_url=base_url)
     obj = _extract_json(gen.text)
     is_coding = bool(obj.get("is_coding", True))      # default true (conservative)
     conf = float(obj.get("confidence", 0.55)) if isinstance(obj.get("confidence", 0.55), (int, float)) else 0.55
@@ -167,21 +171,24 @@ _CLARITY_MOCK = '{"clear": true, "asks": []}'
 
 
 def assess_clarity(request: str, api_key: Optional[str] = None, *,
-                   mock_response: Optional[str] = None) -> ClarityResult:
+                   mock_response: Optional[str] = None,
+                   provider: Optional[str] = None, model: Optional[str] = None,
+                   base_url: Optional[str] = None) -> ClarityResult:
     """U2: is a coding request specific enough to build, or should we ask first? Local first (constraint
-    keywords → clear; known-ambiguous topic w/o constraints → topic questions); Claude only if unsure."""
+    keywords → clear; known-ambiguous topic w/o constraints → topic questions); model only if unsure."""
     t = (request or "").lower()
     if _has(t, _CONSTRAINT_KW):                 # already states constraints → proceed
         return ClarityResult(True, [], "keyword", "local")
     topic = _detect_topic(t)
     if topic:                                    # known-ambiguous topic, no constraints → ask (local)
         return ClarityResult(False, _TOPIC_ASKS[topic], "keyword", "local")
-    # undecided locally → Claude (or conservative mock = proceed)
+    # undecided locally → model (or conservative mock = proceed)
     prompt = ('Is this coding request specific enough to implement, or are key details missing? Reply '
               'ONLY JSON {"clear": bool, "asks": ["q1","q2"]} (asks = the questions to ask if unclear).\n'
               f"Request: {request}")
     gen = CA.claude_generate(prompt, api_key, system=_CLASSIFY_SYSTEM,
-                             mock_response=mock_response or _CLARITY_MOCK)
+                             mock_response=mock_response or _CLARITY_MOCK,
+                             provider=provider, model=model, base_url=base_url)
     obj = _extract_json(gen.text)
     clear = bool(obj.get("clear", True))
     asks = [str(a) for a in obj.get("asks", [])] if isinstance(obj.get("asks", []), list) else []
@@ -218,11 +225,14 @@ def _canned_chat(text: str) -> str:
 
 
 def chat_reply(text: str, api_key: Optional[str] = None, history=None, *,
-               mock_response: Optional[str] = None) -> ChatReply:
-    """U3: a plain conversational answer for CHAT/QUESTION. With a key → a real Claude reply (general
+               mock_response: Optional[str] = None,
+               provider: Optional[str] = None, model: Optional[str] = None,
+               base_url: Optional[str] = None) -> ChatReply:
+    """U3: a plain conversational answer for CHAT/QUESTION. With a key → a real model reply (general
     system prompt). No key → a canned SIM reply. NEVER carries a verification label (verified=False)."""
     if api_key:
-        gen = CA.claude_generate(text, api_key, system=CHAT_SYSTEM)   # general answer, not HARAN code
+        gen = CA.claude_generate(text, api_key, system=CHAT_SYSTEM,   # general answer, not HARAN code
+                                 provider=provider, model=model, base_url=base_url)
         return ChatReply(gen.text, gen.source)
     return ChatReply(mock_response or _canned_chat(text), "mock-sim")
 
@@ -255,20 +265,22 @@ class RouteResult:
 
 
 def route(text: str, mode: str = "normal", api_key: Optional[str] = None, history=None,
-          force: bool = False) -> RouteResult:
+          force: bool = False, *, provider: Optional[str] = None, model: Optional[str] = None,
+          base_url: Optional[str] = None) -> RouteResult:
     """U4: classify the message and route it. CODING+clear → run the verified pipeline; CODING+vague →
     return expected questions (unless `force` → proceed anyway); CHAT/QUESTION → a plain (unverified)
-    reply. The `kind` says which."""
-    it = classify_intent(text, api_key)
+    reply. The `kind` says which. `provider`/`model`/`base_url` (v26 S0) select the gateway at runtime."""
+    it = classify_intent(text, api_key, provider=provider, model=model, base_url=base_url)
     if it.intent == "CODING":
         if is_scope(text):                                   # whole-program ask → honest scope reply
             return RouteResult("chat", "CODING", text, "local", verified=False, reply=SCOPE_REPLY)
         if not force:                                        # U7: 'proceed anyway' skips the clarity gate
-            clarity = assess_clarity(text, api_key)
+            clarity = assess_clarity(text, api_key, provider=provider, model=model, base_url=base_url)
             if not clarity.clear:                            # missing details → ask first (suggestions)
                 return RouteResult("ask", "CODING", text, clarity.source, verified=False, asks=clarity.asks)
-        res = AG.agentic_code(text, mode, api_key, history=history or [])   # the verified pipeline
+        res = AG.agentic_code(text, mode, api_key, history=history or [],   # the verified pipeline
+                              model=model or CA.DEFAULT_MODEL, provider=provider, base_url=base_url)
         return RouteResult("code", "CODING", text, res.source, verified=res.converged, code_result=res)
     # CHAT / QUESTION → plain answer, never verified
-    cr = chat_reply(text, api_key, history)
+    cr = chat_reply(text, api_key, history, provider=provider, model=model, base_url=base_url)
     return RouteResult("chat", it.intent, text, cr.source, verified=False, reply=cr.text)
