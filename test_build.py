@@ -370,6 +370,36 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s18_dogfood():
+    """v27 S18: HARAN re-verifies its own NON-KERNEL components by re-deriving each claim with the trusted
+    core (Z3 + differential) — not by trusting the component. The kernel itself is residual TCB, NEVER
+    self-certified (Gödel). The independent re-check genuinely catches a wrong claim (no rubber-stamping)."""
+    import dogfood as DF
+    r = DF.dogfood_all()
+    assert r["all_certified"] is True and r["certified"] == r["total"] >= 5
+    for c in r["components"]:
+        assert c.status == "CERTIFIED" and c.rechecks > 0          # each re-verified by independent checks
+    # the trusted core is reported as TCB and is NOT self-certified (Gödel)
+    assert DF.dogfood_component("z3_adapter").status == "TCB"
+    assert set(DF.residual_tcb()) == set(DF.TRUSTED_KERNEL) and len(DF.residual_tcb()) >= 3
+    # ★ no rubber-stamping ★: force a component to emit a WRONG claim → the independent re-check FAILS it
+    import fold_kernels as FK
+    orig = FK.fold_certificate
+    FK.fold_certificate = lambda code: FK.FoldVerdict("FOLDED", closed_form="n*n", kernel="faulhaber",
+                                                      complexity="O(1)", certificate="forced", reason="")
+    try:
+        assert DF.dogfood_component("fold_kernels").status == "FAILED"   # n*n ≠ Σk → caught by the kernel
+    finally:
+        FK.fold_certificate = orig
+    assert DF.dogfood_component("fold_kernels").status == "CERTIFIED"    # restored → certifies again
+    # iCoq-style incremental: only CHANGED components are re-verified
+    DF.incremental_rebuild(list(DF._RECHECKS))
+    inc = DF.incremental_rebuild(["equality_saturation"])
+    assert inc["reverified"] == ["equality_saturation"] and len(inc["cached"]) == len(DF._RECHECKS) - 1
+    print(f"PASS test_s18_dogfood ({r['certified']}/{r['total']} non-kernel components re-verified by the "
+          f"trusted core; {len(DF.residual_tcb())} TCB items NOT self-certified (Gödel); wrong-claim→FAILED)")
+
+
 def test_s17_eqsat_ic3_hammer():
     """v27 S17 (EXTENDED depth): equality saturation (e-graph + Z3-certified extraction), unbounded safety
     by k-induction (IC3/PDR family), and a portfolio hammer. All kernel-checked; honest UNKNOWN/NO_GAIN."""
