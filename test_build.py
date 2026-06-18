@@ -2110,6 +2110,45 @@ def test_foldext2_stageA_soup_R1():
           f"ε₀-via-Lean [BLOCKED], strength=∀n induction-PIT)")
 
 
+def test_foldext2_stageB_disposition():
+    """v33 STAGE 6: global sound disposition (exact-fold | approx | byte-identical defer), strength-ordered.
+    Covers: meta_dispatcher_scans_all, strength_dispatcher_orders_by_speed, neurosymbolic_proposes_verifies,
+    dispatcher_defers_on_verify_fail, deferred_code_byte_identical, sound_everywhere_no_silent_fold."""
+    import sympy as sp
+    import disposition as D
+    import soup_lib as SL
+    import soup as S
+    lib, _ = SL.get_library()
+    n = S._n
+    # meta_dispatcher_scans_all + 100% disposed: every input gets exactly one disposition
+    targets = ["k*k", "k", "3*k*k + 2*k", "2**k", "1/(k*(k+1))", "1/k", "q**(k*k)", "is_prime(k)"]
+    m = D.measure_disposition(targets, lib)
+    assert sum(m["counts"].values()) == len(targets) and m["disposed_rate"] == 1.0
+    # strength_dispatcher_orders_by_speed: a soup HIT uses the O(1) lookup technique (fastest), not derivation
+    assert D.dispose_summand("k*k", lib).technique == "soup-lookup"
+    assert D.dispose_summand("3*k*k + 2*k", lib).technique == "soup-compose"
+    # sound_everywhere_no_silent_fold: EVERY exact fold is independently correct (closed form == direct sum)
+    for t in targets:
+        d = D.dispose_summand(t, lib)
+        if d.kind == "EXACT_FOLD":
+            cf = sp.sympify(d.closed_form, locals={"n": n})
+            summ = sp.sympify(t, locals={"k": S._k, "n": n})
+            for N in (1, 3, 7):
+                direct = sum(sp.Rational(summ.subs(S._k, j)) for j in range(1, N + 1))
+                assert sp.simplify(cf.subs(n, N) - direct) == 0, f"SILENT WRONG FOLD: {t} at n={N}"
+    # neurosymbolic_proposes_verifies: a proposed closed form is VERIFIED before accept; a wrong proposal is rejected
+    assert S.induction_pit_verify(S._k**2, n * (n + 1) * (2 * n + 1) / 6) is not None     # correct proposal accepted
+    assert S.induction_pit_verify(S._k**2, n**2) is None                                   # wrong proposal rejected
+    # dispatcher_defers_on_verify_fail + deferred_code_byte_identical: opaque input defers, returned VERBATIM
+    dd = D.dispose_summand("is_prime(k)", lib)
+    assert dd.kind == "DEFER" and dd.original == "is_prime(k)" and m["byte_identical_defer"] is True
+    # absence cache gives an informative (not silent) defer
+    assert D.dispose_summand("1/k", lib).technique == "absence-cache"
+    print(f"PASS test_foldext2_stageB_disposition (100% disposed: {m['counts']}; exact_rate {m['exact_rate']:.0%}; "
+          f"strength-ordered (soup-lookup O(1) first); byte-identical defer; no silent wrong fold; "
+          f"neuro-symbolic propose→verify gates wrong proposals)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
