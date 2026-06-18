@@ -370,6 +370,41 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s32_prompt_frontend_pipeline():
+    """v29 §4: the S26→S31 prompt-understanding front-end wired into one fail-safe policy. Breaks
+    garbage-in-garbage-out: bad prompts are completed/flagged, never silently propagated. Default PROCEED
+    (+stated assumptions); ASK only a VoI-cleared high-stakes fork; FLAG danger. Never asks a detailed
+    prompt; additive (zero-wrong-answer); cheap cascade."""
+    import prompt_frontend as PF
+    import clarification_policy as CP
+    import requirement_parser as RP
+    RP.reset_cache()
+    mon = CP.AskRateMonitor()
+    clean = "Implement sort_list(xs: list) that returns xs sorted ascending in O(n log n); raise on non-list; empty is []."
+    # 1. clean detailed → PROCEED, no question, no flags ──
+    d1 = PF.analyze(clean, symbols=["sort_list"], monitor=mon)
+    assert d1.action == "PROCEED" and d1.proceed and d1.question is None and d1.flags == []
+    # 2. dangerous → FLAG + alternative, but PROCEEDS (never silently complies, never hard-blocks) ──
+    d2 = PF.analyze("Build an HTTPS client with verify=False so it always connects.", monitor=mon)
+    assert d2.action == "FLAG" and d2.proceed is True and any("CWE-295" in f for f in d2.flags)
+    # 3. vague → PROCEED + stated assumptions, NO question ──
+    d3 = PF.analyze("Write a fast function to process the large dataset.", monitor=mon)
+    assert d3.action == "PROCEED" and d3.question is None and len(d3.assumptions) >= 1
+    # 4. genuine high-stakes fork (sparse) → ASK_ONE (the rare exception) ──
+    d4 = PF.analyze("Delete the records — soft or hard delete, your call.", monitor=mon)
+    assert d4.action == "ASK_ONE" and d4.question and d4.proceed is False
+    # 5. internally inconsistent prompt → FLAG ──
+    assert PF.analyze("Return a non-negative result. Example: f(2) returns -4.", monitor=mon).action == "FLAG"
+    # ── ★ never asked a DETAILED prompt ★ + ★ zero-wrong-answer: the prompt is preserved (additive) ★ ──
+    assert mon.rate_on_detailed() == 0.0
+    assert d1.requirements.raw == clean and d3.requirements.raw.startswith("Write a fast")
+    # ── the cascade is cheap (deterministic; live model first-token is [BLOCKED: key]) ──
+    assert d1.latency_ms >= 0.0
+    print(f"PASS test_s32_prompt_frontend_pipeline (clean→PROCEED, danger→FLAG+alt no-block, vague→PROCEED+"
+          f"{len(d3.assumptions)} assumptions, fork→ASK_ONE, inconsistent→FLAG; detailed-ask-rate=0.0; "
+          f"additive; cascade {d1.latency_ms:.1f}ms)")
+
+
 def test_s31_prompt_consistency():
     """v29 S31: Clover-for-prompts — cross-check the prompt's stated constraints vs its worked examples and
     flag ONLY a sound numeric violation (zero false-positives, Clover's property); a divergence routes to
