@@ -98,7 +98,8 @@ def to_result_dict(res: AG.AgenticResult) -> dict:
     return {"request": res.request, "mode": res.mode, "source": res.source,
             "converged": res.converged, "iters": res.iters, "status": res.status,
             "code": res.final_code, "proof_tier": res.proof_tier, "optimization": opt,
-            "ms": round(res.ms, 2), "history_len": res.history_len, "trace": trace}
+            "ms": round(res.ms, 2), "history_len": res.history_len, "trace": trace,
+            "gates": res.gates, "best_of_n": list(res.best_of_n)}   # S10: which mathematics this mode spent
 
 
 def handle_generate(payload: Optional[dict]) -> dict:

@@ -174,6 +174,47 @@ def test_s9_runtime_engine():
     print(f"PASS test_s9_runtime_engine (parallel reduce: {v.status} {v.speedup:.2f}x on {v.cores} cores)")
 
 
+def test_s10_mode_policy():
+    """v26.2 S10: NORMAL/EXTENDED allocation = how-much-mathematics dial; BOTH zero-wrong-answer; the
+    expensive engines are EXTENDED-only; the best-of-N selector is a SOUND verifier (never learned reward)."""
+    import mode_policy as MP
+    # cheap mathematics + the always-on soundness gates are in BOTH modes
+    for t in ("prefix_caching", "grammar_constrained", "speculative_decoding", "interval_abstract",
+              "cfinite_obvious_fold", "type_property_metamorphic", "monoid_parallel", "layout_simd_cheap",
+              "incremental_reverify", "clover_spec_gate", "ct_certifier", "taint_ifds"):
+        assert MP.should_run(t, "normal") and MP.should_run(t, "extended"), f"{t} must be in BOTH modes"
+    # the EXPENSIVE mathematics is EXTENDED-only — NORMAL must terminate before paying for it
+    for t in ("octagon_polyhedra", "gosper_toeplitz_fft", "z3_smt", "coq_forall",
+              "racefree_parallel", "layout_simd_deep"):
+        assert not MP.should_run(t, "normal"), f"{t} must NOT run in NORMAL (it is expensive)"
+        assert MP.should_run(t, "extended"), f"{t} must run in EXTENDED"
+    # NORMAL ⊊ EXTENDED (extended is a strict superset; nothing in normal is dropped)
+    n, e = set(MP.gates_for("normal")), set(MP.gates_for("extended"))
+    assert n < e and (e - n) == {"octagon_polyhedra", "gosper_toeplitz_fft", "z3_smt", "coq_forall",
+                                 "racefree_parallel", "layout_simd_deep"}
+    # best-of-N grows with mode but the SELECTOR is a sound verifier only (invariant 2), both zero-wrong (1)
+    pn, pe = MP.plan("normal"), MP.plan("extended")
+    assert pn.best_of_n == (1, 2) and pe.best_of_n == (4, 8)
+    assert pn.loop_budget == 2 and pe.loop_budget == 5
+    assert pn.sound_selector_only and pe.sound_selector_only          # never a learned reward / LLM-judge
+    assert pn.zero_wrong_answer and pe.zero_wrong_answer              # mode is depth, NOT correctness
+    # unknown technique → not run; bogus mode → safe NORMAL default
+    assert MP.should_run("nonexistent_technique", "extended") is False
+    assert MP.plan("bogus").mode == "normal"
+    # progress labels are honest: NORMAL must NOT advertise stages it never runs (z3/octagon)
+    assert "z3_smt" not in MP.progress_stages("normal") and "z3_smt" in MP.progress_stages("extended")
+    # ★ WIRED INTO PIPELINE ★: agentic_code consults the policy — the result carries the mode's plan,
+    # the loop budget is the policy's, and extended surfaces strictly more gates than normal.
+    import agentic as AG
+    assert AG.MODE_BUDGET is MP.MODE_BUDGET                       # single source of truth
+    rn = AG.agentic_code("sum 1..n", "normal", mock_sequence=["fn f(n: Nat) -> Nat { fold k in 1..n { k } }"])
+    re = AG.agentic_code("sum 1..n", "extended", mock_sequence=["fn f(n: Nat) -> Nat { fold k in 1..n { k } }"])
+    assert set(rn.gates) == n and set(re.gates) == e and len(re.gates) > len(rn.gates)
+    assert rn.best_of_n == (1, 2) and re.best_of_n == (4, 8)
+    print(f"PASS test_s10_mode_policy (NORMAL {len(n)} gates ⊊ EXTENDED {len(e)} gates; "
+          f"best-of-N {pn.best_of_n}->{pe.best_of_n}; sound-selector-only; wired into agentic_code)")
+
+
 def test_s8_glm_preset():
     """v26.2 S8: GLM/Z.ai preset (web-confirmed base_url+model), openai_compat shape, UI prefilled."""
     import provider

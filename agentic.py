@@ -27,6 +27,7 @@ import ai_loop
 import claude_agent as CA
 import closure_classifier as CC
 import fusion
+import mode_policy as MP
 import prove_exact as PE
 from haran_parser import parse
 
@@ -176,7 +177,7 @@ def optimize(code: str) -> OptimizeResult:
 #   never does, so `wrong` is structurally always False. ★
 # ---------------------------------------------------------------------------------------------------
 
-MODE_BUDGET = {"normal": 2, "extended": 5}   # fix-iteration budget (loop depth)
+MODE_BUDGET = MP.MODE_BUDGET   # fix-iteration budget (loop depth) — single source of truth = mode_policy (S10)
 
 
 @dataclass
@@ -278,6 +279,8 @@ class AgenticResult:
     ms: float                 # measured wall-clock of the whole pipeline
     history_len: int          # how many prior turns were threaded into context
     trace: List[ai_loop.LoopStep] = field(default_factory=list)
+    gates: List[str] = field(default_factory=list)   # S10: the mathematics this mode is allowed to spend
+    best_of_n: Tuple[int, int] = (1, 2)              # S10: sound-verifier-selected candidates (never learned reward)
 
 
 def _with_history(request: str, history: Optional[List[HistoryTurn]]) -> str:
@@ -300,7 +303,8 @@ def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = No
     `provider`/`model`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults)."""
     t0 = time.perf_counter()
     task = _with_history(request, history)
-    budget = MODE_BUDGET.get(mode, 2)
+    plan = MP.plan(mode)                      # S10: which mathematics, how far (both modes zero-wrong-answer)
+    budget = plan.loop_budget
     wvf = write_verify_fix(task, api_key, model=model, mock_sequence=mock_sequence, max_iters=budget,
                            provider=provider, base_url=base_url)
 
@@ -323,6 +327,7 @@ def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = No
         request=request, mode=mode, source=wvf.source, converged=wvf.converged, iters=wvf.iters,
         status=status, final_code=wvf.final_code, proof_tier=tier, optimization=opt, ms=ms,
         history_len=len(history or []), trace=wvf.trace,
+        gates=plan.gates, best_of_n=plan.best_of_n,
     )
 
 
