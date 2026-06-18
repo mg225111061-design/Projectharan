@@ -1805,6 +1805,51 @@ def test_foldext_stage0_defer_corpus():
           f"tune {len(tune)}/measure {len(meas)} held-out)")
 
 
+def test_foldext_stageA_kovacic():
+    """STAGE A: differential-Galois/Kovacic foldability for 2nd-order linear ODEs. Detector recovers
+    (p,q) from an Euler loop; dsolve proposes; EXACT re-substitution is the sound gate; non-Liouvillian
+    defers with a certificate. Covers: detect_ode_discretization, kovacic_decides_liouvillian,
+    closed_form_verified_before_fold, non_liouvillian_defers_with_cert, kovacic_scope_2nd_order_linear_only,
+    ode_corpus_hit_rate_measured."""
+    import sympy as sp
+    import kovacic as K
+    # detect_ode_discretization: recover (p,q) from a REAL Euler discretization loop (round-trip)
+    for p, q in [("0", "-1"), ("3", "2"), ("1/x", "-1/x**2")]:
+        rec = K.recover_ode_from_euler(K.euler_source(p, q))
+        assert rec is not None and sp.simplify(sp.sympify(rec[0]) - sp.sympify(p)) == 0 \
+            and sp.simplify(sp.sympify(rec[1]) - sp.sympify(q)) == 0, f"failed to recover ({p},{q}): {rec}"
+    assert K.recover_ode_from_euler("x = 1\ny = 2\n") is None     # not an Euler scheme → None (no false detect)
+    # kovacic_decides_liouvillian: exp / trig / Euler-Cauchy fold with a verified closed form
+    ve = K.kovacic_decide("0", "-1")          # y'' - y = 0 → exp
+    assert ve.status == "FOLDED" and ve.liouvillian is True and "exp" in ve.closed_form
+    vt = K.kovacic_decide("0", "1")           # y'' + y = 0 → sin/cos
+    assert vt.status == "FOLDED" and ("sin" in vt.closed_form or "cos" in vt.closed_form)
+    # closed_form_verified_before_fold: EVERY fold carries an exact re-substitution proof; the gate really gates
+    assert ve.cert_type == "exact" and ve.verified_exact is True
+    x = sp.Symbol("x"); C1, C2 = sp.symbols("C1 C2")
+    good_ok, _ = K._verify_solution(sp.Integer(0), sp.Integer(-1), C1 * sp.exp(x) + C2 * sp.exp(-x), x, [C1, C2])
+    bad_ok, _ = K._verify_solution(sp.Integer(0), sp.Integer(-1), C1 * sp.sin(x) + C2 * sp.cos(x), x, [C1, C2])
+    assert good_ok is True and bad_ok is False, "sound gate must accept a true solution and REJECT a wrong one"
+    # non_liouvillian_defers_with_cert: Airy / Bessel defer, with an informative (non-Liouvillian) certificate
+    air = K.kovacic_decide("0", "-x")         # y'' - x y = 0 → Airy
+    assert air.status == "DEFER" and air.liouvillian is False and "Liouvillian" in air.detail
+    bes = K.kovacic_decide("1/x", "-1")       # → Bessel
+    assert bes.status == "DEFER" and bes.liouvillian is False
+    ser = K.kovacic_decide("0", "x**2")       # truncated series — NOT a closed form → defer (trap caught)
+    assert ser.status == "DEFER" and "series" in ser.detail.lower()
+    # kovacic_scope_2nd_order_linear_only: higher-order / nonlinear is OUT_OF_SCOPE (no overclaim)
+    assert K.kovacic_decide("0", "-1", order=3).status == "OUT_OF_SCOPE"
+    assert K.kovacic_decide("0", "-1", linear=False).status == "OUT_OF_SCOPE"
+    # ode_corpus_hit_rate_measured: real numbers on the corpus, and ZERO false folds (100% correctness)
+    m = K.measure_ode_corpus()
+    assert m["n"] >= 6 and m["folded"] >= 4 and m["correctness"] == 1.0 and m["clock"] == "C"
+    mh = K.measure_ode_corpus(split="measure")     # held-out: still no false fold
+    assert mh["correctness"] == 1.0
+    print(f"PASS test_foldext_stageA_kovacic (detector round-trips; [Clock C] ODE corpus baseline 0/{m['n']} "
+          f"-> folded {m['folded']}/{m['n']} (decision {m['decision_rate']:.0%}); Airy/Bessel/series DEFER w/ "
+          f"cert; correctness {m['correctness']:.0%} (no false fold); held-out {mh['fold_rate']:.0%})")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
