@@ -25,9 +25,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-# NOTE: `os` is intentionally NOT imported (level-1: the key/secrets never touch env or files).
+# NOTE: `os` is intentionally NOT imported here (level-1: the KEY never touches env/files via this
+# module — it is ALWAYS a caller-supplied argument, used once and dropped). Non-secret gateway config
+# (provider mode / model / base_url) is resolved in `provider.py` and only used as defaults below;
+# `provider.resolve_key()` is NEVER called from this module.
+import provider as _PV
 
-DEFAULT_MODEL = "claude-opus-4-8"   # claude-api skill default; user may override per call.
+# Resolved at import from env (non-secret config). With no env vars set → anthropic / claude-opus-4-8.
+DEFAULT_PROVIDER = _PV.provider_name()
+DEFAULT_MODEL = _PV.model()          # HARAN_MODEL or claude-opus-4-8
+DEFAULT_BASE_URL = _PV.base_url()    # HARAN_BASE_URL (None for plain anthropic → SDK default)
 
 # Output headroom. The claude-api skill recommends ~16000 for non-streaming (keeps requests under the
 # SDK's ~10-min timeout guard, which trips around ~21–32k); HARAN code + adaptive thinking needs room,
@@ -183,20 +190,36 @@ def _build_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: in
     return kwargs
 
 
-def _live_generate(prompt: str, api_key: str, model: str, system: Optional[str],
-                   max_tokens: int, thinking: bool, stream: bool,
-                   on_delta: Optional[Callable[[str], None]]) -> GenResult:
-    """One real Claude call via the official SDK. The key is used here and dropped on return; it is
-    never stored on the client beyond this scope, never logged, never returned."""
+def _build_openai_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: int,
+                         stream: bool) -> dict:
+    """Assemble OpenAI /chat/completions kwargs (pure — testable without a network/key). OpenAI-shaped
+    gateways (OpenRouter, TokenMix, …) take the system prompt as a leading `system` message, the user
+    text as a `user` message, and `max_tokens`. No `thinking`/`cache_control` (Anthropic-only); the
+    Anthropic tripwire (`_assert_spec_conformant`) deliberately does NOT apply here — these gateways
+    allow params like `temperature` that Opus 4.8 rejects."""
+    return {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "system", "content": system or SYSTEM_PROMPT},
+                     {"role": "user", "content": prompt}],
+        "stream": stream,
+    }
+
+
+def _live_generate_anthropic(prompt: str, api_key: str, model: str, system: Optional[str],
+                             max_tokens: int, thinking: bool, stream: bool,
+                             on_delta: Optional[Callable[[str], None]],
+                             base_url: Optional[str], provider: str) -> GenResult:
+    """One real call via the Anthropic SDK (provider 'anthropic' or 'anthropic_compat'). `base_url`
+    targets a custom gateway (AgentRouter etc.) when set; None → the SDK default. The key is used here
+    and dropped on return — never stored, logged, or returned."""
     try:
         import anthropic   # lazy: module imports fine without the SDK (mock mode needs none)
     except ImportError as e:
-        raise ClaudeError(
-            "anthropic SDK not installed — `pip install anthropic` to make real Claude calls "
-            "(mock mode needs no SDK and no key)."
-        ) from e
+        raise ClaudeError("anthropic SDK not installed — `pip install anthropic` for live calls.") from e
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.Anthropic(api_key=api_key, base_url=base_url) if base_url \
+        else anthropic.Anthropic(api_key=api_key)
     kwargs = _build_kwargs(prompt, system, model, max_tokens, thinking)
     # The SDK raises ValueError for non-streaming requests with a large max_tokens (≈10-min guard);
     # auto-switch to streaming so a big generation never crashes (skill: stream for high max_tokens).
@@ -215,37 +238,92 @@ def _live_generate(prompt: str, api_key: str, model: str, system: Optional[str],
     except Exception as e:   # noqa: BLE001 — normalize SDK errors; never leak the key in the message
         raise ClaudeError(_friendly_error(e)) from None
     finally:
-        # drop the client (and with it the key it captured) as soon as the call is done
-        del client
+        del client   # drop the client (and the key it captured) as soon as the call is done
 
     text = "".join(getattr(b, "text", "") for b in blocks
                    if getattr(b, "type", None) == "text").strip()
     if not text:
-        raise ClaudeError("Claude returned no text content")
+        raise ClaudeError("model returned no text content")
     usage_d = {"input_tokens": getattr(usage, "input_tokens", None),
                "output_tokens": getattr(usage, "output_tokens", None)} if usage else None
-    return GenResult(text=text, live=True, model=model, source="claude-live", usage=usage_d)
+    return GenResult(text=text, live=True, model=model, source=f"{provider}-live", usage=usage_d)
+
+
+def _live_generate_openai(prompt: str, api_key: str, model: str, system: Optional[str],
+                          max_tokens: int, stream: bool,
+                          on_delta: Optional[Callable[[str], None]],
+                          base_url: Optional[str]) -> GenResult:
+    """One real call via the OpenAI SDK against an OpenAI-compatible gateway (provider 'openai_compat').
+    Parses the OpenAI response shape (`choices[0].message.content` / streamed `delta.content`). The key
+    is used here and dropped — never stored, logged, or returned."""
+    try:
+        import openai   # lazy
+    except ImportError as e:
+        raise ClaudeError("openai SDK not installed — `pip install openai` for openai_compat gateways.") from e
+
+    client = openai.OpenAI(api_key=api_key, base_url=base_url) if base_url \
+        else openai.OpenAI(api_key=api_key)
+    kwargs = _build_openai_kwargs(prompt, system, model, max_tokens, stream)
+    text, usage = "", None
+    try:
+        # Classic chat-completions call (widest gateway compatibility). stream=True → iterate chunks.
+        resp = client.chat.completions.create(**kwargs)
+        if stream:
+            chunks = []
+            for chunk in resp:
+                ch = chunk.choices[0] if getattr(chunk, "choices", None) else None
+                delta = getattr(getattr(ch, "delta", None), "content", None) if ch else None
+                if delta:
+                    chunks.append(delta)
+                    if on_delta:
+                        on_delta(delta)
+            text = "".join(chunks).strip()
+        else:
+            text = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+            usage = getattr(resp, "usage", None)
+    except Exception as e:   # noqa: BLE001 — normalize SDK errors; never leak the key
+        raise ClaudeError(_friendly_error(e)) from None
+    finally:
+        del client
+
+    if not text:
+        raise ClaudeError("gateway returned no text content")
+    usage_d = {"input_tokens": getattr(usage, "prompt_tokens", None),
+               "output_tokens": getattr(usage, "completion_tokens", None)} if usage else None
+    return GenResult(text=text, live=True, model=model, source="openai_compat-live", usage=usage_d)
 
 
 def claude_generate(prompt: str, api_key: Optional[str] = None, *,
-                    model: str = DEFAULT_MODEL, system: Optional[str] = None,
+                    model: Optional[str] = None, provider: Optional[str] = None,
+                    base_url: Optional[str] = None, system: Optional[str] = None,
                     max_tokens: int = DEFAULT_MAX_TOKENS, thinking: bool = True, stream: bool = False,
                     on_delta: Optional[Callable[[str], None]] = None,
                     mock_response: Optional[str] = None) -> GenResult:
-    """Generate code with Claude (real) or a labeled simulation (mock).
+    """Generate code with the configured model gateway (real) or a labeled simulation (mock).
+
+    GATEWAY: `provider`/`model`/`base_url` default to the env-resolved config (provider.py): one of
+    `anthropic` (default), `anthropic_compat` (Anthropic SDK + custom base_url — AgentRouter etc.), or
+    `openai_compat` (OpenAI SDK /chat/completions — OpenRouter etc.). Set HARAN_PROVIDER/HARAN_MODEL/
+    HARAN_BASE_URL to switch routers; no code change needed.
 
     LEVEL-1 KEY RULE: `api_key` is used for exactly one call and then dropped — never stored in env, a
     file, a log, a cache, a global, or on any returned object. Pass it fresh every call.
 
-    • api_key truthy  → one real Claude call (official SDK, model default `claude-opus-4-8`).
+    • api_key truthy  → one real call (provider-appropriate SDK).
     • api_key falsy   → deterministic mock (`source='mock-sim'`, `live=False`); zero network/secrets.
 
-    `stream=True` + `on_delta(chunk)` streams text deltas (recommended for long output). `mock_response`
-    overrides the canned mock text (used by S2/S3 to script writer/fixer turns)."""
+    `stream=True` + `on_delta(chunk)` streams text deltas. `mock_response` overrides the canned mock."""
+    model = model or DEFAULT_MODEL
+    provider = provider or DEFAULT_PROVIDER
+    base_url = DEFAULT_BASE_URL if base_url is None else base_url
     if api_key:
         try:
-            result = _live_generate(prompt, api_key, model, system, max_tokens,
-                                    thinking, stream, on_delta)
+            if provider == "openai_compat":
+                result = _live_generate_openai(prompt, api_key, model, system, max_tokens,
+                                               stream, on_delta, base_url)
+            else:   # anthropic | anthropic_compat — both use the Anthropic SDK (base_url differs)
+                result = _live_generate_anthropic(prompt, api_key, model, system, max_tokens,
+                                                  thinking, stream, on_delta, base_url, provider)
         finally:
             # explicit hygiene: forget our binding to the key the instant we're done with it. The
             # caller still owns its copy (it re-supplies per call); WE keep nothing.

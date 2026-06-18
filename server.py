@@ -27,6 +27,7 @@ import agentic as AG
 import claude_agent as CA
 import haran_cache as HC
 import intent as IN
+import provider as PV   # non-secret gateway config + env-key fallback (web UI key still takes priority)
 
 # Expose `Request` at MODULE scope so FastAPI can resolve the route handlers' string annotations
 # (PEP 563 / `from __future__ import annotations` turns `req: Request` into the string "Request",
@@ -105,7 +106,7 @@ def handle_generate(payload: Optional[dict]) -> dict:
     if is_scope(prompt):                         # intent-gap honesty: don't fake-verify a whole program
         return _scope_result(prompt, mode)
     history = parse_history(p.get("history"))
-    api_key = p.get("apiKey") or None          # read locally only
+    api_key = p.get("apiKey") or PV.resolve_key()          # read locally only
     try:
         res = AG.agentic_code(prompt, mode, api_key, history=history)
         return to_result_dict(res)
@@ -140,7 +141,7 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
     prompt = str(p.get("prompt", "")).strip()
     mode = p.get("mode", "normal")
     history = parse_history(p.get("history"))
-    api_key = p.get("apiKey") or None
+    api_key = p.get("apiKey") or PV.resolve_key()
     if not prompt:
         yield sse_event({"type": "error", "message": "empty prompt"})
         return
@@ -218,7 +219,7 @@ def handle_route(payload: Optional[dict]) -> dict:
     text = str(p.get("prompt", "")).strip()
     mode = p.get("mode", "normal")
     history = parse_history(p.get("history"))
-    api_key = p.get("apiKey") or None
+    api_key = p.get("apiKey") or PV.resolve_key()
     if not text:
         return {"error": True, "message": "empty prompt"}
     try:

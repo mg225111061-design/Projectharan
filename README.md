@@ -38,6 +38,47 @@ python server.py                      # then use the app live at http://localhos
 > param-level 400-freedom is guaranteed by the spec match + the tripwire above. A real **live** call
 > can only be confirmed with a real key (the line above) — that step is yours.
 
+## Use any API router / gateway (AgentRouter, OpenRouter, TokenMix, …)
+HARAN talks to any common gateway via **three env vars** — no code change. The key is read per call and
+dropped (`claude_agent.py` still never imports `os`); only non-secret config is read from the env.
+
+| var | meaning | example |
+|---|---|---|
+| `HARAN_PROVIDER` | `anthropic` (default) · `anthropic_compat` · `openai_compat` | `openai_compat` |
+| `HARAN_MODEL` | model id for that gateway | `qwen/qwen3-coder` |
+| `HARAN_BASE_URL` | gateway base URL | `https://openrouter.ai/api/v1` |
+| `HARAN_KEY` | your gateway key (masked, never stored) | `sk-…` |
+
+**Official Anthropic (default — nothing extra to set):**
+```
+export HARAN_KEY=sk-ant-...            # HARAN_PROVIDER=anthropic, HARAN_MODEL=claude-opus-4-8 by default
+```
+**AgentRouter & other Anthropic-shaped gateways** (Anthropic SDK + custom base_url):
+```
+export HARAN_PROVIDER=anthropic_compat
+export HARAN_BASE_URL=https://agentrouter.org/v1
+export HARAN_MODEL=claude-opus-4-8
+export HARAN_KEY=...
+```
+**OpenRouter / TokenMix & other OpenAI-shaped gateways** (OpenAI SDK, `/chat/completions`):
+```
+export HARAN_PROVIDER=openai_compat
+export HARAN_BASE_URL=https://openrouter.ai/api/v1
+export HARAN_MODEL=qwen/qwen3-coder        # or anthropic/claude-3.5-sonnet, etc.
+export HARAN_KEY=...
+```
+Then (works for whichever provider you set):
+```
+python3 scripts/test_claude.py --shape   # key-free: confirm the request shape for the configured gateway
+python3 scripts/test_claude.py           # one real call (uses HARAN_KEY)
+python server.py                         # http://localhost:8000
+```
+> Verified: the `anthropic`/`anthropic_compat` request shape is accepted by the real Anthropic API
+> (dummy-key → 401). The `openai_compat` request body is SDK-valid but its gateways
+> (openrouter.ai etc.) were outside the build sandbox's network allowlist, so its **live** check is
+> yours to run with your key. Anthropic-shaped requests keep the 400-safe body + tripwire; OpenAI-shaped
+> requests use the OpenAI message format (where params like `temperature` are allowed).
+
 ## Make this a standalone GitHub repo (4 commands)
 This folder is self-contained. Create the repo on github.com (or `gh repo create mrjeffrey-web --private`),
 then from inside `haran-web/`:

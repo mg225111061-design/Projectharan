@@ -180,3 +180,32 @@ verified) — a fake key returns **401 if the shape is accepted**, **400 if not*
 - **`scripts/test_claude.py`** for the user's own live test: `--shape` (key-free 401 check) and the real
   call (reads `$HARAN_KEY`, one call, dropped). README updated with the exact commands.
 - **Still honest:** a real **live success** can only be confirmed with a real key → **user's step**.
+
+---
+
+## Multi-provider router compatibility + UI fixes — DONE
+
+**Routers/gateways (any of three via env, no code change):** new `provider.py` resolves non-secret
+config (`HARAN_PROVIDER` ∈ anthropic|anthropic_compat|openai_compat, `HARAN_MODEL`, `HARAN_BASE_URL`);
+`claude_agent.py` dispatches accordingly — Anthropic SDK (±custom base_url) or OpenAI SDK
+(`/chat/completions`, system+user messages, OpenAI response parse). `claude_agent.py` stays **os-free**
+(imports `provider` for config defaults only; the key is ALWAYS a per-call arg, never read from env
+here). `server.py` adds an env-key fallback (`HARAN_KEY`) but the web-UI per-request key still wins.
+`openai` added to requirements. `scripts/test_claude.py` is provider-aware (`--shape` + real call).
+
+- **Verified (key-free):** provider resolution for all 3 modes (`test_provider_config_resolution`);
+  OpenAI request shape (`test_openai_request_shape`); dispatch routing — `anthropic_compat`→Anthropic
+  SDK→**401 shape-OK** at the real API, `openai_compat`→OpenAI SDK (reached HTTP). Mock + all prior
+  paths unchanged. **13/13** `test_build` green.
+- **Honest limit:** this build sandbox's egress allowlist permits only `api.anthropic.com`, so the
+  `openai_compat` **live** 401 probe (openrouter.ai/api.openai.com) is **blocked here** — the request
+  body is SDK-valid and routes correctly; live confirmation is the user's step (their env + key).
+
+**UI fixes in `haran.html` (read in full to locate; visual confirm still the user's):**
+- **2.1 asterisk/no-log popover invisible:** root cause `.chat{overflow:hidden}` clipped `.key-pop`
+  (positioned ABOVE the key row via `bottom:100%`). Fix: `.chat{overflow:visible}` + round the
+  composer's bottom corners so the card's rounded look is preserved. (If the report instead meant the
+  `*` glyph itself, its CSS is present/visible — a screenshot would disambiguate.)
+- **2.2 English comma→semicolon:** the English `hero` string used `;` where the Korean uses `,` (no
+  systematic `replace()` — just that one string). Fixed to a comma (", and", matching the Korean
+  conjunction). JS still passes `node --check`; server serves both fixes (curl-confirmed).

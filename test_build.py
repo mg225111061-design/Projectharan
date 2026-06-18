@@ -69,6 +69,51 @@ def test_spec_conformance_tripwire():
     print(f"PASS test_spec_conformance_tripwire ({len(bad_cases)} 400-causers all rejected)")
 
 
+def test_provider_config_resolution():
+    """Router compat: PROVIDER/HARAN_MODEL/HARAN_BASE_URL resolve correctly; invalid → safe default."""
+    import os
+    import importlib
+    import provider
+    keys = ("HARAN_PROVIDER", "PROVIDER", "HARAN_MODEL", "HARAN_BASE_URL", "OPENAI_BASE_URL", "ANTHROPIC_BASE_URL")
+    saved = {k: os.environ.get(k) for k in keys}
+    try:
+        for k in keys:
+            os.environ.pop(k, None)
+        importlib.reload(provider)
+        assert (provider.provider_name(), provider.model(), provider.base_url()) == \
+            ("anthropic", "claude-opus-4-8", None)
+        os.environ.update({"HARAN_PROVIDER": "openai_compat", "HARAN_MODEL": "qwen/qwen3-coder",
+                           "HARAN_BASE_URL": "https://openrouter.ai/api/v1"})
+        assert provider.provider_name() == "openai_compat"
+        assert provider.model() == "qwen/qwen3-coder"
+        assert provider.base_url() == "https://openrouter.ai/api/v1"
+        os.environ.update({"HARAN_PROVIDER": "anthropic_compat", "HARAN_BASE_URL": "https://agentrouter.org/v1"})
+        assert provider.base_url() == "https://agentrouter.org/v1"
+        os.environ["HARAN_PROVIDER"] = "bogus"           # invalid → safe fallback to anthropic
+        assert provider.provider_name() == "anthropic"
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        importlib.reload(provider)
+    print("PASS test_provider_config_resolution")
+
+
+def test_openai_request_shape():
+    """openai_compat builds an OpenAI /chat/completions body: system+user messages, no Anthropic-only keys."""
+    k = CA._build_openai_kwargs("USER_TEXT", None, "qwen/qwen3-coder", 16000, False)
+    assert k["model"] == "qwen/qwen3-coder" and k["max_tokens"] == 16000
+    assert k["messages"][0]["role"] == "system"
+    assert k["messages"][1] == {"role": "user", "content": "USER_TEXT"}
+    assert "thinking" not in k and "cache_control" not in str(k)   # Anthropic-only — absent here
+    # and the anthropic builder is unchanged (still carries the cache breakpoint + adaptive thinking)
+    a = CA._build_kwargs("U", None, "claude-opus-4-8", 16000, True)
+    assert a["system"][0]["cache_control"] == {"type": "ephemeral"} and a["thinking"] == {"type": "adaptive"}
+    print("PASS test_openai_request_shape")
+
+
 def test_redact_key_still_holds():
     # belt-and-suspenders: the masking primitive itself
     assert "sk-ant-" not in CA.redact_key("prefix sk-ant-abc123 suffix").replace("sk-***REDACTED***", "")
