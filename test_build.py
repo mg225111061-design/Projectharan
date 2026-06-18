@@ -370,6 +370,40 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s30_clarification_policy():
+    """v29 S30: ask RARELY, ask SMART, max one. Only a genuine high-stakes fork (not detailed) with VoI over
+    a conservative threshold → ONE question; everything else PROCEEDs. ★A detailed prompt is NEVER asked.★
+    The ask-rate monitor clamps the threshold if a detailed prompt is ever asked."""
+    import clarification_policy as CP
+    import ambiguity_detector as AD
+    import requirement_parser as RP
+    RP.reset_cache()
+    mon = CP.AskRateMonitor()
+    # ── a genuine high-stakes fork, NOT detailed → ASK_ONE (exactly one focused question) ──
+    p1 = "Delete the records — soft or hard delete, your call."
+    d1 = CP.decide(p1, AD.detect_ambiguity(p1), req=RP.parse_requirements(p1), monitor=mon, threshold=3.0)
+    assert d1.status == "ASK_ONE" and isinstance(d1.question, str) and d1.question.count("?") == 1 and d1.voi > 3.0
+    # ── ★ a DETAILED prompt (even with a fork) is NEVER asked → PROCEED ★ ──
+    p2 = ("Implement delete_user(user_id: int) that removes the user and returns bool; either soft or hard "
+          "delete is fine; it must be transactional and log the action; raise on a missing id.")
+    req2 = RP.parse_requirements(p2)
+    assert CP.is_detailed(req2)
+    assert CP.decide(p2, AD.detect_ambiguity(p2), req=req2, monitor=mon).status == "PROCEED"
+    # ── a non-fork (CLEAR/MINOR) → PROCEED ──
+    p3 = "Write a fast function to sort the large list."
+    assert CP.decide(p3, AD.detect_ambiguity(p3), req=RP.parse_requirements(p3), monitor=mon).status == "PROCEED"
+    # ── the conservative threshold gates: raise it high and even a real fork PROCEEDs ──
+    assert CP.decide(p1, AD.detect_ambiguity(p1), req=RP.parse_requirements(p1), threshold=100.0).status == "PROCEED"
+    # ── ask-rate monitor: we NEVER asked on a detailed prompt; if we ever did, the threshold is raised ──
+    assert mon.rate_on_detailed() == 0.0
+    bad = CP.AskRateMonitor(); bad.record(detailed=True, asked=True)
+    assert bad.suggest_threshold(3.0) > 3.0                  # clamp down if a detailed prompt was asked
+    good = CP.AskRateMonitor(); good.record(detailed=True, asked=False)
+    assert good.suggest_threshold(3.0) == 3.0
+    print(f"PASS test_s30_clarification_policy (high-stakes fork→ASK_ONE 1q VoI={d1.voi:.0f}; detailed→PROCEED "
+          f"never-ask; non-fork→PROCEED; high threshold→PROCEED; detailed-ask-rate={mon.rate_on_detailed():.2f})")
+
+
 def test_s29_ambiguity():
     """v29 S29: ambiguity → DEFAULT reasonable completion + stated assumption (NEVER asks); only a genuine
     high-stakes fork escalates to S30. Conservative toward not-asking; deterministic lexicon (the
