@@ -506,6 +506,45 @@ def test_stage4_login_profile_work():
           "persists; work saved+listed; schema has NO api_key column; LLM key never persisted)")
 
 
+def test_stage2_clockB_verification():
+    """v31 STAGE 2 [Clock B: verification]: incremental SMT (reuse), fast probabilistic certificates
+    (Freivalds / Schwartz-Zippel — one-sided, error stated), and SOUND semantic caching. Clock B ONLY —
+    not the LLM call or code execution."""
+    import fast_certificates as FC
+    import incremental_smt as IS
+    import proof_cache as PC
+    import z3_adapter as Z
+    # incremental_smt_reuses: incremental verdicts EQUAL fresh (correctness preserved; reuse is the speedup)
+    vt = {"a": "Int", "b": "Int"}
+    sh = [Z.parse_predicate("a>=0", vt), Z.parse_predicate("b>=0", vt)]
+    goals = [Z.parse_predicate("a+b>=0", vt), Z.parse_predicate("a*a>=0", vt), Z.parse_predicate("a>=1", vt)]
+    fresh = IS.prove_batch_fresh(sh, goals, vt)
+    inc = IS.prove_batch_incremental(sh, goals, vt)
+    assert inc == fresh and inc[2] == "REFUTED" and inc[0] == "PROVEN"          # same answers, reused
+    # certificate_skips_full_suite (labeled): Freivalds is one-sided sound + carries its error bound
+    m = FC.measure_freivalds(n=120, k=24)
+    assert m.correct_pass and m.wrong_caught and m.cert_type == "Freivalds"
+    assert abs(m.error_prob - 2.0 ** -24) < 1e-12 and m.cert_ms <= m.exact_ms   # ε=2^-k, and it's faster
+    # Schwartz-Zippel: a true identity PASSes with stated ε; a non-identity is FAILed (one-sided, no false reject)
+    idn = FC.sz_identity_check(lambda v: (v[0] + v[1]) ** 2, lambda v: v[0] ** 2 + 2 * v[0] * v[1] + v[1] ** 2, 2, 2)
+    nid = FC.sz_identity_check(lambda v: (v[0] + v[1]) ** 2, lambda v: v[0] ** 2 + v[1] ** 2, 2, 2)
+    assert idn.ok and idn.cert_type == "Schwartz-Zippel-ε" and 0 < idn.error_prob < 1e-30
+    assert nid.ok is False                                                       # distinct → caught
+    # semantic_cache_hits + cache_sound_no_false_hit
+    PC.reset()
+    wl = [(Z.parse_predicate("a*a>=0", {"a": "Int"}), {"a": "Int"}, ()),
+          (Z.parse_predicate("x*x>=0", {"x": "Int"}), {"x": "Int"}, ()),          # α-equiv → HIT
+          (Z.parse_predicate("a*b>=a+b", {"a": "Int", "b": "Int"}), {"a": "Int", "b": "Int"}, ())]  # distinct
+    mc = PC.measure_cache(wl)
+    assert mc["hits"] >= 1 and mc["lossless_mismatches"] == 0                    # reuse, and NEVER a wrong verdict
+    PC.reset()
+    a1 = PC.prove_forall_cached(Z.parse_predicate("a*a>=0", {"a": "Int"}), {"a": "Int"})
+    a2 = PC.prove_forall_cached(Z.parse_predicate("a*b>=a+b", {"a": "Int", "b": "Int"}), {"a": "Int", "b": "Int"})
+    assert a1.verdict == "PROVEN" and a2.verdict == "REFUTED"                    # non-equiv → its OWN verdict, no false hit
+    print(f"PASS test_stage2_clockB_verification ([Clock B] incremental SMT reuses (same verdicts); Freivalds "
+          f"{m.speedup}× ε≤2^-24 + Schwartz-Zippel-ε; semantic cache hits, sound (no false hit))")
+
+
 def test_stage1_clockA_bestofn():
     """v31 STAGE 1 [Clock A: LLM call]: parallel best-of-N + first-pass early-exit. Candidates run
     concurrently; a SOUND verifier accepts the first pass and the rest are cancelled; wall-clock = max, not
