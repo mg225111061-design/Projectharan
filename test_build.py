@@ -370,6 +370,51 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s17_eqsat_ic3_hammer():
+    """v27 S17 (EXTENDED depth): equality saturation (e-graph + Z3-certified extraction), unbounded safety
+    by k-induction (IC3/PDR family), and a portfolio hammer. All kernel-checked; honest UNKNOWN/NO_GAIN."""
+    import equality_saturation as ES
+    import ic3_pdr as IC
+    import tactic_hammer as TH
+    import z3
+    # ── equality saturation: explore equivalent forms, extract the cheapest, CERTIFY with Z3 ──
+    t = ("+", ("*", ("var", "x"), ("const", 2)), ("*", ("var", "x"), ("const", 3)))   # x*2 + x*3
+    v = ES.optimize(t)
+    assert v.status == "OPTIMIZED" and v.after < v.before                 # x*2+x*3 → 5*x (fewer nodes)
+    assert ES.optimize(("*", ("+", ("var", "x"), ("const", 0)), ("const", 1))).status == "OPTIMIZED"  # (x+0)*1→x
+    assert ES.optimize(("+", ("var", "x"), ("var", "y"))).status == "NO_GAIN"          # already minimal
+    # ★ soundness ★: force a WRONG extraction → the Z3 equivalence kernel must BLOCK it
+    orig = ES.extract
+    ES.extract = lambda eg, root: ("const", 999)
+    try:
+        assert ES.optimize(t).status == "UNSOUND_BLOCKED"                 # 999 ≢ x*2+x*3 → rejected
+    finally:
+        ES.extract = orig
+    # ── unbounded safety by k-induction: SAFE (invariant) / UNSAFE (+trace) / UNKNOWN ──
+    safe = IC.prove_safety(["x"], lambda s: s["x"] == 0, lambda s, sp: sp["x"] == s["x"] + 1,
+                           lambda s: s["x"] >= 0)
+    assert safe.status == "SAFE" and safe.method == "k-induction" and safe.k >= 1
+    unsafe = IC.prove_safety(["x"], lambda s: s["x"] == 0, lambda s, sp: sp["x"] == s["x"] + 1,
+                             lambda s: s["x"] <= 3, max_k=8)
+    assert unsafe.status == "UNSAFE" and unsafe.trace and unsafe.trace[-1]["x"] == 4   # real CEX trace
+    unk = IC.prove_safety(["x"], lambda s: s["x"] == 0, lambda s, sp: sp["x"] == s["x"] + 2,
+                          lambda s: s["x"] != 1, max_k=5)
+    assert unk.status == "UNKNOWN"                                        # true but not k-inductive (honest)
+    # ── hammer portfolio: discharge a fraction; report the rest honestly; proof reuse is perceived-zero ──
+    corpus = [("n*n >= 0", {"n": "Int"}), ("a + b >= b + a", {"a": "Int", "b": "Int"}),
+              ("2*n == n + n", {"n": "Int"}), ("a + b >= a", {"a": "Int", "b": "Int"}), ("n >= 1", {"n": "Int"})]
+    st = TH.measure_hammer(corpus)
+    assert st.proved == 3 and st.not_proved == 2 and 0.0 < st.success_rate < 1.0   # honest fraction
+    import proof_cache as PC
+    PC.reset()
+    _r1, _h1 = TH.reuse_or_prove("n*n >= 0", {"n": "Int"})
+    _r2, h2 = TH.reuse_or_prove("n*n >= 0", {"n": "Int"})
+    assert h2 is True                                                    # 2nd obligation reused from cache
+    assert TH.hammer("a + b >= a", {"a": "Int", "b": "Int"}).status == "NOT_PROVED"   # false → honest
+    print(f"PASS test_s17_eqsat_ic3_hammer (eq-sat {v.before}→{v.after} Z3-certified + UNSOUND blocked; "
+          f"k-induction SAFE/UNSAFE(trace→4)/UNKNOWN; hammer {st.success_rate:.0%} proved, reuse cached)")
+
+
 def test_s16_levers_verifier_gated():
     """v27 S16: orthogonal accuracy levers, ALL verifier-gated. Type-constrained decoding emits only
     well-typed programs by construction (measured compile-error reduction); repo-RAG + the verified cache
