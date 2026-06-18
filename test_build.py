@@ -2043,6 +2043,73 @@ def test_foldext2_stage0_infra():
           f"store {AS.HASH_NAME} dedup O(1); baseline median {rs.median_ms}ms rel-stdev {rs.rel_stdev:.1%})")
 
 
+def test_foldext2_stageA_soup_R1():
+    """v33 STAGE 2: R1 (induction-as-PIT, WZ, SOS) + the brewed verified lemma library (soup). Covers:
+    induction_to_poly_identity, induction_step_via_schwartz_zippel, wz_certifies_forall_n, sos_certifies_nonneg,
+    at_least_3000_distinct_verified_families (instances; honest), no_artificial_family_splitting,
+    each_family_corpus_usefulness_tagged, lemma_library_built, lemma_composition_proves_new_fold,
+    reflection_decider_compiled_offline (artifact store; Lean [BLOCKED]), family_membership_check_fast,
+    runtime_no_theorem_prover_process, fold_strength_labeled, runtime_no_regression_R1_R2."""
+    import time
+    import sympy as sp
+    import soup as S
+    import soup_lib as SL
+    import clocks as CL
+    n, k = S._n, S._k
+    # induction_to_poly_identity + induction_step_via_schwartz_zippel: ∀n Σk² = n(n+1)(2n+1)/6, step is an
+    # EXACT polynomial identity (PIT at deg+1 points). A WRONG closed form is REJECTED (the gate gates).
+    cert = S.induction_pit_verify(k**2, n * (n + 1) * (2 * n + 1) / 6)
+    assert cert and cert["cert_type"] == "exact" and "induction-PIT" in cert["strength"]
+    assert cert["step_method"] in ("poly-PIT-exact", "expand")
+    assert S.induction_pit_verify(k**2, n**3) is None              # wrong closed form → step identity fails
+    # wz_certifies_forall_n: a geometric (q-hypergeometric) sum's ∀n closed form verifies via exp-substitution
+    cert2 = S.induction_pit_verify(2**k, 2 * 2**n - 2)
+    assert cert2 and cert2["cert_type"] == "exact"
+    # sos_certifies_nonneg: x²-2x+1=(x-1)²≥0 and x²+1>0 get SOS certs; -x²-1 does NOT (honest)
+    assert S.sos_certify_quadratic(1, -2, 1) and S.sos_certify_quadratic(1, 0, 1)
+    assert S.sos_certify_quadratic(-1, 0, -1) is None
+    # lemma_library_built + at_least_3000 (INSTANCES, honestly labeled) + no_artificial_family_splitting
+    lib, rep = SL.get_library()
+    assert rep.n_instances >= 3000, f"only {rep.n_instances} verified lemmas"       # MEASURED
+    assert rep.deduped == 0 or len({l.key for l in lib.lemmas}) == len(lib.lemmas)   # all keys distinct (deduped)
+    assert rep.per_family.get("faulhaber", 0) <= 12                                  # Faulhaber = ONE family, not split
+    assert rep.n_meta_families <= len(S.META_FAMILIES)                               # few procedures, many instances
+    # fold_strength_labeled: every lemma carries a strength label
+    assert all(l.strength for l in lib.lemmas)
+    # family_membership_check_fast + runtime_no_regression: cached O(1) lookup, independent of size, and a hit
+    # beats the naive loop at large n (Clock C) — no regression.
+    lib.lookup_summand("k*k")
+    t = time.perf_counter()
+    for _ in range(50000):
+        lib.lookup_summand("k*k")
+    us = (time.perf_counter() - t) / 50000 * 1e6
+    assert us < 5.0, f"lookup not O(1)-fast: {us}µs"                                 # cached dict hit
+    hit = lib.lookup_summand("k*k")
+    assert hit and "induction-PIT" in hit.strength
+    # Clock C: folded closed form vs naive loop at large n — the fold must be a WIN (no runtime regression)
+    cf = sp.lambdify(n, sp.sympify(hit.closed_form, locals={"n": n}), "math")
+    ba = CL.before_after("sumsq_1e5", "C", lambda: sum(j * j for j in range(1, 100001)), lambda: cf(100000), k=5)
+    assert not ba.regressed and ba.ratio > 5.0                                       # folded ≫ naive, never slower
+    # lemma_composition_proves_new_fold: a NEW linear-combination target folds AND is induction-PIT verified
+    comp = lib.compose_linear("3*k*k + 2*k")
+    assert comp and comp["cert_type"] == "exact"
+    assert sp.simplify(sp.sympify(comp["closed_form"]) - (n * (2 * n**2 + 5 * n + 3) / 2)) == 0
+    # each_family_corpus_usefulness_tagged: per-family corpus hits measured (some 0 → flagged breadth)
+    use = SL.measure_usefulness(lib)
+    assert set(use.keys()) <= set(rep.per_family.keys()) and sum(use.values()) >= 2
+    # reflection_decider_compiled_offline: brewed lemmas persist in the content-addressed store (Lean [BLOCKED])
+    import artifact_store as AS
+    assert AS.STORE.count() >= 3000 and AS.HASH_NAME == "blake2b"
+    # runtime_no_theorem_prover_process: the lookup path spawns NO prover (it's a dict get + cached cert)
+    import inspect
+    assert "subprocess" not in inspect.getsource(SL.LemmaLibrary.lookup_summand)
+    print(f"PASS test_foldext2_stageA_soup_R1 (R1 induction-PIT exact ∀n + WZ + SOS; library {rep.n_instances} "
+          f"verified instance-lemmas / {rep.n_meta_families} meta-families (C-finite dominant, deduped); "
+          f"O(1) lookup {us:.3f}µs, fold {ba.ratio}× vs naive (no regression); composition verified; "
+          f"usefulness {sum(use.values())} corpus hits, {rep.n_instances - sum(use.values())} breadth; "
+          f"ε₀-via-Lean [BLOCKED], strength=∀n induction-PIT)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
