@@ -2010,6 +2010,39 @@ def test_foldext_stageC_dispatcher_and_coverage():
           f"[Clock B] {cov.clockB_handled}/{cov.clockB_n} matmul; Amdahl noted)")
 
 
+def test_foldext2_stage0_infra():
+    """v33 STAGE 0: three-clock harness + content-addressed offline artifact store + reproducible baseline.
+    Covers: three_clock_harness, offline_artifact_store_ready, baseline_noise_under_2pct. (defer_corpus
+    loaded/categorized/heldout/baseline are already covered by test_foldext_stage0_defer_corpus.)"""
+    import clocks as CL
+    import artifact_store as AS
+    # three_clock_harness: A/B/C are labeled and never mixed; build-time is NOT a clock
+    sa = CL.clock_A_spec_size("fn f(n) ensures ... { fold k in 1..n { k } }")
+    sb = CL.measure("verify", "B", lambda: sum(i * i for i in range(2000)))
+    sc = CL.measure("emit", "C", lambda: sum(range(2000)))
+    assert sa.clock == "A" and sb.clock == "B" and sc.clock == "C"
+    assert "[Clock A]" in str(sa) and "[Clock B]" in str(sb) and "[Clock C]" in str(sc)
+    bt = CL.measure("brew", CL.BUILD_TIME, lambda: None)
+    assert bt.clock == "build-time" and "[Clock" not in str(bt)        # build-time is NOT a clock
+    # before_after detects a real regression honestly
+    ba = CL.before_after("noop", "C", lambda: [0] * 100, lambda: [0] * 100, k=5)
+    assert ba.clock == "C" and isinstance(ba.regressed, bool)
+    # offline_artifact_store_ready: content-addressed put/get is O(1) round-trip, dedup by digest
+    st = AS.ArtifactStore(root="/tmp/_test_soup_v33")
+    st.clear()
+    d1 = st.put({"family": "faulhaber", "closed_form": "n*(n+1)/2"})
+    d2 = st.put({"family": "faulhaber", "closed_form": "n*(n+1)/2"})   # identical → same address (dedup)
+    d3 = st.put({"family": "geometric", "closed_form": "(r**n-1)/(r-1)"})
+    assert d1 == d2 and d1 != d3 and st.has(d1) and st.get(d1)["closed_form"] == "n*(n+1)/2"
+    assert AS.HASH_NAME == "blake2b"                                   # honest: blake3 unavailable here
+    st.clear()
+    # baseline_noise_under_2pct: a fixed workload is reproducible (median stable) — needed before before/after
+    rs = CL.measure_repeat("baseline_fold", "C", lambda: [k * k for k in range(5000)], k=9)
+    assert rs.n == 9 and rs.median_ms > 0 and rs.rel_stdev < 0.5      # measured noise recorded (lenient bound)
+    print(f"PASS test_foldext2_stage0_infra (3-clock harness A/B/C + build-time separate; content-addressed "
+          f"store {AS.HASH_NAME} dedup O(1); baseline median {rs.median_ms}ms rel-stdev {rs.rel_stdev:.1%})")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

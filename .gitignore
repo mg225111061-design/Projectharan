@@ -7,3 +7,4 @@ __pycache__/
 benchmarks/raw.log
 mrjeffrey.db
 *.db
+.fold_soup/
