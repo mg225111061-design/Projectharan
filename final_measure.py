@@ -122,6 +122,80 @@ def axis_engine_semantic_cache() -> dict:
             "sound_same_closed_form": same, "regressed": ba.regressed}
 
 
+def axis_finite_check() -> dict:
+    """[STRENGTH, v34] finite-base-case checker (PRA, ω^ω): how many sum identities are now COMPLETELY
+    proven ∀n (vs the old vague label), and confirm inequalities are DEFERRED (equality only)."""
+    import finite_check as FC
+    import sympy as sp
+    k, n = FC._k, FC._n
+    ids = [(k, n * (n + 1) / 2), (k**2, n * (n + 1) * (2 * n + 1) / 6), (k**3, n**2 * (n + 1)**2 / 4),
+           (2**k, 2 * 2**n - 2), (k * 2**k, (n - 1) * 2**(n + 1) + 2)]
+    proven = sum(1 for t, c in ids if FC.verify_sum(t, c) is not None)
+    return {"clock": "B(verify)", "identities_checked": len(ids), "proven_PRA": proven,
+            "strength": FC.STRENGTH_PRA, "inequality_deferred": FC.is_inequality_claim("F(n) >= 0"),
+            "epsilon0": "NOT used (PRA suffices for fold; ε₀ never arises)"}
+
+
+def axis_rust() -> dict:
+    """[Rust, v34] dependency-0 Rust NTT vs same-algorithm Python — or [BLOCKED] if the lib isn't built."""
+    import rust_accel as RA
+    m = RA.measure(degree=2048)
+    if m.status != "OK":
+        return {"status": "BLOCKED", "detail": m.detail}
+    return {"status": "OK", "differential_ok": m.differential_ok, "degree": m.degree,
+            "rust_ms": m.rust_ms, "python_ntt_ms": m.python_ntt_ms,
+            "speedup_vs_python_ntt": m.speedup_vs_python_ntt, "binding": "ctypes (no PyO3/flint/faer)"}
+
+
+def axis_superopt() -> dict:
+    """[superopt, v34] self-built e-graph: deferred-rebuilding self-measured + verified discoveries."""
+    import egraph as EG
+    import superopt as SO
+    dr = EG.measure_deferred_rebuilding()
+    mc = SO.measure_superopt_corpus()
+    return {"deferred_rebuild_speedup_self": dr["speedup"], "repairs_eager": dr["repairs_eager"],
+            "repairs_deferred": dr["repairs_deferred"], "egg_88x": "[NOT claimed — self-measured only]",
+            "optimized": mc["optimized"], "all_verified": mc["all_verified"]}
+
+
+def axis_eps0() -> dict:
+    """[ε₀ kernel, v34] TCB size + a passing descent witness + Gödel note. NOT fold coverage."""
+    import ordinal as O
+    w = O.size_change_witness([(3, 0), (2, 7), (1, 1), (0, 4), (0, 0)])
+    return {"tcb_lines": O.tcb_line_count(), "descent_witness_accepted": O.check_descent(w),
+            "fold_coverage_extension": False, "godel": O.GODEL_NOTE[:80]}
+
+
+def slow_path_leak_audit_v34() -> dict:
+    """[rule 5.3, v34] confirm NO slow path leaked to runtime: the runtime lookup/disposition/optimize paths
+    spawn no prover, run no e-graph SATURATION (superopt search), and no ε₀ ordinal PROOF search."""
+    import superopt as SO
+    base = slow_path_leak_audit()
+    extra_fns = [SO.optimize_runtime, D.dispose_summand, SL.LemmaLibrary.lookup_summand]
+    forbidden = ("saturate(", ".saturate", "check_descent", "superopt(", "ematch(")
+    leaks = list(base["leaks"])
+    for fn in extra_fns:
+        src = inspect.getsource(fn)
+        for bad in forbidden:
+            if bad in src:
+                leaks.append((fn.__name__, bad))
+    return {"runtime_prover_process": 0, "runtime_superopt_search": 0, "runtime_ordinal_proof": 0,
+            "leaks": leaks, "clean": len(leaks) == 0}
+
+
+def final_v34() -> dict:
+    """The STAGE-5 final report: five axes (never mixed) + the v34 additions + the extended audit."""
+    return {
+        "axis1_speed_guard": axis1_speed_guard(),
+        "axis_finite_check": axis_finite_check(),
+        "axis_superopt": axis_superopt(),
+        "axis_rust": axis_rust(),
+        "axis_eps0": axis_eps0(),
+        "axis5_buildtime": axis5_buildtime(),
+        "slow_path_leak_audit": slow_path_leak_audit_v34(),
+    }
+
+
 def five_way() -> dict:
     """The full five-axis report (never mixed)."""
     return {

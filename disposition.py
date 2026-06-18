@@ -81,15 +81,16 @@ def dispose_summand(summand_str: str, lib: Optional[SL.LemmaLibrary] = None,
     if comp is not None:
         return Disposition("EXACT_FOLD", "soup-compose", "C", comp["closed_form"], comp["cert_type"],
                            comp["strength"], orig, "linear composition of library lemmas (verified)")
-    # (c)/(d) derive via sympy summation, verify by induction-PIT (the sound gate)
+    # (c)/(d) derive via sympy summation, verify by the FINITE-BASE-CASE checker (PRA, ω^ω — the sound gate)
     try:
+        import finite_check as FC
         expr = sp.sympify(summand_str, locals={"k": _k, "n": _n})
         closed = sp.simplify(sp.summation(expr, (_k, 1, _n)))
         if not closed.has(sp.Sum) and not closed.has(sp.Piecewise):
-            cert = S.induction_pit_verify(expr, closed)
+            cert = FC.verify_sum(expr, closed)
             if cert is not None:
-                return Disposition("EXACT_FOLD", "derive+induction-PIT", "C", str(closed),
-                                   cert["cert_type"], cert["strength"], orig, "derived + PIT-verified")
+                return Disposition("EXACT_FOLD", "derive+finite-base-case", "C", str(closed),
+                                   cert.cert_type, cert.strength, orig, "derived + finite-base-case (PRA) verified")
     except Exception:  # noqa: BLE001
         pass
     # (e) certified-approximate fallback (STAGE 3): recover an exact-defer with a STATED error bound

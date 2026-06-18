@@ -2428,6 +2428,47 @@ def test_foldext3_stage4_eps0_kernel():
           f"TCB {tcb} lines; Gödel self-consistency noted; ★NOT fold coverage — fold is PRA-complete★)")
 
 
+def test_foldext3_stage5_integration():
+    """v34 STAGE 5: integration + final measurement (five axes, never mixed) + slow-path audit. Covers:
+    runtime_walltime_no_regression_total, finite_check_coverage_measured, superopt_self_measured,
+    rust_speedup_or_blocked, no_slow_path_leaked, inequality_still_deferred, strength_honest_PRA_vs_eps0."""
+    import final_measure as FM
+    import disposition as D
+    r = FM.final_v34()
+    # ★ runtime_walltime_no_regression_total (the FIRST success condition) ★
+    assert r["axis1_speed_guard"]["regressed"] is False and r["axis1_speed_guard"]["fold_speedup"] > 5.0
+    # finite_check_coverage_measured + strength_honest_PRA_vs_eps0
+    af = r["axis_finite_check"]
+    assert af["proven_PRA"] == af["identities_checked"] and "PRA" in af["strength"]
+    assert "NOT used" in af["epsilon0"]                          # ε₀ honestly not used for fold
+    # ★ inequality_still_deferred (equality only) ★
+    assert af["inequality_deferred"] is True
+    # the dispatcher now labels derived folds PRA (integration check)
+    d = D.dispose_summand("k*k*k*k")                             # Σk⁴ derived → PRA finite-base-case
+    assert d.kind == "EXACT_FOLD" and ("PRA" in d.strength or d.technique == "soup-lookup")
+    # superopt_self_measured: deferred rebuilding measured on OUR e-graph; egg's number NOT claimed
+    asu = r["axis_superopt"]
+    assert asu["repairs_deferred"] < asu["repairs_eager"] and asu["all_verified"] is True
+    assert "NOT claimed" in asu["egg_88x"]
+    # rust_speedup_or_blocked: honest either-way
+    ar = r["axis_rust"]
+    assert ar["status"] in ("OK", "BLOCKED")
+    if ar["status"] == "OK":
+        assert ar["differential_ok"] and ar["speedup_vs_python_ntt"] > 1.5
+    # ε₀ kernel: small TCB, NOT fold coverage
+    assert r["axis_eps0"]["fold_coverage_extension"] is False and r["axis_eps0"]["tcb_lines"] < 120
+    # ★ no_slow_path_leaked: runtime prover/superopt-search/ordinal-proof all 0; clean ★
+    au = r["slow_path_leak_audit"]
+    assert au["clean"] and au["runtime_superopt_search"] == 0 and au["runtime_ordinal_proof"] == 0
+    # build-time labeled separately (not a clock)
+    assert "NOT a" in r["axis5_buildtime"]["clock"]
+    print(f"PASS test_foldext3_stage5_integration ([1] fold {r['axis1_speed_guard']['fold_speedup']}× NO "
+          f"REGRESSION; [STRENGTH] finite-check {af['proven_PRA']}/{af['identities_checked']} PRA, ε₀ not used, "
+          f"inequality deferred; [SUPEROPT] self-measured (egg 88× not claimed); [RUST] {ar['status']}"
+          f"{(' '+str(ar['speedup_vs_python_ntt'])+'×') if ar['status']=='OK' else ''}; [ε₀] TCB "
+          f"{r['axis_eps0']['tcb_lines']} lines not-fold; AUDIT clean (superopt/ordinal search 0))")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -1,10 +1,10 @@
 {
-  "measured_at": "2026-06-18T14:16:35.552771+00:00",
+  "measured_at": "2026-06-18T23:38:18.676469+00:00",
   "environment": "pure-Python sandbox (no numpy/native backend; egress-limited) — figures are local & machine-dependent; re-run benchmarks/measure.py to refresh.",
   "metrics": {
     "tests_passing": {
-      "value": 73,
-      "total": 73,
+      "value": 79,
+      "total": 79,
       "unit": "tests",
       "method": "run the full test_build.py suite in-process; count tests that pass (no oracle bypass)."
     },
@@ -27,14 +27,14 @@
       "method": "run the write→verify→fix loop on a seeded-bug corpus; count tasks reaching a verified fix; `wrong` (claimed-fixed-but-not) must be 0."
     },
     "proof_reuse_speedup": {
-      "value": 194.7,
+      "value": 156.7,
       "unit": "x",
-      "cold_ms": 12.852,
-      "warm_ms": 0.066,
+      "cold_ms": 10.187,
+      "warm_ms": 0.065,
       "method": "prove a batch of obligations cold (SMT solver) then warm (structural cache); wall-clock ratio (verdicts are identical — lossless)."
     },
     "fold_scale_speedup": {
-      "value": 20.1,
+      "value": 21.7,
       "unit": "x",
       "n": 150,
       "method": "prove a parametric template ONCE then certify N=150 instances by a cheap side-condition check, vs N independent SMT proofs; wall-clock ratio (the gap widens with N)."
@@ -47,7 +47,7 @@
       "method": "saturate an e-graph with sound ring rewrites, extract the lowest-cost equivalent term, PROVE input==output with Z3; report node-count reduction (e.g. x*2+x*3 → 5*x)."
     },
     "parallel_speedup": {
-      "value": 2.13,
+      "value": 2.18,
       "unit": "x",
       "cores": 4,
       "workload": "reduce(+, [square(i) for i in 0..2000000))",
@@ -100,8 +100,7 @@
       "clock": "build-time",
       "meta_families": 4,
       "strength_distribution": {
-        "forall-n (induction-PIT)": 39,
-        "forall-n (companion-matrix)": 3668
+        "finite-base-case (PRA, omega^omega)": 3707
       },
       "epsilon0_via_lean": "[BLOCKED: Lean/Coq unavailable]",
       "method": "brew genuinely-distinct fold families offline; each individually verified (induction-PIT / companion≡naive), deduped by canonical signature. Counts MEASURED; meta-families vs instances reported distinctly (no artificial splitting). ε₀-via-Lean BLOCKED (Lean unavailable)."
@@ -110,9 +109,34 @@
       "value": true,
       "unit": "bool (true=no regression)",
       "clock": "C",
-      "fold_speedup": 9525.25,
-      "lookup_us": 0.105,
+      "fold_speedup": 10435.5,
+      "lookup_us": 0.1165,
       "method": "[Clock C] median-of-k before(naive loop)/after(O(1) soup lookup + closed-form eval) at n=1e5; the AFTER path must not be slower (first success condition). Lookup is O(1) in library size."
+    },
+    "finite_check_strength": {
+      "value": 5,
+      "total": 5,
+      "unit": "identities (PRA-complete ∀n)",
+      "strength": "finite-base-case (PRA, omega^omega)",
+      "inequality_deferred": true,
+      "epsilon0": "NOT used (PRA suffices for fold; ε₀ never arises)",
+      "method": "verify ∀n sum identities by the uniqueness meta-theorem (common recurrence via PIT + finite initial values). PRA (ω^ω), NOT ε₀. Equality only — inequality/positivity deferred."
+    },
+    "rust_ntt_speedup": {
+      "value": 16.3,
+      "unit": "x (Rust NTT vs same-algorithm Python NTT)",
+      "clock": "C",
+      "degree": 2048,
+      "differential_ok": true,
+      "binding": "ctypes (no PyO3/flint/faer)",
+      "method": "dependency-0 std-only Rust cdylib (no flint/faer/PyO3) called via ctypes; NTT poly-mul mod 998244353; differential-tested IDENTICAL to the Python ground truth."
+    },
+    "eps0_kernel_tcb": {
+      "value": 35,
+      "unit": "lines (trusted kernel)",
+      "clock": "build-time",
+      "fold_coverage_extension": false,
+      "method": "CNF<ε₀ ordinal descent kernel — INSURANCE for general recursion, NOT fold coverage (fold is PRA-complete). Gödel: cannot prove its own consistency. TCB trusts Python+arith+hardware."
     }
   },
   "blocked": [

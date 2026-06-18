@@ -155,6 +155,31 @@ def measure() -> dict:
         "method": "[Clock C] median-of-k before(naive loop)/after(O(1) soup lookup + closed-form eval) at "
                   "n=1e5; the AFTER path must not be slower (first success condition). Lookup is O(1) in library size."}
 
+    # 10. v34 — finite-base-case (PRA) completeness, self-built superopt, dependency-0 Rust, ε₀ kernel TCB ----
+    fc = FM.axis_finite_check(); su = FM.axis_superopt(); ek = FM.axis_eps0(); au2 = FM.slow_path_leak_audit_v34()
+    _log(f"v34: finite-check {fc['proven_PRA']}/{fc['identities_checked']} PRA; superopt deferred-rebuild repairs "
+         f"{su['repairs_eager']}->{su['repairs_deferred']}; eps0 TCB {ek['tcb_lines']}; audit clean={au2['clean']}")
+    assert au2["clean"] is True                                  # never publish if a slow path leaked to runtime
+    metrics["finite_check_strength"] = {
+        "value": fc["proven_PRA"], "total": fc["identities_checked"], "unit": "identities (PRA-complete ∀n)",
+        "strength": fc["strength"], "inequality_deferred": fc["inequality_deferred"], "epsilon0": fc["epsilon0"],
+        "method": "verify ∀n sum identities by the uniqueness meta-theorem (common recurrence via PIT + finite "
+                  "initial values). PRA (ω^ω), NOT ε₀. Equality only — inequality/positivity deferred."}
+    ra = FM.axis_rust()
+    if ra["status"] == "OK":
+        metrics["rust_ntt_speedup"] = {
+            "value": ra["speedup_vs_python_ntt"], "unit": "x (Rust NTT vs same-algorithm Python NTT)",
+            "clock": "C", "degree": ra["degree"], "differential_ok": ra["differential_ok"], "binding": ra["binding"],
+            "method": "dependency-0 std-only Rust cdylib (no flint/faer/PyO3) called via ctypes; NTT poly-mul "
+                      "mod 998244353; differential-tested IDENTICAL to the Python ground truth."}
+    else:
+        blocked.append({"metric": "rust_ntt_speedup", "reason": ra["detail"]})
+    metrics["eps0_kernel_tcb"] = {
+        "value": ek["tcb_lines"], "unit": "lines (trusted kernel)", "clock": "build-time",
+        "fold_coverage_extension": ek["fold_coverage_extension"],
+        "method": "CNF<ε₀ ordinal descent kernel — INSURANCE for general recursion, NOT fold coverage (fold is "
+                  "PRA-complete). Gödel: cannot prove its own consistency. TCB trusts Python+arith+hardware."}
+
     # live-LLM latency / accuracy needs a key + egress — explicitly BLOCKED, never faked ---------------
     blocked.append({"metric": "live_llm_latency",
                     "reason": "needs an API key + egress to a provider; not measurable in this sandbox "
