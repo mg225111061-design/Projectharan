@@ -370,6 +370,57 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s13_fold_replicate():
+    """v27 S13: prove a parametric template ONCE → certify N instances by the cheap side-condition check
+    (sound universal instantiation). The Z3 solve is paid once, so the speedup GROWS with N (scale gap);
+    a false property is refuted (NOT_A_TEMPLATE), a bad instance is REJECTED, the summary cache makes a
+    re-run perceived-zero, and below 30% repetition folding is disabled."""
+    import fold_replicate as FR
+    # ── structural clone detection: affine maps differing only in constants collapse to one signature ──
+    c1, c2, c3 = "def f1(x):\n    return 3*x + 1", "def f2(y):\n    return 5*y + 2", "def f3(z):\n    return 9*z + 4"
+    uniq = "def w(x):\n    return x*x - 7"
+    assert FR.structural_signature(c1)[0] == FR.structural_signature(c2)[0]   # clones share a signature
+    assert FR.structural_signature(c1)[0] != FR.structural_signature(uniq)[0]
+    assert FR.structural_signature(c1)[1] == [3, 1]                       # holes = the constants, in order
+    assert len(FR.group_clones([c1, c2, c3])) == 1                        # one clone family
+    assert FR.repetition_rate([c1, c2, c3]) == 1.0
+    assert FR.should_fold([c1, c2, c3]) is True
+    # 1 clone pair + 8 structurally-DISTINCT functions ⇒ repetition 2/10 = 20% < 30% → folding disabled
+    distinct = ["def u0(x):\n    return x * x", "def u1(x):\n    return x + x + x",
+                "def u2(x):\n    return (x - 1) * 2", "def u3(x):\n    return x % 3 + x",
+                "def u4(x):\n    return abs(x)", "def u5(x):\n    return x if x > 0 else 0 - x",
+                "def u6(x):\n    return [x, x]", "def u7(x):\n    return {x: x}"]
+    assert FR.repetition_rate([c1, c2] + distinct) == 0.2
+    assert FR.should_fold([c1, c2] + distinct) is False                   # <30% → honest disable
+    # ── prove the template ONCE, certify N instances; a bad side-condition (A<0) is REJECTED ──
+    t = FR.Template("affine_monotone", ["A", "B"], {"A": "Int", "B": "Int"}, {"x1": "Int", "x2": "Int"},
+                    precond=["A >= 0"], ensures="A*x1 + B <= A*x2 + B", input_hyp=["x1 <= x2"])
+    small = [{"A": (i % 9) + 1, "B": i} for i in range(24)] + [{"A": -2, "B": 3}]   # last violates A>=0
+    v = FR.replicate(t, small)
+    assert v.status == "REPLICATED" and v.certified == 24 and v.n == 25       # 24 certified, 1 rejected
+    assert [c.holes for c in v.instances if c.status == "REJECTED"] == [{"A": -2, "B": 3}]
+    assert "PROVEN" in v.template_proof and v.crossover_n >= 1
+    # ── ★ scale advantage ★: speedup at large N strictly exceeds small N (the gap WIDENS with N) ──
+    sp_small = FR.replicate(t, [{"A": (i % 9) + 1, "B": i} for i in range(24)]).speedup
+    big = FR.replicate(t, [{"A": (i % 40) + 1, "B": i} for i in range(150)])
+    assert big.certified == 150 and big.speedup > sp_small and big.speedup > 2.0   # measured widening
+    # ── a FALSE parametric property is refuted with a counterexample — never replicated ──
+    bad = FR.replicate(FR.Template("bad", ["A"], {"A": "Int"}, {"x": "Int"}, precond=[], ensures="A*x >= x"),
+                       [{"A": 2}, {"A": 3}])
+    assert bad.status == "NOT_A_TEMPLATE" and bad.counterexample is not None
+    # fewer than 2 instances → NOT_REPEATED (honest)
+    assert FR.replicate(t, [{"A": 1, "B": 0}]).status == "NOT_REPEATED"
+    # ── summary cache (Merkle): a re-run re-proves only CHANGED templates (perceived-zero unchanged) ──
+    t2 = FR.Template("t2", ["A"], {"A": "Int"}, {"x": "Int"}, precond=["A >= 1"], ensures="A*x*x >= 0",
+                     input_hyp=["x >= 0"])
+    cold = FR.fold_repo([(t, small), (t2, [{"A": 1}])], reset=True)
+    warm = FR.fold_repo([(t, small), (t2, [{"A": 1}])], reset=False)
+    assert cold["proved"] == 2 and cold["cached"] == 0
+    assert warm["cached"] == 2 and warm["proved"] == 0 and warm["ms"] < cold["ms"]
+    print(f"PASS test_s13_fold_replicate (REPLICATED 24/25 certified; scale {sp_small:.1f}×@24 → "
+          f"{big.speedup:.1f}×@150 (gap widens); NOT_A_TEMPLATE refuted; cache {cold['ms']:.1f}→{warm['ms']:.2f}ms)")
+
+
 def test_s12_structure_offload():
     """v27 S12: structure recognition + LLM-offload dispatcher. Recognizer classes the 7 shapes; the two
     SOUND actions (closed-form OFFLOAD via verified lifting, equi-join hash-join REWRITE) are gated by
