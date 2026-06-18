@@ -148,6 +148,20 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s3_incorrectness_ux():
+    """v26 S3: UX bug-existence — reachable div/mod-by-zero with a REAL witness; path-sensitive (FP=0)."""
+    import incorrectness as IC
+    v = IC.check_reachable_bugs("fn d(a: Int, b: Int) -> Int\n{ a / b }")
+    assert v.status == "BUG_REACHABLE" and v.bugs[0]["witness"]["b"] == "0"   # witness is a real model
+    assert IC.check_reachable_bugs("fn m(a: Int, b: Int) -> Int\n{ a % b }").status == "BUG_REACHABLE"
+    # path-sensitive soundness (FP=0): a guarded division is NOT reported
+    assert IC.check_reachable_bugs("fn d(a: Int, b: Int) -> Int\n  requires b != 0\n{ a / b }").status == "NO_BUG_FOUND"
+    assert IC.check_reachable_bugs("fn d(a: Int, b: Int) -> Int\n{ match b { 0 => 0 _ => a / b } }").status == "NO_BUG_FOUND"
+    assert IC.check_reachable_bugs("fn f(a: Int, b: Int) -> Int\n{ a + b }").status == "NO_BUG_FOUND"
+    assert "REACHABLE BUG" in IC.bug_feedback(v)
+    print("PASS test_s3_incorrectness_ux")
+
+
 def test_s2_injection_ifds():
     """v26 S2: taint reachability — witness flow for source→sink, FREE when sanitized/no-flow."""
     import taint_ifds as TI
