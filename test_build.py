@@ -1890,6 +1890,46 @@ def test_foldext_stageB1_benortiwari():
           f"correctness {m['correctness']:.0%}; held-out {mh['hit_rate']:.0%})")
 
 
+def test_foldext_stageB2_qfold():
+    """STAGE B2: q-Gosper telescoping fold for q-holonomic sums SymPy's summation misses. Detect q-ratio;
+    bounded rational telescoper; EXACT verification gate. Covers: detect_q_ratio, q_zeilberger_folds,
+    q_certificate_verified, dispersion_timeout_defers, q_corpus_hit_rate_measured."""
+    from fractions import Fraction as Fr
+    import sympy as sp
+    import q_fold as Q
+    q, k, n, X = sp.symbols("q k n X")
+    # detect_q_ratio: the q-ratio t(k+1)/t(k) is rational in x=q^k (q-hypergeometric); returns ρ(X)
+    rho = Q._q_ratio_rational(sp.sympify("q**k", locals={"q": q, "k": k}), q, k, X)
+    assert rho is not None and sp.simplify(rho - q) == 0           # ratio of q^k is q (constant, rational)
+    # q_zeilberger_folds: a telescoping q-term SymPy's summation leaves unevaluated now folds (the B2 win)
+    assert sp.summation(sp.sympify("q**k/((1-q**k)*(1-q**(k+1)))", locals={"q": q, "k": k}),
+                        (k, 1, n)).has(sp.Sum)                     # baseline (sympy) does NOT close it
+    vt = Q.q_fold("q**k/((1-q**k)*(1-q**(k+1)))")
+    assert vt.status == "FOLDED" and vt.verified and vt.cert_type == "exact"
+    vd = Q.q_fold("q**k - q**(k-1)")
+    assert vd.status == "FOLDED" and sp.simplify(sp.sympify(vd.closed_form) - (q**n - 1)) == 0
+    # q_certificate_verified: the folded closed form is INDEPENDENTLY correct (direct numeric sum at q=1/2)
+    Sn = sp.sympify(vt.closed_form)
+    for N in (4, 7):
+        closed = Sn.subs({q: sp.Rational(1, 2), n: N})
+        direct = sum(Fr(1, 2)**j / ((1 - Fr(1, 2)**j) * (1 - Fr(1, 2)**(j + 1))) for j in range(1, N + 1))
+        assert sp.nsimplify(closed) == sp.Rational(direct.numerator, direct.denominator), \
+            f"folded closed form disagrees with the direct sum at n={N}"
+    # dispersion_timeout_defers: theta (q^{k²}) and q-harmonic have NO closed form → DEFER with a reason
+    vth = Q.q_fold("q**(k*k)")
+    assert vth.status == "DEFER" and vth.q_hypergeometric is True and "theta" in vth.detail.lower()
+    vqh = Q.q_fold("q**k/(1-q**k)")
+    assert vqh.status == "DEFER" and "telescoper" in vqh.detail.lower()
+    # q_corpus_hit_rate_measured: real numbers, ZERO false folds (negative controls defer)
+    m = Q.measure_q_corpus()
+    assert m["n"] >= 4 and m["folded"] >= 2 and m["correctness"] == 1.0 and m["clock"] == "C"
+    mh = Q.measure_q_corpus(split="measure")
+    assert mh["correctness"] == 1.0
+    print(f"PASS test_foldext_stageB2_qfold ([Clock C] q corpus baseline 1/{m['n']} -> folded {m['folded']}/"
+          f"{m['n']} (hit {m['hit_rate']:.0%}); telescoper exact-verified + independent numeric check; "
+          f"theta/q-harmonic DEFER; correctness {m['correctness']:.0%}; held-out {mh['correctness']:.0%})")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
