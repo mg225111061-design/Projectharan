@@ -284,3 +284,43 @@ counterexample/witness, is honestly labeled, and is tested. Tests 16→21 (`test
 **State:** 8 new v26 modules (S1 ct_certifier + S2–S7), `test_build` **21/21 green**, all modules import.
 **Honesty:** each verdict is OX (verification) or UX (bug-existence) labeled; every "proof" is conditional
 on the modeled inputs / bounds / assumed contracts spelled out in its certificate. No single trophy number.
+
+---
+
+## v26.2 S8–S11 — live connection, runtime engine, mode allocation, first live test
+
+- **S8 GLM/Z.ai preset (`provider.GATEWAY_PRESETS`)** — `openai_compat` + `https://api.z.ai/api/paas/v4/`
+  + `glm-4.6` (base_url & model **web-confirmed** against Z.ai docs; **"GLM-5.2" is not a verified id** →
+  not claimed). UI dropdown prefilled. The openai_compat request body is SDK-valid (built by
+  `_build_openai_kwargs`); its **live** check is gated on egress (see S11).
+- **S9 runtime engine (`layout_simd.py` + `parallel_algebra.py`)** — a 3-tier ceiling analyzer (A: provably
+  parallel/vectorizable; B: ≤3×; C: physics floor) + a **differential-equivalence gate** (transformed
+  output must equal the scalar reference on every sample — *never a wrong transform*). MEASURED: associative
+  parallel reduction **~1.3–2.7× on 4 cores** (varies with the box), equivalence verified; non-associative
+  ops **DECLINED**. SIMD/native is **[BLOCKED: no numpy/native backend]** here — classified tier-A but its
+  speedup is honestly not measured (no fake number).
+- **S10 mode allocation (`mode_policy.py`)** — declarative NORMAL/EXTENDED table (18 techniques × engine).
+  NORMAL = cheap mathematics only, terminates before SMT; EXTENDED adds octagon/polyhedra, Gosper/FFT, Z3,
+  Coq-∀, race-proved parallelism, deep SIMD, best-of-N 4–8. **Both modes zero-wrong-answer** (a mode is a
+  depth dial, not a correctness knob); NORMAL ⊊ EXTENDED; the best-of-N **selector is a sound verifier only**
+  (never a learned reward — reward-hacking, Stroebl arXiv:2411.17501). Wired: `agentic.MODE_BUDGET` IS
+  `mode_policy.MODE_BUDGET`; `agentic_code` attaches the mode's gate list + best_of_n; `server` surfaces them.
+- **S11 first live test (`scripts/s11_live_measure.py`)** — egress probed **empirically** (dummy-key POST):
+  `api.anthropic.com` **reachable, spec body ACCEPTED** (401 invalid-key, *not* 400, with a real
+  `request_id`); `api.z.ai` & `openrouter.ai` return the proxy's **`Host not in allowlist`** (egress block).
+  No key present (LEVEL-1). ⇒ the **live LLM loop is [BLOCKED]** on (key) + (egress for non-Anthropic) —
+  reported as such with the exact user procedure, **never faked as "측정됨"**. The **non-LLM half is MEASURED**
+  (real wall-clock, with workloads):
+    - write→verify→fix **loop convergence** over the mock corpus — *normal* (budget 2) solves **3/4**
+      (honestly misses the 3-iteration task), *extended* (budget 5) solves **4/4** (iters {1:2, 2:1, 3:1}),
+      **wrong = 0 in both** (zero-wrong-answer, measured);
+    - runtime transform **~2× on 4 cores**, differential-equivalence verified;
+    - **proof reuse** round-2 re-verify **cold ≈16 ms → warm ≈0.04 ms** (~hundreds×, *perceived-zero*),
+      lossless (0 wrong verdicts).
+
+**State:** +4 modules/scripts (S8 preset, S9 ×2, S10, S11 harness), `test_build` **25/25 green**.
+**Two-axis honesty (accuracy vs latency/runtime):** verification accuracy is gated at **FP = 0** (spec-gate
+false-positives 0, loop wrong = 0, transform mismatches 0); latency/runtime is **measured where runnable**
+(loop ms, parallel speedup, re-verify perceived-zero) and **[BLOCKED / TBD: 측정필요]** where it needs a live
+key or an egress host the sandbox lacks. No single trophy number; the differentiator is the machine-checked
+certificate, not raw speed.

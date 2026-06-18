@@ -370,6 +370,42 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s11_live_measure_honest():
+    """v26.2 S11: the first-live-test harness. The LIVE LLM loop is honestly BLOCKED (no key / egress);
+    the NON-LLM half (loop convergence, parallel transform, proof reuse) is genuinely MEASURED. This test
+    is network-free: it pins the PURE classification + the real measurements + the honesty of the report."""
+    import sys
+    sys.path.insert(0, "scripts")
+    import s11_live_measure as S11
+    # classify_probe — the honest (HTTP, body) → status mapping (no network)
+    assert S11.classify_probe(401, '{"error":{"message":"invalid x-api-key"}}')[0] == "AUTH_ONLY"
+    assert S11.classify_probe(403, "Host not in allowlist: api.z.ai")[0] == "EGRESS_BLOCKED"
+    assert S11.classify_probe(400, "max_tokens: required")[0] == "SHAPE_REJECTED"   # a 400-causer would show here
+    assert S11.classify_probe(200, "{ok}")[0] == "LIVE_OK"
+    assert S11.classify_probe(0, "URLError: no route")[0] == "NO_EGRESS"
+    # loop convergence is REAL: extended solves all 4 (incl. the 3-iteration case), normal misses it — and
+    # NEITHER mode is ever wrong (the zero-wrong-answer invariant, measured over the corpus).
+    ext = S11.measure_loop_convergence("extended")
+    nrm = S11.measure_loop_convergence("normal")
+    assert ext.solved == 4 and ext.wrong == 0 and 3 in ext.histogram and ext.total_ms > 0
+    assert nrm.solved == 3 and nrm.wrong == 0          # budget 2 < 3 needed → honest miss, never a false PROVEN
+    # runtime transform measured; equivalence MUST have held (never MISMATCH/DECLINED for an associative op)
+    par = S11.measure_parallel(n=200_000, cores=4)
+    assert par["status"] in ("OPTIMIZED", "NO_GAIN")
+    # proof reuse: round-2 re-verify is lossless and not slower (perceived-zero)
+    ru = S11.measure_proof_reuse()
+    assert ru["lossless"] and ru["mismatches"] == 0 and ru["warm_ms"] <= ru["cold_ms"] + 1e-6
+    # the report is HONEST: with no key + an egress-blocked gateway it shows [BLOCKED] + [NEXT] + a TBD for
+    # the live latency, and never prints a fabricated live number.
+    rep = S11.build_report([S11.Probe("Anthropic", "anthropic", 401, "AUTH_ONLY", "shape ok"),
+                            S11.Probe("GLM (Z.ai)", "openai_compat", 403, "EGRESS_BLOCKED", "allowlist")],
+                           nrm, ext, par, ru, have_key=False)
+    assert "[BLOCKED]" in rep and "[NEXT]" in rep and "TBD" in rep and "SHAPE accepted" in rep
+    print(f"PASS test_s11_live_measure_honest (extended {ext.solved}/4 iters "
+          f"{dict(sorted(ext.histogram.items()))}, normal {nrm.solved}/4; parallel {par['status']}; "
+          f"reuse lossless={ru['lossless']})")
+
+
 def test_redact_key_still_holds():
     # belt-and-suspenders: the masking primitive itself
     assert "sk-ant-" not in CA.redact_key("prefix sk-ant-abc123 suffix").replace("sk-***REDACTED***", "")
