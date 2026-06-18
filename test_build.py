@@ -2392,6 +2392,42 @@ def test_foldext3_stage3_rust():
           f"@deg{m.degree}; multimodular-CRT/Montgomery/explicit-SIMD noted as future)")
 
 
+def test_foldext3_stage4_eps0_kernel():
+    """v34 STAGE 4: ε₀ ordinal-descent kernel (CNF < ε₀) — INSURANCE for general recursion, NOT fold coverage.
+    Covers: cnf_ordinal_type, cnf_comparison, ordinal_descent_check, size_change_offline_witness,
+    eps0_label_only_when_kernel_passes, godel_self_consistency_noted, tcb_size_reported."""
+    import ordinal as O
+    # cnf_ordinal_type + cnf_comparison: 3 < 5 < ω < ω² < ω^ω, and validate rejects ill-formed CNF
+    three, five, w = O.nat(3), O.nat(5), O.omega()
+    w2, ww = O.omega_power(O.nat(2)), O.omega_power(O.omega())
+    assert O.compare(three, five) == -1 and O.compare(five, w) == -1
+    assert O.compare(w, w2) == -1 and O.compare(w2, ww) == -1 and O.compare(ww, ww) == 0
+    assert O.validate(ww) and not O.validate(O.Ord(((O.nat(1), 1), (O.nat(2), 1))))   # increasing exps → invalid
+    assert not O.validate(O.Ord(((O.zero(), 0),)))                                    # coeff 0 → invalid
+    # ordinal_descent_check: a strictly decreasing witness terminates; a non-decreasing one is rejected
+    desc = [ww, O.add(O.omega_power(O.nat(3), 2), O.nat(5)), O.omega_power(O.nat(3)), O.omega(), O.nat(3), O.zero()]
+    assert O.check_descent(desc) is True
+    assert O.check_descent([O.omega(), O.omega_power(O.nat(2))]) is False             # increasing → reject
+    assert O.check_descent([O.nat(5), O.nat(5)]) is False                             # non-strict → reject
+    # size_change_offline_witness: a lexicographically-decreasing measure → strictly decreasing ordinals,
+    # built OFFLINE, CHECKED by the runtime kernel
+    measures = [(3, 0), (2, 7), (2, 1), (1, 9), (0, 4), (0, 0)]                        # lexicographically decreasing
+    witness = O.size_change_witness(measures)
+    assert O.check_descent(witness) is True
+    assert O.check_descent(O.size_change_witness([(1, 0), (1, 1)])) is False           # lex-increasing → reject
+    # eps0_label_only_when_kernel_passes: the label is gated on the kernel accepting (a bad witness → no label)
+    def eps0_label(witness):
+        return "eps0" if O.check_descent(witness) else "DEFER (no valid descent)"
+    assert eps0_label(desc) == "eps0" and eps0_label([O.nat(1), O.nat(2)]) != "eps0"
+    # godel_self_consistency_noted + tcb_size_reported
+    assert "Gödel" in O.GODEL_NOTE and "OWN consistency" in O.GODEL_NOTE
+    tcb = O.tcb_line_count()
+    assert 10 <= tcb <= 120                                                            # genuinely SMALL kernel TCB
+    print(f"PASS test_foldext3_stage4_eps0_kernel (CNF<ε₀: 3<5<ω<ω²<ω^ω; descent check accepts strict / rejects "
+          f"non-strict; size-change→ordinal witness offline, kernel checks; ε₀ label ONLY on kernel pass; "
+          f"TCB {tcb} lines; Gödel self-consistency noted; ★NOT fold coverage — fold is PRA-complete★)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
