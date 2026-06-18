@@ -1850,6 +1850,46 @@ def test_foldext_stageA_kovacic():
           f"cert; correctness {m['correctness']:.0%} (no false fold); held-out {mh['fold_rate']:.0%})")
 
 
+def test_foldext_stageB1_benortiwari():
+    """STAGE B1: Ben-Or–Tiwari sparse multivariate interpolation of a BLACK-BOX polynomial. Recover via
+    Berlekamp-Massey + prime-power factoring; SOUND-gate by Schwartz-Zippel at fresh points. Covers:
+    detect_blackbox_poly_loop, benortiwari_recovers_sparse_poly, recovered_poly_verified_schwartz_zippel,
+    early_termination_works, poly_corpus_hit_rate_measured."""
+    from fractions import Fraction as Fr
+    import benortiwari as BT
+    # benortiwari_recovers_sparse_poly: Berlekamp-Massey finds the monomial-eval roots; recovery is EXACT
+    C = BT.berlekamp_massey([Fr(2**j + 3**j) for j in range(6)])
+    assert sorted(BT._integer_roots(C)) == [2, 3]                  # roots of 2^j+3^j ⇒ {2,3}
+    r = BT.recover(lambda x, y: 5 * x**3 * y**2 + 3 * x * y + 7, 2)
+    assert r.status == "FOLDED" and r.n_terms == 3 and r.verified
+    # the recovered polynomial equals the black box at a battery of explicit points (independent re-check)
+    import sympy as sp
+    xs, ys = sp.symbols("x y")
+    expr = sp.sympify(r.poly_str)
+    for (xv, yv) in [(4, 6), (7, 2), (10, 9)]:
+        assert int(expr.subs({xs: xv, ys: yv})) == 5 * xv**3 * yv**2 + 3 * xv * yv + 7
+    # detect_blackbox_poly_loop: B1 distinguishes the recoverable polynomial class from non-polynomials
+    assert BT.recover(lambda x, y: x * y + x, 2).status == "FOLDED"            # polynomial → recovered
+    assert BT.recover(lambda x: x % 7, 1).status == "DEFER"                    # not polynomial → DEFER
+    # recovered_poly_verified_schwartz_zippel: the gate accepts a true recovery, REJECTS a wrong one; ε stated
+    mons_good = [((1, 0), Fr(1)), ((0, 1), Fr(1))]                             # x + y
+    ok, eps, deg = BT.verify_schwartz_zippel(lambda x, y: x + y, mons_good, 2)
+    assert ok is True and 0 < eps < 1e-30
+    bad, _, _ = BT.verify_schwartz_zippel(lambda x, y: x + y, [((1, 0), Fr(1))], 2)   # claim "x" for x+y
+    assert bad is False                                                        # caught at a fresh point
+    # early_termination_works: a 4-term poly is recovered as exactly 4 terms (order stabilized, not max_terms)
+    r4 = BT.recover(lambda x, y: 4 * x**3 + 3 * x**2 * y + 2 * x * y**2 + y**3, 2)
+    assert r4.status == "FOLDED" and r4.n_terms == 4
+    # poly_corpus_hit_rate_measured: real numbers; negative controls DEFER (no false structure)
+    m = BT.measure_poly_corpus()
+    assert m["n"] >= 6 and m["folded"] >= 5 and m["correctness"] == 1.0 and m["clock"] == "C"
+    mh = BT.measure_poly_corpus(split="measure")
+    assert mh["correctness"] == 1.0
+    print(f"PASS test_foldext_stageB1_benortiwari (BM roots ✓; [Clock C] poly corpus baseline 0/{m['n']} "
+          f"-> folded {m['folded']}/{m['n']} (hit {m['hit_rate']:.0%}); SZ-gate rejects non-polys; "
+          f"correctness {m['correctness']:.0%}; held-out {mh['hit_rate']:.0%})")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
