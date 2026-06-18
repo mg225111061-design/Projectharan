@@ -8,3 +8,4 @@ benchmarks/raw.log
 mrjeffrey.db
 *.db
 .fold_soup/
+rust_accel/target/

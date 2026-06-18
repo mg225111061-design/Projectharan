@@ -1,0 +1,15 @@
+[package]
+name = "fold_accel"
+version = "0.1.0"
+edition = "2021"
+
+# ★ ZERO dependencies — std only (no flint, no faer, no external crates). Builds fully offline. ★
+[dependencies]
+
+[lib]
+name = "fold_accel"
+crate-type = ["cdylib"]   # ctypes-loadable shared library (no PyO3/maturin needed)
+
+[profile.release]
+opt-level = 3
+lto = true
