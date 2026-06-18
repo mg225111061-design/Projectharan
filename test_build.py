@@ -2059,7 +2059,7 @@ def test_foldext2_stageA_soup_R1():
     # induction_to_poly_identity + induction_step_via_schwartz_zippel: ∀n Σk² = n(n+1)(2n+1)/6, step is an
     # EXACT polynomial identity (PIT at deg+1 points). A WRONG closed form is REJECTED (the gate gates).
     cert = S.induction_pit_verify(k**2, n * (n + 1) * (2 * n + 1) / 6)
-    assert cert and cert["cert_type"] == "exact" and "induction-PIT" in cert["strength"]
+    assert cert and cert["cert_type"] == "exact" and "PRA" in cert["strength"]   # now honest PRA label
     assert cert["step_method"] in ("poly-PIT-exact", "expand")
     assert S.induction_pit_verify(k**2, n**3) is None              # wrong closed form → step identity fails
     # wz_certifies_forall_n: a geometric (q-hypergeometric) sum's ∀n closed form verifies via exp-substitution
@@ -2085,7 +2085,7 @@ def test_foldext2_stageA_soup_R1():
     us = (time.perf_counter() - t) / 50000 * 1e6
     assert us < 5.0, f"lookup not O(1)-fast: {us}µs"                                 # cached dict hit
     hit = lib.lookup_summand("k*k")
-    assert hit and "induction-PIT" in hit.strength
+    assert hit and "PRA" in hit.strength                  # finite-base-case (PRA, ω^ω), not vague
     # Clock C: folded closed form vs naive loop at large n — the fold must be a WIN (no runtime regression)
     cf = sp.lambdify(n, sp.sympify(hit.closed_form, locals={"n": n}), "math")
     ba = CL.before_after("sumsq_1e5", "C", lambda: sum(j * j for j in range(1, 100001)), lambda: cf(100000), k=5)
@@ -2107,7 +2107,7 @@ def test_foldext2_stageA_soup_R1():
           f"verified instance-lemmas / {rep.n_meta_families} meta-families (C-finite dominant, deduped); "
           f"O(1) lookup {us:.3f}µs, fold {ba.ratio}× vs naive (no regression); composition verified; "
           f"usefulness {sum(use.values())} corpus hits, {rep.n_instances - sum(use.values())} breadth; "
-          f"ε₀-via-Lean [BLOCKED], strength=∀n induction-PIT)")
+          f"ε₀-via-Lean [BLOCKED], strength=∀n finite-base-case PRA, NOT ε₀)")
 
 
 def test_foldext2_stageB_disposition():
@@ -2268,6 +2268,52 @@ def test_foldext2_stageE_final_measure():
           f"instances {a3['strength_distribution']}; [4 COVERAGE] {a4['counts']} disposed 100% byte-identical; "
           f"[5 BUILD] {r['axis5_buildtime']['soup_brew_ms']:.0f}ms separate; AUDIT clean (prover 0, superopt 0); "
           f"ε₀/egglog [BLOCKED] honestly)")
+
+
+def test_foldext3_stage1_finite_check():
+    """v34 STAGE 1: finite-initial-value checker — ∀n EQUALITY by the uniqueness meta-theorem (PRA, ω^ω).
+    Covers: holonomic_order_computed, recurrence_pit_check, finite_base_case_check, uniqueness_metatheorem_stated,
+    leading_coeff_nonvanishing, false_closed_form_rejected, inequality_not_claimed_defers,
+    strength_labeled_PRA_not_eps0, runtime_no_regression_stage1."""
+    import sympy as sp
+    import finite_check as FC
+    import clocks as CL
+    k, n = FC._k, FC._n
+    # recurrence_pit_check + finite_base_case_check: a true sum identity is PROVEN at PRA strength
+    c = FC.verify_sum(k**2, n * (n + 1) * (2 * n + 1) / 6)
+    assert c and c.ok and c.order_R == 1 and c.base_values_checked == 1 and c.leading_coeff_ok
+    c2 = FC.verify_sum(2**k, 2 * 2**n - 2)                        # exp/geometric via base-substitution PIT
+    assert c2 and c2.cert_type == "exact"
+    # strength_labeled_PRA_not_eps0: honest label — PRA / ω^ω, never ε₀ (rule 5/10)
+    assert "PRA" in c.strength and "omega^omega" in c.strength and "eps" not in c.strength.lower()
+    # false_closed_form_rejected: a WRONG closed form fails the recurrence-PIT (no false structure)
+    assert FC.verify_sum(k**2, n**3) is None and FC.verify_sum(k, n * n) is None
+    # ★ inequality_not_claimed_defers: equality-only (positivity undecidable, Ouaknine–Worrell) ★
+    assert FC.is_inequality_claim("F(n) >= 0") and FC.is_inequality_claim("S(n) <= T(n)")
+    assert not FC.is_inequality_claim("F(n) = G(n)")
+    # uniqueness_metatheorem_stated (once, reused) + general order-R common-recurrence verifier (Fibonacci)
+    assert "PRA" in FC.UNIQUENESS_METATHEOREM and "EQUALITY only" in FC.UNIQUENESS_METATHEOREM
+    def fib_naive(m):
+        a, b = 0, 1
+        for _ in range(m):
+            a, b = b, a + b
+        return a
+    phi, psi = (1 + sp.sqrt(5)) / 2, (1 - sp.sqrt(5)) / 2
+    fib_closed = lambda m: int(sp.nsimplify((phi**m - psi**m) / sp.sqrt(5)))
+    cf = FC.verify_by_common_recurrence(fib_naive, fib_closed, [1, 1])
+    assert cf and cf.order_R == 2 and cf.base_values_checked == 2
+    assert FC.verify_by_common_recurrence(fib_naive, lambda m: fib_naive(m) + 1, [1, 1]) is None   # ≠ → reject
+    # leading_coeff_nonvanishing + holonomic_order_computed (closure bounds)
+    assert FC.leading_coeff_nonvanishing("1", n) and not FC.leading_coeff_nonvanishing("n-3", n, n_from=1)
+    assert FC.closure_order("add", 3, 2) == 5 and FC.closure_order("mul", 3, 2) == 6 and FC.closure_order("sum", 3) == 4
+    # runtime_no_regression_stage1: the checker is build/verify-time (Clock B); it adds NOTHING to the runtime
+    # fold path (a fold is still an O(1) closed-form eval). Confirm a verified fold still beats naive.
+    cf_sumsq = sp.lambdify(n, n * (n + 1) * (2 * n + 1) / 6, "math")
+    ba = CL.before_after("sumsq", "C", lambda: sum(j * j for j in range(1, 100001)), lambda: cf_sumsq(100000), k=5)
+    assert not ba.regressed and ba.ratio > 5.0
+    print(f"PASS test_foldext3_stage1_finite_check (∀n EQUALITY via uniqueness meta-theorem, R=1 telescoping & "
+          f"R=2 Fibonacci; PRA(ω^ω) NOT ε₀; false form rejected; ★inequality deferred (equality-only)★; "
+          f"leading-coeff guard; fold {ba.ratio}× no regression)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

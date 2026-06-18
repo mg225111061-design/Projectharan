@@ -93,7 +93,7 @@ def induction_pit_verify(summand, closed, lo: int = 1) -> Optional[dict]:
         return None
     exact = method in ("expand", "poly-PIT-exact", "expsub-exact")
     return {"ok": True, "base": "S(lo)=t(lo)", "step_method": method,
-            "strength": "forall-n (induction-PIT)", "cert_type": "exact" if exact else "probabilistic"}
+            "strength": "finite-base-case (PRA, omega^omega)", "cert_type": "exact" if exact else "probabilistic"}
 
 
 # ─────────────────────────────────────────────────────── R1.3 — SOS nonnegativity (check is cheap)
@@ -198,7 +198,7 @@ def brew_cfinite(maxc: int = 18, orders=(2, 3)) -> List[Lemma]:
         if cfinite.verify_cfinite(c, [0, 1])[0]:
             seen.add(sig)
             out.append(Lemma("c-finite", f"cfin:{c}", "", f"companion-power(order2, c={c})",
-                             "exact", "forall-n (companion-matrix)", f"a(n)={c1}a(n-1)+{c2}a(n-2)"))
+                             "exact", "finite-base-case (PRA, omega^omega)", f"a(n)={c1}a(n-1)+{c2}a(n-2)"))
     if 3 in orders:
         # a curated slice of order-3 (full enumeration is huge; bound it to keep brew time sane)
         for (c1, c2, c3) in itertools.product(range(-6, 7), range(-6, 7), range(-6, 7)):
@@ -207,7 +207,7 @@ def brew_cfinite(maxc: int = 18, orders=(2, 3)) -> List[Lemma]:
             c = [c1, c2, c3]
             if cfinite.verify_cfinite(c, [0, 0, 1])[0]:
                 out.append(Lemma("c-finite", f"cfin:{c}", "", f"companion-power(order3, c={c})",
-                                 "exact", "forall-n (companion-matrix)", f"order-3 {c}"))
+                                 "exact", "finite-base-case (PRA, omega^omega)", f"order-3 {c}"))
     return out
 
 
@@ -223,7 +223,7 @@ def brew_cfinite_range(args) -> List[dict]:
             c = [c1, c2]
             if cfinite.verify_cfinite(c, [0, 1])[0]:
                 out.append(Lemma("c-finite", f"cfin:{c}", "", f"companion-power(order2, c={c})",
-                                 "exact", "forall-n (companion-matrix)",
+                                 "exact", "finite-base-case (PRA, omega^omega)",
                                  f"a(n)={c1}a(n-1)+{c2}a(n-2)").as_dict())
     return out
 
