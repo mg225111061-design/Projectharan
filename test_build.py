@@ -370,6 +370,29 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s31_prompt_consistency():
+    """v29 S31: Clover-for-prompts — cross-check the prompt's stated constraints vs its worked examples and
+    flag ONLY a sound numeric violation (zero false-positives, Clover's property); a divergence routes to
+    S28/S29. Entity grounding links references to existing symbols. Consistency ≠ intent correctness (Rice)."""
+    import prompt_consistency as PC
+    # ── consistent: constraint result>=0 and example f(3) returns 9 → CONSISTENT ──
+    assert PC.check_consistency("Implement f that returns a non-negative result. Example: f(3) returns 9.").status == "CONSISTENT"
+    # ── ★ sound divergence: a non-negative result but an example returns -4 → DIVERGENT → route S28 ★ ──
+    d = PC.gate("Implement f that returns a non-negative result. Example: f(2) returns -4.")
+    assert d.status == "DIVERGENT" and d.route == "S28" and "violates" in d.divergences[0]
+    assert PC.check_consistency("result must be >= 100. e.g. it returns 5 for small input.").status == "DIVERGENT"
+    # ── ★ zero false-positives: nothing to violate → CONSISTENT (never a heuristic hunch) ★ ──
+    assert PC.check_consistency("Sort the list ascending; it must be O(n log n).").status == "CONSISTENT"
+    assert PC.check_consistency("returns a non-negative result. example: returns 0 for the empty list.").status == "CONSISTENT"
+    # ── entity grounding to a code/IR symbol table (checkable: symbol exists?) ──
+    grounded, ungrounded = PC.ground_entities("call sort_list(xs) then validate(row)", ["sort_list", "helper"])
+    assert grounded == ["sort_list"] and ungrounded == ["validate"]
+    rep = PC.gate("Implement f that returns a non-negative result. Example: f(3) returns 9.", symbols=["f"])
+    assert rep.status == "CONSISTENT" and rep.grounded == ["f"]
+    print("PASS test_s31_prompt_consistency (constraint vs example: CONSISTENT / sound-DIVERGENT→S28; "
+          "zero-FP when nothing to violate; entity grounding to symbols; consistency≠intent-correctness)")
+
+
 def test_s30_clarification_policy():
     """v29 S30: ask RARELY, ask SMART, max one. Only a genuine high-stakes fork (not detailed) with VoI over
     a conservative threshold → ONE question; everything else PROCEEDs. ★A detailed prompt is NEVER asked.★
