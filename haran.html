@@ -255,6 +255,7 @@
     <header>
       <div class="logo">MR<span class="dot">.</span>JEFFREY</div>
       <div class="header-right">
+        <span id="authNav" aria-live="polite"><a class="clear-btn" href="/login">Sign in</a></span>
         <button class="clear-btn" id="clearBtn" data-i18n="clear" aria-label="new chat / 새 대화">새 대화</button>
         <div class="lang-toggle" id="langToggle" role="group" aria-label="language / 언어">
           <button data-lang="ko" class="on" aria-label="한국어">한국어</button>
@@ -756,9 +757,28 @@ const quickEl = document.getElementById("quickActions");
 // conversation HISTORY accumulates across rounds → threaded as context every round (server uses it, T8)
 const HISTORY = [];
 function _accumulate(request, summary){
-  if(summary && !summary.scope && summary.code) HISTORY.push({request, code:summary.code});
+  if(summary && !summary.scope && summary.code){
+    HISTORY.push({request, code:summary.code});
+    // save WORK for a logged-in user (server ignores if not logged in). ★ NO api key in this body. ★
+    fetch("/api/work/save", {method:"POST", headers:{"content-type":"application/json"}, credentials:"same-origin",
+      body:JSON.stringify({request, code:summary.code, status:summary.status||"", proof_tier:summary.proof_tier||""})
+    }).catch(()=>{});
+  }
   quickEl.style.display = "flex";
 }
+// header auth state: show nickname + profile/logout when logged in, else Sign in (no theme coupling)
+(async function(){
+  try{
+    const me = await (await fetch("/api/auth/me",{credentials:"same-origin"})).json();
+    const nav = document.getElementById("authNav"); if(!nav) return;
+    if(me.authenticated){
+      nav.innerHTML = '<a class="clear-btn" href="/profile">'+ (me.nickname||me.email||"프로필") +'</a>'+
+        ' <button class="clear-btn" id="logoutBtn">로그아웃</button>';
+      const lo = document.getElementById("logoutBtn");
+      if(lo) lo.addEventListener("click", async ()=>{ await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"}); location.reload(); });
+    }
+  }catch(e){}
+})();
 async function _mockTurn(request, key, force){   // standalone / fallback — routes like the server
   const r = _localRoute(request, force);
   if(r.kind === "chat"){

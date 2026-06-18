@@ -5,3 +5,5 @@ __pycache__/
 .venv/
 .coverage
 benchmarks/raw.log
+mrjeffrey.db
+*.db

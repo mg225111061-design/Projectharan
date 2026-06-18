@@ -370,6 +370,142 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_stage1_design_system():
+    """v30 STAGE 1: shared black/white design system — tokenized radii (no sharp corners), depth via soft
+    layered shadows, rounded font, dark-mode support. (Visuals are user-confirmation; tests check structure.)"""
+    css = open("static/design.css").read()
+    js = open("static/site.js").read()
+    # design_tokens_shared: the palette + radius + shadow tokens exist in ONE shared stylesheet
+    for tok in ("--paper:", "--ink:", "--r-ctl:", "--r-card:", "--r-pill:", "--shadow-2:", "--shadow-3:", "--font:"):
+        assert tok in css, f"missing token {tok}"
+    assert "Nunito" in css                                   # rounded sans-serif (falls back to -apple-system)
+    # radius_tokens_applied / no sharp corners: radii use tokens, and there is no border-radius:0
+    assert "border-radius:var(--r-card)" in css and "border-radius:var(--r-pill)" in css
+    assert "border-radius:0" not in css.replace(" ", "")
+    # depth: layered shadows differentiate background < card < raised
+    assert css.count("box-shadow:var(--shadow-") >= 3
+    # dark_mode_toggles: a [data-theme="dark"] palette exists and site.js flips data-theme + persists
+    assert '[data-theme="dark"]' in css
+    assert 'setAttribute("data-theme"' in js and "localStorage" in js and "toggleTheme" in js
+    print("PASS test_stage1_design_system (shared tokens; tokenized radii, no sharp corners; layered "
+          "shadows for depth; Nunito; dark-mode toggle persists)")
+
+
+def test_stage2_pages():
+    """v30 STAGE 2: pages exist; the app keeps codegen; the landing loads stats from /stats.json (NO
+    hardcoded stat numbers) and renders graphs; create_app wires every route."""
+    import os
+    import json
+    for pg in ("landing", "login", "signup", "profile"):
+        assert os.path.exists(f"pages/{pg}.html") and len(open(f"pages/{pg}.html").read()) > 400
+    # app_keeps_codegen: the existing app still has the composer + the streaming codegen endpoint
+    app = open("haran.html").read()
+    assert "/api/stream" in app and 'id="reqInput"' in app and 'id="sendBtn"' in app
+    # landing_loads_stats_from_json + graph_renders
+    land = open("pages/landing.html").read()
+    assert 'fetch("/stats.json")' in land and "s.metrics" in land
+    assert ('class="bars"' in land or "<svg" in land or 'class="fill"' in land)   # a graph structure
+    assert "measured_at" in land and "method" in land                              # shows date + how-measured
+    # no_hardcoded_numbers: the DISTINCTIVE measured stat values (decimals — unmistakably stats, can't be
+    # CSS pixels) are NOT literals in the landing; they come from /stats.json at runtime.
+    s = json.load(open("benchmarks/stats.json"))
+    for key in ("proof_reuse_speedup", "fold_scale_speedup", "parallel_speedup"):
+        if key in s["metrics"]:
+            assert str(s["metrics"][key]["value"]) not in land, f"{key} value hardcoded in landing!"
+    # each route registered in create_app (built in-process; needs FastAPI which is present here)
+    import server
+    if server._fastapi_available():
+        paths = {r.path for r in server.create_app().routes}
+        for need in ("/", "/app", "/login", "/signup", "/profile", "/stats.json", "/api/stream",
+                     "/api/auth/login", "/api/work"):
+            assert need in paths, f"route {need} not wired"
+    print("PASS test_stage2_pages (4 pages + app codegen intact; landing reads /stats.json, no hardcoded "
+          "stat values; graph structure present; all routes wired)")
+
+
+def test_stage3_signup():
+    """v30 STAGE 3: signup — server-side password policy, bcrypt/scrypt hash (NEVER plaintext), duplicate
+    rejected, '*' tooltip in markup."""
+    import auth as AU
+    import os
+    db = "/tmp/mrj_test_s3.db"
+    if os.path.exists(db):
+        os.remove(db)
+    AU.init_db(db)
+    # weak_password_rejected_server_side (each rule enforced authoritatively on the server)
+    assert AU.signup("u@x.com", "weak", path=db)["ok"] is False              # too short / missing classes
+    assert AU.signup("u@x.com", "alllower1!", path=db)["ok"] is False        # no uppercase
+    assert AU.signup("u@x.com", "NoDigit!!", path=db)["ok"] is False         # no digit
+    assert AU.signup("u@x.com", "NoSpecial9", path=db)["ok"] is False        # no special
+    # signup_creates_user (strong password)
+    assert AU.signup("u@x.com", "Str0ng!pw9", "Kim", path=db)["ok"] is True
+    # duplicate_email_rejected
+    assert AU.signup("u@x.com", "Another9!x", path=db)["ok"] is False
+    # password_hashed_not_plain: the stored hash is a KDF hash, never the plaintext
+    import sqlite3
+    row = sqlite3.connect(db).execute("SELECT pw_hash, pw_algo FROM users").fetchone()
+    assert "Str0ng!pw9" not in row[0] and row[1] in ("bcrypt", "scrypt")
+    assert AU.verify_password("Str0ng!pw9", row[1], row[0]) and not AU.verify_password("wrong", row[1], row[0])
+    # tooltip_in_markup: the '*' password-requirements tooltip is present
+    sp = open("pages/signup.html").read()
+    assert 'class="star"' in sp and "특수문자" in sp and 'role="tooltip"' in sp
+    print(f"PASS test_stage3_signup (weak rejected server-side; {row[1]} hash not plaintext; duplicate "
+          "rejected; '*' tooltip in markup)")
+
+
+def test_stage4_login_profile_work():
+    """v30 STAGE 4: login + remember-me (real session lifetime) + profile + work history. Schema has NO
+    api_key column; the LLM key is never persisted (grep)."""
+    import auth as AU
+    import os
+    from datetime import datetime
+    db = "/tmp/mrj_test_s4.db"
+    if os.path.exists(db):
+        os.remove(db)
+    AU.init_db(db)
+    AU.signup("a@b.com", "Str0ng!pw9", "Lee", path=db)
+    # login_works (+ wrong password fails)
+    assert AU.login("a@b.com", "Str0ng!pw9", path=db)["ok"] is True
+    assert AU.login("a@b.com", "nope", path=db)["ok"] is False
+    # remember_me_extends_session: persistent session expires much later than a browser-session one
+    rem = AU.login("a@b.com", "Str0ng!pw9", remember=True, path=db)
+    ses = AU.login("a@b.com", "Str0ng!pw9", remember=False, path=db)
+    assert rem["persistent"] is True and ses["persistent"] is False
+    assert rem["expires_at"] > ses["expires_at"]                            # 30 days vs 12 hours
+    assert (rem["expires_at"] - ses["expires_at"]).days >= 20
+    # a valid session resolves to the user; logout invalidates it
+    who = AU.verify_session(rem["cookie"], path=db)
+    assert who and who["email"] == "a@b.com"
+    AU.logout(rem["cookie"], path=db)
+    assert AU.verify_session(rem["cookie"], path=db) is None
+    # logged_in_vs_out_ui_differs: site.js exposes whoami; pages branch the header on it
+    assert "whoami" in open("static/site.js").read()
+    assert 'id="authNav"' in open("haran.html").read() and 'id="nav"' in open("pages/landing.html").read()
+    # nickname_update_persists
+    uid = who["user_id"]
+    AU.update_profile(uid, nickname="NewName", path=db)
+    assert AU.verify_session(AU.login("a@b.com", "Str0ng!pw9", path=db)["cookie"], path=db)["nickname"] == "NewName"
+    # work_history_saved (request/code/labels) — and listed back
+    AU.add_work(uid, "sum 1..n", "fn f(){}", "VERIFIED", "PROVEN", path=db)
+    items = AU.list_work(uid, path=db)
+    assert items and items[0]["request"] == "sum 1..n" and items[0]["proof_tier"] == "PROVEN"
+    # schema_has_no_api_key_column: scan the ACTUAL columns (PRAGMA) — token_hash is a session-token hash,
+    # not an LLM key. ("api_key" appears only in honesty COMMENTS in schema.sql, never as a column.)
+    import sqlite3
+    cols = set()
+    for t in ("users", "sessions", "work_history"):
+        cols |= {r[1] for r in sqlite3.connect(db).execute(f"PRAGMA table_info({t})").fetchall()}
+    assert not [c for c in cols if any(k in c.lower() for k in ("api", "apikey", "llm_key", "secret"))]
+    # key_not_persisted (grep): no add_work / INSERT call ever carries the LLM key; claude_agent fences os
+    srv = open("server.py").read()
+    for seg in srv.split("AU.add_work(")[1:]:                 # every add_work call site
+        assert "apiKey" not in seg[:240] and "api_key" not in seg[:240]   # request/code/labels only
+    assert "apiKey" not in open("auth.py").read()             # auth never even names the LLM key in code
+    assert open("claude_agent.py").read().count("import os") == 0
+    print("PASS test_stage4_login_profile_work (login + remember-me real lifetime 30d vs 12h; nickname "
+          "persists; work saved+listed; schema has NO api_key column; LLM key never persisted)")
+
+
 def test_stage0_measurement():
     """v30 STAGE 0: every site number is a MEASUREMENT artifact. stats.json must carry value+unit+method+
     timestamp per metric (so the site can show 'how it was measured'); blocked metrics carry a reason (never

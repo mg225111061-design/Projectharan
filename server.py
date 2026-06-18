@@ -24,10 +24,13 @@ from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
 import agentic as AG
+import auth as AU       # users/sessions/work persistence — NEVER touches the LLM key (LEVEL-1 stays in claude_agent)
 import claude_agent as CA
 import haran_cache as HC
 import intent as IN
 import provider as PV   # non-secret gateway config + env-key fallback (web UI key still takes priority)
+
+SESSION_COOKIE = "mrj_session"
 
 # Expose `Request` at MODULE scope so FastAPI can resolve the route handlers' string annotations
 # (PEP 563 / `from __future__ import annotations` turns `req: Request` into the string "Request",
@@ -39,6 +42,11 @@ except Exception:   # noqa: BLE001
     Request = None
 
 HARAN_HTML = Path(__file__).with_name("haran.html")
+BASE = Path(__file__).parent
+STATIC = BASE / "static"
+PAGES = BASE / "pages"
+STATS_JSON = BASE / "benchmarks" / "stats.json"
+_STATIC_TYPES = {".css": "text/css", ".js": "application/javascript", ".svg": "image/svg+xml"}
 
 # ── intent-gap / scope honesty (rule 5) ─────────────────────────────────────────────────────────
 # Whole-program requests can't be generated-from-nothing and verified (Rice). HARAN verifies small~
@@ -268,23 +276,127 @@ def _fastapi_available() -> bool:
 
 def create_app():
     """Wire the FastAPI app (lazy import). Routes delegate to the dependency-free handlers above."""
-    from fastapi import FastAPI, Request                       # noqa: PLC0415 (lazy by design)
+    from fastapi import FastAPI, Request, Response              # noqa: PLC0415 (lazy by design)
     from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
     app = FastAPI(title="HARAN", docs_url=None, redoc_url=None)
+    AU.init_db()                                               # idempotent: create tables if absent
 
+    def _page(name: str) -> "HTMLResponse":
+        f = PAGES / f"{name}.html"
+        return HTMLResponse(f.read_text(encoding="utf-8")) if f.is_file() else HTMLResponse("not found", 404)
+
+    def _set_session_cookie(resp, sess: dict, req) -> None:
+        # httpOnly + SameSite=Lax + Secure(when https). "remember me" → Max-Age (persistent); else a
+        # session cookie (no Max-Age → the browser drops it on close). The LLM key is NEVER a cookie.
+        max_age = AU.PERSISTENT_DAYS * 86400 if sess.get("persistent") else None
+        resp.set_cookie(SESSION_COOKIE, sess["cookie"], httponly=True, samesite="lax",
+                        secure=(req.url.scheme == "https"), path="/", max_age=max_age)
+
+    # ---- pages ----
     @app.get("/", response_class=HTMLResponse)
-    async def index():                                          # noqa: ANN202
-        return HARAN_HTML.read_text(encoding="utf-8")
+    async def landing():                                       # noqa: ANN202
+        return _page("landing")
+
+    @app.get("/app", response_class=HTMLResponse)
+    async def app_page():                                      # noqa: ANN202
+        return HTMLResponse(HARAN_HTML.read_text(encoding="utf-8"))   # the existing codegen/verify app
+
+    @app.get("/login", response_class=HTMLResponse)
+    async def login_page():                                    # noqa: ANN202
+        return _page("login")
+
+    @app.get("/signup", response_class=HTMLResponse)
+    async def signup_page():                                   # noqa: ANN202
+        return _page("signup")
+
+    @app.get("/profile", response_class=HTMLResponse)
+    async def profile_page():                                  # noqa: ANN202
+        return _page("profile")
 
     @app.get("/health")                                        # deploy health check (Cloud Run/Render)
     async def health():                                        # noqa: ANN202
         return {"ok": True, "service": "mrjeffrey"}
 
+    # ---- auth API (no LLM key involved anywhere here) ----
+    @app.post("/api/auth/signup")
+    async def auth_signup(req: Request):                       # noqa: ANN202
+        p = await req.json()
+        return JSONResponse(AU.signup(p.get("email", ""), p.get("password", ""), p.get("nickname", "")))
+
+    @app.post("/api/auth/login")
+    async def auth_login(req: Request):                        # noqa: ANN202
+        p = await req.json()
+        res = AU.login(p.get("email", ""), p.get("password", ""), bool(p.get("remember")))
+        if not res.get("ok"):
+            return JSONResponse(res, status_code=401)
+        r = JSONResponse({"ok": True, "persistent": res["persistent"]})
+        _set_session_cookie(r, res, req)
+        return r
+
+    @app.post("/api/auth/logout")
+    async def auth_logout(req: Request):                       # noqa: ANN202
+        AU.logout(req.cookies.get(SESSION_COOKIE, ""))
+        r = JSONResponse({"ok": True})
+        r.delete_cookie(SESSION_COOKIE, path="/")
+        return r
+
+    @app.get("/api/auth/me")
+    async def auth_me(req: Request):                           # noqa: ANN202
+        return JSONResponse(AU.whoami(req.cookies.get(SESSION_COOKIE, "")))
+
+    @app.post("/api/auth/profile")
+    async def auth_profile(req: Request):                      # noqa: ANN202
+        s = AU.verify_session(req.cookies.get(SESSION_COOKIE, ""))
+        if not s:
+            return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, status_code=401)
+        p = await req.json()
+        return JSONResponse(AU.update_profile(s["user_id"], nickname=p.get("nickname"),
+                                              password=(p.get("password") or None)))
+
+    @app.get("/api/work")
+    async def api_work(req: Request):                          # noqa: ANN202
+        s = AU.verify_session(req.cookies.get(SESSION_COOKIE, ""))
+        if not s:
+            return JSONResponse({"items": []}, status_code=401)
+        return JSONResponse({"items": AU.list_work(s["user_id"])})
+
+    @app.get("/static/{name}")                                  # shared design system + site script
+    async def static_file(name: str):                          # noqa: ANN202
+        # allow-listed by suffix + name-only (no path traversal): only files directly under static/.
+        p = (STATIC / name).resolve()
+        if p.parent != STATIC.resolve() or not p.is_file() or p.suffix not in _STATIC_TYPES:
+            return Response(status_code=404)
+        return Response(content=p.read_text(encoding="utf-8"), media_type=_STATIC_TYPES[p.suffix])
+
+    @app.get("/stats.json")                                     # STAGE 0 measurement artifact (no hardcoding)
+    async def stats():                                          # noqa: ANN202
+        if not STATS_JSON.is_file():
+            return JSONResponse({"error": "stats not measured — run benchmarks/measure.py"}, status_code=404)
+        return Response(content=STATS_JSON.read_text(encoding="utf-8"), media_type="application/json")
+
     @app.post("/api/generate")                                 # routes through intent (U4): code|chat|ask
     async def generate(req: Request):                          # noqa: ANN202
         payload = await req.json()
-        return JSONResponse(handle_route(payload))
+        out = handle_route(payload)
+        # save WORK for a logged-in user — request/code/labels only. The LLM key (payload['apiKey']) is
+        # DELIBERATELY never passed to add_work; it stays LEVEL-1 (used for the call, then dropped).
+        s = AU.verify_session(req.cookies.get(SESSION_COOKIE, ""))
+        if s and out.get("kind") == "code" and out.get("result"):
+            r = out["result"]
+            AU.add_work(s["user_id"], request=str(payload.get("prompt", "")), code=r.get("code", ""),
+                        status=r.get("status", ""), proof_tier=r.get("proof_tier", ""))
+        return JSONResponse(out)
+
+    @app.post("/api/work/save")                                # the streaming app posts its finished result here
+    async def work_save(req: Request):                         # noqa: ANN202
+        s = AU.verify_session(req.cookies.get(SESSION_COOKIE, ""))
+        if not s:
+            return JSONResponse({"ok": False}, status_code=401)
+        p = await req.json()                                   # request/code/status/proof_tier ONLY — never a key
+        AU.add_work(s["user_id"], request=str(p.get("request", "")), code=str(p.get("code", "")),
+                    status=str(p.get("status", "")), proof_tier=str(p.get("proof_tier", "")))
+        return JSONResponse({"ok": True})
 
     @app.post("/api/stream")                                    # T7: SSE
     async def stream(req: Request):                            # noqa: ANN202

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign up — Mr. Jeffrey</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/design.css">
+<script src="/static/site.js"></script>
+<style>
+  .auth-wrap{max-width:440px;margin:0 auto}
+  .auth-card{margin-top:24px}
+  .auth-card h1{font-size:30px;margin-bottom:6px}
+  .auth-card .sub{color:var(--muted);font-size:14px;margin-bottom:24px}
+  .pw-label{display:flex;align-items:center;gap:6px}
+  .star{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+    border-radius:var(--r-pill);border:1px solid var(--line-2);background:var(--surface);color:var(--muted);
+    font-weight:900;font-size:12px;cursor:help}
+  .star .tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(4px);
+    width:240px;background:var(--ink);color:var(--on-ink);border-radius:var(--r-sm);padding:10px 12px;
+    font-size:12px;font-weight:600;line-height:1.5;box-shadow:var(--shadow-3);opacity:0;pointer-events:none;
+    transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);z-index:5}
+  .star:hover .tip,.star:focus .tip,.star:focus-within .tip{opacity:1;transform:translateX(-50%) translateY(0)}
+  .rules{display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 16px}
+  .rule{font-size:11.5px;font-weight:700;color:var(--muted);border:1px solid var(--line-2);
+    border-radius:var(--r-pill);padding:3px 10px;transition:all var(--dur) var(--ease)}
+  .rule.ok{color:var(--on-ink);background:var(--ink);border-color:var(--ink)}
+  .msg{font-size:13px;font-weight:700;margin-top:12px;min-height:18px}
+  .msg.err{color:var(--ink)} .msg.ok{color:var(--ink)}
+  .auth-foot{margin-top:18px;font-size:13.5px;color:var(--muted);text-align:center}
+  .auth-foot a{font-weight:800;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap auth-wrap">
+  <header class="site-head">
+    <a class="brand" href="/" style="text-decoration:none">Mr.&nbsp;Jeffrey<span class="dot"></span></a>
+    <button class="icon-btn" data-theme-toggle aria-label="toggle dark mode">☀</button>
+  </header>
+
+  <div class="card auth-card">
+    <h1>계정 만들기</h1>
+    <div class="sub">코드는 검증하고, 키는 저장하지 않습니다.</div>
+    <form id="form" novalidate>
+      <div class="field">
+        <label for="email">이메일 · Email</label>
+        <input class="input" id="email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label class="pw-label" for="password">비밀번호 · Password
+          <span class="star" tabindex="0" aria-label="password requirements">*
+            <span class="tip" role="tooltip">대문자 · 소문자 · 숫자 · 특수문자를 포함한 <b>8자 이상</b>.</span>
+          </span>
+        </label>
+        <input class="input" id="password" type="password" autocomplete="new-password" required>
+      </div>
+      <div class="rules" id="rules">
+        <span class="rule" data-k="len">8자+</span>
+        <span class="rule" data-k="lower">소문자</span>
+        <span class="rule" data-k="upper">대문자</span>
+        <span class="rule" data-k="digit">숫자</span>
+        <span class="rule" data-k="special">특수문자</span>
+      </div>
+      <div class="field">
+        <label for="confirm">비밀번호 확인 · Confirm</label>
+        <input class="input" id="confirm" type="password" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label for="nickname">닉네임 · Nickname <span class="muted" style="font-weight:600">(선택 · optional)</span></label>
+        <input class="input" id="nickname" type="text" autocomplete="nickname" maxlength="40">
+      </div>
+      <button class="btn btn-primary" id="submit" type="submit" style="width:100%">가입하기</button>
+      <div class="msg" id="msg" aria-live="polite"></div>
+    </form>
+    <div class="auth-foot">이미 계정이 있나요? <a href="/login">로그인</a></div>
+  </div>
+</div>
+
+<script>
+const pw = document.getElementById("password");
+const ruleEls = [...document.querySelectorAll(".rule")];
+// client-side LIVE feedback (UX only — the SERVER enforces the same rules authoritatively)
+function checkRules(v){
+  return {len:v.length>=8, lower:/[a-z]/.test(v), upper:/[A-Z]/.test(v), digit:/[0-9]/.test(v),
+          special:/[^A-Za-z0-9]/.test(v)};
+}
+function paint(){
+  const r = checkRules(pw.value);
+  ruleEls.forEach(e=>e.classList.toggle("ok", !!r[e.dataset.k]));
+  return Object.values(r).every(Boolean);
+}
+pw.addEventListener("input", paint);
+
+document.getElementById("form").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const msg = document.getElementById("msg"); msg.className="msg"; msg.textContent="";
+  const email = document.getElementById("email").value.trim();
+  const password = pw.value, confirm = document.getElementById("confirm").value;
+  const nickname = document.getElementById("nickname").value.trim();
+  if(!paint()){ msg.classList.add("err"); msg.textContent="비밀번호 규칙을 충족해 주세요."; return; }
+  if(password!==confirm){ msg.classList.add("err"); msg.textContent="비밀번호가 일치하지 않습니다."; return; }
+  document.getElementById("submit").disabled = true;
+  try{
+    const r = await fetch("/api/auth/signup", {method:"POST", headers:{"content-type":"application/json"},
+      credentials:"same-origin", body:JSON.stringify({email, password, nickname})});
+    const d = await r.json();
+    if(r.ok && d.ok){ msg.classList.add("ok"); msg.textContent="가입 완료 — 로그인으로 이동합니다."; location.href="/login"; }
+    else { msg.classList.add("err"); msg.textContent = d.message || "가입에 실패했습니다."; }
+  }catch(err){ msg.classList.add("err"); msg.textContent="네트워크 오류 — 다시 시도해 주세요."; }
+  finally{ document.getElementById("submit").disabled = false; }
+});
+</script>
+</body>
+</html>

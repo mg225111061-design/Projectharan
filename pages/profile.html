@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile — Mr. Jeffrey</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/design.css">
+<script src="/static/site.js"></script>
+<style>
+  .prof-wrap{max-width:760px;margin:0 auto}
+  .head h1{font-size:30px}
+  .row2{display:grid;grid-template-columns:1fr;gap:18px;margin-top:20px}
+  .msg{font-size:13px;font-weight:700;min-height:18px;margin-top:8px}
+  .work{display:flex;flex-direction:column;gap:12px}
+  .work .item{border:1px solid var(--line);border-radius:var(--r-ctl);padding:14px 16px;background:var(--surface-2)}
+  .work .req{font-weight:800;font-size:14px}
+  .work .meta{font-size:12px;color:var(--muted);margin-top:4px}
+  .work code{font-family:var(--mono);font-size:12px;white-space:pre-wrap;display:block;margin-top:8px;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px}
+  .empty{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap prof-wrap">
+  <header class="site-head">
+    <a class="brand" href="/" style="text-decoration:none">Mr.&nbsp;Jeffrey<span class="dot"></span></a>
+    <nav class="nav">
+      <button class="icon-btn" data-theme-toggle aria-label="toggle dark mode">☀</button>
+      <a class="btn btn-ghost" href="/app">앱으로</a>
+      <button class="btn btn-ghost" id="logout">로그아웃</button>
+    </nav>
+  </header>
+
+  <div class="head"><h1 id="hello">프로필</h1><p class="muted" id="email"></p></div>
+
+  <div class="row2">
+    <div class="card">
+      <h3 style="font-size:18px;margin-bottom:16px">계정 설정</h3>
+      <div class="field">
+        <label for="nickname">닉네임 · Nickname</label>
+        <input class="input" id="nickname" type="text" maxlength="40">
+      </div>
+      <button class="btn btn-primary" id="saveNick">닉네임 저장</button>
+      <div class="msg" id="nickMsg" aria-live="polite"></div>
+      <hr class="soft">
+      <div class="field">
+        <label for="newpw">새 비밀번호 · New password <span class="muted" style="font-weight:600">(선택)</span></label>
+        <input class="input" id="newpw" type="password" autocomplete="new-password">
+      </div>
+      <button class="btn btn-ghost" id="savePw">비밀번호 변경</button>
+      <div class="msg" id="pwMsg" aria-live="polite"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:18px;margin-bottom:6px">저장된 작업 · Saved work</h3>
+      <p class="note" style="margin-bottom:14px">입력·생성코드·검증 라벨·시각만 저장됩니다. <b>LLM API 키는 저장하지 않습니다.</b></p>
+      <div class="work" id="work"><div class="empty">불러오는 중…</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function load(){
+  const me = await window.MRJ.whoami();
+  if(!me.authenticated){ location.href="/login"; return; }
+  document.getElementById("hello").textContent = (me.nickname || "프로필");
+  document.getElementById("email").textContent = me.email || "";
+  document.getElementById("nickname").value = me.nickname || "";
+  // work history
+  try{
+    const r = await fetch("/api/work", {credentials:"same-origin"});
+    const d = await r.json();
+    const box = document.getElementById("work");
+    if(!d.items || !d.items.length){ box.innerHTML = '<div class="empty">아직 저장된 작업이 없습니다. 앱에서 코드를 만들어보세요.</div>'; return; }
+    box.innerHTML = "";
+    d.items.forEach(it=>{
+      const el = document.createElement("div"); el.className="item";
+      const tag = it.proof_tier ? ('<span class="tag">'+it.proof_tier+'</span>') : "";
+      el.innerHTML = '<div class="req">'+ escapeHtml(it.request) +' '+tag+'</div>'+
+        '<div class="meta">'+ (it.status||"") +' · '+ (it.created_at||"").slice(0,19).replace("T"," ") +'</div>'+
+        (it.code ? '<code>'+ escapeHtml(it.code) +'</code>' : "");
+      box.appendChild(el);
+    });
+  }catch(e){ document.getElementById("work").innerHTML = '<div class="empty">작업을 불러오지 못했습니다.</div>'; }
+}
+function escapeHtml(s){ return (s||"").replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+document.getElementById("saveNick").addEventListener("click", async ()=>{
+  const m = document.getElementById("nickMsg"); m.textContent="";
+  const r = await fetch("/api/auth/profile", {method:"POST", headers:{"content-type":"application/json"},
+    credentials:"same-origin", body:JSON.stringify({nickname:document.getElementById("nickname").value.trim()})});
+  const d = await r.json(); m.textContent = (r.ok && d.ok) ? "저장됨." : (d.message||"실패");
+});
+document.getElementById("savePw").addEventListener("click", async ()=>{
+  const m = document.getElementById("pwMsg"); m.textContent="";
+  const v = document.getElementById("newpw").value;
+  const r = await fetch("/api/auth/profile", {method:"POST", headers:{"content-type":"application/json"},
+    credentials:"same-origin", body:JSON.stringify({password:v})});
+  const d = await r.json(); m.textContent = (r.ok && d.ok) ? "비밀번호 변경됨." : (d.message||"실패 — 규칙 확인");
+  if(r.ok && d.ok) document.getElementById("newpw").value="";
+});
+document.getElementById("logout").addEventListener("click", async ()=>{
+  await fetch("/api/auth/logout", {method:"POST", credentials:"same-origin"}); location.href="/";
+});
+load();
+</script>
+</body>
+</html>

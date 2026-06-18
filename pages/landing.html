@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<!-- Mr. Jeffrey — landing. Every number is loaded from /stats.json (STAGE 0 measurement). NO hardcoded
+     stat numbers here; each value carries its measured "method" (hover/click) + the measurement date.
+     Visuals (minimal/depth) are a USER-CONFIRMATION subject. -->
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mr. Jeffrey — verified coding, honestly measured</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- rounded sans-serif (Nunito); falls back to -apple-system if the CDN is unreachable -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/design.css">
+<script src="/static/site.js"></script>
+<style>
+  .hero{padding:30px 0 18px;max-width:780px}
+  .hero h1{margin-bottom:18px}
+  .hero p.sub{font-size:clamp(17px,2.2vw,21px);color:var(--muted);max-width:620px}
+  .values{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin:30px 0 44px}
+  .value h3{font-size:19px;margin-bottom:6px}
+  .value p{font-size:14px;color:var(--muted)}
+  .stats-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+  .stat{position:relative}
+  .stat .big{font-size:clamp(40px,6vw,60px);font-weight:900;letter-spacing:-.03em;line-height:1}
+  .stat .lbl{font-size:14px;font-weight:800;margin-top:6px}
+  .stat .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .why{position:absolute;top:18px;right:18px;width:24px;height:24px;border-radius:var(--r-pill);
+    border:1px solid var(--line-2);background:var(--surface);color:var(--muted);font-weight:800;font-size:13px;
+    cursor:help;display:flex;align-items:center;justify-content:center}
+  .method{position:absolute;top:48px;right:18px;left:18px;background:var(--ink);color:var(--on-ink);
+    border-radius:var(--r-sm);padding:12px 14px;font-size:12.5px;line-height:1.5;box-shadow:var(--shadow-3);
+    opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);z-index:5}
+  .stat:hover .method,.why:focus + .method,.stat:focus-within .method{opacity:1;transform:translateY(0)}
+  .bars{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+  .barrow{display:grid;grid-template-columns:130px 1fr auto;align-items:center;gap:12px}
+  .barrow .bn{font-size:13px;font-weight:700}
+  .track{height:14px;border-radius:var(--r-pill);background:var(--line);overflow:hidden}
+  .fill{height:100%;border-radius:var(--r-pill);background:var(--ink);width:0;transition:width 900ms var(--ease)}
+  .barrow .bv{font-weight:900;font-size:15px;white-space:nowrap}
+  .pending{margin-top:14px;font-size:12.5px;color:var(--muted)}
+  .ctarow{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+  footer{margin-top:60px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site-head">
+    <div class="brand">Mr.&nbsp;Jeffrey<span class="dot"></span></div>
+    <nav class="nav" id="nav">
+      <button class="icon-btn" data-theme-toggle aria-label="toggle dark mode">☀</button>
+      <a class="btn btn-ghost" href="/login">Sign in</a>
+      <a class="btn btn-primary" href="/signup">Sign up</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <h1>코드를 짜면, <br>증명이 따라옵니다.</h1>
+    <p class="sub">Claude/GLM이 코드를 쓰고 — Mr. Jeffrey가 수학적으로 <b>검증</b>하고, 반례로 <b>고치고</b>,
+      구조를 증명해 <b>가속</b>합니다. 아래 수치는 전부 <b>실제로 측정</b>한 값입니다.</p>
+    <div class="ctarow" style="margin-top:22px">
+      <a class="btn btn-primary" href="/app">지금 만들어보기</a>
+      <a class="btn btn-ghost" href="/signup">계정 만들기</a>
+    </div>
+  </section>
+
+  <section class="values">
+    <div class="card value lift"><h3>검증 (Verify)</h3><p>"PROVEN" 또는 구체적 반례. 통과율은 측정값이고 오탐은 0입니다.</p></div>
+    <div class="card value lift"><h3>속도 (Speed)</h3><p>증명 재사용·병렬·닫힌형으로 일을 건너뜁니다. 배수는 워크로드와 함께 측정합니다.</p></div>
+    <div class="card value lift"><h3>정직 (Honesty)</h3><p>모든 숫자는 측정 산출물. 못 잰 건 "측정 예정"으로 비워둡니다 — 가짜 0.</p></div>
+  </section>
+
+  <div class="stats-head">
+    <h2>실제 측정 결과</h2>
+    <span class="note" id="measuredAt">측정 로딩 중…</span>
+  </div>
+  <div class="grid" id="headline"></div>
+
+  <div class="graph" id="speedCard" style="margin-top:18px">
+    <div class="stats-head" style="margin:0 0 14px">
+      <h3 style="font-size:17px">속도 · 효율 (측정된 배수)</h3>
+      <span class="note">막대 = 측정 배수 (로그 스케일)</span>
+    </div>
+    <div class="bars" id="bars"></div>
+    <div class="pending" id="pending"></div>
+  </div>
+
+  <footer>
+    Mr. Jeffrey · 코드는 검증되고(PROVEN/반례 라벨), 대화는 라벨 없음 · 모든 수치는
+    <span class="mono">benchmarks/measure.py</span>의 측정 산출물입니다.
+  </footer>
+</div>
+
+<script>
+// ★ NO hardcoded stat numbers — everything is read from /stats.json (the STAGE 0 measurement artifact). ★
+const UNIT_LABEL = {x:"×", "%":"%", tests:"", specs:"", tasks:"", "false positives":""};
+const HEADLINE = ["tests_passing", "verifier_false_positives", "vacuous_specs_caught", "autofix_solved"];
+const LABELS = {
+  tests_passing:"통과 테스트", verifier_false_positives:"검증기 오탐", vacuous_specs_caught:"공허 명세 포착",
+  autofix_solved:"자동수정 성공", proof_reuse_speedup:"증명 재사용", fold_scale_speedup:"패턴 폴드(N=150)",
+  parallel_speedup:"병렬 reduce", eqsat_node_reduction:"식 축소"
+};
+
+function bigText(name, m){
+  if(m.total !== undefined) return m.value + " / " + m.total;
+  const u = UNIT_LABEL[m.unit] !== undefined ? UNIT_LABEL[m.unit] : (" "+m.unit);
+  return m.value + u;
+}
+function statCard(name, m){
+  const el = document.createElement("div");
+  el.className = "card stat lift";
+  const sub = (name==="autofix_solved" && m.wrong!==undefined) ? ("틀린 수정 "+m.wrong+"건") :
+              (name==="verifier_false_positives" ? "실명세는 절대 거절 안 함" : (m.unit||""));
+  el.innerHTML =
+    '<button class="why" aria-label="how this was measured" tabindex="0">?</button>'+
+    '<div class="method">'+ (m.method||"") +'</div>'+
+    '<div class="big">'+ bigText(name,m) +'</div>'+
+    '<div class="lbl">'+ (LABELS[name]||name) +'</div>'+
+    '<div class="sub">'+ sub +'</div>';
+  return el;
+}
+function logScaleWidth(v){ // map a multiple/percent to a 4–100% bar on a gentle log scale
+  if(v<=1) return 6;
+  return Math.min(100, 14 + 40*Math.log10(v));   // ~1×→14, 10×→54, 100×→94, 1000×→134(capped)
+}
+
+(async function(){
+  let s;
+  try{ s = await (await fetch("/stats.json")).json(); }
+  catch(e){ document.getElementById("measuredAt").textContent="측정 데이터를 불러올 수 없습니다"; return; }
+  if(!s.metrics){ document.getElementById("measuredAt").textContent="측정 데이터 없음 — measure.py 실행 필요"; return; }
+  const when = (s.measured_at||"").slice(0,10);
+  document.getElementById("measuredAt").textContent = "측정: " + when + " · 재현: benchmarks/measure.py";
+
+  // headline count-style cards
+  const head = document.getElementById("headline");
+  HEADLINE.forEach(n=>{ if(s.metrics[n]) head.appendChild(statCard(n, s.metrics[n])); });
+
+  // speed/efficiency bars (x / %)
+  const bars = document.getElementById("bars");
+  const speedKeys = ["proof_reuse_speedup","fold_scale_speedup","parallel_speedup","eqsat_node_reduction"];
+  speedKeys.forEach(n=>{
+    const m = s.metrics[n]; if(!m) return;
+    const row = document.createElement("div"); row.className="barrow";
+    const val = (m.unit==="%") ? (m.value+"%") : (m.value+"×");
+    row.innerHTML = '<div class="bn">'+(LABELS[n]||n)+'</div>'+
+      '<div class="track"><div class="fill" data-w="'+ logScaleWidth(m.value) +'"></div></div>'+
+      '<div class="bv" title="'+(m.method||"").replace(/"/g,"&quot;")+'">'+ val +'</div>';
+    bars.appendChild(row);
+  });
+  requestAnimationFrame(()=>document.querySelectorAll(".fill").forEach(f=>f.style.width=f.dataset.w+"%"));
+
+  // blocked metrics — shown honestly as "측정 예정", never as a number
+  if(s.blocked && s.blocked.length){
+    document.getElementById("pending").textContent =
+      "측정 예정 (가짜 숫자 없음): " + s.blocked.map(b=>b.metric).join(", ");
+  }
+})();
+
+// header reflects login state (Sign in/up ↔ nickname/profile/logout)
+(async function(){
+  const me = await window.MRJ.whoami();
+  const nav = document.getElementById("nav");
+  if(me.authenticated){
+    nav.innerHTML =
+      '<button class="icon-btn" data-theme-toggle aria-label="toggle dark mode">☀</button>'+
+      '<a class="btn btn-ghost" href="/profile">'+ (me.nickname||me.email) +'</a>'+
+      '<button class="btn btn-primary" id="logoutBtn">로그아웃</button>';
+    document.getElementById("logoutBtn").addEventListener("click", async ()=>{
+      await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"}); location.reload(); });
+    window.MRJ.toggleTheme;  // re-bind toggle
+    document.querySelector("[data-theme-toggle]").addEventListener("click", window.MRJ.toggleTheme);
+  }
+})();
+</script>
+</body>
+</html>
