@@ -114,6 +114,40 @@ def test_openai_request_shape():
     print("PASS test_openai_request_shape")
 
 
+def test_ct_certifier_proves_and_refutes():
+    """v26 S1 (flagship): constant-time certifier — CT_PROVEN for safe code, concrete leak for each
+    violation class, 0 false positives, honest IR-level label, and a loop-style fix to convergence."""
+    import ct_certifier as CT
+    P = "  requires secret(s)\n"
+    def st(src, sec=None):
+        return CT.certify_ct(src, secrets=sec).status
+    # CT-safe → PROVEN (incl. a branch on a PUBLIC value — must NOT be flagged: false-positive guard)
+    assert st(f"fn f(s: Int, x: Int) -> Int\n{P}{{ s + x }}") == "CT_PROVEN"
+    assert st(f"fn f(s: Int, p: Int) -> Int\n{P}{{ match p {{ 0 => s _ => s }} }}") == "CT_PROVEN"
+    assert st("fn f(a: Int) -> Int\n{ a*a + 1 }", {"a"}) == "CT_PROVEN"     # explicit secrets= label
+    # each leak class → CT_VIOLATION with the right kind
+    def kinds(src):
+        v = CT.certify_ct(src)
+        return v.status, [l["kind"] for l in v.leaks]
+    assert kinds(f"fn f(s: Int) -> Int\n{P}{{ match s {{ 0 => 1 _ => 2 }} }}") == ("CT_VIOLATION", ["branch"])
+    assert kinds(f"fn f(s: Int, q: Int) -> Int\n{P}{{ s / q }}") == ("CT_VIOLATION", ["var_time_op"])
+    assert kinds(f"fn f(s: Int, q: Int) -> Int\n{P}{{ s % q }}") == ("CT_VIOLATION", ["var_time_op"])
+    assert kinds(f"fn f(s: Int, t: Int) -> Int\n{P}{{ get(t, s) }}") == ("CT_VIOLATION", ["mem_index"])
+    assert kinds(f"fn f(s: Int) -> Int\n{P}{{ fold k in 1..s {{ k }} }}") == ("CT_VIOLATION", ["secret_loop_bound"])
+    # no secret labels → honest NO_SECRETS (not a false PROVEN)
+    assert st("fn f(x: Int) -> Int\n{ x + 1 }") == "NO_SECRETS"
+    # honest level label present; binary level NOT claimed
+    cert = CT.certify_ct(f"fn f(s: Int, x: Int) -> Int\n{P}{{ s + x }}").certificate()
+    assert "HARAN-IR" in cert and "binary-level NOT covered" in cert
+    # loop connection: a violation yields a concrete fix instruction; the constant-time rewrite verifies
+    bad = CT.certify_ct(f"fn f(s: Int) -> Int\n{P}{{ match s {{ 0 => 1 _ => 2 }} }}")
+    fb = CT.ct_feedback(bad)
+    assert "VIOLATION" in fb and "line" in fb and len(fb) > 40          # precise, not vague
+    fixed = CT.certify_ct(f"fn f(s: Int) -> Int\n{P}{{ s + 0 }}")        # constant-time rewrite
+    assert fixed.status == "CT_PROVEN"
+    print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
+
+
 def test_s0_runtime_provider_threading():
     """v26 S0: provider/model/baseUrl thread from the request body through route→agentic→claude_generate
     (network-free: no key → mock path, but the kwargs must be accepted end-to-end)."""

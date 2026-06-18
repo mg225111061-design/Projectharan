@@ -209,3 +209,45 @@ here). `server.py` adds an env-key fallback (`HARAN_KEY`) but the web-UI per-req
 - **2.2 English comma→semicolon:** the English `hero` string used `;` where the Korean uses `,` (no
   systematic `replace()` — just that one string). Fixed to a comma (", and", matching the Korean
   conjunction). JS still passes `node --check`; server serves both fixes (curl-confirmed).
+
+---
+
+# v26 — machine-verified certificates (the differentiated axis)
+
+Errata applied: **no PQC/ML-KEM/ML-DSA premise** anywhere (not in this codebase; KyberSlash cited only
+as the *class example* of secret-dependent-division timing leaks). Build order S0→S1→…→S7.
+
+## v26 S0 — runtime provider/model/baseURL selection — DONE
+Threaded `provider`/`model`/`baseUrl` from the request body → `server` handlers → `intent.route`/
+`classify`/`clarity`/`chat` + `agentic_code`/`agentic_stream` → `claude_generate` (existing
+3-provider dispatch). UI: gateway dropdown (Claude/OpenRouter/DeepSeek/Mistral/GLM (Z.ai)/MiniMax/
+Qwen/custom) + editable model & base_url + `sk-ant-` auto-detect; **GLM/Z.ai endpoint NOT guessed**
+(blank + "verify with docs" note — honesty §1.2). Key stays per-request LEVEL-1; `claude_agent` still
+`os`-free. VERIFIED: 14→15 tests; per-request `openai_compat` routes to the OpenAI path (egress-blocked
+in sandbox, so the **live** call is the user's step); mock/Claude paths unchanged.
+
+## v26 S1 — constant-time / secret-taint certifier (FLAGSHIP) — DONE
+`ct_certifier.py`: HARAN-IR-level 2-safety taint analysis. A `secret`-labeled value (via `requires
+secret(x)` or `secrets={...}`) that reaches (a) a `match` branch, (b) an index-style call, (c) a `/`/`%`
+op, or (d) a fold trip-count → **CT_VIOLATION** with the exact line + a concrete fix; otherwise
+**CT_PROVEN**. Unmodeled construct → **UNMODELED** (never a false PROVEN); no labels → **NO_SECRETS**.
+`ct_feedback()` turns a leak into a precise loop fix instruction.
+- **Measured (general corpus, no PQC):** CT_PROVEN for safe code incl. a **public-branch** case
+  (false-positive guard); all 4 leak classes (branch / var_time_op / mem_index / secret_loop_bound)
+  → CT_VIOLATION with correct kind+line; NO_SECRETS when unlabeled. **0 false positives.**
+- **Honesty:** certificate states **"HARAN-IR level; binary-level NOT covered"** (compilers can inject
+  leaks — Binsec/Rel). OX (verification) labeled; this is *not* a binary-CT claim.
+- Test: `test_ct_certifier_proves_and_refutes`. Measurement anchor: Binsec/Rel (338 crypto impls).
+
+## v26 S2–S7 — NOT built this session (honest; each is substantial, no fake stubs)
+Per §1 (가짜 통과 0) I did **not** ship shallow stubs claiming sound IFDS / incorrectness-logic / race /
+assume-guarantee / model-checking. Honest scope for each (NEXT, real work):
+- **S2 taint/IFDS injection-freedom** — needs an IFDS/IDE solver over a call-graph + source/sink/sanitizer
+  models. (S1's taint engine is a partial foundation.)
+- **S3 incorrectness logic (UX)** — under-approximate symbolic execution; must label NO_BUG_FOUND ≠ proof.
+- **S4 race/deadlock** — happens-before/vector-clock or RacerD-style; needs a concurrency model extractor.
+- **S5 assume-guarantee + bi-abduction + opaque runtime-contracts** — the big compositional engine; ties
+  to `spec_infer.py`; conditional/assumption-ledger certificates (never "whole-system proof").
+- **S6 TLA+/model-checking + linearizability** — needs a TLC/Porcupine bridge (bounded; NP-complete).
+- **S7 fold-kernel expansion** — `cfinite.py` (C-finite) already lands; holonomic/hypergeometric/FFT/
+  Toeplitz remain, each with a collapse-soundness certificate + honest DECLINE on non-structure.
