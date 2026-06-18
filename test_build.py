@@ -370,6 +370,40 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s16_levers_verifier_gated():
+    """v27 S16: orthogonal accuracy levers, ALL verifier-gated. Type-constrained decoding emits only
+    well-typed programs by construction (measured compile-error reduction); repo-RAG + the verified cache
+    are PROPOSERS — every proposal must pass the verifier or be rejected (never trusted blindly)."""
+    import typed_decoding as TD
+    import repo_rag as RR
+    import ai_loop
+    # ── type-constrained decoding: the mask prunes ill-typed tokens; output is well-typed by construction ──
+    assert "b" not in TD.valid_next_tokens([])              # a Bool var is pruned from an Int operand slot
+    assert "<" not in TD.valid_next_tokens(["x"])           # '<' (→Bool) pruned where Int is required
+    assert TD.welltyped_int(["x", "+", "2", "*", "y"]) and not TD.welltyped_int(["x", "+", "b"])
+    m = TD.measure_welltyped_rate(2000)
+    assert m["constrained_welltyped"] == 1.0                # 100% well-typed BY CONSTRUCTION
+    assert m["unconstrained_welltyped"] < 0.2 and m["compile_error_reduction"] > 0.8   # measured, large lift
+    # ── repo-RAG: retrieval is a proposal; the verifier decides ──
+    TRI = "fn t(n: Nat) -> Nat\n  ensures result = n*(n+1)/2\n{ fold k in 1..n { %s } }"
+    good, bad = TRI % "k", TRI % "k+1"
+    sq = "fn sq(n: Nat) -> Nat\n  ensures result = n*n\n{ fold k in 1..n { 2*k-1 } }"
+    corpus = [RR.Entry("t_bad", bad), RR.Entry("t_good", good), RR.Entry("sq", sq)]
+    res = RR.retrieve_and_verify(good, corpus, k=3)
+    assert res.status == "VERIFIED_RETRIEVAL" and ai_loop.verify_haran(res.source).ok   # returned thing PROVES
+    # a corpus whose only candidate is spec-violating ⇒ the gate rejects it (RAG is NOT trusted)
+    only_bad = RR.retrieve_and_verify(good, [RR.Entry("t_bad", bad)], k=1)
+    assert only_bad.status == "NO_VERIFIED_CANDIDATE" and only_bad.rejected == ["t_bad"]
+    # ── verified-solution cache: stores only VERIFIED solutions; a hit is re-verified before reuse ──
+    c = RR.VerifiedSolutionCache()
+    assert c.put(good) is True and c.put(bad) is False     # an unverified solution is NEVER cached
+    assert c.get(good) is not None and c.get(TRI % "2*k") is None
+    assert c.hits == 1 and c.misses == 1
+    print(f"PASS test_s16_levers_verifier_gated (typed-decode well-typed {m['constrained_welltyped']:.0%} vs "
+          f"{m['unconstrained_welltyped']:.0%}, err-reduction {m['compile_error_reduction']:.0%}; "
+          f"RAG/cache verifier-gated — unverified rejected)")
+
+
 def test_s15_bug_funnel():
     """v27 S15: statistics → diffusion → sound-verification funnel. SBFL ranks (heuristic, RANKED≠proof);
     graph-Laplacian diffusion (heat = random-walk = spectral, shared L) spreads suspicion; layer 3 CONFIRMS
