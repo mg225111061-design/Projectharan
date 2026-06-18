@@ -1,10 +1,10 @@
 {
-  "measured_at": "2026-06-18T11:46:01.770845+00:00",
+  "measured_at": "2026-06-18T13:44:58.253035+00:00",
   "environment": "pure-Python sandbox (no numpy/native backend; egress-limited) — figures are local & machine-dependent; re-run benchmarks/measure.py to refresh.",
   "metrics": {
     "tests_passing": {
-      "value": 61,
-      "total": 61,
+      "value": 67,
+      "total": 67,
       "unit": "tests",
       "method": "run the full test_build.py suite in-process; count tests that pass (no oracle bypass)."
     },
@@ -27,14 +27,14 @@
       "method": "run the write→verify→fix loop on a seeded-bug corpus; count tasks reaching a verified fix; `wrong` (claimed-fixed-but-not) must be 0."
     },
     "proof_reuse_speedup": {
-      "value": 210.4,
+      "value": 104.3,
       "unit": "x",
-      "cold_ms": 11.573,
-      "warm_ms": 0.055,
+      "cold_ms": 13.147,
+      "warm_ms": 0.126,
       "method": "prove a batch of obligations cold (SMT solver) then warm (structural cache); wall-clock ratio (verdicts are identical — lossless)."
     },
     "fold_scale_speedup": {
-      "value": 22.9,
+      "value": 19.0,
       "unit": "x",
       "n": 150,
       "method": "prove a parametric template ONCE then certify N=150 instances by a cheap side-condition check, vs N independent SMT proofs; wall-clock ratio (the gap widens with N)."
@@ -47,11 +47,52 @@
       "method": "saturate an e-graph with sound ring rewrites, extract the lowest-cost equivalent term, PROVE input==output with Z3; report node-count reduction (e.g. x*2+x*3 → 5*x)."
     },
     "parallel_speedup": {
-      "value": 2.48,
+      "value": 1.57,
       "unit": "x",
       "cores": 4,
       "workload": "reduce(+, [square(i) for i in 0..2000000))",
       "method": "reduce(+, square(i) for i in 0..2,000,000) split across processes vs sequential; wall-clock ratio, with the parallel result verified equal to the sequential one."
+    },
+    "fold_coverage_now": {
+      "value": 64,
+      "unit": "%",
+      "clock": "C",
+      "baseline_pct": 18,
+      "folded": 18,
+      "n": 28,
+      "baseline_folded": 5,
+      "false_folds": 0,
+      "heldout_baseline_pct": 22,
+      "heldout_now_pct": 61,
+      "per_category": {
+        "blackbox": {
+          "baseline": 0,
+          "now": 0,
+          "n": 3
+        },
+        "combinatorial": {
+          "baseline": 4,
+          "now": 4,
+          "n": 4
+        },
+        "multivariate-poly": {
+          "baseline": 0,
+          "now": 6,
+          "n": 8
+        },
+        "ode": {
+          "baseline": 0,
+          "now": 5,
+          "n": 8
+        },
+        "q-holonomic": {
+          "baseline": 1,
+          "now": 3,
+          "n": 5
+        }
+      },
+      "clockB_verified": "4/4",
+      "method": "route each loop in the fixed defer corpus to its technique (Kovacic/Ben-Or-Tiwari/q-Gosper), each behind its own SOUND verifier; count FOLDED. baseline = current engine. Clock C fold rate only (ABFT is Clock B, counted separately). false_folds (a negative control folded) must be 0."
     }
   },
   "blocked": [

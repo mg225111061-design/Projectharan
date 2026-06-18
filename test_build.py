@@ -406,12 +406,15 @@ def test_stage2_pages():
     assert 'fetch("/stats.json")' in land and "s.metrics" in land
     assert ('class="bars"' in land or "<svg" in land or 'class="fill"' in land)   # a graph structure
     assert "measured_at" in land and "method" in land                              # shows date + how-measured
-    # no_hardcoded_numbers: the DISTINCTIVE measured stat values (decimals — unmistakably stats, can't be
-    # CSS pixels) are NOT literals in the landing; they come from /stats.json at runtime.
+    # no_hardcoded_numbers: the measured stat values are NOT literals in the landing CONTENT; they come from
+    # /stats.json at runtime. Exclude the <style> block — a machine-dependent value like "2.2" legitimately
+    # collides with CSS dimensions (e.g. clamp(17px,2.2vw,21px)); CSS units are not stat displays.
+    import re as _re2
+    land_content = _re2.sub(r"<style.*?</style>", "", land, flags=_re2.S)
     s = json.load(open("benchmarks/stats.json"))
     for key in ("proof_reuse_speedup", "fold_scale_speedup", "parallel_speedup"):
         if key in s["metrics"]:
-            assert str(s["metrics"][key]["value"]) not in land, f"{key} value hardcoded in landing!"
+            assert str(s["metrics"][key]["value"]) not in land_content, f"{key} value hardcoded in landing!"
     # each route registered in create_app (built in-process; needs FastAPI which is present here)
     import server
     if server._fastapi_available():
@@ -1961,6 +1964,50 @@ def test_foldext_stageB3_abft():
     print(f"PASS test_foldext_stageB3_abft (matmul detected; [Clock B] checksum {mm.checksum_speedup}× / "
           f"Freivalds {mm.freivalds_speedup}× (ε≤2^-24); single-error caught, rectangle blind-spot honest; "
           f"V-ABFT epsilon-bounded; verify_rate {m['verify_rate']:.0%} — COMPUTE unchanged (not Clock C))")
+
+
+def test_foldext_stageC_dispatcher_and_coverage():
+    """STAGE C: meta-dispatcher + MEASURED coverage (baseline vs now), held out, with an Amdahl note.
+    Covers: dispatcher_routes_by_category, dispatcher_defers_on_verify_fail, coverage_measured_baseline_vs_now,
+    heldout_measurement_no_overfit, amdahl_dominance_noted."""
+    import fold_dispatcher as FD
+    import defer_corpus as DC
+    from defer_corpus.schema import DeferCase
+    # dispatcher_routes_by_category: each category goes to the right technique
+    route = {c.category: FD.dispatch(c).technique for c in DC.load()}
+    assert route["ode"] == "kovacic" and route["multivariate-poly"] == "ben-or-tiwari"
+    assert route["q-holonomic"] == "q-gosper" and route["linear-algebra"] == "abft"
+    assert route["combinatorial"] == "existing-engine"
+    # dispatcher_defers_on_verify_fail: a non-polynomial routed to B1 fails its SOUND gate → DEFER (no false fold)
+    nonpoly = DeferCase("synth_nonpoly", "multivariate-poly", "x mod 5 — not a polynomial", "tune",
+                        "defer", lambda x: x % 5, (("x", 0, 40),))
+    assert FD.dispatch(nonpoly).status == "DEFER"
+    # every negative control across the corpus must DEFER (never folded into false structure)
+    for c in DC.load():
+        if c.expect == "defer":
+            assert FD.dispatch(c).status in ("DEFER",), f"{c.cid} (a negative control) was FOLDED — false structure!"
+    # coverage_measured_baseline_vs_now: a REAL measured lift, with ZERO false folds, clocks separate
+    cov = FD.measure_coverage()
+    assert cov.baseline_folded == 5 and cov.now_folded == 18 and cov.n_clockC == 28   # MEASURED (matches STAGE 0)
+    assert cov.now_rate > cov.baseline_rate and cov.false_folds == 0
+    assert cov.clockB_handled == cov.clockB_n and cov.clockB_n == 4                    # Clock B counted SEPARATELY
+    # per-category measured lift (the new techniques' real coverage)
+    assert cov.per_category["multivariate-poly"] == {"baseline": 0, "now": 6, "n": 8}
+    assert cov.per_category["ode"] == {"baseline": 0, "now": 5, "n": 8}
+    assert cov.per_category["q-holonomic"] == {"baseline": 1, "now": 3, "n": 5}
+    assert cov.per_category["blackbox"]["now"] == 0                                    # controls never fold
+    # heldout_measurement_no_overfit: the lift holds on cases NOT used to tune, still with 0 false folds
+    covh = FD.measure_coverage(split="measure")
+    assert covh.now_folded > covh.baseline_folded and covh.false_folds == 0
+    # amdahl_dominance_noted: a local fold dominates wall-clock only when the loop is the bottleneck
+    assert round(FD.amdahl_overall_speedup(100.0, 0.5), 2) == 1.98          # 100× local, 50% loop → ~2× end-to-end
+    assert FD.amdahl_overall_speedup(100.0, 0.99) > 40                       # only when the loop dominates
+    am = FD.amdahl_note(100.0)
+    assert "bottleneck" in am["note"] and "end-to-end" in am["note"]
+    print(f"PASS test_foldext_stageC ([Clock C] MEASURED coverage {cov.baseline_folded}/{cov.n_clockC}="
+          f"{cov.baseline_rate:.0%} -> {cov.now_folded}/{cov.n_clockC}={cov.now_rate:.0%}; false-folds=0; "
+          f"held-out {covh.baseline_folded}/{covh.n_clockC}->{covh.now_folded}/{covh.n_clockC} (no overfit); "
+          f"[Clock B] {cov.clockB_handled}/{cov.clockB_n} matmul; Amdahl noted)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

@@ -115,6 +115,24 @@ def measure() -> dict:
                         "reason": f"measured {pv.speedup:.2f}x ({pv.status}) on this sandbox's cores — below the "
                                   "1.1x win bar, so not shown (no fabricated speedup)."})
 
+    # 8. fold coverage (v32) — MEASURED on the fixed defer corpus: current engine vs +A/B1/B2 ----------
+    import fold_dispatcher as FD
+    cov = FD.measure_coverage()
+    covh = FD.measure_coverage(split="measure")
+    _log(f"fold_coverage[Clock C]: baseline {cov.baseline_folded}/{cov.n_clockC} -> now {cov.now_folded}/"
+         f"{cov.n_clockC}; false_folds={cov.false_folds}; held-out {covh.baseline_folded}->{covh.now_folded}"
+         f"/{covh.n_clockC}; [Clock B] {cov.clockB_handled}/{cov.clockB_n}")
+    assert cov.false_folds == 0 and covh.false_folds == 0    # never publish a number built on a false fold
+    metrics["fold_coverage_now"] = {
+        "value": round(cov.now_rate * 100), "unit": "%", "clock": "C",
+        "baseline_pct": round(cov.baseline_rate * 100), "folded": cov.now_folded, "n": cov.n_clockC,
+        "baseline_folded": cov.baseline_folded, "false_folds": cov.false_folds,
+        "heldout_baseline_pct": round(covh.baseline_rate * 100), "heldout_now_pct": round(covh.now_rate * 100),
+        "per_category": cov.per_category, "clockB_verified": f"{cov.clockB_handled}/{cov.clockB_n}",
+        "method": "route each loop in the fixed defer corpus to its technique (Kovacic/Ben-Or-Tiwari/q-Gosper), "
+                  "each behind its own SOUND verifier; count FOLDED. baseline = current engine. Clock C fold rate "
+                  "only (ABFT is Clock B, counted separately). false_folds (a negative control folded) must be 0."}
+
     # live-LLM latency / accuracy needs a key + egress — explicitly BLOCKED, never faked ---------------
     blocked.append({"metric": "live_llm_latency",
                     "reason": "needs an API key + egress to a provider; not measurable in this sandbox "

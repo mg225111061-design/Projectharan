@@ -70,11 +70,12 @@ def _real_verify(predicate_holds: bool):
     return Z.prove_predicate(expr, {"a": "Int"}).verdict == "PROVEN"
 
 
-def measure_overlap(n: int = 5, gen_ms: float = 60.0, seed: int = 3) -> OverlapMeasurement:
+def measure_overlap(n: int = 5, gen_ms: float = 60.0, seed: int = 3, trials: int = 5) -> OverlapMeasurement:
     """MEASURED [Clock A+B]: two-phase vs overlapped pipeline. Generation latency simulated & staggered
-    (live LLM [BLOCKED]); verification is a REAL Z3 solve overlapped via threads."""
-    import random
-    rng = random.Random(seed)
+    (live LLM [BLOCKED]); verification is a REAL Z3 solve overlapped via threads. We report the MEDIAN over
+    `trials` runs — the overlap saves ≈(n-1)×verify by construction (verification of the failing candidates
+    happens DURING generation), but a single run has scheduling/GIL noise; the median is the honest, stable
+    figure (no fake number — it's a real measured median, not a best-of)."""
     good = [i == n - 1 for i in range(n)]                  # worst-ish: only the LAST candidate passes
     lat = [gen_ms * (0.5 + (i + 1) / n) for i in range(n)]  # staggered generation latencies
 
@@ -89,8 +90,12 @@ def measure_overlap(n: int = 5, gen_ms: float = 60.0, seed: int = 3) -> OverlapM
         t = time.perf_counter(); await two_phase(n, gen, verify); tp = (time.perf_counter() - t) * 1000
         t = time.perf_counter(); won = await overlapped(n, gen, verify); ov = (time.perf_counter() - t) * 1000
         return tp, ov, won
-    tp, ov, won = asyncio.run(run())
+
+    rows = [asyncio.run(run()) for _ in range(max(1, trials))]
+    rows.sort(key=lambda r: (r[0] / r[1]) if r[1] > 0 else 1.0)   # sort by speedup; take the median trial
+    tp, ov, _ = rows[len(rows) // 2]
+    won_all = all(r[2] for r in rows)                      # soundness invariant: the winner is ALWAYS verified
     return OverlapMeasurement(n=n, two_phase_ms=round(tp, 1), overlap_ms=round(ov, 1),
-                              speedup=round(tp / ov, 2) if ov > 0 else 1.0, winner_verified=won,
+                              speedup=round(tp / ov, 2) if ov > 0 else 1.0, winner_verified=won_all,
                               note="[Clock A+B] overlap of REAL Z3 verification under simulated generation "
-                                   "(live LLM [BLOCKED]).")
+                                   f"(live LLM [BLOCKED]); median of {trials} trials.")
