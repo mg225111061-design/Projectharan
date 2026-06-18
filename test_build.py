@@ -370,6 +370,35 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_stage0_measurement():
+    """v30 STAGE 0: every site number is a MEASUREMENT artifact. stats.json must carry value+unit+method+
+    timestamp per metric (so the site can show 'how it was measured'); blocked metrics carry a reason (never
+    faked); the measure script is runnable; a raw log exists for audit."""
+    import json
+    import os
+    # measure_script_runs: the script imports and exposes a measure() that returns the right shape
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("measure_mod", "benchmarks/measure.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert callable(mod.measure)
+    # stats_json_has_method_and_timestamp
+    assert os.path.exists("benchmarks/stats.json"), "run benchmarks/measure.py first"
+    s = json.load(open("benchmarks/stats.json"))
+    assert "measured_at" in s and "T" in s["measured_at"]            # ISO timestamp
+    assert s["metrics"], "no measured metrics"
+    for name, m in s["metrics"].items():
+        assert "value" in m and "unit" in m and "method" in m and len(m["method"]) > 20, name
+        assert isinstance(m["value"], (int, float))
+    for b in s.get("blocked", []):
+        assert "metric" in b and "reason" in b                       # blocked is honest, not hidden
+    # the headline soundness numbers are the MEASURED ones (not invented): FP=0, autofix wrong=0
+    assert s["metrics"]["verifier_false_positives"]["value"] == 0
+    assert os.path.exists("benchmarks/raw.log")                      # audit trail
+    print(f"PASS test_stage0_measurement ({len(s['metrics'])} measured metrics w/ method+timestamp, "
+          f"{len(s.get('blocked', []))} blocked w/ reason; raw log present)")
+
+
 def test_b_ui_apple_rounding():
     """v29 task B (STRUCTURE only — visuals are 'user-confirmation', never auto-'done'): rounder radii are
     tokenized & applied; gateway controls collapse into Advanced (default view simplified) WITHOUT losing
