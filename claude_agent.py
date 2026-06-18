@@ -70,8 +70,25 @@ _MOCK_HARAN = (
 )
 
 
-class ClaudeError(Exception):
-    """Raised when a *real* Claude call cannot be made/completed. Never carries the key."""
+class LLMError(Exception):
+    """Raised when a *real* LLM/gateway call cannot be made/completed (any provider). Never carries the
+    key. Gateway-neutral: a GLM/OpenRouter/etc. failure is an LLMError, not a 'Claude' error."""
+
+
+ClaudeError = LLMError      # back-compat alias (older call-sites / tests catch CA.ClaudeError)
+
+
+def normalize_base_url(url: Optional[str]) -> Optional[str]:
+    """Normalize a gateway base URL: trim whitespace and trailing slashes (so the OpenAI SDK appends
+    `/chat/completions` cleanly — e.g. z.ai `…/paas/v4/` → `…/paas/v4`, avoiding a 404 from `//`). We do
+    NOT append or strip `/v1` — that path is the user's (OpenRouter needs `/api/v1`, z.ai paas/v4 must not
+    get `/v1`). A redundant trailing `/v1/v1` is collapsed."""
+    if not url:
+        return url
+    u = url.strip().rstrip("/")
+    while u.endswith("/v1/v1"):
+        u = u[:-3]
+    return u
 
 
 @dataclass
@@ -126,9 +143,10 @@ def _friendly_error(e: Exception) -> str:
         return "요청 한도를 초과했습니다 — 잠시 후 다시 시도해 주세요 (rate limited)."
     if "connection" in name.lower() or "timeout" in name.lower() or "network" in low:
         return "네트워크 오류 — 연결을 확인해 주세요 (network error)."
-    # generic (incl. 400 BadRequest): surface the REDACTED detail so the cause is diagnosable.
-    detail = " ".join(safe.split())[:300]               # collapse whitespace, cap length; key already masked
-    return f"Claude 호출 실패 ({name}): {detail}" if detail else f"Claude 호출 실패 ({name})."
+    # generic (incl. 4xx like z.ai 1211 'Unknown Model'): surface the provider's OWN code+message verbatim
+    # (redacted) so the cause is diagnosable — gateway-neutral, NOT mangled into a Claude-specific string.
+    detail = " ".join(safe.split())[:400]               # collapse whitespace, cap length; key already masked
+    return f"LLM 호출 실패 / LLM call failed ({name}): {detail}" if detail else f"LLM 호출 실패 ({name})."
 
 
 def _mock_generate(prompt: str, model: str, stream: bool,
@@ -190,20 +208,38 @@ def _build_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: in
     return kwargs
 
 
+OPENAI_MIN_MAX_TOKENS = 8192       # reasoning models (GLM etc.) need headroom for hidden reasoning tokens
+
+
 def _build_openai_kwargs(prompt: str, system: Optional[str], model: str, max_tokens: int,
-                         stream: bool) -> dict:
-    """Assemble OpenAI /chat/completions kwargs (pure — testable without a network/key). OpenAI-shaped
-    gateways (OpenRouter, TokenMix, …) take the system prompt as a leading `system` message, the user
-    text as a `user` message, and `max_tokens`. No `thinking`/`cache_control` (Anthropic-only); the
-    Anthropic tripwire (`_assert_spec_conformant`) deliberately does NOT apply here — these gateways
-    allow params like `temperature` that Opus 4.8 rejects."""
+                         stream: bool, temperature: float = 0.2) -> dict:
+    """Assemble OpenAI /chat/completions kwargs (pure — testable without a network/key). The user's `model`
+    goes straight into `body.model` (NEVER hardcoded). `max_tokens` is floored at 8192 so a reasoning model
+    has room for its hidden reasoning + the visible answer; `temperature` defaults to 0.2. `thinking` is sent
+    separately via `extra_body` (z.ai accepts it; standard gateways ignore an unknown field), NOT here."""
     return {
         "model": model,
-        "max_tokens": max_tokens,
+        "max_tokens": max(max_tokens, OPENAI_MIN_MAX_TOKENS),
         "messages": [{"role": "system", "content": system or SYSTEM_PROMPT},
                      {"role": "user", "content": prompt}],
         "stream": stream,
+        "temperature": temperature,
     }
+
+
+# z.ai/GLM reasoning models route the answer to `reasoning_content` unless thinking is OFF — disabling it
+# makes the answer come back in `content`. Sent via extra_body so the typed SDK passes it through verbatim.
+OPENAI_EXTRA_BODY = {"thinking": {"type": "disabled"}}
+
+
+def _extract_openai_text(message) -> str:
+    """Read the visible answer: `content` first, then fall back to `reasoning_content` (reasoning models
+    that ignored thinking-off put the text there). Returns '' if both are empty — the caller surfaces that."""
+    content = getattr(message, "content", None) or ""
+    if content.strip():
+        return content.strip()
+    reasoning = getattr(message, "reasoning_content", None) or ""
+    return reasoning.strip()
 
 
 def _live_generate_anthropic(prompt: str, api_key: str, model: str, system: Optional[str],
@@ -266,28 +302,38 @@ def _live_generate_openai(prompt: str, api_key: str, model: str, system: Optiona
     kwargs = _build_openai_kwargs(prompt, system, model, max_tokens, stream)
     text, usage = "", None
     try:
-        # Classic chat-completions call (widest gateway compatibility). stream=True → iterate chunks.
-        resp = client.chat.completions.create(**kwargs)
+        # Classic chat-completions call (widest gateway compatibility) with thinking OFF (so reasoning
+        # models return the answer in `content`). stream=True → iterate chunks. extra_body carries the
+        # non-standard `thinking` field verbatim; standard gateways simply ignore the extra JSON key.
+        resp = client.chat.completions.create(**kwargs, extra_body=OPENAI_EXTRA_BODY)
         if stream:
-            chunks = []
+            chunks, rchunks = [], []
             for chunk in resp:
                 ch = chunk.choices[0] if getattr(chunk, "choices", None) else None
-                delta = getattr(getattr(ch, "delta", None), "content", None) if ch else None
-                if delta:
-                    chunks.append(delta)
+                delta = getattr(ch, "delta", None) if ch else None
+                piece = getattr(delta, "content", None) if delta else None
+                if piece:
+                    chunks.append(piece)
                     if on_delta:
-                        on_delta(delta)
-            text = "".join(chunks).strip()
+                        on_delta(piece)
+                else:                                   # reasoning models stream into reasoning_content
+                    rpiece = getattr(delta, "reasoning_content", None) if delta else None
+                    if rpiece:
+                        rchunks.append(rpiece)
+            text = ("".join(chunks) or "".join(rchunks)).strip()
         else:
-            text = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+            text = _extract_openai_text(resp.choices[0].message) if resp.choices else ""
             usage = getattr(resp, "usage", None)
     except Exception as e:   # noqa: BLE001 — normalize SDK errors; never leak the key
-        raise ClaudeError(_friendly_error(e)) from None
+        raise LLMError(_friendly_error(e)) from None
     finally:
         del client
 
     if not text:
-        raise ClaudeError("gateway returned no text content")
+        raise LLMError(f"gateway returned an EMPTY response for model '{model}' — check that the model id "
+                       "is correct & enabled on your plan, the key has access, and max_tokens is large "
+                       "enough (reasoning models need headroom). Try thinking-disabled or a known model "
+                       "(e.g. glm-4.6).")
     usage_d = {"input_tokens": getattr(usage, "prompt_tokens", None),
                "output_tokens": getattr(usage, "completion_tokens", None)} if usage else None
     return GenResult(text=text, live=True, model=model, source="openai_compat-live", usage=usage_d)
@@ -315,7 +361,7 @@ def claude_generate(prompt: str, api_key: Optional[str] = None, *,
     `stream=True` + `on_delta(chunk)` streams text deltas. `mock_response` overrides the canned mock."""
     model = model or DEFAULT_MODEL
     provider = provider or DEFAULT_PROVIDER
-    base_url = DEFAULT_BASE_URL if base_url is None else base_url
+    base_url = normalize_base_url(DEFAULT_BASE_URL if base_url is None else base_url)
     if api_key:
         try:
             if provider == "openai_compat":

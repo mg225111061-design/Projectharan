@@ -183,7 +183,7 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
 
         # coding pipeline — emit each real stage as it runs
         for ev in AG.agentic_stream(prompt, mode, api_key, history=history,
-                                    provider=provider, base_url=base_url):
+                                    model=model or CA.DEFAULT_MODEL, provider=provider, base_url=base_url):
             st = ev["stage"]
             if st in ("generate", "fix", "verify", "optimize"):
                 d = {"type": "stage", "stage": st}

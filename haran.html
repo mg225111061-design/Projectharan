@@ -270,8 +270,8 @@
       <div class="composer">
         <div class="key-row">
           <input id="keyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
-                 data-i18n-ph="key_ph" aria-label="Claude API key — entered each time, stored nowhere"
-                 placeholder="Claude API 키 — 매번 입력, 어디에도 저장 안 함 (선택: 없으면 시뮬레이션)">
+                 data-i18n-ph="key_ph" aria-label="API key — entered each time for the selected gateway, stored nowhere"
+                 placeholder="API 키 — 게이트웨이에 맞는 키 (sk-ant=Claude 자동 인식) · 매번 입력, 저장 안 함">
           <button class="key-star" id="keyStar" type="button" aria-label="API key no-log policy">*</button>
           <span class="key-status" id="keyStatus" aria-live="polite"></span>
           <div class="key-pop" id="keyPop" role="tooltip" hidden>
@@ -350,7 +350,7 @@ const I18N = {
     key_set: "●●●● 입력됨",
     nolog_policy: "Mr.Jeffrey는 API Key 노-로그 정책을 고수합니다. 여기에 넣으면 어디에도 유출되지 않고 저장되지 않습니다.",
     gw_note: "게이트웨이/모델은 편집 가능 — 정확한 base URL·모델 id는 해당 제공자 문서로 확인하세요. 키 접두사가 sk-ant-면 Claude로 자동 인식.",
-    key_ph: "Claude API 키 — 매번 입력, 어디에도 저장 안 함 (선택: 없으면 시뮬레이션)",
+    key_ph: "API 키 — 게이트웨이에 맞는 키 (sk-ant=Claude 자동 인식) · 매번 입력, 저장 안 함",
     req_ph: "상상하는 모든 걸 시작해보세요",
     copied: "복사됨",
     quick_label: "빠른 지시",
@@ -406,7 +406,7 @@ const I18N = {
     key_set: "●●●● entered",
     nolog_policy: "Mr.Jeffrey enforces a strict no-log policy for your API key: it is used only for your Claude call, never logged and never stored anywhere.",
     gw_note: "Gateway/model are editable — verify the exact base URL & model id with the provider's docs. A key starting with sk-ant- is auto-detected as Claude.",
-    key_ph: "Claude API key — entered each time, stored nowhere (optional: simulation if empty)",
+    key_ph: "API key — the key for your selected gateway (sk-ant = Claude, auto-detected) · entered each time, stored nowhere",
     req_ph: "Start everything you imagine",
     copied: "Copied",
     quick_label: "Quick",

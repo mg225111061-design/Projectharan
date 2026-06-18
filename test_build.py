@@ -370,6 +370,60 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_a_gateway_model_wiring():
+    """v29 task A: the GLM/Z.ai '1211 Unknown Model' bug = the user's model never reached the request; the
+    streaming path sent the hardcoded Claude default. This locks the fix end-to-end + the adapter rules."""
+    import claude_agent as CA
+    import agentic as AG
+    import server
+    import types
+    # ── model_field_reaches_request_body / no_hardcoded_model: the user's model IS body.model ──
+    for m in ("glm-5.2", "glm-4.6", "qwen/qwen3-coder", "deepseek-chat"):
+        assert CA._build_openai_kwargs("p", None, m, 8192, False)["model"] == m
+    assert CA.DEFAULT_MODEL not in (CA._build_openai_kwargs("p", None, "glm-5.2", 8192, False)["model"],)  # not forced
+    # ── ★ the real regression: the SERVER STREAMING path threads the user's model to claude_generate ★ ──
+    captured = {}
+    orig = CA.claude_generate
+    def spy(prompt, api_key=None, **kw):
+        captured["model"] = kw.get("model"); captured["provider"] = kw.get("provider")
+        captured["base_url"] = kw.get("base_url")
+        return CA.GenResult(text=CA._MOCK_HARAN, live=True, model=kw.get("model"), source="spy")
+    CA.claude_generate = spy
+    try:
+        payload = {"prompt": "sort a list of integers ascending and return the sorted list", "mode": "normal",
+                   "apiKey": "dummy-not-real", "provider": "openai_compat", "model": "glm-5.2",
+                   "baseUrl": "https://api.z.ai/api/paas/v4/", "force": True}
+        list(server.stream_events(payload))                       # drive the SSE generator
+    finally:
+        CA.claude_generate = orig
+    assert captured.get("model") == "glm-5.2", f"model NOT threaded to the request: {captured}"   # was the bug
+    assert captured.get("provider") == "openai_compat" and "z.ai" in (captured.get("base_url") or "")
+    # ── base_url_normalized: trailing slash trimmed, double /v1 collapsed, /v1 otherwise preserved ──
+    assert CA.normalize_base_url("https://api.z.ai/api/paas/v4/") == "https://api.z.ai/api/paas/v4"
+    assert CA.normalize_base_url("https://x/api/v1/v1") == "https://x/api/v1"
+    assert CA.normalize_base_url("https://openrouter.ai/api/v1") == "https://openrouter.ai/api/v1"
+    assert CA.normalize_base_url(None) is None
+    # ── openai_compat_path_parses_content_and_reasoning ──
+    msg_c = types.SimpleNamespace(content="hello", reasoning_content="")
+    msg_r = types.SimpleNamespace(content="", reasoning_content="from-reasoning")     # GLM reasoning fallback
+    msg_e = types.SimpleNamespace(content="", reasoning_content="")
+    assert CA._extract_openai_text(msg_c) == "hello"
+    assert CA._extract_openai_text(msg_r) == "from-reasoning"
+    assert CA._extract_openai_text(msg_e) == ""                                        # both empty → surfaced upstream
+    assert "thinking" in CA.OPENAI_EXTRA_BODY and CA.OPENAI_EXTRA_BODY["thinking"]["type"] == "disabled"
+    # ── key_not_stored (grep): claude_agent never imports os / touches env (LEVEL-1) ──
+    src = open("claude_agent.py").read()
+    assert "import os" not in src and "os.environ" not in src and "getenv" not in src
+    # ── error_surfaces_provider_message: a 4xx shows the provider's OWN code+message, gateway-neutral ──
+    msg = CA._friendly_error(Exception("Error code: 400 - {'code':'1211','message':'Unknown Model'}"))
+    assert "1211" in msg and "Unknown Model" in msg and "Claude 호출" not in msg and "API 키" not in msg
+    assert "API 키" in CA._friendly_error(Exception("401 invalid x-api-key"))           # auth still maps
+    assert CA.LLMError is CA.ClaudeError                                                # neutral name + alias
+    print("PASS test_a_gateway_model_wiring (model reaches body + SERVER STREAM threads user's model "
+          f"'{captured.get('model')}' not the Claude default; base_url normalized; content/reasoning parsed; "
+          "key not stored; provider 1211 message surfaced gateway-neutral)")
+
+
 def test_s32_prompt_frontend_pipeline():
     """v29 §4: the S26→S31 prompt-understanding front-end wired into one fail-safe policy. Breaks
     garbage-in-garbage-out: bad prompts are completed/flagged, never silently propagated. Default PROCEED
