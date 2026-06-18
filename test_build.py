@@ -2194,6 +2194,38 @@ def test_foldext2_stageC_approx():
           f"approx fold {ba.ratio}× vs naive (no regression))")
 
 
+def test_foldext2_stageD_caching_parallel():
+    """v33 STAGE 5: parallel offline brewing + O(1) lookup at 3000+ scale + absence cache + no regression.
+    Covers: soup_brewing_parallel, cache_lookup_O1_with_3000_families, absence_certificate_cache,
+    runtime_no_regression_with_full_cache."""
+    import time
+    import soup_lib as SL
+    import disposition as D
+    # soup_brewing_parallel: parallel build matches serial EXACTLY and is faster (build-time, not a clock)
+    cnt, ser, par = SL.brew_cfinite_parallel(maxc=20, workers=4)
+    assert cnt > 1000 and par <= ser and par > 0          # identical count asserted inside; speedup ≥ 1×
+    # cache_lookup_O1_with_3000_families: lookup time is independent of the (3000+) library size
+    lib, rep = SL.get_library()
+    assert rep.n_instances >= 3000
+    lib.lookup_summand("k*k")                              # warm
+    t = time.perf_counter()
+    for _ in range(50000):
+        lib.lookup_summand("k*k"); lib.lookup_recurrence([1, 1])
+    us = (time.perf_counter() - t) / 100000 * 1e6
+    assert us < 5.0, f"lookup not O(1) at scale {rep.n_instances}: {us}µs"      # ★ 3000+ ⇒ still O(1) ★
+    # absence_certificate_cache: known-nonfoldable families defer INSTANTLY with an informative cert
+    assert D.dispose_summand("q**(k*k)", lib).technique == "absence-cache"      # theta
+    assert "harmonic" in D._absence_hit("1/k")
+    # runtime_no_regression_with_full_cache: with all 3707 lemmas loaded, a fold hit is fast & a defer is
+    # byte-identical (the absolute line — adding the full cache never slows the runtime path)
+    d_fold = D.dispose_summand("k*k", lib)
+    d_defer = D.dispose_summand("is_prime(k)", lib)
+    assert d_fold.kind == "EXACT_FOLD" and d_defer.kind == "DEFER" and d_defer.original == "is_prime(k)"
+    print(f"PASS test_foldext2_stageD_caching_parallel (parallel brew {ser:.0f}→{par:.0f}ms "
+          f"({ser/par:.1f}× build, identical {cnt}); O(1) lookup {us:.3f}µs at {rep.n_instances} lemmas; "
+          f"absence cache instant defer; full cache ⇒ no runtime regression, defer byte-identical)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -211,6 +211,23 @@ def brew_cfinite(maxc: int = 18, orders=(2, 3)) -> List[Lemma]:
     return out
 
 
+def brew_cfinite_range(args) -> List[dict]:
+    """BUILD-TIME worker (picklable, top-level): brew verified order-2 C-finite sequences for c1 in [lo,hi).
+    Returns Lemma dicts (picklable across processes). Used by the parallel brewer (STAGE 5)."""
+    lo, hi, maxc = args
+    out = []
+    for c1 in range(lo, hi):
+        for c2 in range(-maxc, maxc + 1):
+            if c2 == 0:
+                continue
+            c = [c1, c2]
+            if cfinite.verify_cfinite(c, [0, 1])[0]:
+                out.append(Lemma("c-finite", f"cfin:{c}", "", f"companion-power(order2, c={c})",
+                                 "exact", "forall-n (companion-matrix)",
+                                 f"a(n)={c1}a(n-1)+{c2}a(n-2)").as_dict())
+    return out
+
+
 def brew_trig(thetas=("pi/3", "pi/4", "pi/6", "2*pi/3"), kinds=("cos", "sin")) -> List[Lemma]:
     """Σ cos(kθ) / Σ sin(kθ) — distinct trig telescoping closed forms (Dirichlet kernel), verified."""
     out = []

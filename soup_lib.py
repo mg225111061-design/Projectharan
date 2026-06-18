@@ -139,6 +139,30 @@ def get_library() -> Tuple[LemmaLibrary, BrewReport]:
     return _SINGLETON, _SINGLETON_REPORT
 
 
+def brew_cfinite_parallel(maxc: int = 20, workers: int = 4) -> Tuple[int, float, float]:
+    """STAGE 5: brew the (bulk) order-2 C-finite family SERIALLY then in PARALLEL across `workers` processes;
+    return (count, serial_ms, parallel_ms). Build-time only (NOT a runtime clock). Independent coefficient
+    ranges → embarrassingly parallel; the proof DAG here is trivial (no cross-dependencies)."""
+    import time
+    from concurrent.futures import ProcessPoolExecutor
+    # serial
+    t = time.perf_counter()
+    serial = S.brew_cfinite_range((-maxc, maxc + 1, maxc))
+    serial_ms = (time.perf_counter() - t) * 1000
+    # parallel: split the c1 range into `workers` chunks
+    span = 2 * maxc + 1
+    step = max(1, span // workers)
+    chunks = [(-maxc + i, min(-maxc + i + step, maxc + 1), maxc) for i in range(0, span, step)]
+    t = time.perf_counter()
+    got: List[dict] = []
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        for part in ex.map(S.brew_cfinite_range, chunks):
+            got.extend(part)
+    parallel_ms = (time.perf_counter() - t) * 1000
+    assert len(got) == len(serial), f"parallel/serial count mismatch {len(got)} vs {len(serial)}"
+    return len(serial), round(serial_ms, 1), round(parallel_ms, 1)
+
+
 def measure_usefulness(lib: LemmaLibrary) -> Dict[str, int]:
     """Rule 6: how many defer-corpus targets does each family actually fold? (usefulness, MEASURED).
     Marks families that fold nothing in the corpus (still valid lemmas, but flagged as unused here)."""
