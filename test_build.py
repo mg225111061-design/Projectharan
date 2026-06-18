@@ -148,6 +148,34 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s7_fold_kernels():
+    """v26 S7: FOLDED where structure is provable, ABSENT/DECLINED honestly, never a wrong closed form."""
+    import fold_kernels as FK
+    def stt(src):
+        return FK.fold_certificate(src).status
+    assert stt("fn f(n: Nat) -> Nat { fold k in 1..n { k } }") == "FOLDED"
+    assert stt("fn f(n: Nat) -> Nat { fold k in 1..n { k*k } }") == "FOLDED"
+    assert stt("fn f(n: Nat) -> Nat { fold k in 0..n { 2**k } }") == "FOLDED"
+    assert stt("fn f(n: Nat) -> Nat { match n { 0 => 0 1 => 1 _ => f(n-1) + f(n-2) } }") == "FOLDED"  # cfinite
+    assert stt("fn f(n: Nat) -> Nat { fold k in 1..n { 1 / k } }") == "ABSENT"        # Gosper non-summable
+    assert stt("fn f(n: Nat) -> Nat { fold k in 1..n { is_prime(k) } }") == "DECLINED"  # Ω(N) data-dependent
+    # the closed form carries the right complexity
+    v = FK.fold_certificate("fn f(n: Nat) -> Nat { fold k in 1..n { k } }")
+    assert v.complexity == "O(1)" and "n*(n + 1)/2" in v.closed_form and "recheck" in v.certificate
+    # ★ never a wrong closed form ★: force the engine to return a wrong form → the recheck must DECLINE
+    import closure_classifier as CC
+    from haran_parser import parse
+    orig = CC.classify_fold
+    def wrong(fold):
+        verdict = orig(fold); verdict.closed_form = "n*n"; return verdict   # wrong for Σk
+    CC.classify_fold = wrong
+    try:
+        assert FK._numeric_recheck(parse("fn f(n: Nat) -> Nat { fold k in 1..n { k } }").items[0]) == "MISMATCH"
+    finally:
+        CC.classify_fold = orig
+    print("PASS test_s7_fold_kernels")
+
+
 def test_s6_modelcheck_linearizability():
     """v26 S6: bounded explicit-state model checker + Wing-Gong linearizability checker."""
     import model_check_bridge as MC

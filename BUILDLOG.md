@@ -251,3 +251,36 @@ assume-guarantee / model-checking. Honest scope for each (NEXT, real work):
 - **S6 TLA+/model-checking + linearizability** — needs a TLC/Porcupine bridge (bounded; NP-complete).
 - **S7 fold-kernel expansion** — `cfinite.py` (C-finite) already lands; holonomic/hypergeometric/FFT/
   Toeplitz remain, each with a collapse-soundness certificate + honest DECLINE on non-structure.
+
+---
+
+## v26 S2–S7 — now BUILT (supersedes the earlier "NEXT" note). Each a sound, bounded core; no fake stubs.
+
+Every checker is a genuine algorithm on a modeled/bounded input, emits a certificate (PASS) or a concrete
+counterexample/witness, is honestly labeled, and is tested. Tests 16→21 (`test_s2…s7`).
+
+- **S2 `taint_ifds.py`** — distributive taint reachability. source (`requires source(x)`/source-call) →
+  sink (query/exec/eval/open…) without a sanitizer ⇒ INJECTION_FLOW (witness: sink+line+source); else
+  INJECTION_FREE; no modeled source/sink ⇒ UNMODELED. Sound only w.r.t. modeled sets, intraprocedural (OX).
+- **S3 `incorrectness.py`** — UX bug-existence. Z3 finds an input with `requires ∧ path ∧ denom=0` ⇒
+  BUG_REACHABLE with a real witness (FP=0 by construction); path-sensitive (guarded divisions not
+  reported). NO_BUG_FOUND is **not** a proof of absence (labeled).
+- **S4 `race_detector.py`** — Eraser lockset + lock-order-cycle on an explicit thread/event model.
+  Conflicting accesses w/ disjoint locksets ⇒ RACE (pair); acquire-while-held cycle ⇒ DEADLOCK; else
+  RACE_FREE. Lock-model sound (may over-report like RacerD); cycle = necessary inversion warning.
+- **S5 `assume_guarantee.py`** — modular A-G: each module verified (Z3) assuming callees' contracts;
+  undischarged callee preconditions **bi-abduced** into the module's inferred pre; calls outside the
+  system = **opaque boundaries** → runtime-monitored contract + blame. Emits a conditional/compositional
+  **assumption-ledger certificate** (proven core / assumed contracts / opaque boundaries / residual TCB)
+  — explicitly **NOT a whole-system proof**.
+- **S6 `model_check_bridge.py` + `linearizability.py`** — BFS explicit-state model checker (MODEL_OK |
+  counterexample trace | UNMODELED-when-bound-exceeded) + Wing-Gong linearizability search (LINEARIZABLE
+  witness order | NOT_LINEARIZABLE). Bounded: state-explosion + NP-complete (labeled).
+- **S7 `fold_kernels.py`** — unifies Faulhaber/Gosper/C-finite under a FOLDED/ABSENT/DECLINED certificate
+  with an **independent numeric recheck** (closed form vs naive sum for several n) so a wrong form is
+  **never emitted** (mismatch ⇒ DECLINE). Honest DECLINE on non-structure; ABSENT on Gosper-nonsummable
+  (Σ1/k). Theorem limits: Richardson/Petkovšek ⇒ narrow class, frequent honest DECLINE is correct.
+
+**State:** 8 new v26 modules (S1 ct_certifier + S2–S7), `test_build` **21/21 green**, all modules import.
+**Honesty:** each verdict is OX (verification) or UX (bug-existence) labeled; every "proof" is conditional
+on the modeled inputs / bounds / assumed contracts spelled out in its certificate. No single trophy number.
