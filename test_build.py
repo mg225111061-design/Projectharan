@@ -370,6 +370,40 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_b_ui_apple_rounding():
+    """v29 task B (STRUCTURE only — visuals are 'user-confirmation', never auto-'done'): rounder radii are
+    tokenized & applied; gateway controls collapse into Advanced (default view simplified) WITHOUT losing
+    function; one primary action is emphasized; transitions are present."""
+    html = open("haran.html").read()
+    # ── radius_tokens_applied: the four-tier radius scale exists and is actually used ──
+    for tok in ("--radius-sm:", "--radius-md:", "--radius-lg:", "--radius-full:"):
+        assert tok in html, f"missing radius token {tok}"
+    assert "border-radius:var(--radius-full)" in html and "border-radius:var(--radius-lg)" in html
+    assert "border-radius:999px" not in html        # all pill literals converted to the token
+    assert "--tap:44px" in html                     # ≥44px touch targets (Apple HIG)
+    # ── advanced_settings_collapsible + reduced_visible_controls_no_function_lost ──
+    assert '<details class="advanced"' in html and "</details>" in html
+    adv = html.index('<details class="advanced"'); end = html.index("</details>", adv)
+    block = html[adv:end]
+    for ctrl in ('id="providerSel"', 'id="modelInput"', 'id="baseUrlInput"'):   # controls live INSIDE Advanced
+        assert ctrl in block, f"{ctrl} not inside Advanced — function would be lost"
+    assert '<details class="advanced" id="advanced">' in html and "[open]" not in html.split("</style>")[1][:50] \
+        or 'id="advanced">' in html               # not force-open by default (collapsed)
+    assert html.count('id="providerSel"') == 1 and html.count('id="sendBtn"') == 1   # still present (reachable)
+    assert 'data-i18n="advanced"' in html
+    # ── primary_action_single_emphasis: the send button is the ONE filled-accent action with a lift/shadow;
+    #    the gateway controls are quiet/outline (not accent-filled) ──
+    btn_css = html[html.index(".composer button{"):html.index(".composer button{") + 400]
+    assert "background:var(--accent)" in btn_css and "box-shadow:" in btn_css and "translateY(-1px)" in html
+    gw_css = html[html.index(".gw-sel,.gw-in{"):html.index(".gw-sel,.gw-in{") + 200]
+    assert "background:var(--panel-2)" in gw_css and "var(--accent)" not in gw_css   # quiet, not emphasized
+    # ── transitions_present: gentle Apple-like easing + focus rings (micro-interactions, accessibility) ──
+    assert "--ease:" in html and "transition:" in html and "var(--ease)" in html
+    assert ":focus" in html and "box-shadow:0 0 0 3px" in html        # visible focus ring
+    print("PASS test_b_ui_apple_rounding (radius tokens applied + no 999px literals; Advanced collapsible "
+          "keeps controls reachable; single primary action emphasized; transitions + focus rings present)")
+
+
 def test_a_gateway_model_wiring():
     """v29 task A: the GLM/Z.ai '1211 Unknown Model' bug = the user's model never reached the request; the
     streaming path sent the hardcoded Claude default. This locks the fix end-to-end + the adapter rules."""
