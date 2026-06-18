@@ -148,6 +148,22 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s4_race_deadlock():
+    """v26 S4: lockset data-race + lock-order deadlock on an explicit concurrency model."""
+    import race_detector as RD
+    assert RD.detect_races({"t1": [("wr", "x")], "t2": [("wr", "x")]}).status == "RACE"
+    assert RD.detect_races({"t1": [("acq", "L"), ("wr", "x"), ("rel", "L")],
+                            "t2": [("acq", "L"), ("wr", "x"), ("rel", "L")]}).status == "RACE_FREE"
+    assert RD.detect_races({"t1": [("acq", "A"), ("wr", "x"), ("rel", "A")],   # disjoint locks → race
+                            "t2": [("acq", "B"), ("wr", "x"), ("rel", "B")]}).status == "RACE"
+    assert RD.detect_races({"t1": [("rd", "x")], "t2": [("rd", "x")]}).status == "RACE_FREE"   # read-read
+    dl = RD.detect_races({"t1": [("acq", "A"), ("acq", "B")], "t2": [("acq", "B"), ("acq", "A")]})
+    assert dl.status == "DEADLOCK" and dl.cycles
+    v = RD.detect_races({"t1": [("wr", "x")], "t2": [("wr", "x")]})
+    assert v.races[0]["var"] == "x" and "DATA RACE" in RD.race_feedback(v)
+    print("PASS test_s4_race_deadlock")
+
+
 def test_s3_incorrectness_ux():
     """v26 S3: UX bug-existence — reachable div/mod-by-zero with a REAL witness; path-sensitive (FP=0)."""
     import incorrectness as IC
