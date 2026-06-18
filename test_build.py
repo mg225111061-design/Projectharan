@@ -148,6 +148,26 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s6_modelcheck_linearizability():
+    """v26 S6: bounded explicit-state model checker + Wing-Gong linearizability checker."""
+    import model_check_bridge as MC
+    import linearizability as LZ
+    ok = MC.check_model([0], lambda s: [(s + 1) % 3], lambda s: s < 3)
+    assert ok.status == "MODEL_OK"
+    bad = MC.check_model([0], lambda s: ([s + 1] if s < 5 else []), lambda s: s < 3)
+    assert bad.status == "MODEL_COUNTEREXAMPLE" and bad.trace[0] == 0 and bad.trace[-1] == 3
+    H_lin = [{"id": 0, "call": 0, "ret": 1, "op": "write", "arg": 1, "result": "ok"},
+             {"id": 1, "call": 2, "ret": 3, "op": "read", "arg": None, "result": 1}]
+    H_bad = [{"id": 0, "call": 0, "ret": 1, "op": "write", "arg": 1, "result": "ok"},
+             {"id": 1, "call": 2, "ret": 3, "op": "read", "arg": None, "result": 0}]
+    H_conc = [{"id": 0, "call": 0, "ret": 3, "op": "write", "arg": 1, "result": "ok"},
+              {"id": 1, "call": 1, "ret": 2, "op": "read", "arg": None, "result": 0}]
+    assert LZ.is_linearizable(H_lin, LZ.register_apply, 0).status == "LINEARIZABLE"
+    assert LZ.is_linearizable(H_bad, LZ.register_apply, 0).status == "NOT_LINEARIZABLE"
+    assert LZ.is_linearizable(H_conc, LZ.register_apply, 0).status == "LINEARIZABLE"   # read may precede write
+    print("PASS test_s6_modelcheck_linearizability")
+
+
 def test_s5_assume_guarantee():
     """v26 S5: modular assume-guarantee + bi-abduction + opaque-boundary runtime contracts."""
     import assume_guarantee as AG
