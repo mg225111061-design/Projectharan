@@ -415,3 +415,41 @@ openpyxl, pypdf) degrade to honest fallbacks/[BLOCKED] — correctness never dep
 carry workloads; live-LLM latency/accuracy is **[BLOCKED: key/egress]** with a user procedure; the
 zero-wrong-answer invariant is regression-tested (parallel == sequential). Three integrity hazards are
 **mitigated, not eliminated** (TCB minimization, CEGAR filtering, incremental transport) — honestly bounded.
+
+---
+
+## v29 S26–S31 (+§4) — prompt-understanding front-end: break garbage-in-garbage-out
+
+The user's premise — "prompt understanding is almost everything; a bad prompt shouldn't doom the result" —
+is measurement-backed (Lost-in-the-Middle 30%+ loss; HumanEvalComm: 60%+ of code-LLMs silently emit code on
+a bad prompt). v29 detects bad/odd/ambiguous prompts and **reasonably completes / rarely asks / flags
+danger** — but it is GROUNDING not understanding (Rice), every detector is **fail-safe** (uncertain →
+reasonable completion + stated assumption, never silent-wrong, never hard-block), and it **asks almost
+never**. All detectors are deterministic (key-free, measured); LLM-based variants are **[BLOCKED: key/egress]**.
+
+- **S26 `requirement_parser.py`** — prompt → typed slots {goals/constraints/IO/prohibitions/assumptions} by
+  cue-phrase slot-filling; `is_well_formed` is the constrained-decoding guarantee; multi-part → least-to-most;
+  cached. A measurable EXTRACTION proxy, NOT understanding; a vague prompt gets honest conf 0.0.
+- **S27 `missing_info_detector.py`** — schema-coverage: COMPLETE / MINOR (reasonable default + stated
+  assumption, no ask) / CRITICAL (→S30). Breaks silent-code-on-incomplete; completeness is schema-relative (Rice).
+- **S28 `dangerous_instruction_detector.py`** — CWE danger lexicon (HEURISTIC → FLAG + alternative, never
+  hard-block) + **Z3-UNSAT contradiction** (SOUND) + infeasibility catalog. Verified: verify=False→CWE-295,
+  "timeout <10 ∧ >30"→sound contradiction, ">10 ∧ <30"→SAFE (no false positive). Breaks GIGO.
+- **S29 `ambiguity_detector.py`** — DEFAULT reasonable completion + stated assumption (NEVER asks); only a
+  costly/irreversible dimension left genuinely open → HIGH_STAKES_FORK (→S30). Conservative (ClariQ F1 ~0.37);
+  semantic-entropy / multi-sample paths [BLOCKED: key].
+- **S30 `clarification_policy.py`** — VoI-gated, ask RARELY/SMART/max-one: `ASK_ONE` iff high-stakes fork ∧
+  not-detailed ∧ VoI>threshold; **a detailed prompt is NEVER asked** (hard gate); `AskRateMonitor` clamps the
+  threshold if a detailed prompt is ever asked. Verified: sparse fork→ASK_ONE, detailed-fork→PROCEED,
+  detailed-ask-rate 0.0.
+- **S31 `prompt_consistency.py`** — Clover-for-prompts: stated constraint vs worked example, flag ONLY a sound
+  numeric violation (**zero-FP**) → route S28/S29; entity grounding to symbols. Consistency ≠ intent (Rice).
+- **§4 `prompt_frontend.py`** — the cascade + policy engine into one fail-safe decision (PROCEED / ASK_ONE /
+  FLAG). **Additive (zero-wrong-answer)**: the prompt is preserved, downstream verifier correctness unchanged;
+  detailed-ask-rate 0.0; cascade ~1.4ms (live model first-token [BLOCKED: key]).
+
+**State:** +7 modules (S26–S31 + front-end), `test_build` **46/46 green**. Two axes kept separate: accuracy@FP0
+(extraction proxy, sound contradiction/divergence, zero-FP consistency) vs latency (deterministic cascade,
+measured ms). The downstream Pass@1 delta and live UX are **[BLOCKED: key/egress]** (user procedure). The
+front-end **grounds, it does not "understand"** (Rice); it asks **almost never**; it never silently obeys a
+bad instruction — and it never changes a correct answer.
