@@ -13,3 +13,10 @@ z3-solver>=4.12
 #   pip install tree_sitter tree_sitter_go        # (tree_sitter_c, tree_sitter_rust, … per language)
 tree_sitter>=0.23        # optional
 tree_sitter_go>=0.23     # optional (Go grammar; one grammar package per language)
+# Optional (v28 S22): multi-format file ingestion. stdlib formats (json/ipynb/csv/text/zip/tar) need
+# nothing; these enable office/PDF/OCR. file_ingest.py degrades honestly (BLOCKED) if any are absent —
+# correctness/labels never depend on them. (OCR also needs the system `tesseract` binary.)
+python-docx>=1.1         # optional (.docx)
+openpyxl>=3.1            # optional (.xlsx)
+pypdf>=4.0               # optional (.pdf; needs a working `cryptography` backend)
+# pytesseract + Pillow + tesseract(system) — optional, for image OCR

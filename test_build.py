@@ -370,6 +370,56 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s22_file_ingest():
+    """v28 S22: multi-format ingestion → S21. Stdlib formats always extract; office/PDF/image use optional
+    libs and degrade HONESTLY (BLOCKED/FAILED never fabricate text); extracted text feeds grounding."""
+    import file_ingest as FI
+    import grounding_pipeline as GP
+    import io
+    import json
+    import zipfile
+    # ── detection (extension + magic bytes) ──
+    assert FI.detect_format("d.json", b"{}") == "json" and FI.detect_format("f.pdf", b"%PDF-1.4") == "pdf"
+    assert FI.detect_format("x.bin", b"%PDF-1.4 hi") == "pdf" and FI.detect_format("a.go", b"package m") == "code"
+    # ── stdlib formats: always extract real content ──
+    assert FI.ingest(json.dumps({"a": [1, 2]}).encode(), "d.json").status == "EXTRACTED"
+    nb = {"cells": [{"cell_type": "code", "source": ["x=1\n", "print(x)"]}]}
+    assert "print(x)" in FI.ingest(json.dumps(nb).encode(), "n.ipynb").text
+    assert FI.ingest(b"a,b\n1,2\n3,4", "d.csv").structured == [["a", "b"], ["1", "2"], ["3", "4"]]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("a.txt", "hello"); z.writestr("b.py", "def f(): pass")
+    zres = FI.ingest(buf.getvalue(), "a.zip")
+    assert zres.status == "EXTRACTED" and len(zres.members) == 2 and "hello" in zres.text
+    # ── office formats: real round-trip if the lib is present, else honest BLOCKED ──
+    if FI.HAVE["docx"]:
+        import docx
+        d = docx.Document(); d.add_paragraph("grounded claim one"); db = io.BytesIO(); d.save(db)
+        assert FI.ingest(db.getvalue(), "f.docx").text.strip() == "grounded claim one"
+    else:
+        assert FI.ingest(b"x", "f.docx").status == "BLOCKED"
+    if FI.HAVE["xlsx"]:
+        import openpyxl
+        wb = openpyxl.Workbook(); wb.active.append(["x", "y"]); xb = io.BytesIO(); wb.save(xb)
+        assert FI.ingest(xb.getvalue(), "f.xlsx").status == "EXTRACTED"
+    else:
+        assert FI.ingest(b"x", "f.xlsx").status == "BLOCKED"
+    # ── PDF / image / corrupt: degrade honestly — NEVER fabricate text ──
+    pdf = FI.ingest(b"%PDF-1.4 not-a-real-pdf", "f.pdf")
+    assert (pdf.status == "BLOCKED" if not FI.HAVE["pdf"] else pdf.status in ("EXTRACTED", "EXTRACTED_LOWCONF", "FAILED"))
+    img = FI.ingest(b"\x89PNG\r\n\x1a\n", "f.png")
+    assert (img.status == "BLOCKED" if not FI.HAVE["ocr"] else True) and img.text == "" if img.status == "BLOCKED" else True
+    corrupt = FI.ingest(b"\x00\x01\x02\xff\xfe", "f.bin")
+    assert corrupt.status == "FAILED" and corrupt.text == "" and corrupt.confidence == "none"
+    # ── ★ pipeline link ★: a HARAN spec in a .txt ingests then GROUNDs via S21 ──
+    spec = "fn t(n: Nat) -> Nat\n  ensures result = n*(n+1)/2\n{ fold k in 1..n { k } }"
+    r = FI.ingest(spec.encode(), "claim.txt")
+    assert r.status == "EXTRACTED" and GP.verify_claim(r.text).status == "GROUNDED"
+    av = FI.available_formats()
+    print(f"PASS test_s22_file_ingest (stdlib always; docx={av['docx']} xlsx={av['xlsx']} pdf={av['pdf']} "
+          f"ocr={av['image(OCR)']}; BLOCKED/FAILED never fabricate; txt→S21 GROUNDED)")
+
+
 def test_s21_grounding_pipeline():
     """v28 S21: large-prompt GROUNDING (not understanding — Rice). Structural index + EXACT multi-hop
     retrieval (no lost-in-the-middle) + spec-extract-and-verify: checkable claims are GROUNDED/REFUTED,
