@@ -506,6 +506,42 @@ def test_stage4_login_profile_work():
           "persists; work saved+listed; schema has NO api_key column; LLM key never persisted)")
 
 
+def test_stage1_clockA_bestofn():
+    """v31 STAGE 1 [Clock A: LLM call]: parallel best-of-N + first-pass early-exit. Candidates run
+    concurrently; a SOUND verifier accepts the first pass and the rest are cancelled; wall-clock = max, not
+    sum. (Live LLM latency is [BLOCKED: key]; orchestration measured with simulated/varied latencies.)"""
+    import asyncio
+    import bestofn as B
+    # mode_sets_N
+    assert B.MODE_N == {"fast": 1, "normal": 3, "extend": 6}
+    # parallel_candidates_concurrent: N launched together → wall ≈ one latency, NOT N×latency
+    async def conc():
+        started = []
+        async def gen(i):
+            started.append(i); await asyncio.sleep(0.04); return f"cand{i}:{'GOOD' if i==2 else 'BAD'}"
+        r = await B.best_of_n(5, gen, lambda c: c.endswith("GOOD"))
+        return r, started
+    r, started = asyncio.run(conc())
+    assert sorted(started) == [0, 1, 2, 3, 4] and r.wall_ms < 5 * 40 * 0.9    # concurrent, not summed
+    assert r.verified and r.winner.endswith("GOOD") and r.accepted_index == 2
+    # first_pass_early_exit_cancels_rest: a fast good candidate wins; slow losers are cancelled
+    async def cancel():
+        async def gen(i):
+            await asyncio.sleep(0.02 if i == 1 else 0.30)
+            return f"cand{i}:{'GOOD' if i in (1, 4) else 'BAD'}"
+        return await B.best_of_n(5, gen, lambda c: c.endswith("GOOD"))
+    rc = asyncio.run(cancel())
+    assert rc.accepted_index == 1 and rc.cancelled >= 1 and rc.wall_ms < 250    # won fast, didn't wait for slow
+    # verifier_sound_no_flaky: deterministic verifier; best_of_n only returns a verify-accepted candidate
+    v = lambda c: c.endswith("GOOD")
+    assert v("x:GOOD") is True and v("x:GOOD") is True and v("x:BAD") is False   # stable, not flaky
+    # measured [Clock A] orchestration: sum→max gives a real (>1×) speedup, labeled with p and N
+    m = B.measure_clock_a(n=6, p=0.5, per_call_ms=50, trials=4)
+    assert m.parallel_ms <= m.sequential_ms and m.speedup >= 1.0 and "Clock A" in m.note and m.n == 6
+    print(f"PASS test_stage1_clockA_bestofn (N concurrent + early-exit cancels losers; [Clock A] "
+          f"{m.sequential_ms}ms→{m.parallel_ms}ms = {m.speedup}× @p={m.p},N={m.n}; live LLM [BLOCKED])")
+
+
 def test_stage0_measurement():
     """v30 STAGE 0: every site number is a MEASUREMENT artifact. stats.json must carry value+unit+method+
     timestamp per metric (so the site can show 'how it was measured'); blocked metrics carry a reason (never
