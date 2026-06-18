@@ -7,3 +7,9 @@ anthropic>=0.40
 openai>=1.40          # only used when HARAN_PROVIDER=openai_compat (OpenRouter/TokenMix-style gateways)
 sympy>=1.12
 z3-solver>=4.12
+# Optional (v28 S20): an error-recovering, comment/string-correct multi-language frontend. If these are
+# absent, the pure-Python fallback in treesitter_frontend.py carries the SAME soundness fix — correctness
+# never depends on them. Install to enable the real Tree-sitter CST path (add grammars as needed):
+#   pip install tree_sitter tree_sitter_go        # (tree_sitter_c, tree_sitter_rust, … per language)
+tree_sitter>=0.23        # optional
+tree_sitter_go>=0.23     # optional (Go grammar; one grammar package per language)

@@ -370,6 +370,46 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s20_treesitter_frontend():
+    """v28 S20: error-recovering, comment/string-correct frontend + common IR. The soundness core (pure
+    Python) strips NESTED block comments and ignores markers inside strings — where a regex scanner
+    silently corrupts the HIR. Unparsed regions become honest `assume_unknown`; new language = a frontend."""
+    import treesitter_frontend as TF
+    # ── ★ soundness core (always runs) ★: nested block comment — naive regex leaves garbage, ours doesn't ──
+    nested = "let x = /* outer /* inner */ still-comment */ 5;"
+    ours, _ = TF.strip_comments(nested, "rust")
+    naive = TF.naive_regex_strip(nested)
+    assert ours.split() == ["let", "x", "=", "5;"]           # the ENTIRE nested comment is gone (correct)
+    assert "still-comment" in naive                          # the regex baseline is WRONG (leaves garbage)
+    # `//` inside a string literal must be preserved (regex cuts the line)
+    s2, _ = TF.strip_comments('url := "http://example.com"; x := 1', "go")
+    assert "http://example.com" in s2 and TF.naive_regex_strip('a := "http://x"').strip() == 'a := "http:'
+    # object-like macro expansion
+    body, macros = TF.expand_macros("#define N 10\nint arr[N];")
+    assert "arr[10]" in body and macros == {"N": "10"}
+    # ── lower Go → the common HIR; the function name is recovered on either path ──
+    mod, path = TF.to_hir("package m\nfunc add(a int, b int) int {\n  return a + b\n}\n", "go")
+    names = [f.name for f in mod.functions]
+    assert "add" in names and path in ("tree-sitter", "fallback")
+    if TF.TREE_SITTER_AVAILABLE and "go" in TF._GRAMMARS:
+        assert [f.params for f in mod.functions if f.name == "add"][0] == ["a", "b"]   # exact on the real CST
+    # ── unparsed region → honest unknown (forced fallback path, always present) ──
+    saved = TF.TREE_SITTER_AVAILABLE
+    TF.TREE_SITTER_AVAILABLE = False
+    try:
+        m_ok, p = TF.to_hir("func add(a int, b int) int { return a+b }", "go")
+        assert p == "fallback" and "add" in [f.name for f in m_ok.functions]
+        m_bad, _ = TF.to_hir("func broken(b int) { { {", "go")
+        assert any(f.ops and f.ops[0].kind == "assume_unknown" for f in m_bad.functions)   # no fake confidence
+    finally:
+        TF.TREE_SITTER_AVAILABLE = saved
+    # ── common fact schema: the verifier mapping consumes these uniformly ──
+    facts = TF.to_facts(mod)
+    assert ("function", "add", ("a", "b")) in facts or any(f[0] == "function" for f in facts)
+    print(f"PASS test_s20_treesitter_frontend (nested-comment+string strip correct vs regex-broken; macro; "
+          f"Go→HIR via {path}; unparsed→assume_unknown; tree_sitter={TF.TREE_SITTER_AVAILABLE})")
+
+
 def test_s19_latency_speed():
     """v28 S19: speed-first — watchdog (never hang), cache economics (stable prefix + padding + ledger),
     parallel orchestration. ★zero-wrong-answer invariant★: parallel/early-exit/cache only make it faster,
