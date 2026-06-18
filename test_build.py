@@ -370,6 +370,35 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s26_requirement_parser():
+    """v29 S26: parse a prompt into typed slots {goals/constraints/IO/prohibitions/assumptions}. Deterministic
+    (key-free) extraction with a schema well-formedness guarantee; multi-part → least-to-most; cached. This
+    is a measurable EXTRACTION proxy, NOT understanding (Rice); a vague prompt gets low confidence, not faked."""
+    import requirement_parser as RP
+    RP.reset_cache()
+    detailed = ("Implement a function that takes a list of integers as input and returns them sorted ascending. "
+                "It must run in O(n log n) and must not use any external libraries. Assume the list fits in memory.")
+    r = RP.parse_requirements(detailed)
+    assert set(r.bound_slots()) == set(RP.RequirementSchema.SLOTS)        # all six slots bound on a rich prompt
+    assert r.confidence >= 0.8 and RP.is_well_formed(r)
+    assert any("O(n log n)" in c for c in r.constraints) and r.prohibitions and r.assumptions
+    # ── multi-part → least-to-most decomposition (numbered and keyword forms) ──
+    assert len(RP.parse_requirements("1. Parse the CSV. 2. Validate rows. 3. Then write to a DB.", "extended").parts) == 3
+    assert len(RP.parse_requirements("First read config. Then connect. Finally stream logs.").parts) == 3
+    # ── constrained-decoding well-formedness: parser output is valid; a malformed object is rejected ──
+    assert RP.is_well_formed(r) and not RP.is_well_formed({"goals": "x"})
+    # ── cache: the same prompt is not re-parsed ──
+    r2 = RP.parse_requirements(detailed)
+    assert r2.cached is True and RP.cache_stats()["hits"] >= 1
+    # ── measurable extraction proxy (NOT understanding); a vague prompt → honest LOW confidence ──
+    gold = {s: True for s in RP.RequirementSchema.SLOTS}
+    assert RP.extraction_score(r, gold) == 1.0
+    vague = RP.parse_requirements("do the thing")
+    assert vague.confidence == 0.0 and vague.bound_slots() == []          # no fabricated structure
+    print(f"PASS test_s26_requirement_parser (detailed→{len(r.bound_slots())}/6 slots conf={r.confidence:.2f}; "
+          f"multi-part decomposed; schema-guarded; cached; vague→conf 0.0; extraction proxy, not understanding)")
+
+
 def test_s25_spec_propagation():
     """v28 S25: bind the proof to the SEMANTIC CONTRACT, not the location. A rename/move transports the
     proof (no re-prove); a real semantics change → REPROVE_NEEDED (justified, not a defect). Merkle-
