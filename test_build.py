@@ -148,6 +148,20 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s8_glm_preset():
+    """v26.2 S8: GLM/Z.ai preset (web-confirmed base_url+model), openai_compat shape, UI prefilled."""
+    import provider
+    prov, base, model, _src = provider.GATEWAY_PRESETS["GLM (Z.ai)"]
+    assert prov == "openai_compat" and base == "https://api.z.ai/api/paas/v4/" and model == "glm-4.6"
+    # the openai request shape for a GLM model is the chat/completions form (no thinking/cache_control)
+    k = CA._build_openai_kwargs("hi", None, "glm-4.6", 16000, False)
+    assert k["model"] == "glm-4.6" and k["messages"][0]["role"] == "system" and "thinking" not in k
+    # the UI dropdown is prefilled with the verified Z.ai endpoint + model
+    html = open("haran.html").read()
+    assert 'data-baseurl="https://api.z.ai/api/paas/v4/" data-model="glm-4.6">GLM (Z.ai)' in html
+    print("PASS test_s8_glm_preset")
+
+
 def test_s7_fold_kernels():
     """v26 S7: FOLDED where structure is provable, ABSENT/DECLINED honestly, never a wrong closed form."""
     import fold_kernels as FK

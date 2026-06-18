@@ -71,6 +71,19 @@ def is_openai(p: Optional[str] = None) -> bool:
     return (p or provider_name()) == _OPENAI_COMPAT
 
 
+# v26.2 S8 — gateway presets. Each: (provider, base_url, default_model, verified_source).
+# base_urls/models are EDITABLE defaults in the UI; only fill from documentation, never guess.
+# GLM/Z.ai verified via web search (Z.ai docs + multiple corroborating sources, June 2026):
+#   OpenAI-compatible base_url = https://api.z.ai/api/paas/v4/ , model id e.g. glm-4.6 (glm-4.7 also).
+#   NOTE: "GLM-5.2" is NOT a verified model id anywhere — use the exact id from your Z.ai console.
+GATEWAY_PRESETS = {
+    "Claude (official)": (_ANTHROPIC, None, "claude-opus-4-8", "anthropic"),
+    "GLM (Z.ai)":        (_OPENAI_COMPAT, "https://api.z.ai/api/paas/v4/", "glm-4.6", "z.ai docs (web-confirmed)"),
+    "OpenRouter":        (_OPENAI_COMPAT, "https://openrouter.ai/api/v1", "", "well-known (editable)"),
+    "DeepSeek":          (_OPENAI_COMPAT, "https://api.deepseek.com", "deepseek-chat", "well-known (editable)"),
+}
+
+
 @dataclass
 class Config:
     provider: str

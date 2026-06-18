@@ -67,6 +67,16 @@ export HARAN_BASE_URL=https://openrouter.ai/api/v1
 export HARAN_MODEL=qwen/qwen3-coder        # or anthropic/claude-3.5-sonnet, etc.
 export HARAN_KEY=...
 ```
+**GLM (Z.ai)** — OpenAI-compatible (base_url + model id web-confirmed against Z.ai docs, June 2026):
+```
+export HARAN_PROVIDER=openai_compat
+export HARAN_BASE_URL=https://api.z.ai/api/paas/v4/   # Z.ai OpenAI-compatible endpoint
+export HARAN_MODEL=glm-4.6                            # or glm-4.7; use the exact id from your Z.ai console
+export HARAN_KEY=...
+```
+> Honesty note: **"GLM-5.2" is not a verified model id** — Z.ai's documented ids are `glm-4.6`/`glm-4.7`.
+> Use the exact id shown in your Z.ai console. (Z.ai coding-plan users: the OpenAI endpoint is
+> `https://api.z.ai/api/coding/paas/v4`.)
 Then (works for whichever provider you set):
 ```
 python3 scripts/test_claude.py --shape   # key-free: confirm the request shape for the configured gateway
