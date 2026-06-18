@@ -370,6 +370,43 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s14_spectral_partition():
+    """v27 S14: Fiedler/spectral bisection (+ KL refinement) cuts a dep-graph into weakly-coupled chunks
+    for PARALLEL decomposition — a seed only, NOT a modularization-quality claim. Pure-Python; honest
+    scale flag beyond the practical N."""
+    import repo_partition as RP
+    # two triangles joined by ONE edge → each triangle stays whole, cut = 1
+    g = {0: [1, 2], 1: [0, 2], 2: [0, 1, 3], 3: [2, 4, 5], 4: [3, 5], 5: [3, 4]}
+    p = RP.partition(g, k=2)
+    assert p.cut == 1 and sorted(p.sizes) == [3, 3]
+    assert p.parts[0] == p.parts[1] == p.parts[2] and p.parts[3] == p.parts[4] == p.parts[5]
+    assert p.parts[0] != p.parts[3]                               # the two triangles are separated
+    assert p.cross_deps == p.cut and "spectral" in p.method
+    # complete graph K6 → NO good cut (balanced bisection unavoidably cuts 3·3 = 9) — honestly high
+    k6 = {i: [j for j in range(6) if j != i] for i in range(6)}
+    assert RP.partition(k6, k=2).cut == 9
+    # 4 cliques in a ring → k=4 recovers them; cut = the 4 ring links (the minimum), balanced chunks of 4
+    def clique(base): return {base + i: [base + j for j in range(4) if j != i] for i in range(4)}
+    ring = {}
+    for c in range(4):
+        ring.update(clique(4 * c))
+    for a, b in [(3, 4), (7, 8), (11, 12), (15, 0)]:
+        ring[a] = ring[a] + [b]; ring[b] = ring[b] + [a]
+    p4 = RP.partition(ring, k=4)
+    assert p4.k == 4 and p4.sizes == [4, 4, 4, 4] and p4.cut == 4
+    for c in range(4):                                            # each clique stays in one chunk
+        assert len({p4.parts[4 * c + i] for i in range(4)}) == 1
+    sched = RP.parallel_schedule(p4)
+    assert sched["n_chunks"] == 4 and sched["cross_deps"] == 4 and len(sched["independent_chunks"]) == 4
+    # honest scale: beyond the pure-Python practical N → blocked flag set (still returns a partition)
+    big = {i: [(i + 1) % (RP.MAX_PRACTICAL_N + 100), (i + 2) % (RP.MAX_PRACTICAL_N + 100)]
+           for i in range(RP.MAX_PRACTICAL_N + 100)}
+    pb = RP.partition(big, k=2)
+    assert pb.blocked is True and "scale-limited" in pb.detail
+    print(f"PASS test_s14_spectral_partition (triangles cut={p.cut}, K6 cut=9 honest, 4-ring k=4 cut={p4.cut}; "
+          f"seed+KL, no module-quality claim; >{RP.MAX_PRACTICAL_N} nodes → BLOCKED scale)")
+
+
 def test_s13_fold_replicate():
     """v27 S13: prove a parametric template ONCE → certify N instances by the cheap side-condition check
     (sound universal instantiation). The Z3 solve is paid once, so the speedup GROWS with N (scale gap);
