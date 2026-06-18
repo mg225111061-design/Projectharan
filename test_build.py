@@ -370,6 +370,33 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s23_soundness_defense():
+    """v28 S23: defend against a single mapping/solver bug collapsing integrity. (1) an independent RUP/DRAT
+    UNSAT checker re-verifies proofs (TCB shrinks to the checker; bogus proofs rejected); (2) a solver
+    portfolio — Z3 vs an independent bounded search — DEFERs on disagreement (single-solver never suffices);
+    (3) mapping axioms are metamorphically verified (a flipped op is caught)."""
+    import proof_checker as PC
+    # ── layer 1: independent UNSAT proof checker ──
+    assert PC.check_rup_proof([[1], [-1]], [[]]).status == "UNSAT_VERIFIED"    # x ∧ ¬x ⊢ ⊥, RUP-checked
+    assert PC.brute_unsat([[1], [-1]], 1) is True                              # independent oracle agrees
+    assert PC.check_rup_proof([[1]], [[]]).status == "REJECTED"                # bogus proof on a SAT CNF
+    assert PC.check_rup_proof([[1, 2], [-1], [-2]], [[2], []]).status == "UNSAT_VERIFIED"   # multi-step
+    assert PC.check_rup_proof([[1, 2], [-1], [-2]], [[1]]).status == "REJECTED"  # not RUP-implied → rejected
+    # ── layer 2: solver portfolio cross-check ──
+    assert PC.robust_certify("a*a >= 0", {"a": "Int"}).status == "PROVEN"      # Z3 + bounded search agree
+    assert PC.robust_certify("a >= 1", {"a": "Int"}).status == "REFUTED"       # false claim
+    # ★ a simulated solver soundness bug: Z3 says PROVEN but an INDEPENDENT oracle finds a cex → DEFER ★
+    bug = PC.robust_certify("a*a >= 0", {"a": "Int"}, second_opinion=lambda: {"a": 7})
+    assert bug.status == "DEFER" and bug.agree is False and bug.counterexample == {"a": 7}
+    # ── layer 3: mapping-axiom metamorphic tests ──
+    ok, mism = PC.mapping_axioms_ok()
+    assert ok and mism == []                                                   # the real HARAN→Z3 mapping is sound
+    assert PC.mapping_preserves_semantics(lambda a, b: a - b, lambda a, b: a - b)        # correct mapping holds
+    assert not PC.mapping_preserves_semantics(lambda a, b: a + b, lambda a, b: a - b)    # − ↦ + is CAUGHT
+    print("PASS test_s23_soundness_defense (RUP checker verifies+rejects proofs; portfolio DEFERs on "
+          "disagreement — single-solver never suffices; mapping metamorphic catches a flipped op)")
+
+
 def test_s22_file_ingest():
     """v28 S22: multi-format ingestion → S21. Stdlib formats always extract; office/PDF/image use optional
     libs and degrade HONESTLY (BLOCKED/FAILED never fabricate text); extracted text feeds grounding."""
