@@ -148,6 +148,32 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s9_runtime_engine():
+    """v26.2 S9: 3-tier analyzer + differential-equivalence gate + measured associative parallelism."""
+    import layout_simd as LS
+    import parallel_algebra as PA
+    assert LS.analyze(LS.Kernel("k", "reduction", "+")).tier == "A"          # assoc reduction → tier A
+    assert LS.analyze(LS.Kernel("k", "io")).tier == "C"                       # IO → physics floor
+    assert LS.analyze(LS.Kernel("k", "map", aliasing=True)).safe is False     # aliasing → unsafe
+    assert LS.analyze(LS.Kernel("k", "reduction", "+", loop_carried_dep=True)).safe is False
+    data = list(range(2000))
+    scalar = lambda d: sum(x * x for x in d)
+    wrong = lambda d: scalar(d) + 1
+    # never a wrong transform: a non-equivalent "fast" path is rejected
+    assert LS.measure(LS.Kernel("k", "reduction", "+"), scalar, wrong, data,
+                      equiv_samples=[data, [1, 2, 3]]).status == "MISMATCH"
+    # SIMD eligible but no native backend here → honest BLOCKED (not a fake speedup)
+    assert LS.measure(LS.Kernel("k", "reduction", "+"), scalar, None, data).status == "BLOCKED"
+    # the genuinely-measured win: associative parallel reduction (equivalence MUST hold)
+    v = PA.parallelize_reduction("square", "+", 1_000_000, cores=4)
+    assert v.status in ("OPTIMIZED", "NO_GAIN")        # ran + equivalence held (never MISMATCH/DECLINED)
+    if v.status == "OPTIMIZED":
+        assert v.speedup >= 1.1 and v.cores == 4 and "reduce(+" in v.workload
+    # non-associative op must be DECLINED (parallelizing would change the result)
+    assert PA.parallelize_reduction("square", "-", 1000).status == "DECLINED"
+    print(f"PASS test_s9_runtime_engine (parallel reduce: {v.status} {v.speedup:.2f}x on {v.cores} cores)")
+
+
 def test_s8_glm_preset():
     """v26.2 S8: GLM/Z.ai preset (web-confirmed base_url+model), openai_compat shape, UI prefilled."""
     import provider
