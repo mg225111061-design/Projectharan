@@ -370,6 +370,52 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s12_structure_offload():
+    """v27 S12: structure recognition + LLM-offload dispatcher. Recognizer classes the 7 shapes; the two
+    SOUND actions (closed-form OFFLOAD via verified lifting, equi-join hash-join REWRITE) are gated by
+    execution so a wrong answer is never emitted; unrecognized/unsupported → honest NONE (LLM fallback)."""
+    import structure_recognizer as SR
+    sum_src  = "def f(n):\n    acc = 0\n    for k in range(1, n + 1):\n        acc += k\n    return acc"
+    sq_src   = "def g(m):\n    s = 0\n    for k in range(m):\n        s = s + k*k\n    return s"
+    fact_src = "def fact(n):\n    p = 1\n    for k in range(1, n+1):\n        p *= k\n    return p"
+    join_src = "def jn(A, B):\n    out = []\n    for a in A:\n        for b in B:\n            if a[0] == b[0]:\n                out.append((a, b))\n    return out"
+    mm_src   = "def mm(A, B, C, n):\n    for i in range(n):\n        for j in range(n):\n            for k in range(n):\n                C[i][j] += A[i][k] * B[k][j]\n    return C"
+    fx_src   = "def solve(init):\n    changed = True\n    s = set(init)\n    while changed:\n        changed = False\n        for x in list(s):\n            if x + 1 not in s and x < 5:\n                s.add(x + 1); changed = True\n    return s"
+    re_src   = "def parse(t):\n    import re\n    return re.findall(r'\\\\d+', t)"
+    rnd_src  = "def mc(n):\n    import random\n    h = 0\n    for _ in range(n):\n        if random.random() < 0.5:\n            h += 1\n    return h / n"
+    glue_src = "def h(cfg):\n    x = cfg.get('a', 1)\n    return {'r': str(x) + '!', 'ok': True}"
+    # ── recognizer: each class is identified by sound static analysis ──
+    assert SR.recognize(sum_src).kind == SR.CLOSED_FORM_LOOP and SR.recognize(sum_src).algebra == "monoid"
+    assert SR.recognize(join_src).kind == SR.RELATIONAL_JOIN and SR.recognize(join_src).algebra == "semiring"
+    assert SR.recognize(mm_src).kind == SR.TENSOR_LA
+    assert SR.recognize(fx_src).kind == SR.DATAFLOW_FIXPOINT
+    assert SR.recognize(re_src).kind == SR.STRING_REGEX
+    assert SR.recognize(rnd_src).kind == SR.PROBABILISTIC_APPROX
+    assert SR.recognize(glue_src).kind == SR.NONE
+    # ── action 1: OFFLOAD closed-form loops to the fold solver, equivalence-verified ──
+    d_sum, d_sq = SR.dispatch(sum_src), SR.dispatch(sq_src)
+    assert d_sum.status == "OFFLOADED" and d_sum.complexity == "O(1)" and "n*(n + 1)/2" in d_sum.closed_form
+    assert d_sq.status == "OFFLOADED" and "differential-equivalence verified" in d_sum.certificate
+    # a PRODUCT loop is NOT a Σ-fold → honest NONE (never lifted to a wrong summation)
+    assert SR.dispatch(fact_src).status == "NONE"
+    # ── action 2: equi-join → certified hash-join rewrite, measured + equivalence-verified ──
+    d_join = SR.dispatch(join_src)
+    assert d_join.status == "RECOGNIZED_REWRITE" and d_join.speedup >= 1.1 and "O(n+m)" in d_join.certificate
+    # ── ★ soundness ★: force the fold solver to return a WRONG closed form → the gate must DECLINE (NONE) ──
+    import fold_kernels as FK
+    orig = FK.fold_certificate
+    FK.fold_certificate = lambda code: FK.FoldVerdict("FOLDED", closed_form="n*n", kernel="faulhaber",
+                                                      complexity="O(1)", certificate="forced", reason="")
+    try:
+        assert SR.dispatch(sum_src).status == "NONE"   # n*n ≠ Σk → equivalence gate rejects → NONE
+    finally:
+        FK.fold_certificate = orig
+    # glue with no structure → NONE (honest LLM fallback)
+    assert SR.dispatch(glue_src).status == "NONE"
+    print(f"PASS test_s12_structure_offload (OFFLOAD Σk→{d_sum.closed_form}, Σk²→{d_sq.closed_form}; "
+          f"JOIN hash-rewrite {d_join.speedup:.1f}×; product/glue→NONE; forced-wrong-form→NONE)")
+
+
 def test_s11_live_measure_honest():
     """v26.2 S11: the first-live-test harness. The LIVE LLM loop is honestly BLOCKED (no key / egress);
     the NON-LLM half (loop convergence, parallel transform, proof reuse) is genuinely MEASURED. This test
