@@ -2149,6 +2149,51 @@ def test_foldext2_stageB_disposition():
           f"neuro-symbolic propose→verify gates wrong proposals)")
 
 
+def test_foldext2_stageC_approx():
+    """v33 STAGE 3: certified-approximate folding (Direction D) — recover exact-defers with a STATED error.
+    Covers: per_program_epsilon_delta_cert, approx_fold_with_concentration_bound, metamorphic_property_check,
+    bayesian_evidence_aggregation, precision_on_demand_with_cert, certified_approximate_labeled_distinctly,
+    evidence_collection_bounded, hoeffding_floor_stated, runtime_no_regression_R3."""
+    import math
+    import approx_cert as AC
+    import disposition as D
+    import soup_lib as SL
+    # approx_fold_with_concentration_bound (asymptotic-with-error): harmonic Σ1/k recovered, bound CHECKED
+    cert = AC.certify_harmonic()
+    assert cert.kind == "asymptotic-with-error" and "1/(120*n**4)" in cert.error_bound
+    assert all(AC.check_harmonic_within_bound(N) for N in (10, 100, 1000))     # independent check holds
+    # per_program_epsilon_delta_cert + evidence_collection_bounded + hoeffding_floor_stated
+    assert AC.hoeffding_n(0.01, 1e-3) == math.ceil((1.0) / (2 * 0.0001) * math.log(2000))
+    mc = AC.certify_monte_carlo(lambda: __import__("random").random(), 0.01, 1e-3, cap=50000, seed=1)
+    assert mc.kind == "epsilon-delta" and mc.eps > 0 and mc.delta == 1e-3
+    floored = AC.certify_monte_carlo(lambda: 0.5, 1e-5, 1e-6, cap=10000, seed=1)   # ε too small for cap
+    assert floored.eps > 1e-5 and "floor" in floored.detail.lower()            # honest Hoeffding floor + widened ε
+    # precision_on_demand_with_cert: digits chosen from ε; residual bounded
+    pc = AC.evaluate_on_demand(lambda x: x * x, 1.4142135, 1e-6)
+    assert pc.kind == "precision-on-demand" and AC.precision_digits(1e-6) >= 6
+    # metamorphic_property_check + bayesian_evidence_aggregation
+    assert AC.metamorphic_check(AC.harmonic_approx_value) is True              # H(2n)-H(n) → ln2
+    agg = AC.bayesian_aggregate([1e-3, 1e-3, 1e-2])
+    assert abs(agg["combined_delta"] - 1e-8) < 1e-12 and agg["confidence"] > 0.99999
+    # certified_approximate_labeled_distinctly: APPROX_FOLD is its OWN kind, never reported as exact
+    d_harm = D.dispose_summand("1/k", approx_fn=AC.approx_dispose)
+    d_exact = D.dispose_summand("k*k", approx_fn=AC.approx_dispose)
+    assert d_harm.kind == "APPROX_FOLD" and d_harm.cert_type == "asymptotic-with-error"
+    assert d_exact.kind == "EXACT_FOLD" and d_exact.cert_type == "exact"       # distinct labels, never blurred
+    # recovery measured: how many exact-defers does approximation build back?
+    rec = AC.measure_recovery(["1/k", "q**k/(1-q**k)"])
+    assert rec["recovered"] >= 1                                               # harmonic recovered; q-harmonic still defers
+    # runtime_no_regression_R3: the approximate closed form is O(1) to evaluate (no loop)
+    import clocks as CL
+    ba = CL.before_after("harmonic_1e5", "C", lambda: sum(1.0 / j for j in range(1, 100001)),
+                         lambda: AC.harmonic_approx_value(100000), k=5)
+    assert not ba.regressed and ba.ratio > 5.0
+    print(f"PASS test_foldext2_stageC_approx (harmonic recovered from exact-defer (asymptotic-with-error, "
+          f"bound checked); ε-δ Hoeffding (floor stated, evidence bounded); precision-on-demand; metamorphic+"
+          f"Bayesian; APPROX_FOLD labeled distinctly; recovery {rec['recovered']}/{rec['n']}; "
+          f"approx fold {ba.ratio}× vs naive (no regression))")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

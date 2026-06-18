@@ -92,15 +92,15 @@ def dispose_summand(summand_str: str, lib: Optional[SL.LemmaLibrary] = None,
                                    cert["cert_type"], cert["strength"], orig, "derived + PIT-verified")
     except Exception:  # noqa: BLE001
         pass
-    # (e) absence cache → informative DEFER
-    ab = _absence_hit(summand_str)
-    if ab is not None:
-        return Disposition("DEFER", "absence-cache", "—", original=orig, detail=ab)
-    # (e') certified-approximate fallback (STAGE 3), if provided
+    # (e) certified-approximate fallback (STAGE 3): recover an exact-defer with a STATED error bound
     if approx_fn is not None:
         ap = approx_fn(summand_str)
         if ap is not None:
             return ap
+    # (e') absence cache → informative DEFER (no exact fold, no approximation)
+    ab = _absence_hit(summand_str)
+    if ab is not None:
+        return Disposition("DEFER", "absence-cache", "—", original=orig, detail=ab)
     # (f) HONEST_DEFER — byte-identical
     return Disposition("DEFER", "none", "—", original=orig,
                        detail="no exact fold, no absence cert, no approx — byte-identical defer")
