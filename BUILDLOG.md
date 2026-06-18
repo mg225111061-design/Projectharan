@@ -370,3 +370,48 @@ answer is gated by execution or Z3, so a misclassification can only DECLINE, nev
 pure-Python spectral scale-capped. Every multiple carries its workload; nothing measured is faked; the
 differentiator remains the **machine-checked certificate**, and the gap to a frontier LLM **widens with scale**
 (measured) by folding repeated structure — never an instant/uniform speedup (Ω(N), Ω(K), Rice).
+
+---
+
+## v28 S19–S25 — "insanely fast · ground huge inputs · keep integrity unbroken"
+
+v27 laid the *capability*; v28 makes it (1) feel instant — without ever changing an answer, (2) GROUND huge
+prompts/files (not "understand" — Rice), and (3) patch three integrity hazards. Speed-first, but the
+**zero-wrong-answer invariant** (§1.12) holds: cache/parallel/early-exit may only be faster or honest-defer.
+
+- **S19 `latency_budget.py`** — watchdog `run_with_budget` (daemon-thread timeout → DEFERRED, never hangs);
+  cache economics (`is_stable_prefix` rejects volatile content, `pad_to_threshold` to the provider min,
+  `CacheLedger` read 0.1×/write 1.25× → break-even ~2 calls); parallel orchestration (`schedule_waves`
+  critical-path + process-pool `parallel_map`). MEASURED: watchdog defers an 80ms-budget stage in ~80ms
+  (not 5s); cache **31% input-cost savings** after a 2-call warm; parallel verify **~2.4× / 4 workers** with
+  results IDENTICAL to sequential. Live model-call latency is **[BLOCKED: key/egress]** (`scripts/test_claude.py`).
+- **S20 `treesitter_frontend.py`** — fixes the regex-scanner soundness hole: a char-level state machine
+  strips NESTED block comments and ignores markers inside strings (a nested Rust comment → fully stripped,
+  vs the regex baseline leaving garbage; `//` in `"http://…"` preserved). Real Tree-sitter CST when
+  `tree_sitter`+grammar present (verified with `tree_sitter_go`), pure-Python fallback otherwise (same
+  soundness). Unparsed regions → `assume_unknown` (honest UNKNOWN, never fake PROVEN). Common IR + fact schema.
+- **S21 `grounding_pipeline.py`** — large-prompt GROUNDING, not understanding (Rice). Structure + S14
+  clustering + EXTRACTIVE summaries + **exact multi-hop graph retrieval** (no lost-in-the-middle by
+  construction) + spec-extract-and-verify (GROUNDED proof / REFUTED witness / BEST_EFFORT label). MEASURED:
+  multi-hop accuracy 100% vs hand-derived reachability, coverage 100%. LLM head-to-head **[BLOCKED: key]**.
+- **S22 `file_ingest.py`** — format-routed ingestion → S21. stdlib formats (json/ipynb/csv/text/zip/tar)
+  always extract; docx/xlsx via optional libs (work here); **pdf [BLOCKED]** (a broken `cryptography` rust
+  backend panics — caught with `except BaseException` + fd-level stderr redirect), **image OCR [BLOCKED]** (no
+  tesseract). BLOCKED/FAILED never fabricate text; confidence labeled.
+- **S23 `proof_checker.py`** — soundness-bug defense: an independent **RUP/DRAT UNSAT checker** (re-verifies
+  proofs, rejects bogus ones; TCB shrinks to the checker) + a **solver portfolio** (Z3 vs an independent
+  bounded search; DEFER on disagreement — a single solver "true" never suffices) + **mapping-axiom
+  metamorphic tests** (a flipped `−↦+` is caught).
+- **S24 `concretization_gate.py`** — CEGAR: an abstract counterexample is RUN on the real runtime before any
+  fix. A SPURIOUS cex against correct code → **NO_BUG, code untouched** (the key protection against
+  hallucinated fixes); a real one → REAL_BUG; endless spurious → DEFER; a fix that breaks a passing test →
+  ROLLBACK.
+- **S25 `spec_propagation.py`** — proof bound to the semantic contract: an α-key (rename/move-invariant,
+  constant/operator/spec-sensitive) makes a rename **PROPAGATE** (transport, no re-prove) while a real change
+  → **REPROVE_NEEDED** (justified); Merkle-incremental (only changed contracts cost prover work); fail → DEFER.
+
+**State:** +7 modules (S19–S25), `test_build` **39/39 green**. Optional deps (tree_sitter, python-docx,
+openpyxl, pypdf) degrade to honest fallbacks/[BLOCKED] — correctness never depends on them. Speed claims
+carry workloads; live-LLM latency/accuracy is **[BLOCKED: key/egress]** with a user procedure; the
+zero-wrong-answer invariant is regression-tested (parallel == sequential). Three integrity hazards are
+**mitigated, not eliminated** (TCB minimization, CEGAR filtering, incremental transport) — honestly bounded.
