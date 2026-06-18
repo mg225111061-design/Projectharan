@@ -370,6 +370,33 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s28_dangerous_instruction():
+    """v29 S28: don't silently obey a dangerous/contradictory/infeasible instruction — FLAG + alternative.
+    Danger is a CWE lexicon (HEURISTIC → flag, never hard-block); contradiction is Z3 UNSAT (SOUND);
+    infeasibility is a catalog. A safe prompt is SAFE; satisfiable bounds are NOT a false contradiction."""
+    import dangerous_instruction_detector as DI
+    # ── danger lexicon → FLAGGED with CWE + a safe alternative; NEVER a hard block ──
+    tls = DI.detect("Write an HTTPS client but set verify=False so it always connects.")
+    assert tls.status == "FLAGGED" and tls.hard_block is False
+    df = tls.flags[0]
+    assert df.kind == "danger" and df.cwe == "CWE-295" and df.basis == "heuristic-lexicon" and df.alternative
+    assert DI.detect("use eval(user_input) to run it").flags[0].cwe == "CWE-95"
+    assert DI.detect("call subprocess with shell=True on the user string").flags[0].cwe == "CWE-78"
+    assert DI.detect("store the user password in plaintext").flags[0].cwe == "CWE-256/319"
+    # ── ★ SOUND contradiction via Z3 UNSAT ★; a satisfiable pair is NOT flagged (no false positive) ──
+    contra = DI.detect("The timeout must be less than 10 and the timeout must be greater than 30.")
+    cf = [f for f in contra.flags if f.kind == "contradiction"]
+    assert cf and cf[0].basis == "sound-UNSAT"
+    assert DI.detect("The timeout must be greater than 10 and less than 30.").status == "SAFE"   # satisfiable
+    # ── infeasibility catalog (heuristic → flag) ──
+    assert DI.detect("Sort an arbitrary list in O(1) time.").flags[0].kind == "infeasible"
+    # ── a clean instruction is SAFE; the detector never hard-blocks ──
+    safe = DI.detect("Implement a function that returns the list sorted ascending in O(n log n).")
+    assert safe.status == "SAFE" and safe.hard_block is False
+    print("PASS test_s28_dangerous_instruction (CWE lexicon → FLAG+alt, never hard-block; contradiction → "
+          "sound Z3 UNSAT, satisfiable→SAFE; infeasible catalog; clean→SAFE)")
+
+
 def test_s27_missing_info():
     """v29 S27: schema-coverage missing-info detector. Breaks silent-code-on-incomplete: a fully-specified
     prompt is COMPLETE; a minor gap gets a REASONABLE DEFAULT + stated assumption (no ask, no block); a
