@@ -370,6 +370,52 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s15_bug_funnel():
+    """v27 S15: statistics → diffusion → sound-verification funnel. SBFL ranks (heuristic, RANKED≠proof);
+    graph-Laplacian diffusion (heat = random-walk = spectral, shared L) spreads suspicion; layer 3 CONFIRMS
+    with a witness (VULN_PROVEN) or a class-absence proof — Rice-bounded, multi-fault degrades honestly."""
+    import sbfl as SB
+    import diffusion_localize as DL
+    T = SB.Test
+    tests = [T({"f0", "f2"}, False), T({"f1", "f2"}, False), T({"f2", "f3"}, False), T({"f0", "f1", "f2"}, False),
+             T({"f0"}, True), T({"f1"}, True), T({"f3"}, True), T({"f0", "f1"}, True), T({"f0", "f3"}, True)]
+    # ── layer 1: every SBFL metric ranks the true fault (f2) #1; output is labeled RANKED (not a proof) ──
+    for m in ("ochiai", "dstar", "op2", "tarantula"):
+        r = SB.suspiciousness(tests, m)
+        assert r.top(1) == ["f2"], (m, r.ranked)
+        assert "NOT a proof" in r.note
+    assert SB.suspiciousness(tests, "op2").single_fault_optimal is True
+    # ── layer 2: diffusion spreads suspicion along the SAME Laplacian L — a neighbor of suspicious nodes
+    #    is lifted above an equally-scored isolated node (pagerank AND heat) ──
+    sc = {"X": 0.1, "Y": 0.1, "S1": 0.9, "S2": 0.9}
+    g2 = {"X": ["S1", "S2"], "S1": ["X"], "S2": ["X"], "Y": []}
+    assert DL.pagerank_diffuse(sc, g2)["X"] > DL.pagerank_diffuse(sc, g2)["Y"]
+    assert DL.heat_diffuse(sc, g2)["X"] > DL.heat_diffuse(sc, g2)["Y"]
+    # ── layer 3: the funnel confirms a witness for the real bug, proves the modeled class absent elsewhere ──
+    graph = {"f0": ["f2"], "f1": ["f2"], "f2": ["f0", "f1", "f3"], "f3": ["f2"]}
+    code_map = {"f0": "fn f0(x: Int) -> Int\n{ x + 1 }",
+                "f1": "fn f1(x: Int) -> Int\n{ x * 2 }",
+                "f2": "fn f2(a: Int, b: Int) -> Int\n{ a / b }",                  # reachable div-by-zero
+                "f3": "fn f3(a: Int, b: Int) -> Int\n  requires b != 0\n{ a / b }"}  # guarded → absence
+    res = DL.funnel(tests, graph, code_map, metric="op2", topk=4)
+    byname = {f.element: f for f in res.findings}
+    assert byname["f2"].status == "VULN_PROVEN" and byname["f2"].bug_class == "div_by_zero"
+    assert byname["f2"].witness["b"] == "0"                       # a real exploit witness, not a guess
+    assert byname["f3"].status == "ABSENCE_PROVEN" and "Rice-bounded" in byname["f3"].detail
+    assert [f.element for f in res.proven] == ["f2"]
+    # an element with no modelable source → RANKED (explicitly NOT confirmed)
+    r2 = DL.funnel(tests, graph, {"f2": code_map["f2"]}, metric="op2", topk=2)
+    assert any(f.status == "RANKED" and "NOT confirmed" in str(f) for f in r2.findings if f.element != "f2")
+    # ── multi-fault honesty: single-fault optimality no longer applies ──
+    mt = [T({"a", "bug1"}, False), T({"b", "bug2"}, False), T({"a", "b"}, True), T({"a"}, True), T({"b"}, True)]
+    md = SB.multi_fault_degradation(mt, ["bug1", "bug2"])
+    assert md["single_fault_optimal_applies"] is False and "degrades" in md["note"]
+    # Liblit: a predicate that predicts failure has positive Increase
+    assert SB.liblit_increase([(True, True), (True, True), (False, False), (False, False)]) > 0
+    print("PASS test_s15_bug_funnel (SBFL ranks f2 #1 all metrics; diffusion spreads on shared L; "
+          "funnel VULN_PROVEN[div_by_zero] witness b=0 + ABSENCE_PROVEN; multi-fault degrades honestly)")
+
+
 def test_s14_spectral_partition():
     """v27 S14: Fiedler/spectral bisection (+ KL refinement) cuts a dep-graph into weakly-coupled chunks
     for PARALLEL decomposition — a seed only, NOT a modularization-quality claim. Pure-Python; honest
