@@ -2469,6 +2469,104 @@ def test_foldext3_stage5_integration():
           f"{r['axis_eps0']['tcb_lines']} lines not-fold; AUDIT clean (superopt/ordinal search 0))")
 
 
+def test_v35_corpus_and_coverage():
+    """v35 STAGE 1+2: large categorized corpus + honest disposition. Covers: corpus_large_categorized,
+    heldout_split, multiple_n_sizes, negative_controls_included, disposition_per_category,
+    numeric_fold_rate_measured, general_code_fold_rate_measured, heldout_rate_measured,
+    no_false_pass_negative_controls, inequality_all_deferred."""
+    import marketing_measure as M
+    cases = M.build_corpus()
+    cats = {c.category for c in cases}
+    assert {"numeric-closing", "approximable", "general-code", "inequality", "negative-control"} <= cats
+    assert len([c for c in cases if c.category == "numeric-closing"]) >= 20    # sizable
+    assert {c.split for c in cases} == {"train", "heldout"}                     # heldout_split
+    assert any(c.naive and c.closed for c in cases)                            # multiple_n_sizes (Clock C ready)
+    assert len([c for c in cases if c.category == "negative-control"]) >= 3     # negative_controls_included
+    m = M.measure_disposition()
+    # numeric high, general LOW (the honest ceiling) — both reported (no cherry-picking)
+    assert m["rates"]["numeric-closing"]["exact"] >= 0.9
+    assert m["rates"]["general-code"]["defer"] >= 0.9                           # general code defers
+    assert m["rates"]["inequality"]["defer"] == 1.0                            # equality only
+    assert m["rates"]["negative-control"]["reject"] == 1.0                     # wrong forms rejected
+    assert m["false_pass"] == 0 and m["defer_reason_rate"] == 1.0              # ★ false-pos 0, every defer reasoned ★
+    mh = M.measure_disposition(split="heldout")
+    assert mh["rates"]["numeric-closing"]["exact"] >= 0.9 and mh["false_pass"] == 0   # no overfit
+    print(f"PASS test_v35_corpus_and_coverage ({len(cases)} cases/{len(cats)} categories; numeric "
+          f"{m['rates']['numeric-closing']['exact']:.0%} exact, general {m['rates']['general-code']['defer']:.0%} "
+          f"defer (honest ceiling), inequality 100% defer, neg-control 100% reject; false_pass=0; held-out ok)")
+
+
+def test_v35_speed_and_strength():
+    """v35 STAGE 3+4: Clock C distribution + Amdahl + lookup O(1) + Rust; PRA/false-pos/families. Covers:
+    clockC_speedup_distribution, amdahl_dominance_split, lookup_O1_at_scale, rust_ntt_speedup_differential,
+    pra_complete_ratio, exact_fold_verification_pass_rate_100, distinct_families_count,
+    negative_control_rejection_100, defer_always_has_reason, no_overclaim(labels)."""
+    import time
+    import marketing_measure as M
+    import fold_dispatcher as FD
+    import soup_lib as SL
+    import rust_accel as RA
+    # clockC_speedup_distribution: FULL distribution present + grows with n (no cherry-picking)
+    cc = M.measure_clockC(n_sizes=(10**3, 10**4))
+    for n, d in cc["by_n"].items():
+        assert all(kk in d for kk in ("median", "min", "max", "p10", "p90", "count"))
+    assert cc["by_n"][10**4]["median"] > cc["by_n"][10**3]["median"]           # speedup grows with n
+    assert "Clock" in cc["clock"] or cc["clock"] == "C"
+    # amdahl_dominance_split: a big local Clock-C fold is end-to-end-limited unless the loop dominates
+    assert round(FD.amdahl_overall_speedup(1000.0, 0.5), 1) < 2.1 and FD.amdahl_overall_speedup(1000.0, 0.999) > 100
+    # lookup_O1_at_scale: 3707-lemma library, lookup independent of size
+    lib, rep = SL.get_library()
+    assert rep.n_instances >= 3000
+    lib.lookup_summand("k*k"); t = time.perf_counter()
+    for _ in range(50000):
+        lib.lookup_summand("k*k")
+    assert (time.perf_counter() - t) / 50000 * 1e6 < 5.0
+    # rust_ntt_speedup_differential: Rust matches Python AND is faster (or BLOCKED honestly)
+    rm = RA.measure(degree=1024)
+    assert rm.status in ("OK", "BLOCKED")
+    if rm.status == "OK":
+        assert rm.differential_ok and rm.speedup_vs_python_ntt > 1.5
+    # strength: PRA pass 100%, neg-control 100%, inequality 100%, families counted
+    s = M.measure_strength_honesty()
+    assert s["pra_pass_rate"] == 1.0 and s["negative_control_rejection_rate"] == 1.0
+    assert s["inequality_defer_rate"] == 1.0 and s["distinct_verified_families_instances"] >= 3000
+    assert "PRA" in s["strength"] and "NOT used" in s["epsilon0"]              # no ε₀ overclaim
+    print(f"PASS test_v35_speed_and_strength ([Clock C] median {cc['by_n'][10**3]['median']}×@1e3 → "
+          f"{cc['by_n'][10**4]['median']}×@1e4 (grows; full dist); Amdahl split; O(1)@{rep.n_instances}; "
+          f"Rust {rm.status}; PRA pass {s['pra_pass_rate']:.0%}, neg-control reject {s['negative_control_rejection_rate']:.0%})")
+
+
+def test_v35_marketing_claims():
+    """v35 STAGE 5: tiered marketing claims from measurement ONLY. Covers: claims_tiered,
+    each_claim_has_evidence_and_condition, forbidden_overclaims_listed, honesty_as_asset_claims,
+    layperson_vs_expert_messaging."""
+    import marketing_measure as M
+    r = M.all_claims(clockC_n=(10**3, 10**4))
+    c = r["claims"]
+    # claims_tiered
+    assert set(c.keys()) >= {"CERTAIN", "CONDITIONAL", "FORBIDDEN", "honesty_as_asset", "messaging"}
+    assert len(c["CERTAIN"]) >= 3 and len(c["CONDITIONAL"]) >= 2 and len(c["FORBIDDEN"]) >= 5
+    # each_claim_has_evidence_and_condition + measurement script
+    for x in c["CERTAIN"] + c["CONDITIONAL"]:
+        assert x["claim"] and x["evidence"] and x["condition"] and x["script"]
+    # ★ Clock C conditional claim must state the clock + that it's NOT response time (no clock mixing) ★
+    cc_claim = [x for x in c["CONDITIONAL"] if "faster (median)" in x["claim"]][0]
+    assert "Clock C" in cc_claim["condition"] and "NOT response" in cc_claim["condition"]
+    # forbidden_overclaims_listed: the key overclaims are explicitly refused
+    never = " ".join(x["never_say"].lower() for x in c["FORBIDDEN"])
+    assert "all code" in never and "ε₀" in never.lower().replace("ε₀", "ε₀")
+    assert any("response" in x["never_say"].lower() for x in c["FORBIDDEN"])    # no "responses N× faster"
+    assert any("egg" in x["never_say"].lower() for x in c["FORBIDDEN"])         # no egg 88×
+    assert any("all code" in x["never_say"].lower() for x in c["FORBIDDEN"])
+    # honesty_as_asset_claims + layperson_vs_expert_messaging
+    assert len(c["honesty_as_asset"]) >= 2
+    assert "PROVE" in c["messaging"]["layperson"] and "Clock C" in c["messaging"]["expert"]
+    assert "PRA" in c["messaging"]["expert"] and "EQUALITY only" in c["messaging"]["expert"]
+    print(f"PASS test_v35_marketing_claims ({len(c['CERTAIN'])} CERTAIN / {len(c['CONDITIONAL'])} CONDITIONAL "
+          f"/ {len(c['FORBIDDEN'])} FORBIDDEN; each claim has evidence+condition+script; Clock C labeled "
+          f"NOT-response; egg-88×/ε₀/all-code/response-speed explicitly forbidden; layperson+expert messaging)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

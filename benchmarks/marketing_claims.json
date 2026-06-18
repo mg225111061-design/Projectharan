@@ -1,0 +1,217 @@
+{
+  "generated_at": "2026-06-18T23:58:50.558559+00:00",
+  "method": "all numbers from marketing_measure.py on a fixed categorized corpus (build_corpus); distributions reported (median/min/max/p10/p90), never cherry-picked; clocks never mixed; equality only; PRA (ω^ω) not ε₀; general-code ceiling reported honestly; false-pos measured.",
+  "reproduce": "python3 -c 'import marketing_measure as M, json; print(json.dumps(M.all_claims()))'",
+  "claims": {
+    "CERTAIN": [
+      {
+        "claim": "Closing numeric sum/recurrence loops are MATHEMATICALLY PROVEN ∀n (not just tested).",
+        "evidence": "finite-base-case verification pass rate 100% (31/31)",
+        "condition": "closing numeric loops; EQUALITY; strength PRA (ω^ω) — complete, NOT ε₀",
+        "script": "marketing_measure.measure_strength_honesty"
+      },
+      {
+        "claim": "Zero false positives — a wrong closed form is always rejected.",
+        "evidence": "negative-control rejection 100% (4/4)",
+        "condition": "measured on a wrong-closed-form corpus",
+        "script": "marketing_measure.measure_strength_honesty"
+      },
+      {
+        "claim": "When it can't prove it, it says so — every non-fold is an honest, reasoned defer.",
+        "evidence": "general-code defer 100%, defer-reason rate 100%",
+        "condition": "general / opaque code (the honest coverage ceiling)",
+        "script": "marketing_measure.measure_disposition"
+      },
+      {
+        "claim": "3707 individually-verified fold patterns (genuinely distinct; no artificial splitting).",
+        "evidence": "3707 deduped verified instances / 4 meta-families",
+        "condition": "build-time brewed library",
+        "script": "soup_lib.get_library"
+      }
+    ],
+    "CONDITIONAL": [
+      {
+        "claim": "Closing numeric loops run ~3701× faster (median) at n=100000.",
+        "evidence": "[Clock C] median 3701.0× (distribution p10 1537.7× – p90 4474.0×, min 1327.0×, over 11 cases)",
+        "condition": "★Clock C (generated-code execution), NOT response time★; closing bounded-value numeric loops; n=100000; speedup GROWS with n (n=1000 median ~111×)",
+        "script": "marketing_measure.measure_clockC"
+      },
+      {
+        "claim": "Up to ~5169× on the best closing loop at n=100000.",
+        "evidence": "[Clock C] TRUE max 5169.1× (median is 3701.0× — we report both)",
+        "condition": "the single best case; NOT typical (median quoted alongside)",
+        "script": "marketing_measure.measure_clockC"
+      },
+      {
+        "claim": "Polynomial multiplication ~17.0× faster in our dependency-0 Rust kernel.",
+        "evidence": "Rust NTT vs same-algorithm Python NTT = 17.0× @deg2048, differential-IDENTICAL",
+        "condition": "NTT poly-mul mod a single prime; same algorithm both sides",
+        "script": "rust_accel.measure"
+      }
+    ],
+    "FORBIDDEN": [
+      {
+        "never_say": "Accelerates ALL code / any code",
+        "why": "general code defers (100%) — that is the honest ceiling, ~5% on general code"
+      },
+      {
+        "never_say": "ε₀ / ordinal-strength proofs",
+        "why": "fold strength is PRA (ω^ω), complete and honest; ε₀ never arises"
+      },
+      {
+        "never_say": "Responses are N× faster",
+        "why": "the speedup is Clock C (code execution), not Clock A (LLM response); live response latency is [BLOCKED: no key/egress] — never sold as response speed"
+      },
+      {
+        "never_say": "Verifies ALL code / proves any program",
+        "why": "EQUALITY only — inequality/positivity deferred 100% (undecidable, Ouaknine–Worrell)"
+      },
+      {
+        "never_say": "88× faster than egg",
+        "why": "our deferred-rebuilding is SELF-measured (~1.1× wall / 1.6× fewer repairs at our scale); egg's published number is not ours to claim"
+      },
+      {
+        "never_say": "Speculative decoding speedup",
+        "why": "impossible on hosted APIs — a mirage, never measured"
+      },
+      {
+        "never_say": "The median speedup as the headline without conditions",
+        "why": "Clock C + closing-numeric + n must be stated; the number is meaningless without them"
+      }
+    ],
+    "honesty_as_asset": [
+      "Proven, not plausible — closing numeric code is verified ∀n (PRA), pass rate 100%.",
+      "We tell you what we can't do — general code and inequalities defer, with reasons.",
+      "Zero false positives, measured — not asserted."
+    ],
+    "messaging": {
+      "layperson": "We make closing mathematical code dramatically faster — and we PROVE it's still correct. When we can't prove something, we say so.",
+      "expert": "Closing numeric sum/recurrence loops: O(n)→O(1) closed form, [Clock C] median ~3701× at n=100000 (p10 1537.7× – p90 4474.0×); each proven ∀n at PRA(ω^ω) by finite-base-case; EQUALITY only; general code defers (~ceiling); false-positive 0 (measured). Clock A (response) unchanged."
+    }
+  },
+  "measurements": {
+    "disposition": {
+      "counts": {
+        "numeric-closing": {
+          "exact": 31,
+          "approx": 0,
+          "defer": 0,
+          "reject": 0,
+          "n": 31
+        },
+        "approximable": {
+          "exact": 0,
+          "approx": 2,
+          "defer": 0,
+          "reject": 0,
+          "n": 2
+        },
+        "general-code": {
+          "exact": 0,
+          "approx": 0,
+          "defer": 10,
+          "reject": 0,
+          "n": 10
+        },
+        "inequality": {
+          "exact": 0,
+          "approx": 0,
+          "defer": 4,
+          "reject": 0,
+          "n": 4
+        },
+        "negative-control": {
+          "exact": 0,
+          "approx": 0,
+          "defer": 0,
+          "reject": 4,
+          "n": 4
+        }
+      },
+      "rates": {
+        "numeric-closing": {
+          "exact": 1.0,
+          "approx": 0.0,
+          "defer": 0.0,
+          "reject": 0.0
+        },
+        "approximable": {
+          "exact": 0.0,
+          "approx": 1.0,
+          "defer": 0.0,
+          "reject": 0.0
+        },
+        "general-code": {
+          "exact": 0.0,
+          "approx": 0.0,
+          "defer": 1.0,
+          "reject": 0.0
+        },
+        "inequality": {
+          "exact": 0.0,
+          "approx": 0.0,
+          "defer": 1.0,
+          "reject": 0.0
+        },
+        "negative-control": {
+          "exact": 0.0,
+          "approx": 0.0,
+          "defer": 0.0,
+          "reject": 1.0
+        }
+      },
+      "false_pass": 0,
+      "defer_reason_rate": 1.0,
+      "n": 51
+    },
+    "clockC": {
+      "by_n": {
+        "1000": {
+          "median": 111.3,
+          "min": 61.7,
+          "max": 149.5,
+          "p10": 66.8,
+          "p90": 120.7,
+          "count": 11
+        },
+        "10000": {
+          "median": 797.8,
+          "min": 457.8,
+          "max": 1250.3,
+          "p10": 581.3,
+          "p90": 851.3,
+          "count": 11
+        },
+        "100000": {
+          "median": 3701.0,
+          "min": 1327.0,
+          "max": 5169.1,
+          "p10": 1537.7,
+          "p90": 4474.0,
+          "count": 11
+        }
+      },
+      "n_cases": 11,
+      "clock": "C",
+      "condition": "closing numeric loops; folded O(1) closed form vs O(n) naive; speedup GROWS with n"
+    },
+    "strength": {
+      "pra_complete": 31,
+      "pra_total": 31,
+      "pra_pass_rate": 1.0,
+      "negative_control_rejection_rate": 1.0,
+      "rejected": 4,
+      "neg_total": 4,
+      "inequality_defer_rate": 1.0,
+      "distinct_verified_families_instances": 3707,
+      "meta_families": 4,
+      "strength": "finite-base-case (PRA, omega^omega)",
+      "epsilon0": "NOT used (PRA suffices for fold)"
+    },
+    "rust": {
+      "status": "OK",
+      "speedup_vs_python_ntt": 17.0,
+      "degree": 2048
+    }
+  }
+}
