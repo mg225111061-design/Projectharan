@@ -1930,6 +1930,39 @@ def test_foldext_stageB2_qfold():
           f"theta/q-harmonic DEFER; correctness {m['correctness']:.0%}; held-out {mh['correctness']:.0%})")
 
 
+def test_foldext_stageB3_abft():
+    """STAGE B3: ABFT checksum self-verification. ★ This accelerates VERIFICATION (Clock B), NOT the
+    computation. ★ Covers: detect_dense_matmul, abft_checksum_detects_error, freivalds_verifies_fast,
+    float_threshold_tuned, abft_is_clockB_not_speedup."""
+    import abft as AB
+    # detect_dense_matmul: AST recognizes a triple-nested C[i][j]+=A[i][k]*B[k][j], rejects a plain reduce
+    assert AB.detect_dense_matmul("for i in range(n):\n for j in range(n):\n  for k in range(n):\n   "
+                                  "C[i][j] += A[i][k]*B[k][j]\n") is True
+    assert AB.detect_dense_matmul("for i in range(n):\n  s += a[i]\n") is False
+    # abft_checksum_detects_error: a single wrong entry is caught in O(N²); honest blind spot is documented
+    mm = AB.measure_abft(dim=64, k=24)
+    assert mm.error_caught_checksum and mm.error_caught_freivalds            # single-entry error caught
+    assert mm.rectangle_missed_by_checksum and mm.rectangle_caught_by_freivalds, \
+        "the checksum's canceling-rectangle blind spot must be honestly shown (missed by checksum, caught by Freivalds)"
+    # freivalds_verifies_fast: probabilistic complete check, ε ≤ 2^-k, faster than O(N³) recompute
+    assert mm.freivalds_error_prob == 2.0 ** -24 and mm.freivalds_speedup >= 1.0
+    assert mm.checksum_speedup > 2.0                                         # O(N²) checksum clearly beats O(N³)
+    # float_threshold_tuned: V-ABFT is epsilon-bounded (tolerance), accepts correct, rejects corrupted
+    import fast_certificates as FC
+    A = [[1.0, 2.0], [3.0, 4.0]]; B = [[5.0, 6.0], [7.0, 8.0]]; C = FC.matmul(A, B)
+    good = AB.checksum_check(A, B, C, integer=False, tol=1e-6)
+    bad = [r[:] for r in C]; bad[0][0] += 0.5
+    badr = AB.checksum_check(A, B, bad, integer=False, tol=1e-6)
+    assert good.ok and good.cert_type == "epsilon-bounded" and not badr.ok
+    assert "false pos" in good.detail.lower()                               # honest about the threshold's risk
+    # abft_is_clockB_not_speedup: ★ the result is labeled Clock B, and we never claim compute got faster ★
+    m = AB.measure_abft_corpus()
+    assert m["clock"] == "B" and "unchanged" in m["note"].lower() and m["handled"] >= 3
+    print(f"PASS test_foldext_stageB3_abft (matmul detected; [Clock B] checksum {mm.checksum_speedup}× / "
+          f"Freivalds {mm.freivalds_speedup}× (ε≤2^-24); single-error caught, rectangle blind-spot honest; "
+          f"V-ABFT epsilon-bounded; verify_rate {m['verify_rate']:.0%} — COMPUTE unchanged (not Clock C))")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
