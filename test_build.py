@@ -370,6 +370,35 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s21_grounding_pipeline():
+    """v28 S21: large-prompt GROUNDING (not understanding — Rice). Structural index + EXACT multi-hop
+    retrieval (no lost-in-the-middle) + spec-extract-and-verify: checkable claims are GROUNDED/REFUTED,
+    natural-language claims are BEST_EFFORT (labeled, never faked). LLM head-to-head is [BLOCKED: key]."""
+    import grounding_pipeline as GP
+    ents = [GP.Entity(n) for n in ("api", "auth", "db", "cache", "util", "log")]
+    edges = [("api", "auth"), ("api", "cache"), ("auth", "db"), ("auth", "log"), ("cache", "db"), ("db", "util")]
+    good = "fn t(n: Nat) -> Nat\n  ensures result = n*(n+1)/2\n{ fold k in 1..n { k } }"
+    bad = "fn t(n: Nat) -> Nat\n  ensures result = n*(n+1)/2\n{ fold k in 1..n { k+1 } }"
+    nl = "the API should feel fast and be user-friendly"
+    queries = [("api", "util", True), ("api", "db", True), ("util", "api", False), ("log", "db", False)]
+    res = GP.ground(ents, edges, [good, bad, nl], queries)
+    st = [c.status for c in res.claims]
+    assert st == ["GROUNDED", "REFUTED", "BEST_EFFORT"]          # verified / refuted / honestly-labeled
+    assert res.claims[1].counterexample is not None             # the refuted claim carries a witness
+    # ── ★ exact multi-hop retrieval (no lost-in-the-middle by construction) ★ ──
+    assert res.multihop_accuracy == 1.0                          # matches hand-derived reachability
+    assert res.index.transitive_deps("api") == {"auth", "cache", "db", "log", "util"}   # complete
+    assert res.index.reaches("api", "util") and not res.index.reaches("util", "api")
+    # ── hierarchical index + proxies ──
+    assert res.coverage == 1.0 and len(res.index.clusters) >= 2 and res.index.root_summary
+    assert abs(res.fidelity - 2 / 3) < 1e-9                      # 2 of 3 claims were formalizable
+    # ── honesty: a BEST_EFFORT claim is NEVER counted GROUNDED; grounding ≠ understanding ──
+    assert len(res.grounded) == 1 and "Rice" in res.note and "not understanding" in res.note
+    assert res.claims[2].status == "BEST_EFFORT" and "no better than an LLM" in res.claims[2].detail
+    print(f"PASS test_s21_grounding_pipeline (claims {st}; multi-hop exact acc={res.multihop_accuracy:.0%}, "
+          f"coverage={res.coverage:.0%}, fidelity={res.fidelity:.2f}; grounding≠understanding, LLM cmp BLOCKED)")
+
+
 def test_s20_treesitter_frontend():
     """v28 S20: error-recovering, comment/string-correct frontend + common IR. The soundness core (pure
     Python) strips NESTED block comments and ignores markers inside strings — where a regex scanner
