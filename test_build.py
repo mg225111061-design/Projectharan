@@ -148,6 +148,24 @@ def test_ct_certifier_proves_and_refutes():
     print("PASS test_ct_certifier_proves_and_refutes (PROVEN + 4 leak classes + FP=0 + IR-label + loop)")
 
 
+def test_s2_injection_ifds():
+    """v26 S2: taint reachability — witness flow for source→sink, FREE when sanitized/no-flow."""
+    import taint_ifds as TI
+    S = "  requires source(u)\n"
+    def st(src):
+        return TI.prove_injection_free(src).status
+    assert st(f"fn h(u: Int) -> Int\n{S}{{ query(u) }}") == "INJECTION_FLOW"
+    assert st(f"fn h(u: Int) -> Int\n{S}{{ let v = u + 1\n  exec(v) }}") == "INJECTION_FLOW"   # taint via let
+    assert st(f"fn h(u: Int) -> Int\n{S}{{ query(escape(u)) }}") == "INJECTION_FREE"           # sanitizer barrier
+    assert st(f"fn h(u: Int) -> Int\n{S}{{ query(42) }}") == "INJECTION_FREE"                   # no tainted arg
+    assert st("fn h(u: Int) -> Int\n{ u + 1 }") == "UNMODELED"                                  # no source/sink
+    # witness + feedback are concrete (a real flow, line, source)
+    v = TI.prove_injection_free(f"fn h(u: Int) -> Int\n{S}{{ query(u) }}")
+    assert v.flows[0]["sink"] == "query" and v.flows[0]["source"] == "u"
+    assert "INJECTION at line" in TI.injection_feedback(v)
+    print("PASS test_s2_injection_ifds")
+
+
 def test_s0_runtime_provider_threading():
     """v26 S0: provider/model/baseUrl thread from the request body through route→agentic→claude_generate
     (network-free: no key → mock path, but the kwargs must be accepted end-to-end)."""
