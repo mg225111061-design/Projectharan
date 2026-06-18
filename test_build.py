@@ -2316,6 +2316,55 @@ def test_foldext3_stage1_finite_check():
           f"leading-coeff guard; fold {ba.ratio}× no regression)")
 
 
+def test_foldext3_stage2_superopt():
+    """v34 STAGE 2: self-built e-graph + superoptimizer (no egglog). Covers: egraph_from_scratch,
+    deferred_rebuilding_speedup_self_measured, eclass_analysis, treewidth/DAG extraction, superopt_timeboxed,
+    discovered_algo_verified_before_cache, runtime_cache_lookup_only, no_runtime_search, runtime_no_regression."""
+    import time
+    import egraph as EG
+    import superopt as SO
+    # egraph_from_scratch + eclass_analysis (constant folding) + hashcons dedup
+    eg = EG.EGraph()
+    a = eg.add_term(("+", ("const", 2), ("const", 3)))
+    assert eg.analysis[eg.find(a)] == 5                          # semilattice constant fold 2+3=5
+    b1 = eg.add_term(("*", ("var", "x"), ("const", 1)))
+    b2 = eg.add_term(("*", ("var", "x"), ("const", 1)))
+    assert eg.find(b1) == eg.find(b2)                            # hashcons dedup
+    # deferred_rebuilding_speedup_self_measured: deferred does STRICTLY FEWER repairs (the algorithmic win),
+    # and is not meaningfully slower. ★ self-measured — egg's 88× is NOT claimed. ★
+    m = EG.measure_deferred_rebuilding()
+    assert m["repairs_deferred"] < m["repairs_eager"] and m["speedup"] >= 0.9
+    assert "NOT egg" in m["note"]
+    # DAG-cost extraction finds the known optimum (x*2+x*3 → 5*x). (Full treewidth-FPT noted as enhancement.)
+    r = SO.superopt(("+", ("*", ("var", "x"), ("const", 2)), ("*", ("var", "x"), ("const", 3))))
+    assert r.status == "OPTIMIZED" and r.cost_after < r.cost_before and r.verified
+    # discovered_algo_verified_before_cache: the SOUND gate accepts true equivalence, REJECTS a wrong one
+    assert SO.verify_equiv(("+", ("var", "x"), ("var", "x")), ("*", ("var", "x"), ("const", 2)))[0] is True
+    assert SO.verify_equiv(("+", ("var", "x"), ("var", "x")), ("*", ("var", "x"), ("const", 3)))[0] is False
+    mc = SO.measure_superopt_corpus()
+    assert mc["optimized"] >= 4 and mc["all_verified"] is True   # every cached optimization is verified
+    # superopt_timeboxed: saturation has an iteration/node cap and terminates
+    big = ("+", ("+", ("+", ("var", "a"), ("var", "b")), ("var", "c")), ("var", "d"))
+    t = time.perf_counter(); SO.superopt(big, iters=6); dt = time.perf_counter() - t
+    assert dt < 10.0                                             # bounded (timeboxed)
+    # runtime_cache_lookup_only + no_runtime_search + no_regression: O(1) lookup; miss returns input UNCHANGED
+    term = ("+", ("*", ("var", "x"), ("const", 2)), ("*", ("var", "x"), ("const", 3)))
+    SO.warm_runtime_cache([term])
+    out, hit = SO.optimize_runtime(term)
+    assert hit and out == ("*", ("var", "x"), ("const", 5))      # pre-verified optimum from O(1) cache
+    miss, h2 = SO.optimize_runtime(("*", ("var", "q"), ("var", "r")))
+    assert h2 is False and miss == ("*", ("var", "q"), ("var", "r"))   # miss = input unchanged (no search)
+    t = time.perf_counter()
+    for _ in range(20000):
+        SO.optimize_runtime(term)
+    us = (time.perf_counter() - t) / 20000 * 1e6
+    assert us < 50.0                                             # O(1) (digest + dict), no saturation at runtime
+    print(f"PASS test_foldext3_stage2_superopt (e-graph from scratch + const-fold + hashcons; deferred "
+          f"rebuilding self-measured {m['speedup']}× / repairs {m['repairs_eager']}→{m['repairs_deferred']} "
+          f"(NOT egg's 88×); superopt {mc['optimized']}/{mc['n']} all verified; runtime O(1) {us:.1f}µs lookup, "
+          f"no search, miss=byte-identical)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
