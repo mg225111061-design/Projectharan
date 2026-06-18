@@ -506,6 +506,18 @@ def test_stage4_login_profile_work():
           "persists; work saved+listed; schema has NO api_key column; LLM key never persisted)")
 
 
+def test_stage4_pipeline_overlap():
+    """v31 STAGE 4 [Clock A+B]: verify each candidate (CPU/SMT) the instant it is generated, overlapping the
+    in-flight generations (network). Different resources → real latency overlap (not a fake number)."""
+    import pipeline as P
+    m = P.measure_overlap(n=4, gen_ms=45)
+    # verify_overlaps_next_generation / pipeline_async_no_blocking: overlapped wall < two-phase wall
+    assert m.overlap_ms < m.two_phase_ms and m.speedup > 1.0 and m.winner_verified is True
+    assert "Clock A+B" in m.note                                  # labeled (combined clock), not mixed with C
+    print(f"PASS test_stage4_pipeline_overlap ([Clock A+B] two-phase {m.two_phase_ms}ms → overlapped "
+          f"{m.overlap_ms}ms = {m.speedup}×; real Z3 verify hidden under generation; winner verified)")
+
+
 def test_stage3_clockC_runtime():
     """v31 STAGE 3 [Clock C: generated-code execution]: fold collapse (O(n)→O(1), BIT-EXACT) preferred;
     Numba JIT (constant-factor, bit-exact within int64) as fallback. Clock C ONLY. Non-closeable → DEFER."""
