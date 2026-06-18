@@ -370,6 +370,40 @@ def test_s0_runtime_provider_threading():
     print("PASS test_s0_runtime_provider_threading")
 
 
+def test_s24_concretization_gate():
+    """v28 S24: CEGAR concretization gate — run an abstract counterexample on the REAL runtime before any
+    fix. ★The danger case★: a spurious counterexample against CORRECT code must yield NO_BUG and leave the
+    code untouched; a real bug is reproduced; a hallucinated fix that breaks a passing test is rolled back."""
+    import concretization_gate as CG
+    crash = lambda cex, out, exc: exc is not None          # the property: "must not crash at runtime"
+    # ── ★ SPURIOUS counterexample vs CORRECT code → NO_BUG, code NOT edited ★ ──
+    guarded = lambda a, b: (a // b if b != 0 else 0)       # correct (guarded division)
+    v1 = CG.cegar(CG.from_candidates([{"a": 1, "b": 0}]), guarded, crash)   # abstraction wrongly flags b=0
+    assert v1.status == "NO_BUG" and v1.spurious == [{"a": 1, "b": 0}] and v1.refinements >= 1
+    # ── a genuine bug IS reproduced on the real runtime → REAL_BUG ──
+    buggy = lambda a, b: a // b                            # unguarded → crashes at b=0
+    v2 = CG.cegar(CG.from_candidates([{"a": 1, "b": 0}]), buggy, crash)
+    assert v2.status == "REAL_BUG" and v2.counterexample == {"a": 1, "b": 0}
+    # ── refinement budget: endless spurious counterexamples → DEFER (never hangs, never edits) ──
+    import itertools
+    def endless(excluded):
+        for k in itertools.count():
+            c = {"a": k, "b": 0}
+            if CG._freeze(c) not in excluded:
+                return c
+    assert CG.cegar(endless, guarded, crash, max_refine=5).status == "DEFER"
+    # ── regression guard: a fix that breaks a previously-passing test is ROLLED BACK ──
+    orig = lambda a, b: (a // b if b != 0 else 0)
+    badfix = lambda a, b: a // b                           # a hallucinated "fix" that crashes the guarded case
+    tests = [({"a": 6, "b": 2}, 3), ({"a": 5, "b": 0}, 0)]
+    out = CG.apply_fix_guarded(orig, badfix, tests)
+    assert out.status == "ROLLBACK" and out.broke == [{"a": 5, "b": 0}] and out.fn is orig   # working code kept
+    good = CG.apply_fix_guarded(orig, lambda a, b: (a // b if b != 0 else 0), tests)
+    assert good.status == "APPLIED"
+    print("PASS test_s24_concretization_gate (spurious cex vs correct code → NO_BUG, code untouched; real "
+          "bug reproduced → REAL_BUG; endless spurious → DEFER; hallucinated fix → ROLLBACK)")
+
+
 def test_s23_soundness_defense():
     """v28 S23: defend against a single mapping/solver bug collapsing integrity. (1) an independent RUP/DRAT
     UNSAT checker re-verifies proofs (TCB shrinks to the checker; bogus proofs rejected); (2) a solver
