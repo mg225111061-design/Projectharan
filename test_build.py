@@ -506,6 +506,31 @@ def test_stage4_login_profile_work():
           "persists; work saved+listed; schema has NO api_key column; LLM key never persisted)")
 
 
+def test_stage3_clockC_runtime():
+    """v31 STAGE 3 [Clock C: generated-code execution]: fold collapse (O(n)→O(1), BIT-EXACT) preferred;
+    Numba JIT (constant-factor, bit-exact within int64) as fallback. Clock C ONLY. Non-closeable → DEFER."""
+    import runtime_speed as RS
+    # fold_collapses_closed_form (bit_exact): Σk² → O(1) closed form, exact, win grows with n
+    f = RS.fold_sum_speedup(lambda n: sum(k * k for k in range(1, n + 1)),
+                            "fn f(n: Nat) -> Nat { fold k in 1..n { k*k } }", n=1_000_000)
+    assert f.status == "FOLDED" and f.bit_exact is True and f.speedup > 1.1 and "n*(n + 1)" in f.closed_form
+    assert f.cert_type == "exact-closed-form"
+    # defer_when_no_fold: a non-closeable sum is HONEST_DEFER (never a fake "folded")
+    d = RS.fold_sum_speedup(lambda n: 0, "fn f(n: Nat) -> Nat { fold k in 1..n { 1 / k } }", n=1000)
+    assert d.status == "DEFER" and "no fake fold" in d.detail
+    # fold_rate_measured: honest hit-rate (fold helps ONLY closeable code)
+    fr = RS.measure_fold_rate()
+    assert fr["closed"] >= 3 and fr["total"] == 6 and 0 < fr["rate"] <= 1 and "closeable" in fr["note"]
+    # jit_speeds_kernel (labeled Clock C): data-dependent kernel, bit-exact; or honest [BLOCKED] if no Numba
+    j = RS.jit_sumsq_speedup(n=400_000, reps=2)
+    assert j.status in ("JITTED", "BLOCKED")
+    if j.status == "JITTED":
+        assert j.equal is True and j.speedup > 1.1 and "Clock C" in j.detail   # bit-exact + a real win
+    print(f"PASS test_stage3_clockC_runtime ([Clock C] fold Σk² {f.speedup}× O(n)→O(1) bit-exact; "
+          f"JIT {j.status}{' '+str(j.speedup)+'× bit-exact' if j.status=='JITTED' else ''}; "
+          f"fold-rate {fr['rate']}; non-closeable→DEFER)")
+
+
 def test_stage2_clockB_verification():
     """v31 STAGE 2 [Clock B: verification]: incremental SMT (reuse), fast probabilistic certificates
     (Freivalds / Schwartz-Zippel — one-sided, error stated), and SOUND semantic caching. Clock B ONLY —
