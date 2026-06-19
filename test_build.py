@@ -2942,6 +2942,38 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v39_c1_proof_dag_cutoff():
+    """v39 PHASE C1 (bonus): proof_dag EARLY-CUTOFF incremental recheck (Salsa/Adapton firewall) — a verdict-
+    preserving edit stops at the firewall instead of invalidating all transitive dependents. ADDITIVE (existing
+    update/recheck untouched). Sound: cutoff must leave NO stale verdict vs a from-scratch recompute."""
+    import proof_dag as PD
+
+    m = PD.measure_cutoff(500, 3)
+    # the win: a verdict-preserving (refactoring) edit rechecks far fewer than the conservative transitive set
+    assert m["cutoff_verdict_preserving"] < m["transitive_dirty"] and m["cutoff_preserving_ratio"] <= 0.05
+    # a verdict-FLIPPING edit still cascades (cutoff does not under-recheck)
+    assert m["cutoff_verdict_flipping"] >= m["transitive_dirty"] // 2
+
+    # ★ SOUNDNESS: after update_cutoff, every node's verdict equals a full from-scratch recompute (no stale) ★
+    own = lambda c: "BAD" not in c
+    for edit in ("obligation-1-REFACTORED", "obligation-1-BAD"):       # preserving + flipping
+        dag, _ = PD._fresh_dag(120, 3)
+        dag.verify_all_deps(own)
+        dag.update_cutoff("p1", edit, own)
+        incremental = {nid: n.verified for nid, n in dag.nodes.items()}
+        fresh, _ = PD._fresh_dag(120, 3)                                # rebuild + apply the same edit, full recompute
+        fresh.nodes["p1"].content = edit
+        fresh.nodes["p1"].checksum = PD._checksum(edit)
+        fresh.verify_all_deps(own)
+        full = {nid: n.verified for nid, n in fresh.nodes.items()}
+        assert incremental == full, f"STALE verdict after cutoff ({edit}): cutoff under-rechecked"
+
+    print(f"PASS test_v39_c1_proof_dag_cutoff (transitive {m['transitive_ratio']:.0%} dirty → early-cutoff "
+          f"{m['cutoff_preserving_ratio']:.1%} on a verdict-preserving edit (firewall), still "
+          f"{m['cutoff_flipping_ratio']:.0%} cascade on a flip; SOUND — incremental verdicts == full recompute, "
+          f"no stale; additive, existing update/recheck untouched)")
+
+
 def test_v39_b_decline_recovery():
     """v39 PHASE B (north-star): recover fake-Ω(N) from the DECLINE pile (hidden polynomial / exp-sum / sparse /
     low-rank) with sound per-instance HELD-OUT certificates, while real-Ω(N) (genuine noise) stays DECLINE. The

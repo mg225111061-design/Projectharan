@@ -81,6 +81,83 @@ class ProofDAG:
         return n
 
 
+    # ── C1: EARLY-CUTOFF incremental recheck (Salsa/Adapton firewall) — ADDITIVE (does not touch update/recheck) ──
+    # Realistic model: a node is valid iff own_check(content) AND every dependency is valid. Then an edit that
+    # does NOT flip the changed node's verdict needs NOT invalidate its dependents — propagation stops at the
+    # firewall. SOUND under this model; the existing update() stays as the conservative (all-transitive) path.
+    def _topo(self) -> List[str]:
+        indeg = {nid: len(n.deps) for nid, n in self.nodes.items()}
+        q = [nid for nid, d in indeg.items() if d == 0]
+        order, q = [], list(q)
+        while q:
+            cur = q.pop()
+            order.append(cur)
+            for dep in self.dependents.get(cur, ()):
+                indeg[dep] -= 1
+                if indeg[dep] == 0:
+                    q.append(dep)
+        return order if len(order) == len(self.nodes) else list(self.nodes)   # cycle → fall back to all
+
+    def _full_verdict(self, node: "Node", own_check: Callable[[str], bool]) -> bool:
+        return own_check(node.content) and all(self.nodes[d].verified for d in node.deps)
+
+    def verify_all_deps(self, own_check: Callable[[str], bool]) -> int:
+        """Cold pass under the dependency model: verdict = own_check(content) ∧ (all deps valid), in topo order."""
+        n = 0
+        for nid in self._topo():
+            self.nodes[nid].verified = self._full_verdict(self.nodes[nid], own_check)
+            n += 1
+        return n
+
+    def update_cutoff(self, nid: str, new_content: str, own_check: Callable[[str], bool]) -> int:
+        """Change a node's content and recheck with EARLY CUTOFF: recheck the node; propagate to dependents
+        ONLY when a verdict actually FLIPS. Returns the number of nodes actually rechecked (≤ transitive set)."""
+        node = self.nodes[nid]
+        new_sum = _checksum(new_content)
+        if new_sum == node.checksum:
+            return 0                                       # no real change
+        node.content, node.checksum = new_content, new_sum
+        frontier, rechecked, seen = [nid], 0, set()
+        while frontier:
+            cur = frontier.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            old = self.nodes[cur].verified
+            new = self._full_verdict(self.nodes[cur], own_check)
+            self.nodes[cur].verified = new
+            rechecked += 1
+            if new != old:                                 # verdict flipped → dependents may change → cascade
+                frontier.extend(self.dependents.get(cur, ()))
+            # else: firewall — dependents' inputs are unchanged, no recheck (the early cutoff)
+        return rechecked
+
+
+def measure_cutoff(n_nodes: int = 500, fanout: int = 3) -> dict:
+    """Compare the conservative transitive-dependents recheck vs EARLY-CUTOFF, for a verdict-PRESERVING edit
+    (the common refactoring case — cutoff wins big) AND a verdict-FLIPPING edit (cutoff = transitive worst
+    case). Both reported, no cherry-pick. Baseline = the §0 number (~66% dirty @500 on a near-root change)."""
+    own = lambda c: "BAD" not in c
+    # conservative baseline: transitive-dependents dirty for a near-root change
+    base, _c = _fresh_dag(n_nodes, fanout)
+    base.verify_all(own)
+    transitive_dirty = len(base.update("p1", "obligation-1-EDITED"))
+    # early-cutoff, verdict-PRESERVING edit (content changes, own_check still True ⇒ verdict unchanged)
+    d1, _ = _fresh_dag(n_nodes, fanout); d1.verify_all_deps(own)
+    keep_rechecked = d1.update_cutoff("p1", "obligation-1-REFACTORED", own)      # same verdict (still valid)
+    # early-cutoff, verdict-FLIPPING edit (own_check flips to False ⇒ cascade)
+    d2, _ = _fresh_dag(n_nodes, fanout); d2.verify_all_deps(own)
+    flip_rechecked = d2.update_cutoff("p1", "obligation-1-BAD", own)             # flips → dependents recheck
+    return {"n_nodes": n_nodes,
+            "transitive_dirty": transitive_dirty, "transitive_ratio": round(transitive_dirty / n_nodes, 3),
+            "cutoff_verdict_preserving": keep_rechecked,
+            "cutoff_preserving_ratio": round(keep_rechecked / n_nodes, 3),
+            "cutoff_verdict_flipping": flip_rechecked,
+            "cutoff_flipping_ratio": round(flip_rechecked / n_nodes, 3),
+            "note": "verdict-preserving edit: cutoff rechecks 1 (firewall) vs transitive's many; verdict-flipping "
+                    "edit: cutoff ≈ transitive (cascade needed). Sound under verdict=own∧deps. Both reported."}
+
+
 def _fresh_dag(n_nodes: int, fanout: int) -> Tuple["ProofDAG", Callable]:
     dag = ProofDAG()
 
