@@ -2896,6 +2896,52 @@ def test_v37_stage2_probabilistic_certs():
           f"HLL rel-err {hll.certificate.bound:.2%}; all PROBABILISTIC w/ δ stated — never EXACT)")
 
 
+def test_v37_stage234_frontier_dogfood():
+    """v37 STAGE 2.3+3+4: matrix completion (held-out binomial δ) + planted detection (BBP, gap honesty) +
+    formal Z3 bounds + dogfood. Grade separation strict; the statistical-computational gap never claims absence;
+    the trusted cores reject forced-wrong inputs (ZERO human audit)."""
+    import matrix_completion as MC
+    import planted_detect as PD
+    import prob_cert_formal as PF
+    import dogfood_v37 as DF
+    import sublinear_layer as SL
+
+    # S2.3 matrix completion: recoverable rank-3 60%-observed → PROBABILISTIC (held-out binomial-tail, ε & δ stated)
+    M_obs, mask, _ = MC.make_instance(150, 3, 0.6, seed=0)
+    mc = MC.complete((M_obs, mask), r=3)
+    assert mc.status == SL.PROBABILISTIC and mc.certificate.passed
+    assert mc.certificate.epsilon is not None and mc.certificate.delta is not None   # ε,δ STATED (not EXACT)
+    assert mc.certificate.bound < 0.05 and mc.result["rank"] == 3                     # certified violation-rate
+    # insufficient observations / rank too high for the data → DECLINE (held-out witness fails)
+    Mi, mi, _ = MC.make_instance(80, 20, 0.6, seed=0)
+    assert MC.complete((Mi, mi), r=20).status == SL.DECLINE
+    Mu, mu, _ = MC.make_instance(80, 3, 0.05, seed=0)
+    assert MC.complete((Mu, mu), r=3).status == SL.DECLINE                            # under-determined
+
+    # S3 planted: above BBP → PROBABILISTIC spectral gap; below BBP → DECLINE that NEVER claims "no signal"
+    above, _ = PD.make_spiked(200, snr=3.0, seed=0)
+    pa = PD.detect(above)
+    assert pa.status == SL.PROBABILISTIC and pa.certificate.bound > 0 and pa.certificate.delta is not None
+    below, _ = PD.make_spiked(200, snr=0.2, seed=1)
+    pb = PD.detect(below)
+    assert pb.status == SL.DECLINE and "absence" in pb.reason.lower()                 # gap honesty: not "no signal"
+
+    # S4.1 formal Z3: Freivalds composition + Hoeffding proven, AND a too-optimistic claim is rejected
+    assert PF.formalize_freivalds(8).proven and PF.formalize_hoeffding(1000, 0.05).proven
+    assert PF.verify_claimed_bound(1e-3, 1e-3) and not PF.verify_claimed_bound(1e-3, 1e-4)  # rejects too-tight
+
+    # S4.2 dogfood: every trusted core rejects a FORCED-WRONG input; contract + formal + metamorphic hold
+    d = DF.self_verify()
+    assert d.all_pass and all(d.rejected_wrong.values())
+    assert d.contract_invariant and d.formal_bounds and d.metamorphic
+
+    print(f"PASS test_v37_stage234_frontier_dogfood (matrix-completion PROBABILISTIC ε={mc.certificate.epsilon:.1e} "
+          f"δ={mc.certificate.delta:.0e} rate≤{mc.certificate.bound:.1e}, insufficient→DECLINE; planted "
+          f"above-BBP gap={pa.certificate.bound:.2f}, below-BBP→DECLINE w/o absence-claim; Z3 bounds proven & "
+          f"too-tight rejected; dogfood {sum(d.rejected_wrong.values())}/{len(d.rejected_wrong)} forced-wrong "
+          f"rejected → all_pass)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
