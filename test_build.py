@@ -2567,6 +2567,53 @@ def test_v35_marketing_claims():
           f"NOT-response; egg-88×/ε₀/all-code/response-speed explicitly forbidden; layperson+expert messaging)")
 
 
+def test_v36_phase1_soundness_gate():
+    """v36 PHASE 1: sound-or-decline foundation. Covers P1.S1 differential_oracle, P1.S2 symbolic_oracle
+    ([BLOCKED: crosshair] honest fallback), P1.S3 cert_recheck (cross-validation), P1.S4 soundness_gate.
+    Acceptance: the false-safety + mistranslation corpus ALL DECLINE; correct translations/claims PROVEN."""
+    import math
+    import differential_oracle as DO
+    import symbolic_oracle as SO
+    import cert_recheck as CR
+    import soundness_gate as SG
+    # P1.S1: each WRONG translation is caught (TRANSLATION_UNSOUND); each correct one PASSes (false-pos 0)
+    wrong = [
+        (lambda a, b: a / b, lambda a, b: a // b, ["int", "nonzero_int"]),       # / true-div vs floordiv
+        (lambda a, b: a and b, lambda a, b: a & b, ["int", "int"]),             # short-circuit vs bitwise
+        (lambda a, b: a % b, lambda a, b: int(math.fmod(a, b)), ["int", "nonzero_int"]),  # neg % sign
+    ]
+    for py, wr, kinds in wrong:
+        assert DO.differential_check(py, wr, kinds).verdict == "TRANSLATION_UNSOUND"
+    fp = sum(1 for py, kinds in [(lambda a, b: a / b, ["int", "nonzero_int"]),
+                                 (lambda a, b: a % b, ["int", "nonzero_int"]),
+                                 (lambda a, b: (a + b) ** 2, ["int", "int"])]
+             if not DO.differential_check(py, py, kinds).sound)
+    assert fp == 0                                                               # ★ false positives 0 ★
+    # P1.S2: crosshair BLOCKED → honest fallback still catches a divergence (sound, lower coverage)
+    assert SO.crosshair_available() is False                                    # honest: not installed here
+    s = SO.find_divergence(lambda a, b: a / b, lambda a, b: a // b, ["int", "nonzero_int"])
+    assert s.engine == "differential-fallback" and "BLOCKED" in s.detail and s.status == "FOUND_DIVERGENCE"
+    # P1.S3: independent recheck — true claim PROVEN, false claim REFUTED w/ real cex, mapping metamorphic ok
+    assert CR.recheck("a + b = b + a", {"a": "Int", "b": "Int"}).verdict == "PROVEN"
+    rf = CR.recheck("a*a = a", {"a": "Int"})
+    assert rf.verdict == "REFUTED" and rf.counterexample is not None
+    ok_map, bad = CR.mapping_sound()
+    assert ok_map and not bad                                                    # flipped operator would break this
+    # clause-proof recheck: a SAT instance falsely "proven" UNSAT is REJECTED (RUP + brute cross-check)
+    ok_proof, _ = CR.recheck_clause_proof([[1], [-1]], [[]], nvars=1)            # genuine UNSAT + ⊥ proof
+    bad_proof, _ = CR.recheck_clause_proof([[1]], [[]], nvars=1)                 # SAT, bogus ⊥ claim → reject
+    assert ok_proof is True and bad_proof is False
+    # P1.S4: the unified gate — mistranslation DECLINEs at S1; correct translation + true claim PROVEN
+    g_bad = SG.gate(lambda a, b: a / b, lambda a, b: a // b, ["int", "nonzero_int"])
+    assert g_bad.decision == "DECLINE" and g_bad.stage_reached == "S1_differential"
+    g_ok = SG.gate(lambda a, b: a + b, lambda a, b: a + b, ["int", "int"],
+                   smt_expr="a + b = b + a", smt_types={"a": "Int", "b": "Int"})
+    assert g_ok.decision == "PROVEN"
+    print(f"PASS test_v36_phase1_soundness_gate (S1 mistranslation corpus all DECLINE, false-pos 0; S2 "
+          f"[BLOCKED: crosshair] honest fallback catches divergence; S3 Z3↔bounded cross-validation + mapping "
+          f"metamorphic + RUP recheck (bogus proof rejected); S4 gate DECLINEs unsound, PROVEN sound)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
