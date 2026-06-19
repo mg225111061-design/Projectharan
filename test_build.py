@@ -2942,6 +2942,79 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_perf5_egraph_to_native_emission():
+    """perf-build STAGE 5: optimal e-graph term → LLVM direct emission. Z3-certified extraction → backend_llvm
+    native i64 → Alive2-style translation validation (bit-exact per-instance). Covers direct_emission_bit_exact,
+    translation_validated, emission_speedup_measured. Degrades to [BLOCKED] if llvmlite absent."""
+    import egraph_native as EN
+    import fold_egraph as FE
+    import backend_llvm as BE
+
+    if not BE.llvm_available():
+        assert EN.fold_to_native(2).status == "BLOCKED"
+        print(f"PASS test_perf5_egraph_to_native_emission (llvmlite [BLOCKED] honestly: {BE._LLVM_ERR[:50]} — "
+              f"no fake native; fold/Python path intact)")
+        return
+
+    # direct_emission_bit_exact: fold extracts the closed form, emit native, translation-validated bit-exact
+    for p in (1, 2, 3):
+        er = EN.fold_to_native(p)
+        assert er.status == "EMITTED" and er.checked_ns, f"Σk^{p} not emitted: {er.detail}"
+
+    # translation_validated: a WRONG closed form (n² for Σk²) is caught per-instance → DECLINE (fallback)
+    assert EN.emit_native("n*n", lambda n: FE.powersum_naive(2, n)).status == "TRANSLATION_DECLINED"
+    # §5.1 Z3-certified extraction of a ring term → native; an uncertified extraction would be UNSOUND_BLOCKED
+    ce = EN.certified_emit(("+", ("*", ("var", "n"), ("const", 2)), ("*", ("var", "n"), ("const", 3))))  # →5n
+    assert ce.status == "EMITTED" and "CERTIFIED" in ce.detail
+
+    # emission_speedup_measured: direct emission (O(1) native) vs the source route (O(n) loop), bit-exact, grows
+    m = EN.measure_emission(2, ns=(1000, 10000, 100000))
+    assert m["status"] == "EMITTED" and m["bit_exact"]
+    sp = [pt["speedup"] for pt in m["points"]]
+    assert sp[0] > 1 and sp[-1] > sp[0]                 # native closed beats the O(n) loop, gap grows with N
+    big = m["points"][-1]
+
+    print(f"PASS test_perf5_egraph_to_native_emission (Σk^p extract→native i64, translation-validated bit-exact; "
+          f"wrong closed form DECLINED per-instance; ring term Z3-CERTIFIED→native; [Clock C] direct emission "
+          f"O(1) native vs source-route O(n) loop n=1e5: {big['naive_loop_ms']:.2f}ms→{big['native_closed_ms']:.5f}ms "
+          f"={big['speedup']:.0f}× — the closed form -O3 can't discover, bit-exact)")
+
+
+def test_perf4_hidden_closedform_recovery():
+    """perf-build STAGE 4: hidden closed-form recovery (the HONEST O(1) direction). A C-finite sequence whose
+    characteristic roots are all 1 is SECRETLY a polynomial ⇒ recover O(log n)→O(1), EXACTLY, held-out
+    verified. Covers hidden_closedform_recovered_measured, approx_labeled_probabilistic,
+    exact_never_claims_O1_when_Theta_n, recovery_rate_by_category."""
+    import hidden_closed as HC
+    import cfinite
+
+    # hidden_closedform_recovered_measured (HELD-OUT): Σk² as an order-4 C-finite recurrence (cfinite calls it
+    # O(log n)) is actually a degree-3 polynomial ⇒ recovered to O(1), verified on held-out samples
+    rec = HC.classify_recurrence([4, -6, 4, -1], [0, 1, 5, 14], m=40)
+    assert rec.status == HC.CLOSED_O1 and rec.degree == 3 and rec.grade == "EXACT" and rec.checked_holdout >= 5
+    # and a genuine polynomial sampled directly
+    cube = HC.classify(lambda n: 3 * n ** 3 - 2 * n + 5, m=40)
+    assert cube.status == HC.CLOSED_O1 and cube.degree == 3
+
+    # exact_never_claims_O1_when_Theta_n: Fibonacci stays O(log n) (EXACT O(1) impossible); 2^n value is Θ(n) bits
+    assert HC.classify_recurrence([1, 1], [0, 1], m=40).status == HC.OLOGN
+    assert HC.classify(lambda n: 2 ** n, m=40, value_bits_theta_n=True).status == HC.THETA_N_OUTPUT
+
+    # approx_labeled_probabilistic: a float O(1) (Binet) is numerically close but graded PROBABILISTIC, NOT EXACT
+    val, ar = HC.approx_O1_probabilistic((1 + 5 ** 0.5) / 2, (1 - 5 ** 0.5) / 2, 5 ** 0.5, 20)
+    assert ar.grade == "PROBABILISTIC" and round(val) == cfinite.naive_nth([1, 1], [0, 1], 20)
+
+    # recovery_rate_by_category (held-out verified): polynomials recover; Fibonacci/exp/random do NOT (honest)
+    mr = HC.measure_recovery()
+    assert mr["polynomial-sum"]["rate"] == 1.0
+    assert mr["cfinite-nonpoly"]["recovered_O1"] == 0 and mr["general-noise"]["recovered_O1"] == 0
+
+    print(f"PASS test_perf4_hidden_closedform_recovery (Σk² recurrence O(log n)→O(1) degree-3, held-out×"
+          f"{rec.checked_holdout}; by category: polynomial {mr['polynomial-sum']['rate']:.0%} recovered, "
+          f"cfinite-nonpoly 0% (Fibonacci stays O(log n) — EXACT O(1) impossible), general 0% (Ω(N)); 2^n→Θ(n) "
+          f"output; Binet O(1) labeled PROBABILISTIC, never EXACT)")
+
+
 def test_perf3_fold_as_egraph_rewrite():
     """perf-build STAGE 3: FOLD as a first-class e-graph rewrite. Kernels (Faulhaber Σk^p, C-finite recurrences)
     register as rewrite rules that collapse the O(n) node to an O(1)/O(log n) CLOSED node — gated by a
