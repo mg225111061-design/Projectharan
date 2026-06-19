@@ -2781,6 +2781,48 @@ def test_v36_phase4_spec_and_dogfood():
           f"metamorphic — ZERO human audit★)")
 
 
+def test_v37_stage0_freivalds():
+    """v37 STAGE 0: sublinear-layer contract + dispatcher + Freivalds (the template). The contract enforces
+    'non-DECLINE ⟹ a passed certificate' (no fake pass); Freivalds is one-sided PROBABILISTIC(δ=2^-k)."""
+    import numpy as np
+    import sublinear_layer as SL
+    import freivalds as FV
+    # ★ contract invariant: a non-DECLINE WITHOUT a passed certificate must be impossible (guards fake passes) ★
+    try:
+        SL.SublinearVerdict(SL.PROBABILISTIC, True, "x", "O(1)", certificate=None)
+        raised = False
+    except AssertionError:
+        raised = True
+    assert raised, "the contract MUST reject a non-DECLINE without a passed certificate"
+    # PROBABILISTIC must state δ (never hidden as EXACT)
+    try:
+        SL.SublinearVerdict(SL.PROBABILISTIC, True, "x", "O(1)",
+                            SL.Certificate(SL.PROBABILISTIC, "k", passed=True, delta=None))
+        ok_delta = False
+    except AssertionError:
+        ok_delta = True
+    assert ok_delta
+    # dispatcher: correct A·B=C → PROBABILISTIC (passed cert); wrong → DECLINE; fold-not-declined → not consulted
+    rng = np.random.default_rng(0)
+    A = rng.integers(-9, 9, (60, 60)).astype(float); B = rng.integers(-9, 9, (60, 60)).astype(float); C = A @ B
+    v = SL.fold_then_sublinear(True, (A, B, C), "matmul_check", k=24)
+    assert v.status == SL.PROBABILISTIC and v.certificate.passed and v.certificate.delta == 2.0 ** -24
+    assert v.certificate.grade == SL.PROBABILISTIC and "freivalds" in v.kind
+    Cw = C.copy(); Cw[0, 0] += 1
+    assert SL.fold_then_sublinear(True, (A, B, Cw), "matmul_check", k=24).status == SL.DECLINE
+    assert SL.fold_then_sublinear(False, None, "matmul_check").status == SL.DECLINE   # fold didn't decline → skip
+    assert "matmul_check" in SL.registered_problems()
+    # ★ one-sided soundness: false-REJECT = 0 (GUARANTEED); false-ACCEPT ≈ 0 over adversarial trials ★
+    a = FV.adversarial_false_accept(trials=50_000, N=6, k=20)
+    assert a["false_reject"] == 0 and a["false_accept"] == 0
+    # speedup GROWS with N (sublinear O(kN²) vs O(N³))
+    s1, s2 = FV.measure_speedup(N=800, k=16)["speedup"], FV.measure_speedup(N=1600, k=16)["speedup"]
+    assert s2 > s1 and s2 > 1.5
+    print(f"PASS test_v37_stage0_freivalds (contract enforces non-DECLINE⟹passed-cert + δ-stated; Freivalds "
+          f"PROBABILISTIC δ=2^-k, one-sided: false_reject=0 GUARANTEED, false_accept=0/50k; O(kN²) speedup "
+          f"grows {s1}×@N=800 → {s2}×@N=1600)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
