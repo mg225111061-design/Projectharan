@@ -2942,6 +2942,51 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_perf3_fold_as_egraph_rewrite():
+    """perf-build STAGE 3: FOLD as a first-class e-graph rewrite. Kernels (Faulhaber Σk^p, C-finite recurrences)
+    register as rewrite rules that collapse the O(n) node to an O(1)/O(log n) CLOSED node — gated by a
+    soundness certificate. Covers fold_rule_in_egraph, fold_cert_gate, fold_normalization_in_cache,
+    haran_rules_dogfooded."""
+    import fold_egraph as FE
+
+    # fold_rule_in_egraph: the rewrite fires in saturation and cost-extraction picks the closed form
+    fe = FE.FoldEGraph()
+    assert fe.register_powersum(1) and fe.register_powersum(2) and fe.register_powersum(3)
+    assert fe.register_linrec(0, (1, 1), (0, 1))                     # Fibonacci
+    eg, root = fe.saturate(("PowerSum", ("const", 2), ("var", "n")))
+    assert fe.folds_in(eg, root) and fe.extract_best(eg, root)[0].startswith("Closed:")
+
+    # [Clock C] measured O(n)→O(1) (Faulhaber) and O(n)→O(log n) (C-finite), BIT-EXACT; speedup GROWS with n
+    for kind in ("powersum2", "fib"):
+        m = FE.measure_fold(kind, ns=(1000, 10000, 100000))
+        assert m["fold_fired"] and m["bit_exact"]
+        sp = [pt["speedup"] for pt in m["points"]]
+        assert sp[0] > 1 and sp[-1] > sp[0]                          # closed is faster, and the gap grows with n
+
+    # fold_cert_gate (§3.3): a WRONG closed form is REJECTED ⇒ no rule, no substitution ⇒ honest DECLINE (O(n))
+    fe_bad = FE.FoldEGraph()
+    assert fe_bad.register_powersum(2, closed=lambda p, n: n * n) is False     # n² ≠ Σk²
+    egb, rb = fe_bad.saturate(("PowerSum", ("const", 2), ("var", "n")))
+    assert fe_bad.folds_in(egb, rb) is False                        # stays O(n) — never a wrong fold
+
+    # fold_normalization_in_cache (§3.2): fold-equivalent expressions get the SAME key; different kernel differs
+    k_n = FE.fold_key(fe, ("PowerSum", ("const:2",), ("var:n",)))
+    k_m = FE.fold_key(fe, ("PowerSum", ("const:2",), ("var:m",)))
+    k_cube = FE.fold_key(fe, ("PowerSum", ("const:3",), ("var:n",)))
+    assert k_n == k_m and k_n != k_cube and k_n.startswith("Closed")
+
+    # haran_rules_dogfooded (§3.4): each Faulhaber identity AGREES with the INDEPENDENT C-finite companion
+    # engine (two different kernels, exact integers) — and a forced-wrong closed form fails that cross-check
+    assert all(FE.cross_validate_powersum(p) for p in (1, 2, 3))
+    assert FE.certify_powersum(2, closed=lambda p, n: n * n) is False          # forced-wrong rejected by gate
+
+    big = FE.measure_fold("powersum2", ns=(100000,))["points"][0]
+    print(f"PASS test_perf3_fold_as_egraph_rewrite (Σk^p & C-finite register as e-graph rewrites, gated; "
+          f"[Clock C] bit-exact O(n)→O(1): Σk² n=1e5 naive {big['naive_ms']:.2f}ms→closed {big['closed_ms']:.5f}ms "
+          f"={big['speedup']:.0f}×; wrong closed form REJECTED (stays O(n)); fold-equiv→same key; Faulhaber ≡ "
+          f"independent C-finite companion for p=1,2,3 — HARAN-first cross-validated)")
+
+
 def test_perf2_semantic_proof_cache():
     """perf-build STAGE 2: e-graph SEMANTIC proof cache [Clock B]. A goal's verdict is keyed on a semantic
     normal form (e-graph saturate commute/assoc/distrib + const-fold → nf → canonical α-rename), so surface
