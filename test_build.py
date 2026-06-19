@@ -2942,6 +2942,63 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_perf2_semantic_proof_cache():
+    """perf-build STAGE 2: e-graph SEMANTIC proof cache [Clock B]. A goal's verdict is keyed on a semantic
+    normal form (e-graph saturate commute/assoc/distrib + const-fold → nf → canonical α-rename), so surface
+    refactorings hit one entry where the structural cache misses. Covers semantic_equiv_cache_hit,
+    interval_subsumption_correct, smt_bypass_rate_measured, no_runtime_regression, dogfood_cache_soundness."""
+    import itertools
+    import z3_adapter as Z
+    import semantic_cache as SC
+    import proof_cache as PC
+
+    I = {"a": "Int", "b": "Int", "c": "Int", "x": "Int"}
+
+    def g(expr):
+        return (Z.parse_predicate(expr, I), I, ())
+
+    # semantic_equiv_cache_hit: 5 refactoring families (assoc, distrib, const-fold, commute-across-structure,
+    # comparison-direction) — all MISS structurally, all HIT semantically
+    families = [("(a+b)+c >= 0", "a+(b+c) >= 0"), ("a*(b+c) >= 0", "a*b + a*c >= 0"),
+                ("x + 0 >= 0", "x >= 0"), ("a*b + c >= 0", "c + b*a >= 0"), ("a > b", "b < a")]
+    for e1, e2 in families:
+        ks1, ks2 = SC.semantic_key(*g(e1)), SC.semantic_key(*g(e2))
+        kt1 = PC.canonical_key(Z.parse_predicate(e1, I), I, ())
+        kt2 = PC.canonical_key(Z.parse_predicate(e2, I), I, ())
+        assert ks1 == ks2, f"semantic MISS on equivalent {e1} / {e2}"
+        assert kt1 != kt2, f"structural unexpectedly hit {e1} / {e2} (family not illustrative)"
+
+    # interval_subsumption_correct (§2.2 — NOT e-graph): x>5 ⟹ x>0 (True); reverse False; a wrong one rejected
+    assert SC.entails_bound(">", 5, ">", 0) and SC.entails_bound(">=", 5, ">", 0)
+    assert SC.entails_bound("<", 3, "<", 10) and not SC.entails_bound("<", 10, "<", 3)
+    assert not SC.entails_bound(">", 0, ">", 5)            # (x>0) ⇏ (x>5) — must be rejected
+
+    # smt_bypass_rate_measured + dogfood_cache_soundness (LOSSLESS) on a refactoring-heavy workload
+    workload = [g(e) for pair in families for e in pair] + [g("a*b >= a + b")]   # +1 distinct control
+    m = SC.measure_semantic_cache(workload)
+    assert m["lossless_mismatches"] == 0, f"SEMANTIC CACHE UNSOUND: {m}"           # the soundness guarantee
+    assert m["semantic_hits"] == 5 and m["structural_hits"] == 0                   # 5 bypassed vs 0
+    assert m["smt_bypass_extra"] == 5 and m["bypass_pays_off"]                     # key cheaper than the solve
+
+    # dogfood_cache_soundness: across mixed-verdict goals, NO same-key/different-verdict pair (else unsound)
+    mixed = ["a*a >= 0", "x*x >= 0", "a*(b+c) == a*b+a*c",                          # PROVEN
+             "a*b >= a+b", "a > b", "a - b >= 0", "b - a >= 0"]                     # REFUTED
+    key = {e: SC.semantic_key(*g(e)) for e in mixed}
+    verd = {e: Z.prove_forall(Z.parse_predicate(e, I), I, []).verdict for e in mixed}
+    bad = [(p, q) for p, q in itertools.combinations(mixed, 2) if key[p] == key[q] and verd[p] != verd[q]]
+    assert bad == [], f"UNSOUND same-key/different-verdict: {bad}"
+
+    # no_runtime_regression: the semantic cache is opt-in + additive — the structural proof_cache is unchanged,
+    # and the semantic key is bounded O(1)-ish per goal (no runaway), so no existing path is slowed.
+    PC.reset()
+    assert PC.prove_forall_cached(Z.parse_predicate("a*a >= 0", I), I).verdict == "PROVEN"
+    assert m["key_us"] < 50_000          # bounded cost; the e-graph machinery never explodes on these goals
+
+    print(f"PASS test_perf2_semantic_proof_cache (5/5 refactoring families HIT semantically vs 0/5 structural; "
+          f"SMT-bypass +{m['smt_bypass_extra']} [Clock B], key {m['key_us']:.0f}µs ≪ solve {m['solve_us']:.0f}µs; "
+          f"interval x>5⟹x>0 ✓ (not e-graph); LOSSLESS=0, no same-key/diff-verdict — sound; proof_cache intact)")
+
+
 def test_perf1_rust_graph_core():
     """perf-build STAGE 1: Rust graph core (zero-dep cdylib via ctypes) removes repo_partition's N=4000
     ceiling. Covers rust_core_correctness (differential vs Python mirror), node_scaling_measured,
