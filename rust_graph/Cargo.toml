@@ -1,0 +1,19 @@
+[package]
+name = "graph_core"
+version = "0.1.0"
+edition = "2021"
+
+# ★ ZERO dependencies — std only (no egg, no salsa, no petgraph). Builds fully offline. ★
+# Salsa 0.27 is available on crates.io but unused: cdylib+ctypes means Python owns orchestration,
+# which does not fit Salsa's database-owns-computation model. proof_dag.py already does O(V+E)
+# incremental dirty-tracking in Python and is not the bottleneck. The bottleneck is the O(N²) KL
+# refinement + O(iters·E) power iteration in repo_partition.py — that is what this crate accelerates.
+[dependencies]
+
+[lib]
+name = "graph_core"
+crate-type = ["cdylib"]   # ctypes-loadable shared library (no PyO3/maturin needed)
+
+[profile.release]
+opt-level = 3
+lto = true

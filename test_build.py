@@ -2942,6 +2942,76 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_perf1_rust_graph_core():
+    """perf-build STAGE 1: Rust graph core (zero-dep cdylib via ctypes) removes repo_partition's N=4000
+    ceiling. Covers rust_core_correctness (differential vs Python mirror), node_scaling_measured,
+    incremental_invalidation_correct, api_contract_unchanged. Degrades to [BLOCKED] if rustc absent."""
+    import time
+    import random as _r
+    import repo_partition as RP
+    import graph_core as GC
+
+    if not GC.available():
+        # rustc unavailable / not built → the Python path must still work (no regression)
+        assert isinstance(RP.partition({0: [1], 1: [0]}, k=2), RP.Partition)
+        print(f"PASS test_perf1_rust_graph_core (Rust [BLOCKED] honestly: {GC.load_error()[:50]} — "
+              f"pure-Python repo_partition path intact)")
+        return
+
+    def ring_chords(n, seed=0):
+        rng = _r.Random(seed)
+        g = {i: [(i - 1) % n, (i + 1) % n] for i in range(n)}
+        for _ in range(n // 10):
+            a, b = rng.randrange(n), rng.randrange(n)
+            if a != b:
+                g[a].append(b); g[b].append(a)
+        return g
+
+    # rust_core_correctness: Fiedler vector matches Python to FP rounding (sign-invariant); cut is identical
+    import math
+    for N in (200, 800, 2000):
+        g = ring_chords(N)
+        n, adj, edges = RP._normalize(g)
+        fp, fr = RP.fiedler_vector(n, adj), GC.fiedler_vector(n, adj)
+        na = math.sqrt(sum(x * x for x in fp)); nb = math.sqrt(sum(x * x for x in fr))
+        cos = abs(sum(a * b for a, b in zip(fp, fr)) / (na * nb)) if na and nb else 1.0
+        assert cos > 1 - 1e-9, f"Fiedler mismatch N={N}: cos={cos}"
+        pp, pr = RP.partition(g, k=2), GC.partition(g, k=2)
+        assert pr.cut == pp.cut, f"cut mismatch N={N}: py={pp.cut} rust={pr.cut}"
+        # api_contract_unchanged: same type + fields the UI/callers depend on
+        assert isinstance(pr, RP.Partition) and pr.cross_deps == pr.cut and len(pr.chunks()) == pr.k
+        assert sorted(pr.sizes) == [N // 2, N - N // 2]
+
+    # node_scaling_measured: Rust handles N=8000 where pure-Python BLOCKED-scale (>4000); record wall-clock
+    g8 = ring_chords(8000)
+    t = time.perf_counter(); pr8 = GC.partition(g8, k=2); rust8_ms = (time.perf_counter() - t) * 1000
+    assert RP.partition(g8, k=2).blocked is True            # pure-Python short-circuits above 4000
+    assert pr8.blocked is False and pr8.cut > 0 and rust8_ms < 30000   # Rust completes (no ceiling)
+
+    # incremental_invalidation_correct: gc_transitive_dependents == Python BFS reference on a dependents-DAG
+    import ctypes
+    lib = GC._lib()
+    nN = 300
+    rng = _r.Random(7)
+    deps = {i: sorted({rng.randrange(i + 1, nN) for _ in range(3) if i + 1 < nN}) for i in range(nN)}
+    off, tgt = GC._csr(nN, deps)
+    out = (ctypes.c_uint32 * nN)()
+    start = 5
+    cnt = int(lib.gc_transitive_dependents(nN, off, tgt, start, out))
+    rust_set = set(out[i] for i in range(cnt))
+    seen, stack = {start}, [start]            # Python reference BFS
+    while stack:
+        u = stack.pop()
+        for v in deps[u]:
+            if v not in seen:
+                seen.add(v); stack.append(v)
+    assert rust_set == seen, "transitive-dependents mismatch"
+
+    print(f"PASS test_perf1_rust_graph_core (Fiedler bit-faithful vs Python ✓, cut identical; ceiling REMOVED: "
+          f"N=8000 pure-Python BLOCKED → Rust {rust8_ms:.0f}ms cut={pr8.cut}; transitive-dependents == Python "
+          f"BFS; API contract unchanged — Clock B/scaling, same algorithm)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

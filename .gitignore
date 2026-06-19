@@ -9,3 +9,4 @@ mrjeffrey.db
 *.db
 .fold_soup/
 rust_accel/target/
+rust_graph/target/
