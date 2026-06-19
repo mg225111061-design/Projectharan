@@ -2721,6 +2721,33 @@ def test_v36_phase2_superopt_polyhedral():
           f"{ic.speedup}× / tiling {tl.status} {tl.speedup}× — bit-exact + cost-model gated)")
 
 
+def test_v36_phase3_amortization():
+    """v36 PHASE 3: cost amortization. P3.S1 lemma_broth (offline search once → O(1) cheap recheck),
+    P3.S2 proof_dag (incremental recheck), P3.S3 cost_control (cacheable prefix + best-of-N early-exit)."""
+    import lemma_broth as LB
+    import proof_dag as PD
+    import cost_control as CC
+    # P3.S1: the EXPENSIVE brew is one-time/offline; runtime recheck is O(1) and PASSES; ore_algebra BLOCKED
+    a = LB.measure_amortization()
+    assert a.n_entries >= 3000 and a.brew_ms > 10 * (a.recheck_us_per / 1000)   # offline ≫ per-lookup recheck
+    assert a.recheck_pass_rate == 1.0 and a.hit_rate > 0.5                       # certs recheck-pass; real hits
+    assert "BLOCKED" in a.ore_algebra and "ore_algebra" in a.ore_algebra        # honest: hypergeometric search blocked
+    # P3.S2: a leaf change rechecks ≪ full; the root change (worst case) is reported too; no-op ⇒ 0 (no cherry-pick)
+    m = PD.measure_incremental(n_nodes=200, fanout=3)
+    assert m["leaf_change"]["ratio"] < 0.1                                       # incremental WIN
+    assert m["root_change_worst"]["ratio"] >= m["leaf_change"]["ratio"]          # worst case honestly higher
+    assert m["noop_edit_rechecked"] == 0                                         # checksum match ⇒ nothing rechecked
+    # P3.S3: cacheable prefix saves on a hit; best-of-N early-exit saves; live LLM BLOCKED honestly
+    r = CC.measure_cost(n=6, p_pass=0.5)
+    assert r.cache.savings > 0.5 and r.best_of_n.savings > 0.3
+    assert r.best_of_n.expected_candidates < r.best_of_n.n                       # early-exit < running all N
+    assert "BLOCKED" in r.live_llm
+    print(f"PASS test_v36_phase3_amortization (broth {a.n_entries} entries: OFFLINE {a.brew_ms:.0f}ms once vs "
+          f"RUNTIME {a.recheck_us_per:.0f}µs/lookup recheck-100%; proof-DAG leaf {m['leaf_change']['ratio']:.0%} "
+          f"vs root {m['root_change_worst']['ratio']:.0%} (no-op 0); cost: cache {r.cache.savings:.0%} + "
+          f"best-of-N early-exit {r.best_of_n.savings:.0%} saved [live LLM BLOCKED])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
