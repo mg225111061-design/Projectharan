@@ -2823,6 +2823,47 @@ def test_v37_stage0_freivalds():
           f"grows {s1}×@N=800 → {s2}×@N=1600)")
 
 
+def test_v37_stage1_exact_certs():
+    """v37 STAGE 1: EXACT sublinear certificates — Prony (recurrence recovery), sparse FFT, compressed sensing
+    with a Fuchs DUAL CERTIFICATE (per-instance, NOT RIP). All grade EXACT (never PROBABILISTIC); DECLINE when
+    no structure. Wrong answers 0."""
+    import numpy as np
+    import prony
+    import sparse_fft as SF
+    import compressed_sensing as CS
+    import sublinear_layer as SL
+    # S1.1 Prony: Fibonacci → EXACT, recurrence [1,1] recovered AND cross-checked by cfinite (fold's inverse)
+    fib = [0, 1]
+    for _ in range(18):
+        fib.append(fib[-1] + fib[-2])
+    v = prony.recover(fib)
+    assert v.status == SL.EXACT and v.certificate.grade == SL.EXACT and v.certificate.bound < 1e-10
+    coeffs, cfin_ok, _ = prony.recover_recurrence(fib)
+    assert coeffs == [1, 1] and cfin_ok is True                          # ★ Prony ⟷ cfinite cross-check ★
+    assert prony.recover(np.random.default_rng(0).standard_normal(40)).status == SL.DECLINE   # noise → DECLINE
+    # S1.2 sparse FFT: 3-sparse spectrum recovered from O(k) samples, correct tones; dense → DECLINE
+    N = 256; t = np.arange(N)
+    x = 2 * np.exp(2j * np.pi * 5 * t / N) + 3 * np.exp(2j * np.pi * 40 * t / N) + 1.5 * np.exp(2j * np.pi * 100 * t / N)
+    sv = SF.recover(x, k_max=10)
+    assert sv.status == SL.EXACT and sorted(sv.result["spectrum"].keys()) == [5, 40, 100]
+    assert SF.recover(np.fft.ifft(np.random.default_rng(0).standard_normal(N)), k_max=10).status == SL.DECLINE
+    # S1.3 compressed sensing: EXACT via Fuchs dual cert (strict, with margin); recovered == true sparse x
+    A, y, xt = CS.make_instance(200, 5, 60, seed=1)
+    r = CS.recover((A, y), k=5)
+    assert r.status == SL.EXACT and r.certificate.kind == "dual_cert" and r.certificate.bound < 1.0   # ‖v_Sᶜ‖∞<1 strict
+    assert np.allclose(r.result["x"], xt, atol=1e-6)                     # the certified recovery IS the true x
+    assert "RIP" in r.certificate.check_cost or "NOT RIP" in r.certificate.detail or "Fuchs" in r.certificate.detail
+    # too few measurements → no certificate → DECLINE (never a wrong answer)
+    A2, y2, _ = CS.make_instance(300, 12, 25, seed=2)
+    assert CS.recover((A2, y2), k=12).status == SL.DECLINE
+    # ★ all three are EXACT grade — never labeled PROBABILISTIC (no δ smuggled) ★
+    assert v.status == SL.EXACT and sv.status == SL.EXACT and r.status == SL.EXACT
+    assert v.certificate.delta is None and r.certificate.delta is None
+    print(f"PASS test_v37_stage1_exact_certs (Prony EXACT residual {v.certificate.bound:.1e} + recurrence "
+          f"{coeffs}⟷cfinite; sparse-FFT tones [5,40,100] from O(k); CS Fuchs dual-cert ‖v_Sᶜ‖∞="
+          f"{r.certificate.bound:.3f}<1 recovered==true; all EXACT, DECLINE when no structure)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
