@@ -68,6 +68,11 @@ class _Stats:
 _CACHE: Dict[Tuple, "Z.ProofResult"] = {}
 STATS = _Stats()
 
+# A3: optional SEMANTIC 2nd level (semantic_cache). OFF by default ⇒ behavior byte-identical to before (no
+# regression, existing tests unaffected). semantic_cache.decide_and_wire() flips this ON only if a break-even
+# gate (hit rate among structural misses ≥ 11.4%) passes on the fix-loop traffic proxy. Lossless either way.
+SEMANTIC_ENABLED = False
+
 
 def reset():
     _CACHE.clear()
@@ -75,15 +80,31 @@ def reset():
 
 
 def prove_forall_cached(goal, var_types: Dict[str, str], assumptions: List = ()):
-    """prove_forall with a structural cache. Cache hits skip the solver entirely."""
+    """prove_forall with a structural cache. Cache hits skip the solver entirely. When SEMANTIC_ENABLED, a
+    structural MISS falls through to a lossless semantic 2nd level before the solver (A3, break-even gated)."""
     key = canonical_key(goal, var_types, assumptions)
     if key in _CACHE:
         STATS.hits += 1
         c = _CACHE[key]
         return Z.ProofResult(c.verdict, c.backend + "+cache", "cache hit: " + c.detail, c.counterexample)
     STATS.misses += 1
+    if SEMANTIC_ENABLED:                                       # 2nd level, only if the gate enabled it
+        try:
+            import semantic_cache as _SC
+            sr = _SC.consult(goal, var_types, assumptions)
+            if sr is not None:
+                _CACHE[key] = sr                              # promote so the next identical goal hits L1
+                return sr
+        except Exception:  # noqa: BLE001 — a 2nd-level glitch must never break proving
+            pass
     r = Z.prove_forall(goal, var_types, list(assumptions))
     _CACHE[key] = r
+    if SEMANTIC_ENABLED:
+        try:
+            import semantic_cache as _SC
+            _SC.store(goal, var_types, assumptions, r)
+        except Exception:  # noqa: BLE001
+            pass
     return r
 
 

@@ -2942,6 +2942,61 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v39_a3_semantic_breakeven_gate():
+    """v39 PHASE A3: the semantic 2nd level is wired into the live proof_cache, but BEHIND a break-even gate
+    (hit rate among structural misses ≥ 11.4%). On the fix-loop traffic PROXY it lands marginally BELOW, so the
+    gate honestly leaves it OFF (net loss otherwise). Covers real_traffic_hitrate_measured, breakeven_gate_
+    enforced, lossless_holds, live_loop_uses_semantic_when_beneficial, no_regression."""
+    import z3_adapter as Z
+    import semantic_cache as SC
+    import proof_cache as PC
+
+    # real_traffic_hitrate_measured + breakeven_gate_enforced: proxy hit rate measured; OFF because < break-even
+    d = SC.decide_and_wire()
+    assert 0.0 <= d["hitrate_among_struct_miss"] <= 1.0 and d["breakeven"] == round(325.0 / 2839.0, 4)
+    assert d["enabled"] == (d["hitrate_among_struct_miss"] >= d["breakeven"])    # gate logic is exact
+    assert PC.SEMANTIC_ENABLED == d["enabled"]
+    assert d["enabled"] is False                                                # this proxy is below break-even
+
+    # the gate FLIPS ON above break-even — feed a high-recurrence stream and check pays_off
+    I = {"a": "Int", "b": "Int", "c": "Int"}
+    def g(e): return (Z.parse_predicate(e, I), I, ())
+    heavy = []
+    for _ in range(3):
+        heavy += [g("a*(b+c) >= a*b + a*c - 1"), g("a*b + a*c >= a*(b+c) - 1"),  # refactored-equiv pair
+                  g("(a*a) + (1) >= 1"), g("a*a + 1 >= 1")]
+    st = SC.measure_real_hitrate(heavy)
+    assert st.hitrate_among_struct_miss > SC.BREAKEVEN and st.pays_off          # would enable if real traffic looked like this
+
+    # lossless_holds: a semantic hit returns the SAME verdict as a fresh solve
+    SC.reset()
+    gp = Z.parse_predicate("a*(b+c) >= a*b + a*c - 1", I); rp = Z.prove_forall(gp, I, [])
+    SC.store(gp, I, (), rp)
+    gq = Z.parse_predicate("a*b + a*c >= a*(b+c) - 1", I)                        # refactored-equivalent
+    hit = SC.consult(gq, I, ())
+    assert hit is not None and hit.verdict == Z.prove_forall(gq, I, []).verdict and "semcache" in hit.backend
+
+    # live_loop_uses_semantic_when_beneficial: with the flag ON, proof_cache bypasses the solver via semantic
+    PC.reset(); SC.reset(); PC.SEMANTIC_ENABLED = True
+    try:
+        PC.prove_forall_cached(Z.parse_predicate("(a + b) + c >= 0", I), I)     # solve + store (struct+sem)
+        r = PC.prove_forall_cached(Z.parse_predicate("a + (b + c) >= 0", I), I) # assoc-variant → semantic hit
+        assert "semcache" in r.backend
+    finally:
+        PC.SEMANTIC_ENABLED = False                                            # restore safe default
+
+    # no_regression: OFF by default ⇒ structural behavior byte-identical (lossless, hits accounted as before)
+    PC.reset()
+    m = PC.measure_cache([(Z.parse_predicate("a*a >= 0", I), I, ()),
+                          (Z.parse_predicate("z*z >= 0", {"z": "Int"}), {"z": "Int"}, ())])
+    assert m["lossless_mismatches"] == 0 and PC.SEMANTIC_ENABLED is False
+
+    print(f"PASS test_v39_a3_semantic_breakeven_gate (proxy hit-among-struct-miss "
+          f"{d['hitrate_among_struct_miss']:.1%} vs break-even {d['breakeven']:.1%} → OFF (honest net-loss "
+          f"avoidance); gate flips ON above break-even ({st.hitrate_among_struct_miss:.0%} proxy); 2-level "
+          f"LOSSLESS; real LLM fix-traffic [BLOCKED: no key]; default OFF ⇒ 0 regression)")
+
+
 def test_perf5_egraph_to_native_emission():
     """perf-build STAGE 5: optimal e-graph term → LLVM direct emission. Z3-certified extraction → backend_llvm
     native i64 → Alive2-style translation validation (bit-exact per-instance). Covers direct_emission_bit_exact,

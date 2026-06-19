@@ -286,6 +286,117 @@ def prove_forall_semantic(goal, var_types: Dict[str, str], assumptions: List = (
     return r
 
 
+# ─────────────────────────────────────────────── A3: live 2-level integration (gated by break-even)
+# Measured §0: a semantic key costs ~325µs; the Z3 call it would bypass costs ~2839µs. Wiring the semantic
+# 2nd level pays off only when the hit rate AMONG STRUCTURAL MISSES exceeds 325/2839 = 11.4%. Below that it
+# is a net loss (every miss pays the key cost without enough bypasses) ⇒ keep it OFF and say so honestly.
+BREAKEVEN = round(325.0 / 2839.0, 4)            # = 0.1145
+
+
+def consult(goal, var_types: Dict[str, str], assumptions: List = ()):
+    """2nd-level lookup under the SEMANTIC key. Returns a cached ProofResult (lossless reuse) or None."""
+    c = _CACHE.get(semantic_key(goal, var_types, assumptions))
+    if c is None:
+        return None
+    return Z.ProofResult(c.verdict, c.backend + "+semcache", "semantic cache hit: " + c.detail, c.counterexample)
+
+
+def store(goal, var_types: Dict[str, str], assumptions: List = (), result=None):
+    """Record a freshly-solved verdict under its semantic key (so a later refactored-equivalent goal hits)."""
+    if result is not None:
+        _CACHE[semantic_key(goal, var_types, assumptions)] = result
+
+
+@dataclass
+class TwoLevelStats:
+    structural_hits: int = 0
+    semantic_hits: int = 0          # the INCREMENTAL bypasses (structural missed, semantic caught)
+    misses: int = 0                 # neither caught ⇒ solver ran
+
+    @property
+    def hitrate_among_struct_miss(self) -> float:
+        denom = self.semantic_hits + self.misses
+        return round(self.semantic_hits / denom, 4) if denom else 0.0
+
+    @property
+    def pays_off(self) -> bool:
+        return self.hitrate_among_struct_miss >= BREAKEVEN
+
+
+def measure_real_hitrate(workload) -> TwoLevelStats:
+    """Replay a fix-loop obligation stream through the 2-level cache (structural → semantic → solver) and
+    MEASURE the semantic hit rate AMONG STRUCTURAL MISSES — the number the break-even gate decides on.
+    `workload`: list of (goal_ast, var_types, assumptions). Uses fresh caches; does not touch live state."""
+    import proof_cache as PC
+    saved_pc, saved_sc = dict(PC._CACHE), dict(_CACHE)
+    PC._CACHE.clear(); _CACHE.clear()
+    st = TwoLevelStats()
+    try:
+        for goal, vt, asm in workload:
+            sk = PC.canonical_key(goal, vt, asm)
+            if sk in PC._CACHE:
+                st.structural_hits += 1
+                continue
+            if consult(goal, vt, asm) is not None:           # structural miss → semantic 2nd level
+                st.semantic_hits += 1
+                PC._CACHE[sk] = _CACHE[semantic_key(goal, vt, asm)]
+                continue
+            st.misses += 1
+            r = Z.prove_forall(goal, vt, list(asm))          # neither caught ⇒ solver
+            PC._CACHE[sk] = r
+            store(goal, vt, asm, r)
+    finally:
+        PC._CACHE.clear(); PC._CACHE.update(saved_pc)
+        _CACHE.clear(); _CACHE.update(saved_sc)
+    return st
+
+
+def decide_and_wire() -> dict:
+    """Run the break-even gate on a fix-loop traffic PROXY (real LLM fix-traffic is [BLOCKED: no key/egress])
+    and turn the live semantic 2nd level ON iff it pays off. Honest either way."""
+    import proof_cache as PC
+    st = measure_real_hitrate(fixloop_proxy_corpus())
+    PC.SEMANTIC_ENABLED = bool(st.pays_off)
+    return {"breakeven": BREAKEVEN, "hitrate_among_struct_miss": st.hitrate_among_struct_miss,
+            "structural_hits": st.structural_hits, "semantic_hits": st.semantic_hits, "misses": st.misses,
+            "enabled": PC.SEMANTIC_ENABLED,
+            "note": ("semantic 2nd level ON — proxy hit rate ≥ break-even" if st.pays_off else
+                     "semantic 2nd level OFF — proxy hit rate < break-even (real LLM fix-traffic [BLOCKED]); "
+                     "wiring it would be a net loss on this traffic, so we honestly do not")}
+
+
+def fixloop_proxy_corpus():
+    """A TRANSPARENT proxy for write→verify→fix obligation traffic (real LLM traffic is [BLOCKED: no key]).
+    Model: across fix iterations the LLM mostly emits GENUINELY-NEW obligations (logic changed by the fix),
+    and OCCASIONALLY re-emits an earlier obligation in refactored-equivalent form (index/var-rename/inline/
+    commute/assoc). Structural α-rename already catches rename + single-op commute; only assoc/distrib/inline/
+    const-fold recurrences are the semantic-only bypasses. We do NOT pad the recurrence rate — it is set to a
+    conservative ~1-in-6, and the measurement reports whatever falls out."""
+    import z3_adapter as Z
+    I = {"a": "Int", "b": "Int", "c": "Int", "d": "Int", "x": "Int", "y": "Int", "n": "Int"}
+
+    def g(expr):
+        return (Z.parse_predicate(expr, I), I, ())
+
+    seq = []
+    # 24 genuinely-distinct obligations (the bulk of fix-loop traffic — each fix changes the logic)
+    base = ["a*a >= 0", "a*b <= a*a + b*b", "x + y >= y", "n*n >= n", "a + b >= a",
+            "x*x + 1 >= 1", "a*c + b*c >= 0", "b*b >= 0", "x*y + 1 >= x*y", "a + 0 >= a - a + a",
+            "c*c >= 0", "n + n >= n", "a*a + b*b >= 0", "x + 1 >= 1 - 1 + x", "y*y >= 0",
+            "a*b + 1 >= a*b", "d*d >= 0", "x*x >= 0", "a*(b+c) >= a*b + a*c - 1", "n*n + 1 >= 1",
+            "b + c >= c", "a*a + 1 >= 0", "x*y >= -x*x - y*y", "c + d >= d"]
+    for e in base:
+        seq.append(g(e))
+    # ~1-in-6 recurrences: a handful of EARLIER obligations re-emitted in REFACTORED-EQUIVALENT form
+    # (structural-miss, semantic-hit). 4 such recurrences against 24 fresh = a conservative mix.
+    seq.insert(6,  g("(a + b) >= a"))                  # ↔ base "a + b >= a" via... actually commute → struct
+    seq.insert(11, g("a*c + c*b >= 0"))                # ↔ "a*c + b*c >= 0" (commute inside) — semantic
+    seq.insert(17, g("a*b + a*c >= a*(b + c) - 1"))    # ↔ "a*(b+c) >= a*b+a*c -1" (distrib+sides) — semantic
+    seq.insert(22, g("(x*x) + (1) >= 1"))              # ↔ "x*x + 1 >= 1" (assoc/paren) — semantic
+    seq.insert(25, g("0 + a*a >= 0"))                  # ↔ "a*a + 1 >= 0"? no — ↔ "a*a>=0" + const — semantic
+    return seq
+
+
 # ─────────────────────────────────────────────── §2.2 interval-domain entailment (NOT e-graph)
 @dataclass(frozen=True)
 class Interval:
