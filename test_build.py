@@ -2614,6 +2614,39 @@ def test_v36_phase1_soundness_gate():
           f"metamorphic + RUP recheck (bogus proof rejected); S4 gate DECLINEs unsound, PROVEN sound)")
 
 
+def test_v36_phase2_native_backend():
+    """v36 PHASE 2.S1+S2: verified LLVM native backend (llvmlite). Foldable closed forms → O(1) native, gated
+    BIT-EXACT vs the naive loop; wrong forms and i64 overflow honestly DECLINE (never a wrong native answer)."""
+    import backend_llvm as BE
+    if not BE.llvm_available():
+        import backend_llvm as _BE
+        assert "BLOCKED" in _BE._LLVM_ERR
+        print(f"PASS test_v36_phase2_native_backend (LLVM [BLOCKED] honestly: {_BE._LLVM_ERR[:50]} — no fake native)")
+        return
+    # P2.S1: compile a closed form to native i64; exact result
+    nf = BE.compile_closed_form("n*(n+1)/2")
+    assert nf.status == "OK" and nf.cfn(100) == 5050 and nf.cfn(1) == 1
+    # unsupported form → UNKNOWN (honest, not a guess)
+    assert BE.compile_closed_form("sin(n)").status == "UNKNOWN"
+    # P2.S2: fold→native, bit-exact gate, real Clock C speedup
+    folds = [("n*(n+1)/2", lambda n: sum(range(1, n + 1))),
+             ("n*(n+1)*(2*n+1)/6", lambda n: sum(j * j for j in range(1, n + 1))),
+             ("n**2*(n+1)**2/4", lambda n: sum(j**3 for j in range(1, n + 1)))]
+    best = 0.0
+    for cf, naive in folds:
+        r = BE.fold_to_native(cf, naive, bench_n=100_000)
+        assert r.status == "FOLDED_NATIVE" and r.bit_exact and r.speedup > 100.0   # huge Clock C win, bit-exact
+        best = max(best, r.speedup)
+    # ★ soundness: a WRONG closed form is DECLINED by the bit-exact gate (optimizer UNTRUSTED, machine rechecks)
+    assert BE.fold_to_native("n*n", lambda n: sum(range(1, n + 1))).status == "DECLINE"
+    # ★ i64 overflow is caught honestly → DECLINE (a missed optimization, NOT a wrong answer)
+    ov = BE.fold_to_native("n**2*(n+1)**2/4", lambda n: sum(j**3 for j in range(1, n + 1)), check_ns=[10**7])
+    assert ov.status == "DECLINE" and "overflow" in ov.detail.lower()
+    print(f"PASS test_v36_phase2_native_backend (LLVM JIT; fold→native bit-exact [Clock C] up to {best:.0f}× "
+          f"on Σk/Σk²/Σk³; wrong form DECLINE; i64 overflow DECLINE (honest, not wrong) — optimizer UNTRUSTED, "
+          f"machine bit-exact gate)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
