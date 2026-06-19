@@ -2647,6 +2647,28 @@ def test_v36_phase2_native_backend():
           f"machine bit-exact gate)")
 
 
+def test_v36_phase2_translation_validate():
+    """v36 PHASE 2.S5: translation validation — the per-instance recheck that makes the optimizer UNTRUSTED.
+    Correct transforms PASS (refinement/Schwartz-Zippel/dependency); wrong transforms DECLINE, original kept."""
+    import translation_validate as TV
+    # IR refinement (Alive2-style, Z3): correct peephole PASS; wrong DECLINE with a concrete counterexample
+    assert TV.validate("ir", orig_expr="x*2", opt_expr="x+x", var_types={"x": "Int"}).ok
+    assert TV.validate("ir", orig_expr="x*4", opt_expr="x+x+x+x", var_types={"x": "Int"}).ok
+    bad_ir = TV.validate("ir", orig_expr="x*2", opt_expr="x+x+1", var_types={"x": "Int"})
+    assert not bad_ir.ok and bad_ir.counterexample is not None and "DECLINED" in bad_ir.detail
+    # ring rewrite (Schwartz-Zippel): correct factoring PASS; wrong coefficient DECLINE
+    g = ("+", ("*", ("var", "x"), ("const", 2)), ("*", ("var", "x"), ("const", 3)))
+    assert TV.validate("ring", orig_term=g, opt_term=("*", ("var", "x"), ("const", 5))).ok
+    assert not TV.validate("ring", orig_term=g, opt_term=("*", ("var", "x"), ("const", 6))).ok
+    # loop transform (dependency): a sound reorder PASS; a result-changing reorder DECLINE
+    ins = [[1, 2, 3], [4, 5], [10, -3, 7, 2]]
+    assert TV.validate("loop", orig_fn=sum, transformed_fn=lambda xs: sum(reversed(xs)), inputs=ins).ok
+    assert not TV.validate("loop", orig_fn=sum, transformed_fn=lambda xs: sum(xs) + 1, inputs=ins).ok
+    print("PASS test_v36_phase2_translation_validate (IR refinement via Z3: correct PASS / wrong DECLINE+cex; "
+          "ring via Schwartz-Zippel; loop via dependency battery — optimizer UNTRUSTED, every transform "
+          "machine-rechecked, original kept on DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
