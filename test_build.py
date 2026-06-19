@@ -2942,6 +2942,46 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v39_b_decline_recovery():
+    """v39 PHASE B (north-star): recover fake-Ω(N) from the DECLINE pile (hidden polynomial / exp-sum / sparse /
+    low-rank) with sound per-instance HELD-OUT certificates, while real-Ω(N) (genuine noise) stays DECLINE. The
+    hard guarantee: false_structure == 0. Grades never mixed. Baseline (current engine on raw data) = 0%."""
+    import decline_recovery as DR
+    import sublinear_layer as SL
+
+    m = DR.measure_recovery(split="measure")          # held-out cases only
+
+    # ★ THE LINE: real-Ω(N) is NEVER recovered (a false structure would be a wrong answer) ★
+    assert m["false_structure"] == 0, f"UNSOUND: recovered genuine noise: {m['rows']}"
+    assert m["real_correctly_declined"] == m["n_real"] and m["n_real"] >= 3
+
+    # fake-Ω(N) genuinely recovered (held-out), and substantially so (not all, honestly)
+    assert m["recovery_rate"] >= 0.8 and m["recovered_exact"] >= 4 and m["recovered_probabilistic"] >= 2
+
+    # grade separation: poly/exp-sum/sparse → EXACT; low-rank/spiked → PROBABILISTIC; never mixed
+    grade = {cid: (g, k) for cid, _t, g, k in m["rows"]}
+    assert grade["poly_cubic"][0] == SL.EXACT and "poly" in grade["poly_cubic"][1]
+    assert grade["sparse_3"][0] == SL.EXACT
+    assert grade["lowrank_r5"][0] == SL.PROBABILISTIC and grade["spiked_snr3"][0] == SL.PROBABILISTIC
+
+    # EXACT must be GENUINELY exact: an integer exp-sum with values > 2^53 cannot be certified by float Prony
+    # ⇒ DECLINE (no float-relative-residual masking a false EXACT)
+    over = DR.RecoveryCase("over", "numeric-sequence", "hidden_expsum", "sequence",
+                           [3 * 2**n + 2 * 5**n for n in range(28)])     # max ~1.5e19 > 2^53
+    safe = DR.RecoveryCase("safe", "numeric-sequence", "hidden_expsum", "sequence",
+                           [3 * 2**n + 2 * 5**n for n in range(18)])     # max ~1.5e12 < 2^53
+    assert DR.recover(over).grade == SL.DECLINE and DR.recover(safe).grade == SL.EXACT
+
+    # at least one honest MISS is expected (detectors are not magic) — and it must be a fake (a real-Ω(N) miss
+    # would mean a false recovery, already ruled out). exp_mix (3-term {1,2,3}) is the current limit.
+    missed = [cid for cid, t, g, _k in m["rows"] if t != "real_random" and g == SL.DECLINE]
+    print(f"PASS test_v39_b_decline_recovery (held-out recovery {m['recovery_rate']:.0%}: "
+          f"{m['recovered_exact']} EXACT + {m['recovered_probabilistic']} PROBABILISTIC of {m['n_fake']} fake; "
+          f"still-declined fake (detector limit, honest)={missed}; ★false_structure=0★ — real-Ω(N) "
+          f"{m['real_correctly_declined']}/{m['n_real']} correctly DECLINED; >2^53 exp-sum DECLINEd (no false "
+          f"EXACT); baseline current-engine 0% → these are the woken v37 sublinear detectors)")
+
+
 def test_v39_a4_live_native_emission():
     """v39 PHASE A4: the LIVE optimize() path now lowers a proven closed form to translation-validated native
     i64 (Clock C) — closed-form synthesis output actually reaches LLVM emission. Covers
