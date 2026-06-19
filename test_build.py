@@ -2864,6 +2864,38 @@ def test_v37_stage1_exact_certs():
           f"{r.certificate.bound:.3f}<1 recovered==true; all EXACT, DECLINE when no structure)")
 
 
+def test_v37_stage2_probabilistic_certs():
+    """v37 STAGE 2: PROBABILISTIC(ε,δ) sublinear certificates — randomized SVD + sketches (Count-Min/HLL).
+    All grade PROBABILISTIC with ε,δ STATED (never mixed with EXACT); DECLINE when no structure/gap."""
+    import random
+    import numpy as np
+    import randomized_svd as RS
+    import sketching as SK
+    import sublinear_layer as SL
+    rng = np.random.default_rng(0)
+    # S2.1 rSVD: low-rank → PROBABILISTIC (posterior residual, δ stated); full-rank → DECLINE → full SVD
+    A = rng.standard_normal((400, 5)) @ rng.standard_normal((5, 400))     # rank 5
+    v = RS.approximate(A, r=5)
+    assert v.status == SL.PROBABILISTIC and v.certificate.grade == SL.PROBABILISTIC
+    assert v.certificate.delta is not None and v.certificate.epsilon is not None   # ε,δ stated (not EXACT)
+    assert RS.approximate(rng.standard_normal((400, 400)), r=5).status == SL.DECLINE   # no gap → DECLINE
+    # S2.2 Count-Min: ONE-SIDED (est ≥ true ALWAYS), overestimate ≤ ε‖a‖₁; PROBABILISTIC
+    random.seed(1)
+    stream = [random.choice(["a"] * 50 + ["b"] * 30 + list("cdefgh")) for _ in range(5000)]
+    cm = SK.heavy_hitters(stream, epsilon=0.01, delta=1e-3)
+    assert cm.status == SL.PROBABILISTIC and cm.certificate.delta == 1e-3
+    for key in set(stream):                                              # one-sidedness: estimate ≥ true count
+        assert cm.result["estimates"][key] >= stream.count(key)
+    # S2.2 HyperLogLog: distinct count within standard error
+    hll = SK.distinct_count([f"item{i % 800}" for i in range(20000)], p=12)
+    assert hll.status == SL.PROBABILISTIC and hll.certificate.bound < 0.05   # rel-err within a few %
+    # ★ grade separation: PROBABILISTIC results carry δ; they are NOT EXACT ★
+    assert all(x.certificate.grade == SL.PROBABILISTIC and x.certificate.delta is not None for x in (v, cm, hll))
+    print(f"PASS test_v37_stage2_probabilistic_certs (rSVD rank-5 PROBABILISTIC ε={v.certificate.epsilon:.1e} "
+          f"δ={v.certificate.delta:.0e} (full-rank→DECLINE); Count-Min one-sided est≥true ✓ ε=0.01; "
+          f"HLL rel-err {hll.certificate.bound:.2%}; all PROBABILISTIC w/ δ stated — never EXACT)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
