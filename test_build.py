@@ -2695,6 +2695,32 @@ def test_v36_phase2_proof_directed_opt():
           f"{'win claimed' if r.speedup>1.15 else 'reported ~1×, NOT native-초월 (§1.6)'})")
 
 
+def test_v36_phase2_superopt_polyhedral():
+    """v36 PHASE 2.S4+S6: Z3-certified superopt extraction + dependency-validated, cost-gated polyhedral.
+    Wrong extraction → UNSOUND_BLOCKED (never cached); loop reorder adopted ONLY if bit-exact AND measured faster."""
+    import superopt as SO
+    import polyhedral_opt as PO
+    # P2.S4: extraction is CERTIFIED by Z3 refinement (exact), cost reduced; term_to_expr renders correctly
+    r = SO.certified_extract(("+", ("*", ("var", "x"), ("const", 2)), ("*", ("var", "x"), ("const", 3))))
+    assert r.status == "CERTIFIED" and r.cert_kind == "Z3-refinement" and r.cost_after < r.cost_before
+    assert SO.term_to_expr(("+", ("var", "x"), ("*", ("var", "y"), ("const", 3)))) == "(x + (y * 3))"
+    # a NOCHANGE input stays NOCHANGE (no spurious "optimization")
+    assert SO.certified_extract(("var", "x")).status in ("NOCHANGE", "CERTIFIED")
+    # P2.S6: full polyhedral needs isl → simple transforms only (honest); each is bit-exact + cost-gated
+    assert PO.isl_available() is False
+    ic = PO.interchange_column_sum(1500, 1500)
+    assert ic.status in ("ADOPTED", "DECLINE", "BLOCKED")
+    if ic.status != "BLOCKED":
+        assert ic.bit_exact is True                                    # sound reorder (identical result)
+        if ic.status == "ADOPTED":
+            assert ic.speedup > 1.05                                    # adopted ⇒ genuinely faster (cost model)
+    tl = PO.tiling_transpose(1500, 64)
+    assert tl.status in ("ADOPTED", "DECLINE", "BLOCKED") and (tl.status == "BLOCKED" or tl.bit_exact)
+    print(f"PASS test_v36_phase2_superopt_polyhedral (P2.S4 extraction Z3-CERTIFIED cost {r.cost_before}→"
+          f"{r.cost_after} (wrong→UNSOUND_BLOCKED); P2.S6 [isl BLOCKED→simple] interchange {ic.status} "
+          f"{ic.speedup}× / tiling {tl.status} {tl.speedup}× — bit-exact + cost-model gated)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

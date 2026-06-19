@@ -177,6 +177,59 @@ def warm_runtime_cache(terms: List[Term]) -> int:
     return n
 
 
+def term_to_expr(term: Term) -> str:
+    """Render a superopt Term as a sympy/Z3-parseable expression string (for Z3-certified extraction)."""
+    op = term[0]
+    if op == "const":
+        return str(int(term[1]))
+    if op == "var":
+        return str(term[1])
+    if op.startswith("const:"):
+        return op.split(":", 1)[1]
+    if op.startswith("var:"):
+        return op.split(":", 1)[1]
+    if op in ("+", "-", "*"):
+        return "(" + f" {op} ".join(term_to_expr(c) for c in term[1:]) + ")"
+    raise ValueError(f"unrenderable op {op}")
+
+
+@dataclass
+class CertifiedExtract:
+    status: str                 # CERTIFIED | SCHWARTZ_ZIPPEL | UNSOUND_BLOCKED | NOCHANGE
+    optimized: Term = None
+    cert_kind: str = ""         # Z3-refinement | schwartz-zippel | —
+    cost_before: int = 0
+    cost_after: int = 0
+    detail: str = ""
+
+
+def certified_extract(term: Term, cost=None, iters: int = 10) -> CertifiedExtract:
+    """P2.S4: superopt-extract, then CERTIFY the extracted term Z3-REFINES the input (exact). A wrong
+    extraction is UNSOUND_BLOCKED (never cached). Z3 UNKNOWN ⇒ fall back to Schwartz-Zippel (labeled)."""
+    import translation_validate as TV
+    r = superopt(term, cost=cost, iters=iters)
+    if r.status == "DEFER":
+        return CertifiedExtract("UNSOUND_BLOCKED", term, "—", detail=r.detail)
+    if r.status == "NOCHANGE":
+        return CertifiedExtract("NOCHANGE", r.optimized, "—", r.cost_before, r.cost_after, "no cheaper equivalent")
+    try:
+        orig_e, opt_e = term_to_expr(term), term_to_expr(r.optimized)
+        vs = sorted(_vars(term) | _vars(r.optimized))
+        cert = TV.validate_ir_refinement(orig_e, opt_e, {v: "Int" for v in vs})
+        if cert.ok:
+            return CertifiedExtract("CERTIFIED", r.optimized, "Z3-refinement", r.cost_before, r.cost_after,
+                                    f"Z3-certified equivalent, cost {r.cost_before}→{r.cost_after}")
+        if cert.counterexample is not None:        # Z3 found a real difference → the extraction is WRONG
+            return CertifiedExtract("UNSOUND_BLOCKED", term, "Z3-refinement", detail=f"extraction REFUTED: {cert.detail}")
+    except Exception:  # noqa: BLE001 — Z3 couldn't render/decide → fall through to SZ
+        pass
+    # Z3 UNKNOWN/unavailable → Schwartz-Zippel (probabilistic, labeled honestly)
+    if r.verified:
+        return CertifiedExtract("SCHWARTZ_ZIPPEL", r.optimized, "schwartz-zippel", r.cost_before, r.cost_after,
+                                "Z3 inconclusive — Schwartz-Zippel verified (probabilistic)")
+    return CertifiedExtract("UNSOUND_BLOCKED", term, "—", detail="no certificate — blocked")
+
+
 def measure_superopt_corpus() -> dict:
     """Run superopt on a small expression corpus; report discovered (verified) optimizations + verification."""
     corpus = [
