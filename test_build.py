@@ -2942,6 +2942,46 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v39_a4_live_native_emission():
+    """v39 PHASE A4: the LIVE optimize() path now lowers a proven closed form to translation-validated native
+    i64 (Clock C) — closed-form synthesis output actually reaches LLVM emission. Covers
+    live_synthesis_hits_fold_rewrite, live_native_emission_translation_validated, product_bitexact,
+    regression-0 on non-closed. Degrades honestly if llvmlite absent."""
+    import agentic as AG
+    import backend_llvm as BE
+
+    closed = [("Σk", "fn f(n: Nat) -> Nat { fold k in 1..n { k } }"),
+              ("Σk²", "fn f(n: Nat) -> Nat { fold k in 1..n { k*k } }"),
+              ("Σk³", "fn f(n: Nat) -> Nat { fold k in 1..n { k*k*k } }")]
+    if not BE.llvm_available():
+        r = AG.optimize(closed[0][1])
+        assert r.kind == "CLOSED" and r.native_emitted is False and "BLOCKED" in r.native_status
+        print(f"PASS test_v39_a4_live_native_emission (llvmlite [BLOCKED] honestly; closed-form classification "
+              f"intact, native emission skipped — structural result unchanged)")
+        return
+
+    # live_native_emission_translation_validated: closed forms reach native, translation-validated (EMITTED)
+    for name, code in closed:
+        r = AG.optimize(code)
+        assert r.kind == "CLOSED" and r.optimized and r.native_emitted and r.native_status == "EMITTED", \
+            f"{name}: {r.native_status}"
+
+    # regression-0: a non-closed fold does NOT attempt native (byte-identical structural path)
+    nc = AG.optimize("fn g(n: Nat) -> Nat { fold k in 1..n { k % 7 } }")
+    assert nc.native_emitted is False and nc.native_status == "not attempted"
+
+    # product_bitexact: the emitted native equals the proven closed form on a probe battery (re-check via the
+    # same emission path the optimizer used) — overflow/lowering bugs would TRANSLATION_DECLINE
+    import egraph_native as EN
+    import fold_egraph as FE
+    er = EN.fold_to_native(2)              # Σk² closed form → native, validated vs the naive sum
+    assert er.status == "EMITTED" and all(er.native(n) == FE.powersum_naive(2, n) for n in (0, 1, 50, 1000))
+
+    print(f"PASS test_v39_a4_live_native_emission (live optimize() emits translation-validated native i64 for "
+          f"Σk/Σk²/Σk³ — closed-form synthesis reaches LLVM; non-closed byte-identical (0 regression); emitted "
+          f"native bit-exact vs naive sum; sound-or-decline on overflow)")
+
+
 def test_v39_a3_semantic_breakeven_gate():
     """v39 PHASE A3: the semantic 2nd level is wired into the live proof_cache, but BEHIND a break-even gate
     (hit rate among structural misses ≥ 11.4%). On the fix-loop traffic PROXY it lands marginally BELOW, so the

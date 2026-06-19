@@ -142,11 +142,38 @@ class OptimizeResult:
     closed_form: str          # the closed form, or "—"
     speedup: str              # asymptotic class (proven structural), e.g. "O(1)", or "none"
     proof: str                # short justification from the classifier
+    native_emitted: bool = False   # A4: closed form lowered to translation-validated native i64 (Clock C)
+    native_status: str = "not attempted"   # EMITTED | TRANSLATION_DECLINED | UNSOUND_BLOCKED | [BLOCKED]/skip
+
+
+def _try_native_emit(closed_form: str):
+    """A4: lower a univariate closed form to native i64 (LLVM) and TRANSLATION-VALIDATE it against the exact
+    (sympy) value of the SAME closed form — catching i64 overflow / lowering bugs. The closed_form ≡ naive is
+    already proven by the classifier; this only certifies the lowering. Any failure ⇒ (status, False), the
+    structural result untouched (sound-or-decline). Non-univariate / no llvmlite ⇒ honest skip."""
+    try:
+        import backend_llvm as BE
+        if not BE.llvm_available():
+            return ("[BLOCKED: llvmlite]", False)
+        import sympy as sp
+        import egraph_native as EN
+        e = sp.sympify(closed_form)
+        fs = list(e.free_symbols)
+        if len(fs) != 1:                                  # constant or multivariate → not an i64 P(n)/d
+            return ("skip (not univariate)", False)
+        var = fs[0]
+        ref = lambda nv: int(e.subs(var, nv))             # exact reference value of the closed form
+        r = EN.emit_native(str(e.subs(var, sp.Symbol("n"))), ref)
+        return (r.status, r.status == "EMITTED")
+    except Exception as ex:                               # noqa: BLE001 — emission must never break optimize
+        return (f"skip ({type(ex).__name__})", False)
 
 
 def optimize(code: str) -> OptimizeResult:
     """S4: classify a (proven) HARAN function and, if it has closed-form structure, return the closed
-    form + asymptotic class. No structure → honestly NOT optimized (no fabricated speedup)."""
+    form + asymptotic class. No structure → honestly NOT optimized (no fabricated speedup). When a closed
+    form IS found, A4 also emits translation-validated native code for it (Clock C); non-closed cases are
+    byte-identical (native emission is attempted only on CLOSED)."""
     prog = parse(code)
     if prog.errors:
         return OptimizeResult(False, "PARSE_ERROR", "-", "—", "none", str(prog.errors[0]))
@@ -154,11 +181,14 @@ def optimize(code: str) -> OptimizeResult:
     if not fns:
         return OptimizeResult(False, "NONE", "-", "—", "none", "no function found")
     v = CC.classify_fn(fns[0])
-    return OptimizeResult(
+    res = OptimizeResult(
         optimized=(v.kind == "CLOSED"), kind=v.kind, method=v.method,
         closed_form=v.closed_form, speedup=v.speedup if v.kind == "CLOSED" else "none",
         proof=str(v.proof),
     )
+    if v.kind == "CLOSED" and v.closed_form not in ("", "—"):
+        res.native_status, res.native_emitted = _try_native_emit(v.closed_form)
+    return res
 
 
 # ---------------------------------------------------------------------------------------------------
