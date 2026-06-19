@@ -2669,6 +2669,32 @@ def test_v36_phase2_translation_validate():
           "machine-rechecked, original kept on DECLINE)")
 
 
+def test_v36_phase2_proof_directed_opt():
+    """v36 PHASE 2.S3: proof-directed optimization — inject a non-aliasing FACT, run real -O3, measure HONESTLY.
+    Asserts the MACHINERY + HONESTY (§1.6), not a forced number: bit-exact vs numpy, a real measured speedup,
+    and correct honest labeling (≤~1.15× ⇒ explicitly NOT 'native 초월'). Optimizer UNTRUSTED, machine validates."""
+    import proof_directed_opt as PDO
+    assert "non-aliasing" in PDO.RULE_TABLE and "noalias" in PDO.RULE_TABLE["non-aliasing"]
+    r = PDO.measure_noalias_vectorization(n=200_000, reps=40)
+    if r.status == "BLOCKED":
+        assert "BLOCKED" in r.detail
+        print(f"PASS test_v36_phase2_proof_directed_opt (proof-directed opt [BLOCKED] honestly: {r.detail[:50]})")
+        return
+    assert r.status == "MEASURED"
+    # ★ soundness gate (P2.S5): both -O3 versions are BIT-EXACT vs the numpy reference ★
+    assert r.bit_exact is True
+    # a REAL measured number (not fabricated); not a regression
+    assert r.speedup >= 0.9 and r.noalias_ms > 0 and r.mayalias_ms > 0
+    # ★ HONEST labeling (§1.6): the note claims a win ONLY if the fact actually paid off; else explicitly ~1× ★
+    if r.speedup > 1.15:
+        assert "unlocked" in r.honest_note
+    else:
+        assert ("did NOT" in r.honest_note or "~1" in r.honest_note) and "초월" in r.honest_note  # honest non-claim
+    print(f"PASS test_v36_phase2_proof_directed_opt (noalias proof → -O3, MEASURED [Clock C] {r.speedup}× "
+          f"(vectorized IR={r.vectorized}), bit-exact vs numpy; honest: "
+          f"{'win claimed' if r.speedup>1.15 else 'reported ~1×, NOT native-초월 (§1.6)'})")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
