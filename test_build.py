@@ -2953,21 +2953,27 @@ def test_v39_a4_live_native_emission():
     closed = [("Σk", "fn f(n: Nat) -> Nat { fold k in 1..n { k } }"),
               ("Σk²", "fn f(n: Nat) -> Nat { fold k in 1..n { k*k } }"),
               ("Σk³", "fn f(n: Nat) -> Nat { fold k in 1..n { k*k*k } }")]
+    # regression-0 (rule 4): the DEFAULT optimize() never emits native ⇒ byte-identical to before (no slowdown)
+    for _name, code in closed:
+        d = AG.optimize(code)
+        assert d.kind == "CLOSED" and d.native_emitted is False and d.native_status == "not attempted"
+
     if not BE.llvm_available():
-        r = AG.optimize(closed[0][1])
+        r = AG.optimize(closed[0][1], emit_native=True)
         assert r.kind == "CLOSED" and r.native_emitted is False and "BLOCKED" in r.native_status
-        print(f"PASS test_v39_a4_live_native_emission (llvmlite [BLOCKED] honestly; closed-form classification "
-              f"intact, native emission skipped — structural result unchanged)")
+        print(f"PASS test_v39_a4_live_native_emission (llvmlite [BLOCKED] honestly; default optimize() byte-"
+              f"identical; native emission skipped — structural result unchanged)")
         return
 
-    # live_native_emission_translation_validated: closed forms reach native, translation-validated (EMITTED)
+    # live_native_emission_translation_validated: with emit_native=True (the pipeline path) closed forms reach
+    # native, translation-validated (EMITTED)
     for name, code in closed:
-        r = AG.optimize(code)
+        r = AG.optimize(code, emit_native=True)
         assert r.kind == "CLOSED" and r.optimized and r.native_emitted and r.native_status == "EMITTED", \
             f"{name}: {r.native_status}"
 
-    # regression-0: a non-closed fold does NOT attempt native (byte-identical structural path)
-    nc = AG.optimize("fn g(n: Nat) -> Nat { fold k in 1..n { k % 7 } }")
+    # regression-0: a non-closed fold does NOT attempt native even with emit_native=True (only CLOSED does)
+    nc = AG.optimize("fn g(n: Nat) -> Nat { fold k in 1..n { k % 7 } }", emit_native=True)
     assert nc.native_emitted is False and nc.native_status == "not attempted"
 
     # product_bitexact: the emitted native equals the proven closed form on a probe battery (re-check via the

@@ -169,11 +169,14 @@ def _try_native_emit(closed_form: str):
         return (f"skip ({type(ex).__name__})", False)
 
 
-def optimize(code: str) -> OptimizeResult:
+def optimize(code: str, emit_native: bool = False) -> OptimizeResult:
     """S4: classify a (proven) HARAN function and, if it has closed-form structure, return the closed
-    form + asymptotic class. No structure → honestly NOT optimized (no fabricated speedup). When a closed
-    form IS found, A4 also emits translation-validated native code for it (Clock C); non-closed cases are
-    byte-identical (native emission is attempted only on CLOSED)."""
+    form + asymptotic class. No structure → honestly NOT optimized (no fabricated speedup).
+
+    A4: when `emit_native=True` AND a closed form is found, ALSO lower it to translation-validated native i64
+    (Clock C). ★ emit_native defaults False so the bare optimize() is byte-identical to before (LLVM JIT compile
+    is ~tens of ms — a build-time cost; we never silently slow optimize()). The pipeline opts in (§ run_pipeline),
+    where that build-time is negligible against the LLM/verify seconds and produces the O(1) native artifact. ★"""
     prog = parse(code)
     if prog.errors:
         return OptimizeResult(False, "PARSE_ERROR", "-", "—", "none", str(prog.errors[0]))
@@ -186,7 +189,7 @@ def optimize(code: str) -> OptimizeResult:
         closed_form=v.closed_form, speedup=v.speedup if v.kind == "CLOSED" else "none",
         proof=str(v.proof),
     )
-    if v.kind == "CLOSED" and v.closed_form not in ("", "—"):
+    if emit_native and v.kind == "CLOSED" and v.closed_form not in ("", "—"):
         res.native_status, res.native_emitted = _try_native_emit(v.closed_form)
     return res
 
@@ -349,7 +352,7 @@ def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = No
 
     # only optimize / prove PROVEN code (S4/S6 discipline)
     if wvf.converged:
-        opt = optimize(wvf.final_code)
+        opt = optimize(wvf.final_code, emit_native=True)   # A4: pipeline opts into native emission (build-time)
         tier = verify_typeA(wvf.final_code).tier
     else:
         opt, tier = None, "(not proven)"
@@ -405,7 +408,7 @@ def agentic_stream(request: str, mode: str = "normal", api_key: Optional[str] = 
     opt, tier = None, "(not proven)"
     if converged:
         yield {"stage": "optimize"}                                       # 최적화중 (fold, real)
-        opt = optimize(final_code)
+        opt = optimize(final_code, emit_native=True)                      # A4: pipeline opts into native emission
         tier = verify_typeA(final_code).tier
     ms = (time.perf_counter() - t0) * 1000
     if converged:
