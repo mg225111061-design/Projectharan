@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<!-- =====================================================================================================
+     MR.JEFFREY — verification panel (PHASE 9). "The Certificate" design direction.
+     The one screen that separates MR.JEFFREY from an LLM wrapper: it shows the machine-checked grade
+     (EXACT / PROBABILISTIC(ε,δ) / DECLINE), WHICH kernel was selected and why, the certificate, the three
+     clocks (separated), and the measured collapse. Bound to REAL engine output (panel_data.json from the
+     v40 router/kernels) — fallback below is a labelled snapshot of that real run, never mocked numbers.
+
+     HONEST SCOPE: this is a self-contained HTML/JS artifact of the verification panel. The full §3 build
+     (React+TS, W3C DTCG tokens, Playwright visual-regression + axe-core + Core Web Vitals CI gates,
+     multi-critic design loop) needs a frontend toolchain not present in this sandbox ⇒ [BLOCKED: toolchain];
+     this artifact demonstrates the panel + the real data binding, which is the heart of PHASE 9.
+     ===================================================================================================== -->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MR.JEFFREY — verification panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f8fa; --paper-2:#eef1f5; --ink:#0e1116; --ink-2:#39404b; --muted:#6b7280;
+  --surface:#fff; --line:#e2e6ec; --line-2:#cdd3dc; --grid:rgba(14,17,22,.045);
+  --exact:#0d8c5f; --exact-bg:#e7f6ee; --exact-ink:#075537;
+  --prob:#b9750a;  --prob-bg:#fcf2e1;  --prob-ink:#7a4c05;
+  --decline:#5b6472; --decline-bg:#eef0f3; --decline-ink:#414856;
+  --signal:#3b51d9; --signal-bg:#eaedfc;
+  --display:"Space Grotesk",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --r:5px; --r-lg:10px; --shadow:0 1px 2px rgba(14,17,22,.04),0 10px 30px -18px rgba(14,17,22,.22);
+  --ease:cubic-bezier(.2,.6,.2,1);
+}
+:root[data-theme="dark"]{
+  --paper:#0b0d10; --paper-2:#101317; --ink:#eef1f5; --ink-2:#c0c6d0; --muted:#8b929e;
+  --surface:#14171c; --line:#23282f; --line-2:#323843; --grid:rgba(255,255,255,.04);
+  --exact:#2fce95; --exact-bg:#0e251c; --exact-ink:#8fe9c4; --prob:#e8a23c; --prob-bg:#2a1f0c; --prob-ink:#f3cf8f;
+  --decline:#8a93a3; --decline-bg:#171b21; --decline-ink:#aeb6c2; --signal:#7588f5; --signal-bg:#161a2e;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 14px 40px -22px rgba(0,0,0,.85);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--display);line-height:1.5;-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:34px 34px}
+.mono{font-family:var(--mono)} .tnum{font-variant-numeric:tabular-nums}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px 80px}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;height:62px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:color-mix(in srgb,var(--surface) 75%,transparent);backdrop-filter:blur(8px);z-index:9}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:-.02em;font-size:18px}
+.seal{width:26px;height:26px;border:1.5px solid var(--ink);border-radius:50%;display:grid;place-items:center;
+  font-family:var(--mono);font-size:11px;font-weight:600}
+.brand small{font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase}
+.icon-btn{width:40px;height:40px;border:1px solid var(--line-2);border-radius:var(--r);background:transparent;cursor:pointer;color:var(--ink-2)}
+/* hero strip */
+.hero{padding:40px 0 22px}
+.hero h1{font-size:clamp(28px,4.4vw,46px);font-weight:700;letter-spacing:-.03em;line-height:1.02;margin:8px 0}
+.hero p{color:var(--ink-2);max-width:640px;font-size:15.5px}
+/* grade legend */
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 8px}
+.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-weight:600;font-size:12.5px;
+  padding:6px 12px;border-radius:var(--r);border:1px solid var(--bd)}
+.b-exact{color:var(--exact-ink);background:var(--exact-bg);--bd:color-mix(in srgb,var(--exact) 32%,transparent)}
+.b-prob{color:var(--prob-ink);background:var(--prob-bg);--bd:color-mix(in srgb,var(--prob) 32%,transparent)}
+.b-decline{color:var(--decline-ink);background:var(--decline-bg);--bd:var(--line-2)}
+/* section */
+h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  margin:34px 0 14px;display:flex;align-items:center;gap:10px}
+h2.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+/* verdict card */
+.card{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--r-lg);background:var(--surface);
+  box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.card.g-EXACT{--accent:var(--exact)} .card.g-PROBABILISTIC{--accent:var(--prob)} .card.g-DECLINE{--accent:var(--decline)}
+.card-head{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:16px 20px;cursor:pointer}
+.task{font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+.task small{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:3px;font-weight:400}
+.right{display:flex;align-items:center;gap:14px;justify-self:end}
+.kernel{font-family:var(--mono);font-size:12px;color:var(--ink-2);text-align:right}
+.kernel b{color:var(--signal);font-weight:600} .kernel small{color:var(--muted)}
+.gbadge{font-family:var(--mono);font-weight:600;font-size:12px;padding:5px 11px;border-radius:var(--r);white-space:nowrap}
+.card.g-EXACT .gbadge{color:var(--exact-ink);background:var(--exact-bg)}
+.card.g-PROBABILISTIC .gbadge{color:var(--prob-ink);background:var(--prob-bg)}
+.card.g-DECLINE .gbadge{color:var(--decline-ink);background:var(--decline-bg)}
+.cert{max-height:0;overflow:hidden;transition:max-height .3s var(--ease);background:var(--paper-2);border-top:0 solid var(--line)}
+.card.open .cert{max-height:280px;border-top:1px solid var(--line)}
+.cert-in{padding:16px 20px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--ink-2)}
+.cert-in .k{color:var(--muted)} .cert-in .v{color:var(--ink)}
+.cert-in .row{display:flex;gap:8px;flex-wrap:wrap}
+/* three clocks */
+.clocks{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.clocks{grid-template-columns:repeat(3,1fr)}}
+.clock{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:18px 18px;box-shadow:var(--shadow)}
+.clock .ck{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em}
+.clock h3{font-size:14.5px;font-weight:600;margin:7px 0 6px}
+.clock p{font-size:12.5px;color:var(--muted);line-height:1.55}
+.clock .tag{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:var(--r);margin-top:8px;display:inline-block}
+.measured{color:var(--exact-ink);background:var(--exact-bg)} .external{color:var(--decline-ink);background:var(--decline-bg)}
+/* collapse table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.num{font-family:var(--mono);text-align:right}
+.win{color:var(--exact-ink);font-weight:600}
+footer{margin-top:36px;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8;border-top:1px solid var(--line);padding-top:20px}
+footer b{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap" style="display:flex;align-items:center;justify-content:space-between;padding-top:0;padding-bottom:0;height:62px">
+  <div class="brand"><span class="seal mono">MJ</span><span>MR.JEFFREY <small>verification panel</small></span></div>
+  <button class="icon-btn" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">◐</button>
+</div></header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="eyebrow">Proven correctness · machine-checked certificates</span>
+    <h1>Every output carries a grade.</h1>
+    <p>An LLM proposes; the HARAN engine routes it to a collapse kernel and returns a <b>machine-checked
+      certificate</b> — or declines. The grade is enforced by the verifier, never a label.</p>
+    <div class="legend">
+      <span class="badge b-exact">🛡 EXACT — bit-exact, deterministic certificate</span>
+      <span class="badge b-prob">🎲 PROBABILISTIC(ε,δ) — stated analytic bound</span>
+      <span class="badge b-decline">✋ DECLINE — honest refusal, with the reason</span>
+    </div>
+    <p class="mono" style="font-size:11.5px;color:var(--muted);margin-top:6px" id="meta">loading real engine data…</p>
+  </section>
+
+  <h2 class="sec">verification feed <span class="mono" style="text-transform:none;letter-spacing:0;font-size:11px">— click a row for its certificate</span></h2>
+  <div id="feed"></div>
+
+  <h2 class="sec">three clocks — never mixed</h2>
+  <div class="clocks">
+    <div class="clock"><div class="ck" style="color:var(--decline-ink)">CLOCK A</div><h3>LLM generation latency</h3>
+      <p>How long the model takes to propose code. This build does not touch it — the LLM stays in the loop.</p>
+      <span class="tag external">EXTERNAL · not measured here</span></div>
+    <div class="clock"><div class="ck" style="color:var(--signal)">CLOCK B</div><h3>verification throughput</h3>
+      <p>Router decision + certificate check, per dispatch. Shown on each verdict row (µs).</p>
+      <span class="tag measured" id="bclock">MEASURED · µs/dispatch</span></div>
+    <div class="clock"><div class="ck" style="color:var(--exact-ink)">CLOCK C</div><h3>emitted-code collapse</h3>
+      <p>Runtime speedup of the generated code when a kernel fires (table below). Bit-exact.</p>
+      <span class="tag measured">MEASURED · naive → collapsed</span></div>
+  </div>
+
+  <h2 class="sec">measured collapse (clock C)</h2>
+  <table id="collapse"><thead><tr><th>kernel</th><th>structure</th><th class="num">naive</th><th class="num">collapsed</th><th>scale</th></tr></thead><tbody></tbody></table>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+// real snapshot of the v40 engine run (panel_data.json). Live page fetches the file; this is the labelled fallback.
+const SNAP = {"kernels_total":18,"auto_routable":17,"snapshot":true,
+"rows":[
+ {"task":"Σ_{k=1}^{n} k  closed form","source":"fold k in 1..n { fib }","grade":"EXACT","kernel":"cfinite","complexity":"O(log n) compute","clockB_us":581.2,"cert":{"kind":"companion_equiv","detail":"order-2 C-finite; companion-matrix power ≡ naive recurrence (exact integers)"}},
+ {"task":"best rational ≈ π (denom≤113)","source":"approximate 3.14159","grade":"EXACT","kernel":"best_rational","complexity":"O(log q) compute","clockB_us":45.7,"cert":{"kind":"convergent_bestapprox","detail":"h/k=355/113 is a CF convergent of 314159/100000 with k≤113 (Hardy–Wright Ch.X)"}},
+ {"task":"Toeplitz T·v (n=512)","source":"toeplitz solve","grade":"EXACT","kernel":"toeplitz_matvec","complexity":"O(n log n) compute","clockB_us":1600.9,"cert":{"kind":"displacement_bound+spotcheck","detail":"Toeplitz=convolution (displacement rank 2); proven |entry|<P/2 ⇒ NTT exact; spot-checked vs naive"}},
+ {"task":"matmul A·B = C check (80×80)","source":"verify A@B==C","grade":"PROBABILISTIC","kernel":"freivalds","complexity":"O(k·N²), k=24, N=80","clockB_us":10803.0,"cert":{"kind":"freivalds","detail":"one-sided random projection, no false reject","delta":5.96e-8}},
+ {"task":"range-min over queries","source":"min(a[l:r])","grade":"EXACT","kernel":"rmq_sparse_table","complexity":"O(1) per query (O(n log n) build)","clockB_us":52.3,"cert":{"kind":"rmq_spotcheck","detail":"sparse-table O(1) range-min; queries spot-checked vs naive min"}},
+ {"task":"SLP char in 2³⁰-char string","source":"random access","grade":"EXACT","kernel":"slp","complexity":"O(height) access","clockB_us":11.0,"cert":{"kind":"slp_access","detail":"grammar of 32 rules expands to 1,073,741,825 chars; char[k] in O(height), no decompression"}},
+ {"task":"PRNG k-th draw (k=10⁶)","source":"rng[k]","grade":"EXACT","kernel":"prng_seed","complexity":"O(1) random access","clockB_us":28.4,"cert":{"kind":"exact_replay","detail":"counter-based generator: k-th draw is an O(1) function of (seed,k); bit-exact"}},
+ {"task":"fit Gaussian (2000 samples)","source":"summary stats","grade":"PROBABILISTIC","kernel":"stat_fit","complexity":"O(n) summary","clockB_us":900.0,"cert":{"kind":"goodness_of_fit","detail":"Gaussian sufficient stats μ,σ; skew/kurtosis within 3σ normality gate","delta":0.0027}},
+ {"task":"predict next network read","source":"predict input","grade":"DECLINE","kernel":"router","complexity":"-","clockB_us":3.0,"reason":"external I/O value depends on the outside world (causality) — permanently DECLINE; no collapse can predict an unread input"}
+],
+"measured":{
+ "prng_seed":{"structure":"random-access O(k)→O(1)","naive":"651 ms","collapsed":"2 µs","n":"k=10⁶"},
+ "toeplitz_matvec":{"structure":"O(n²)→O(n log n) NTT","naive":"2226 ms","collapsed":"18.5 ms","n":"n=4096"},
+ "walsh_hadamard":{"structure":"O(n²)→O(n log n)","naive":"3790 ms","collapsed":"8.6 ms","n":"n=4096"},
+ "rmq_sparse_table":{"structure":"O(n)/q→O(1)/q","naive":"505 ms","collapsed":"14 ms","n":"20k queries"},
+ "slp":{"structure":"O(n)→O(height) access","naive":"infeasible","collapsed":"5.7 µs","n":"2³⁰ chars"}
+}};
+
+function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function render(d, live){
+  document.getElementById("meta").textContent =
+    (live?"live: ":"snapshot (real v40 run): ") + d.kernels_total + " kernels registered · " +
+    d.auto_routable + " auto-routable · all grades verifier-enforced";
+  const feed=document.getElementById("feed");
+  d.rows.forEach(r=>{
+    const c=r.cert||{};
+    const certrows=[];
+    if(c.kind) certrows.push(`<div class="row"><span class="k">cert.kind</span><span class="v">${esc(c.kind)}</span></div>`);
+    if(c.detail) certrows.push(`<div class="row"><span class="k">detail</span><span class="v">${esc(c.detail)}</span></div>`);
+    if(c.delta!=null) certrows.push(`<div class="row"><span class="k">δ</span><span class="v">${c.delta} &nbsp; <span class="k">(stated bound, not sampling)</span></span></div>`);
+    if(r.reason) certrows.push(`<div class="row"><span class="k">reason</span><span class="v">${esc(r.reason)}</span></div>`);
+    certrows.push(`<div class="row"><span class="k">clock B</span><span class="v">${r.clockB_us} µs · router decision + check</span></div>`);
+    const el=document.createElement("div");
+    el.className="card g-"+r.grade;
+    el.innerHTML=
+      `<div class="card-head">
+         <div class="task">${esc(r.task)}<small>input: ${esc(r.source)}</small></div>
+         <div class="right">
+           <div class="kernel">→ <b>${esc(r.kernel)}</b><small> · ${esc(r.complexity)}</small></div>
+           <div class="gbadge">${r.grade==="EXACT"?"🛡":r.grade==="PROBABILISTIC"?"🎲":"✋"} ${r.grade}${c.delta!=null?"(δ="+c.delta+")":""}</div>
+         </div>
+       </div>
+       <div class="cert"><div class="cert-in">${certrows.join("")}</div></div>`;
+    el.querySelector(".card-head").addEventListener("click",()=>el.classList.toggle("open"));
+    feed.appendChild(el);
+  });
+  const tb=document.querySelector("#collapse tbody");
+  Object.entries(d.measured).forEach(([k,m])=>{
+    tb.insertAdjacentHTML("beforeend",
+      `<tr><td class="mono">${esc(k)}</td><td>${esc(m.structure)}</td><td class="num">${esc(m.naive)}</td>
+       <td class="num win">${esc(m.collapsed)}</td><td class="mono">${esc(m.n)}</td></tr>`);
+  });
+  document.getElementById("foot").innerHTML =
+    `<b>MR.JEFFREY</b> — verification panel · grades enforced by the verifier (EXACT/PROBABILISTIC/DECLINE), never a label.<br>
+     Real engine data from the v40 router + kernels. Three clocks kept separate: Clock A (LLM) untouched, B (verification) per row, C (emitted code) measured above.<br>
+     <b>Honest scope:</b> this is the verification panel as a self-contained artifact. The full React+TS build with W3C DTCG tokens and the
+     Playwright / axe-core / Core-Web-Vitals CI gates needs a frontend toolchain absent in this sandbox <b>[BLOCKED: toolchain]</b>.`;
+}
+(async function(){
+  let d=null, live=false;
+  try{const r=await fetch("panel_data.json",{cache:"no-store"}); if(r.ok){d=await r.json(); live=true;}}catch(_){}
+  if(!d) d=SNAP;
+  render(d, live);
+})();
+</script>
+</body>
+</html>

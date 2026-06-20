@@ -1,0 +1,176 @@
+{
+ "kernels_total": 18,
+ "auto_routable": 17,
+ "rows": [
+  {
+   "task": "\u03a3_{k=1}^{n} k  closed form",
+   "source": "fold k in 1..n { fib }",
+   "grade": "EXACT",
+   "kernel": "cfinite",
+   "complexity": "O(log n) compute",
+   "clockB_us": 581.2,
+   "cert": {
+    "kind": "companion_equiv",
+    "detail": "order-2 C-finite; companion-matrix power \u2261 naive recurrence (exact integers)",
+    "epsilon": null,
+    "delta": null,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "best rational \u2248 \u03c0 (denom\u2264113)",
+   "source": "approximate 3.14159",
+   "grade": "EXACT",
+   "kernel": "best_rational",
+   "complexity": "O(log q) compute",
+   "clockB_us": 45.7,
+   "cert": {
+    "kind": "convergent_bestapprox",
+    "detail": "h/k=355/113 is a CF convergent of 314159/100000 with k\u2264113 (best rational \u2264 denom, Hardy\u2013Wright Ch.X)",
+    "epsilon": null,
+    "delta": null,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "Toeplitz T\u00b7v (n=512)",
+   "source": "toeplitz solve",
+   "grade": "EXACT",
+   "kernel": "toeplitz_matvec",
+   "complexity": "O(n log n) compute",
+   "clockB_us": 1600.9,
+   "cert": {
+    "kind": "displacement_bound+spotcheck",
+    "detail": "Toeplitz=convolution (displacement rank 2); proven |entry|<P/2 \u21d2 NTT exact; 4 rows spot-checked vs naive",
+    "epsilon": null,
+    "delta": null,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "matmul A\u00b7B = C check (80\u00d780)",
+   "source": "verify A@B==C",
+   "grade": "PROBABILISTIC",
+   "kernel": "freivalds",
+   "complexity": "O(k\u00b7N\u00b2), k=24, N=80",
+   "clockB_us": 10803.0,
+   "cert": {
+    "kind": "freivalds_kfold",
+    "detail": "24 binary probes; one-sided (correct ALWAYS passes); wrong passes w.p. \u2264 5.96e-08",
+    "epsilon": null,
+    "delta": 5.960464477539063e-08,
+    "bound": 5.960464477539063e-08
+   },
+   "reason": ""
+  },
+  {
+   "task": "range-min over 20k queries",
+   "source": "min(a[l:r])",
+   "grade": "EXACT",
+   "kernel": "rmq_sparse_table",
+   "complexity": "O(1) per query (O(n log n) build)",
+   "clockB_us": 94.9,
+   "cert": {
+    "kind": "rmq_spotcheck",
+    "detail": "sparse-table O(1) range-min; 3 queries spot-checked vs naive min",
+    "epsilon": null,
+    "delta": null,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "SLP char in 2^30-string",
+   "source": "random access",
+   "grade": "EXACT",
+   "kernel": "slp",
+   "complexity": "O(height) access",
+   "clockB_us": 97.2,
+   "cert": {
+    "kind": "slp_access",
+    "detail": "grammar size 33 expands to length 1073741825; char[1073741824] in O(height) (no full decompression; n can be exponential in grammar size)",
+    "epsilon": null,
+    "delta": null,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "PRNG k-th draw (k=1e6)",
+   "source": "rng[k]",
+   "grade": "EXACT",
+   "kernel": "prng_seed",
+   "complexity": "O(1) random access",
+   "clockB_us": 43.0,
+   "cert": {
+    "kind": "exact_replay",
+    "detail": "counter-based generator: k-th draw is an O(1) function of (seed,k); bit-exact",
+    "epsilon": null,
+    "delta": null,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "fit Gaussian (2000 samples)",
+   "source": "summary stats",
+   "grade": "PROBABILISTIC",
+   "kernel": "stat_fit",
+   "complexity": "O(n) summary",
+   "clockB_us": 2031.7,
+   "cert": {
+    "kind": "goodness_of_fit",
+    "detail": "Gaussian sufficient stats \u03bc=-0.000, \u03c3=0.995; skew/kurt within 3\u03c3 normality gate",
+    "epsilon": 0.022250133248009157,
+    "delta": 0.0027,
+    "bound": null
+   },
+   "reason": ""
+  },
+  {
+   "task": "next network read",
+   "source": "predict input",
+   "grade": "DECLINE",
+   "kernel": "router",
+   "complexity": "-",
+   "clockB_us": 24.3,
+   "cert": null,
+   "reason": "no kernel applicable (tried ['io_boundary']) \u2014 fallback to existing path"
+  }
+ ],
+ "measured": {
+  "prng_seed": {
+   "naive": "651 ms",
+   "collapsed": "2 \u00b5s",
+   "n": "k=10\u2076",
+   "note": "random-access O(k)\u2192O(1), bit-exact"
+  },
+  "toeplitz": {
+   "naive": "2226 ms",
+   "collapsed": "18.5 ms",
+   "n": "n=4096",
+   "note": "O(n\u00b2)\u2192O(n log n) NTT, bit-exact"
+  },
+  "walsh_hadamard": {
+   "naive": "3790 ms",
+   "collapsed": "8.6 ms",
+   "n": "n=4096",
+   "note": "O(n\u00b2)\u2192O(n log n), bit-exact"
+  },
+  "rmq": {
+   "naive": "505 ms",
+   "collapsed": "14 ms",
+   "n": "20k queries",
+   "note": "O(n)/q\u2192O(1)/q"
+  },
+  "slp": {
+   "naive": "infeasible",
+   "collapsed": "5.7 \u00b5s",
+   "n": "2\u00b3\u2070 chars",
+   "note": "O(n)\u2192O(height) access"
+  }
+ }
+}
