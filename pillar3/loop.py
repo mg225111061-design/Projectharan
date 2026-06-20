@@ -85,7 +85,7 @@ def compound_optimize(stages: List[Stage], make_input: Callable[[], Any], *, n: 
             sr = M.measure_whole_program(baseline, cand, make_args, n=n,
                                          hotspot_fraction=min(0.999, sum(st.fraction for st in stages
                                                                          if st.name in (active | {s.name}))),
-                                         samples=samples)
+                                         samples=samples, timer=M.time_best)   # best-of-k: stable under load
             if best is None or sr.whole_program_ratio > best[1].whole_program_ratio:
                 best = (s, sr)
         if best is None:
@@ -111,8 +111,8 @@ def compound_optimize(stages: List[Stage], make_input: Callable[[], Any], *, n: 
     sample_in = make_input()
     for s in stages:
         if s.name in active:
-            local = M.time_median(s.slow, lambda: (sample_in,), samples=3) / \
-                max(M.time_median(s.fast, lambda: (sample_in,), samples=3), 1e-12)
+            local = M.time_best(s.slow, lambda: (sample_in,), samples=5) / \
+                max(M.time_best(s.fast, lambda: (sample_in,), samples=5), 1e-12)
             prod *= local
     rep.product_of_locals = prod
     return rep
@@ -124,4 +124,4 @@ def fresh_end_to_end_ratio(stages: List[Stage], make_input: Callable[[], Any], n
     baseline = _pipeline(stages, set())
     allfast = _pipeline(stages, {s.name for s in stages})
     return M.measure_whole_program(baseline, allfast, lambda: (make_input(),), n=n,
-                                   hotspot_fraction=0.99, samples=samples).whole_program_ratio
+                                   hotspot_fraction=0.99, samples=samples, timer=M.time_best).whole_program_ratio

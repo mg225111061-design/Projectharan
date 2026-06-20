@@ -72,14 +72,17 @@ def time_best(fn: Callable, make_args: Callable[[], tuple], samples: int = 7, wa
 
 
 def measure_whole_program(original: Callable, candidate: Callable, make_args: Callable[[], tuple], *,
-                          n: int, hotspot_fraction: float, samples: int = 7, warmup: int = 1) -> SpeedupReport:
-    """The neutral-baseline whole-program ratio: median(original) / median(candidate) on the SAME workload,
-    at the original's normal optimization level. `hotspot_fraction` comes from the profiler (the Amdahl input).
-    Refuses to produce a number without n and hotspot_fraction."""
+                          n: int, hotspot_fraction: float, samples: int = 7, warmup: int = 1,
+                          timer: Callable = None) -> SpeedupReport:
+    """The neutral-baseline whole-program ratio: timer(original) / timer(candidate) on the SAME workload, at the
+    original's normal optimization level. `timer` defaults to the median; pass `time_best` for CPU-bound work
+    where the minimum (least-contended run) is the more stable estimator. `hotspot_fraction` comes from the
+    profiler (the Amdahl input). Refuses to produce a number without n and hotspot_fraction."""
     if n is None or hotspot_fraction is None:
         raise ValueError("measure_whole_program requires n AND hotspot_fraction (Rule 1/2)")
-    orig = time_median(original, make_args, samples, warmup)
-    cand = time_median(candidate, make_args, samples, warmup)
+    timer = timer or time_median
+    orig = timer(original, make_args, samples, warmup)
+    cand = timer(candidate, make_args, samples, warmup)
     ratio = orig / cand if cand > 0 else float("inf")
     return SpeedupReport(whole_program_ratio=ratio, hotspot_fraction=hotspot_fraction, n=n,
                          samples=samples, warmup_discarded=warmup, orig_median_s=orig, cand_median_s=cand)
