@@ -2942,6 +2942,96 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def _p3_naive_poly(coeffs, x):                  # O(n²): recompute xⁱ by repeated multiply (module-level for getsource)
+    s = 0
+    for i in range(len(coeffs)):
+        term = coeffs[i]
+        for _ in range(i):
+            term = term * x
+        s = s + term
+    return s
+
+
+def _p3_horner(coeffs, x):                      # O(n)
+    r = 0
+    for c in reversed(coeffs):
+        r = r * x + c
+    return r
+
+
+def _p3_wrong_horner(coeffs, x):                # subtle bug: − instead of +
+    r = 0
+    for c in reversed(coeffs):
+        r = r * x - c
+    return r
+
+
+def _p3_naive_matmul(A, B):
+    n = len(A); C = [[0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                C[i][j] = C[i][j] + A[i][k] * B[k][j]
+    return C
+
+
+def _p3_wrong_matmul(A, B):                     # subtle bug: B[j][k] (transpose) — a wrong "optimized" swap
+    n = len(A); C = [[0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                C[i][j] = C[i][j] + A[i][k] * B[j][k]
+    return C
+
+
+def test_pillar3_stage4_recognition_and_certificate():
+    """Pillar 3 · Stage 4: algorithm recognition + the Z3 equivalence certificate (the moat). A recognized
+    replacement is auto-applied ONLY if the certificate verifies. ★ THE KEY TEST: a wrong algorithm swap is
+    CAUGHT and graded DECLINE ★ — proving the moat actually catches a wrong fast swap."""
+    import random
+    import kernel_verdict as KV
+    from pillar3 import recognize as RG, equiv as EQ, record as RC
+
+    # recognition (structural / KernelFaRer-spirit)
+    assert RG.recognize_matmul(_p3_naive_matmul).matched
+    assert RG.recognize_exp_recursion(_p3_horner).matched is False        # not exponential recursion
+
+    # Z3 bounded translation validation: Horner ≡ naive; wrong Horner is REFUTED with a counterexample
+    assert EQ.prove_equiv(_p3_naive_poly, _p3_horner, EQ.sym_poly_inputs, (3, 5))[0] is True
+    ok, cex = EQ.prove_equiv(_p3_naive_poly, _p3_wrong_horner, EQ.sym_poly_inputs, (3, 5))
+    assert ok is False and "counterexample" in str(cex)
+
+    def mk(d=120, seed=0):
+        rng = random.Random(seed)
+        return ([rng.randint(-5, 5) for _ in range(d)], rng.randint(-3, 3))
+    oracle = RC.record_oracle(_p3_naive_poly, [mk(40), mk(30, 1)])
+
+    # CORRECT swap → EXACT (Z3-proven) + measured whole-program win (genuine O(n²)→O(n))
+    v = EQ.grade_replacement(_p3_naive_poly, _p3_horner, lambda: mk(120), n=120, hotspot_fraction=0.98,
+                             oracle=oracle, prove=lambda: EQ.prove_equiv(_p3_naive_poly, _p3_horner, EQ.sym_poly_inputs, (3, 5)),
+                             floor=1.5)
+    assert v.status == KV.EXACT and v.certificate.delta is None and v.report.whole_program_ratio > 1.5
+
+    # ★ WRONG swap → DECLINE (the moat) — caught by differential AND refuted by Z3 ★
+    w = EQ.grade_replacement(_p3_naive_poly, _p3_wrong_horner, lambda: mk(120), n=120, hotspot_fraction=0.98,
+                             oracle=oracle, prove=lambda: EQ.prove_equiv(_p3_naive_poly, _p3_wrong_horner, EQ.sym_poly_inputs, (3, 5)),
+                             floor=1.5)
+    assert w.status == KV.DECLINE
+
+    # the canonical "wrong 1000× swap": a wrong matmul replacement is Z3-REFUTED (independent of any speed)
+    assert EQ.prove_equiv_matmul(_p3_naive_matmul, _p3_wrong_matmul)[0] is False
+    mo = RC.record_oracle(_p3_naive_matmul, [([[1, 2], [3, 4]], [[5, 6], [7, 8]])])
+    wm = EQ.grade_replacement(_p3_naive_matmul, _p3_wrong_matmul, lambda: ([[1, 2], [3, 4]], [[5, 6], [7, 8]]),
+                              n=2, hotspot_fraction=0.9, oracle=mo,
+                              prove=lambda: EQ.prove_equiv_matmul(_p3_naive_matmul, _p3_wrong_matmul), floor=1.0)
+    assert wm.status == KV.DECLINE
+
+    print(f"PASS test_pillar3_stage4_recognition_and_certificate (Horner recognized & Z3-PROVEN ≡ naive → EXACT "
+          f"{v.report.whole_program_ratio:.0f}× whole-program (real O(n²)→O(n)); ★wrong Horner → DECLINE "
+          f"(differential + Z3 counterexample)★; wrong matmul swap Z3-REFUTED → DECLINE — the moat catches "
+          f"a wrong fast swap)")
+
+
 def test_pillar3_stage3_global_transforms():
     """Pillar 3 · Stage 3: cross-cutting global transforms on a FLAT profile (no dominant hotspot), where local
     hotspot fixing fails. async/batch I/O (verified, measured); serialization swap json→marshal (EXACT round-
