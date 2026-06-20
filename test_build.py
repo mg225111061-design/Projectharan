@@ -2942,6 +2942,42 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase5_generators():
+    """v40 PHASE 5: generators/recursion + statistics. SLP grammar random-access (EXACT, O(height) into a string
+    exponential in grammar size); sufficient-statistics fit (PROBABILISTIC with goodness-of-fit gate, DECLINE on
+    non-fit). Distinguishes seed-EXACT vs statistics-PROBABILISTIC vs noise-DECLINE."""
+    import random
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory, kernels_structured, kernels_symbolic, kernels_succinct  # noqa: F401
+    import kernels_generators as KG
+
+    # SLP: a 2^30+1-char string from a ~32-rule grammar; random access EXACT in O(height), no decompression
+    g, start = KG._doubling_grammar(30)
+    n = KG._slp_sizes(g, start)[start]
+    assert n > 10**9
+    v = R.dispatch({"kind": "slp_access", "grammar": g, "start": start, "index": n - 1})
+    assert v.status == KV.EXACT and v.result == "b" and "height" in v.complexity
+    # small SLP cross-checked vs full decompression; out-of-range ⇒ DECLINE
+    g2, s2 = KG._doubling_grammar(8)
+    n2 = KG._slp_sizes(g2, s2)[s2]
+    full = KG._slp_decompress(g2, s2)
+    assert all(R.dispatch({"kind": "slp_access", "grammar": g2, "start": s2, "index": k}).result == full[k]
+               for k in (0, 5, n2 - 1))
+    assert R.dispatch({"kind": "slp_access", "grammar": g2, "start": s2, "index": n2 + 10}).status == KV.DECLINE
+
+    # statistics: Gaussian → PROBABILISTIC(δ stated); uniform & bimodal → DECLINE (goodness-of-fit), never EXACT
+    m = KG.measure_fit()
+    assert m["gaussian"] == KV.PROBABILISTIC and m["uniform"] == KV.DECLINE and m["bimodal"] == KV.DECLINE
+    _rng = random.Random(1)
+    gv = R.dispatch({"kind": "fit_gaussian", "samples": [_rng.gauss(0, 1) for _ in range(2000)]})
+    assert gv.status == KV.PROBABILISTIC and gv.certificate.delta is not None
+
+    print(f"PASS test_v40_phase5_generators (SLP random-access into n={n:,}-char string in O(height) EXACT "
+          f"(decompression infeasible); out-of-range→DECLINE; stat_fit Gaussian→PROBABILISTIC δ stated, "
+          f"uniform/bimodal→DECLINE (no fake summary); router {len(R.REGISTRY)} kernels)")
+
+
 def test_v40_phase4_succinct():
     """v40 PHASE 4: succinct/index structures — Sparse-Table RMQ O(1)/query + prefix-sum range O(1)/query.
     §0.1 strict: QUERY-TIME collapse (not value recovery, not data compute). EXACT, measured."""
