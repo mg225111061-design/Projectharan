@@ -2942,6 +2942,50 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase8_verifiers_system():
+    """v40 PHASE 8: verifier suite + system skeleton. Merkle O(log n) inclusion proof (tamper→fail);
+    CircuitBreaker (repeated fail→OPEN→DECLINE, ★never speculative EXACT★); MVCCCache (source-hash keyed, no
+    stale cert, VACUUM); level-triggered reconciler (idempotent). Zero-human-audit dogfood."""
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory  # noqa: F401 — populate router
+    import haran_system as HS
+
+    # Merkle commitment kernel: EXACT inclusion proof; a tampered leaf fails verification
+    v = R.dispatch({"kind": "merkle_prove", "leaves": list(range(1000)), "index": 777})
+    assert v.status == KV.EXACT and "log n" in v.complexity
+    tree = HS._merkle_tree([1, 2, 3, 4]); root = tree[-1][0]; pf = HS._merkle_proof(tree, 2)
+    assert HS._merkle_verify(3, 2, pf, root) and not HS._merkle_verify(999, 2, pf, root)
+
+    # ★ CircuitBreaker: while OPEN it returns DECLINE even when the verify_fn would yield EXACT (no speculation) ★
+    cb = HS.CircuitBreaker(fail_threshold=3)
+    for _ in range(3):
+        cb.call(lambda: KV.decline("fail", "x"))
+    assert cb.state == "OPEN"
+    would_be_exact = lambda: KV.exact(1, "x", "O(1)", KV.Cert(KV.EXACT, "k", True))
+    assert cb.call(would_be_exact).status == KV.DECLINE          # never a speculative EXACT while OPEN
+    cb.half_open()
+    assert cb.call(would_be_exact).status == KV.EXACT and cb.state == "CLOSED"
+
+    # MVCC source-hash keyed cache: same source hits, changed source misses (no stale cert), VACUUM reclaims
+    c = HS.MVCCCache()
+    c.put("g", "src-v1", "PROVEN")
+    assert c.get("g", "src-v1") == "PROVEN" and c.get("g", "src-EDITED") is None
+    c.put("g", "src-v1", "PROVEN")
+    assert c.vacuum() >= 1
+
+    # full system dogfood
+    sc = HS.self_check()
+    assert sc["all_pass"] and sc["breaker_no_speculative_exact"] and sc["mvcc_source_keyed"] and sc["reconciler_idempotent"]
+    # exponential backoff schedule
+    bo = HS.backoff_schedule(5)
+    assert bo == [2.0, 4.0, 8.0, 16.0, 32.0]
+
+    print(f"PASS test_v40_phase8_verifiers_system (Merkle O(log n) inclusion proof EXACT, tamper→fail; "
+          f"CircuitBreaker OPEN→DECLINE (NEVER speculative EXACT)→half-open→CLOSED; MVCC source-hash keyed "
+          f"(no stale cert) + VACUUM; reconciler idempotent; backoff {bo} — system dogfood all_pass)")
+
+
 def test_v40_phase7_representations_io():
     """v40 PHASE 7: alternative representations + I/O boundary, and the FIRST real use of the @status(UNVERIFIED)
     discipline. RNS is EXACT-correct but has NO measured speed crossover in pure Python (CPython C big-int) ⇒
