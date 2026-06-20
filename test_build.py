@@ -2942,6 +2942,53 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase2_structured_matrices():
+    """v40 PHASE 2: structured-matrix kernels into the unified router. Toeplitz mat-vec = convolution
+    (displacement rank 2, Kailath-Kung-Morf) collapses O(n²)→O(n log n) EXACT under a proven no-wraparound
+    bound; over-bound ⇒ honest DECLINE. The existing Freivalds(40) PROBABILISTIC verifier is reused into the
+    router. Constitution: numeric-coverage win, measured crossover, grades enforced."""
+    import random
+    import numpy as np
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory  # noqa: F401 — registers PHASE-1 kernels
+    import kernels_structured as KS
+
+    assert R.verify_contracts()["all_well_formed"] and len(R.REGISTRY) >= 7   # router spans groups
+
+    # Toeplitz mat-vec EXACT == naive (bit-exact), via the unified router
+    rng = random.Random(2)
+    n = 512
+    col = [rng.randint(-3, 3) for _ in range(n)]
+    row = [col[0]] + [rng.randint(-3, 3) for _ in range(n - 1)]
+    v = [rng.randint(-3, 3) for _ in range(n)]
+    vd = R.dispatch({"kind": "toeplitz_matvec", "col": col, "row": row, "v": v})
+    naive = [sum((col[i - j] if i >= j else row[j - i]) * v[j] for j in range(n)) for i in range(n)]
+    assert vd.status == KV.EXACT and vd.result == naive and "log" in vd.complexity
+
+    # ★ sound-or-decline: an over-magnitude case (NTT could wrap) ⇒ DECLINE, never a wrapped/wrong answer ★
+    over = R.dispatch({"kind": "toeplitz_matvec", "col": [10**6] * 8, "row": [10**6] + [1] * 7, "v": [10**6] * 8})
+    assert over.status == KV.DECLINE
+
+    # Freivalds(40) reused into the router: correct ⇒ PROBABILISTIC(δ stated); wrong ⇒ DECLINE
+    A = np.random.default_rng(0).integers(-5, 5, (80, 80)); B = np.random.default_rng(1).integers(-5, 5, (80, 80))
+    C = A @ B
+    vf = R.dispatch({"kind": "matmul_check", "A": A, "B": B, "C": C})
+    assert vf.status == KV.PROBABILISTIC and vf.certificate.delta is not None
+    Cw = C.copy(); Cw[0, 0] += 1
+    assert R.dispatch({"kind": "matmul_check", "A": A, "B": B, "C": Cw}).status == KV.DECLINE
+
+    # ★ measured crossover (§0.1): NTT beats naive at scale, bit-exact at every n ★
+    m = KS.measure_toeplitz()
+    pts = m["points_(n,naive_ms,ntt_ms,exact)"]
+    assert all(ok for *_x, ok in pts) and pts[-1][1] > pts[-1][2] * 10 and m["crossover_n"] is not None
+
+    print(f"PASS test_v40_phase2_structured_matrices (router {len(R.REGISTRY)} kernels across groups; Toeplitz "
+          f"mat-vec EXACT O(n²)→O(n log n) {pts[-1][1]:.0f}ms→{pts[-1][2]:.0f}ms @n={pts[-1][0]} bit-exact "
+          f"(crossover n={m['crossover_n']}); over-bound→DECLINE (no wraparound); Freivalds(40) reused "
+          f"PROBABILISTIC δ=2⁻²⁴, wrong→DECLINE)")
+
+
 def test_v40_phase1_router_and_kernels():
     """v40 PHASE 1: the unified ROUTER + GRADE ADT + number-theory/PRNG EXACT kernels. Each kernel meets the
     §1.2 obligations (detector · HARAN contract · fast certificate · enforced grade · measured crossover).
