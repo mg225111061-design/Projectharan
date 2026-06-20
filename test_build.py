@@ -2942,6 +2942,42 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase3_symbolic():
+    """v40 PHASE 3: algebraic/symbolic closed-form kernels. Walsh-Hadamard O(n²)→O(n log n) EXACT (involution
+    cert); C-finite n-th term O(n)→O(log n) via the companion engine (verified). Grades enforced, measured."""
+    import random
+    import cfinite
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory, kernels_structured  # noqa: F401
+    import kernels_symbolic as KSY
+
+    # WHT EXACT == naive Hadamard product
+    rng = random.Random(0)
+    a = [rng.randint(-5, 5) for _ in range(256)]
+    v = R.dispatch({"kind": "walsh_hadamard", "data": a})
+    naive = [sum(a[j] if bin(i & j).count("1") % 2 == 0 else -a[j] for j in range(256)) for i in range(256)]
+    assert v.status == KV.EXACT and v.result == naive
+    # non-power-of-two ⇒ detector declines (router falls back)
+    assert R.dispatch({"kind": "walsh_hadamard", "data": [1, 2, 3]}).status == KV.DECLINE
+
+    # C-finite Fibonacci n-th term EXACT == naive
+    v2 = R.dispatch({"kind": "linear_recurrence", "c": [1, 1], "init": [0, 1], "n": 90})
+    assert v2.status == KV.EXACT and v2.result == cfinite.naive_nth([1, 1], [0, 1], 90)
+
+    # measured crossovers (§0.1), bit-exact
+    mw = KSY.measure_wht()
+    assert all(ok for *_x, ok in mw["points_(n,naive_ms,wht_ms,exact)"]) and mw["crossover_n"] is not None
+    assert mw["points_(n,naive_ms,wht_ms,exact)"][-1][1] > mw["points_(n,naive_ms,wht_ms,exact)"][-1][2] * 10
+    mc = KSY.measure_cfinite()
+    assert mc["points_us"][-1][1] > mc["points_us"][-1][2] and mc["crossover_n"] is not None
+
+    print(f"PASS test_v40_phase3_symbolic (WHT EXACT O(n²)→O(n log n) "
+          f"{mw['points_(n,naive_ms,wht_ms,exact)'][-1][1]:.0f}ms→{mw['points_(n,naive_ms,wht_ms,exact)'][-1][2]:.0f}ms "
+          f"@n=4096 bit-exact; C-finite O(n)→O(log n) {mc['points_us'][-1][1]:.0f}µs→{mc['points_us'][-1][2]:.0f}µs "
+          f"@n=1e5; non-pow2→DECLINE; router {len(R.REGISTRY)} kernels)")
+
+
 def test_v40_phase2_structured_matrices():
     """v40 PHASE 2: structured-matrix kernels into the unified router. Toeplitz mat-vec = convolution
     (displacement rank 2, Kailath-Kung-Morf) collapses O(n²)→O(n log n) EXACT under a proven no-wraparound
