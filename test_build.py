@@ -2942,6 +2942,50 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_pillar3_stage3_global_transforms():
+    """Pillar 3 · Stage 3: cross-cutting global transforms on a FLAT profile (no dominant hotspot), where local
+    hotspot fixing fails. async/batch I/O (verified, measured); serialization swap json→marshal (EXACT round-
+    trip value equiv; orjson UNVERIFIED-absent); compile-numeric (llvmlite). The flat-profile-killer assertion:
+    the global transform yields a whole-program win local fixing cannot."""
+    import time
+    import kernel_verdict as KV
+    from pillar3 import transforms as T, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+
+    # FLAT profile: N independent blocking I/O ops, each identical small cost — no single hotspot
+    def io_fn(x):
+        time.sleep(0.002)
+        return x * x
+    N = 36
+    seq, con = T.sequential(io_fn), T.make_concurrent(io_fn, max_workers=18)
+    oracle = RC.record_oracle(seq, [(list(range(N)),)])
+    g = apply_and_grade(seq, con, lambda: (list(range(N)),), n=N, hotspot_fraction=0.97, oracle=oracle,
+                        waste_type="async_io", floor=1.5, samples=5)
+    assert g.status != KV.DECLINE and g.report.whole_program_ratio > 3.0     # global async multiplies across all
+    # a "local fix" cannot help a flat profile: optimizing one item's compute leaves the I/O wall intact
+    def local_fixed(items):                                   # same I/O, "optimized" trivial compute → ~no change
+        out = []
+        for x in items:
+            time.sleep(0.002); out.append(x * x)
+        return out
+    from pillar3 import measure as M
+    local = M.measure_whole_program(seq, local_fixed, lambda: (list(range(N)),), n=N, hotspot_fraction=0.97, samples=3)
+    assert g.report.whole_program_ratio > local.whole_program_ratio * 2     # global ≫ local on a flat profile
+
+    # serialization swap: json→marshal, round-trip VALUE equivalent, measured; orjson honestly UNVERIFIED
+    sv, info = T.serialization_swap_grade([{"a": i, "b": [i, i * i], "c": str(i)} for i in range(2000)])
+    assert sv.status == "EXACT" and info["ratio"] > 1 and "UNVERIFIED" in info["orjson"]
+
+    # compile numeric hot region via llvmlite (or honest UNVERIFIED if absent)
+    fn, st = T.compile_numeric_poly("n*(n+1)/2")
+    assert (fn is not None and fn(100) == 5050 and "EXACT" in st) or "UNVERIFIED" in st
+
+    print(f"PASS test_pillar3_stage3_global_transforms (async I/O {g.report.whole_program_ratio:.1f}× whole-program "
+          f"on a FLAT profile (local fix only {local.whole_program_ratio:.2f}× — global ≫ local); serialize swap "
+          f"json→marshal {info['ratio']:.1f}× EXACT round-trip-equiv (orjson UNVERIFIED-absent); compile-numeric "
+          f"{st.split('(')[0].strip()})")
+
+
 def test_pillar3_stage2_compounding_loop():
     """Pillar 3 · Stage 2: the iterative compounding loop walks down the flame graph, verifying each step. The
     cumulative whole-program speedup compounds across rounds AND ★ equals a fresh end-to-end measurement, NOT
