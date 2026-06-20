@@ -2942,6 +2942,37 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase7_representations_io():
+    """v40 PHASE 7: alternative representations + I/O boundary, and the FIRST real use of the @status(UNVERIFIED)
+    discipline. RNS is EXACT-correct but has NO measured speed crossover in pure Python (CPython C big-int) ⇒
+    tagged UNVERIFIED and EXCLUDED from auto-routing (honest, not faked). I/O value⇒DECLINE (causality);
+    dispatch⇒EXACT O(1)."""
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory, kernels_structured, kernels_symbolic, kernels_succinct  # noqa: F401
+    import kernels_generators, kernels_tropical  # noqa: F401
+    import kernels_io as KIO
+
+    # ★ honesty discipline: RNS is EXACT-correct but UNVERIFIED for speed ⇒ not auto-selected ★
+    vc = R.verify_contracts()
+    assert "rns" in vc["unverified"] and "rns" not in R.registered()       # excluded from auto-routing
+    v = KIO._rns_run({"kind": "rns_compute", "a": 123456789, "b": 987654321, "op": "*",
+                      "moduli": [2147483647, 2147483629, 2147483587]})
+    assert v.status == KV.EXACT and v.result == 123456789 * 987654321       # correctness IS proven
+    m = KIO.measure_rns()
+    assert m["status"] == "UNVERIFIED" and m["speed_crossover"] is None and m["rns_us"] > m["direct_bigint_us"]
+
+    # I/O causality boundary: value permanently DECLINE; dispatch EXACT O(1) (pattern, not value)
+    assert R.dispatch({"kind": "io_value", "source": "network"}).status == KV.DECLINE
+    dd = R.dispatch({"kind": "io_dispatch", "table": {"GET": "h_get", "POST": "h_post"}, "key": "GET"})
+    assert dd.status == KV.EXACT and dd.result["handler"] == "h_get" and "value NOT predicted" in dd.complexity
+
+    print(f"PASS test_v40_phase7_representations_io (RNS EXACT-correct but NO pure-Python speed crossover "
+          f"({m['direct_bigint_us']:.1f}µs bigint vs {m['rns_us']:.1f}µs RNS) → @status(UNVERIFIED), excluded "
+          f"from auto-routing (honest, not faked); I/O value→DECLINE (causality), dispatch→EXACT O(1); "
+          f"router {len(R.registered())} auto-routable of {len(R.REGISTRY)})")
+
+
 def test_v40_phase6_other_rules():
     """v40 PHASE 6: the 'other rules' hard class with STRICT boundaries. Tropical (min,+) matrix power
     O(n³k)→O(n³log k) EXACT (non-min-plus→DECLINE); symmetric-boolean #SAT O(2ⁿ)→O(n) EXACT (non-symmetric→
