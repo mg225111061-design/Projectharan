@@ -2942,6 +2942,41 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase6_other_rules():
+    """v40 PHASE 6: the 'other rules' hard class with STRICT boundaries. Tropical (min,+) matrix power
+    O(n³k)→O(n³log k) EXACT (non-min-plus→DECLINE); symmetric-boolean #SAT O(2ⁿ)→O(n) EXACT (non-symmetric→
+    DECLINE). §0.1: general/control-flow domain — small honest niche, aggressive DECLINE outside it."""
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory, kernels_structured, kernels_symbolic, kernels_succinct, kernels_generators  # noqa: F401,E501
+    import kernels_tropical as KT
+
+    # tropical k-step shortest path EXACT; verify vs naive step-by-step
+    M = [[0, 3, None], [None, 0, 2], [1, None, 0]]
+    v = R.dispatch({"kind": "tropical_power", "M": M, "k": 64})
+    Mf = [[(KT._INF if x is None else float(x)) for x in row] for row in M]
+    naive = [row[:] for row in Mf]
+    for _ in range(63):
+        naive = KT._trop_mul(naive, Mf)
+    assert v.status == KV.EXACT and v.result == naive
+    assert R.dispatch({"kind": "tropical_power", "M": [[0, 1]], "k": 3}).status == KV.DECLINE   # non-square
+
+    # symmetric #SAT EXACT (majority); verified vs enumeration for small n
+    v2 = R.dispatch({"kind": "symmetric_bool", "spec": [1 if j > 8 else 0 for j in range(17)]})
+    brute = sum(1 for x in range(1 << 16) if (bin(x).count("1") > 8))
+    assert v2.status == KV.EXACT and v2.result["sat_count"] == brute
+
+    mt = KT.measure_tropical()
+    ms = KT.measure_symmetric()
+    assert all(ok for *_x, ok in mt["points_(k,naive_ms,sq_ms,exact)"]) and mt["crossover_k"] is not None
+    assert all(ok for *_x, ok in ms["points_(n,brute,On_us,ok)"])
+    big_t = mt["points_(k,naive_ms,sq_ms,exact)"][-1]
+    print(f"PASS test_v40_phase6_other_rules (tropical min-plus M^k O(n³k)→O(n³log k) "
+          f"{big_t[1]:.0f}ms→{big_t[2]:.1f}ms @k={big_t[0]} EXACT (non-min-plus→DECLINE); symmetric #SAT "
+          f"O(2ⁿ)→O(n): n=40 in 7µs (2⁴⁰ infeasible), EXACT (non-symmetric→DECLINE); router {len(R.REGISTRY)} "
+          f"kernels — honest small general-domain niche)")
+
+
 def test_v40_phase5_generators():
     """v40 PHASE 5: generators/recursion + statistics. SLP grammar random-access (EXACT, O(height) into a string
     exponential in grammar size); sufficient-statistics fit (PROBABILISTIC with goodness-of-fit gate, DECLINE on
