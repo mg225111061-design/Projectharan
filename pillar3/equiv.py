@@ -18,6 +18,7 @@ import z3
 import kernel_verdict as KV
 from pillar3 import measure as M
 from pillar3 import record as RC
+from pillar3 import verifier as _V
 
 
 def _sym_matrix(prefix: str, n: int) -> List[List[Any]]:
@@ -48,6 +49,7 @@ def prove_equiv(naive_fn: Callable, cand_fn: Callable, sym_factory: Callable[[in
             return False, f"output shape mismatch at size={sz}"
         s = z3.Solver()
         s.add(z3.Or(*[RA[i] != RB[i] for i in range(len(RA))]))   # negation: ∃ input where some entry differs
+        _V.note_z3_check()                                        # honest record of real SMT work (PHASE M)
         r = s.check()
         if r == z3.sat:
             return False, f"Z3 counterexample at size={sz}: {s.model()}"
