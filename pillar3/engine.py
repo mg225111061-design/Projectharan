@@ -204,7 +204,10 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
             continue
 
         marginal = sr.whole_program_ratio / prev_cumulative - 1.0
-        if (not policy.stop_on_first_win) and rep.shipped and marginal < policy.marginal_floor:
+        # "compound real wins": diminishing-returns can only stop normal AFTER it has shipped its minimum
+        # (you cannot 'compound' with a single fix). Load-invariant: guarantees ≥min_rounds before any cutoff.
+        if (not policy.stop_on_first_win) and len(rep.shipped) >= policy.min_rounds_before_diminishing \
+                and rep.shipped and marginal < policy.marginal_floor:
             rep.stop_reason = (f"diminishing returns: next marginal whole-program gain {marginal:.1%} "
                                f"< {policy.marginal_floor:.0%}")
             break

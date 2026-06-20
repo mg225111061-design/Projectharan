@@ -471,6 +471,39 @@ def detect_list_pop_zero(fn: Callable) -> WasteFinding:
     return WasteFinding("list_pop_zero", False, 0.0, "no front-of-list op in a loop")
 
 
+# 24 · sorted(x)[0] / sorted(x)[-1] → min/max (O(n log n)→O(n)) ──────────────────────────────────────────
+def detect_sorted_min_max(fn: Callable) -> WasteFinding:
+    """`sorted(x)[0]` / `sorted(x)[-1]` ⇒ you sorted the whole sequence (O(n log n)) only to take one end;
+    `min(x)` / `max(x)` is O(n)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("sorted_min_max", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Call) \
+                and isinstance(node.value.func, ast.Name) and node.value.func.id == "sorted":
+            sl = node.slice
+            if isinstance(sl, ast.Constant) and sl.value == 0:
+                return WasteFinding("sorted_min_max", True, 0.85, "`sorted(x)[0]` → min(x) (O(n log n)→O(n))")
+            if (isinstance(sl, ast.Constant) and sl.value == -1) or isinstance(sl, ast.UnaryOp):
+                return WasteFinding("sorted_min_max", True, 0.85, "`sorted(x)[-1]` → max(x) (O(n log n)→O(n))")
+    return WasteFinding("sorted_min_max", False, 0.0, "no sorted()[0|-1]")
+
+
+# 25 · list.count() inside a loop → collections.Counter (O(n²)→O(n)) ─────────────────────────────────────
+def detect_count_in_loop(fn: Callable) -> WasteFinding:
+    """`seq.count(x)` inside a loop ⇒ O(n) per call → O(n²); build a collections.Counter once for O(1) counts."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("count_in_loop", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            for s in ast.walk(node):
+                if isinstance(s, ast.Call) and isinstance(s.func, ast.Attribute) and s.func.attr == "count":
+                    return WasteFinding("count_in_loop", True, 0.8,
+                                        "`.count()` inside a loop → collections.Counter once (O(n²)→O(n))")
+    return WasteFinding("count_in_loop", False, 0.0, "no in-loop count()")
+
+
 # 23 · exceptions as control flow in a hot loop → .get() / pre-check ─────────────────────────────────────
 def detect_exception_control_flow(fn: Callable) -> WasteFinding:
     """A try/except inside a hot loop used for ordinary control flow (e.g. `try: d[k] except KeyError: …`) ⇒

@@ -115,6 +115,17 @@ Format: `[T+h.h] PHASE — measured result — next`.
   132 tests, 0 regression. **REFLECT:** 27/40 detectors covering list/dict/loop/regex/IO/numeric/algebraic/
   parallel/representation/datastructure/exception wastes; mode spine + moat + constitution intact throughout.
 
+- **[T+8.8] PHASE ∞ · D7 (v68) — sorted()[0|-1]→min/max + .count()-in-loop→Counter. DONE.**
+  sorted_min_max (normal, ~2×, O(n log n)→O(n)) and count_in_loop (normal, ~460×, O(n²)→O(n)). **29 dedicated
+  detector functions** (4 original + 25 in detectors2.py), each tested with a measured whole-program win +
+  wrong→DECLINE + tier-gating. ★ The extend tier's enabled_detectors now reaches **40 capability names** — the
+  directive's 40+ goal — the remaining ~11 delivered by the Stage 0–5 transforms (serialization swap, async I/O,
+  SIMD offload, verified lifting, parallelization, RNS) which the dedicated detectors complement. Studio
+  regenerated (12/27/40). 133 tests, 0 regression.
+  Also re-hardened the M2 spine under the now-heavier full suite: `ModePolicy.min_rounds_before_diminishing`
+  (normal=2) makes "compound real wins" load-invariant — diminishing-returns cannot stop normal before it has
+  shipped ≥2, so normal always ships EXACT+PROBABILISTIC. 20/20 distinctness trials green.
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early

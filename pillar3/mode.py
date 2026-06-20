@@ -67,6 +67,8 @@ NORMAL_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "nested_loop_join", "sum_genexpr", "manual_groupby",
     # D6 (PHASE ∞)
     "list_pop_zero", "exception_control_flow",
+    # D7 (PHASE ∞)
+    "sorted_min_max", "count_in_loop",
 })
 EXTEND_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "algorithm_recognition", "verified_lifting", "egg_superopt", "egg_algebraic", "gpu_simd_offload",
@@ -100,6 +102,7 @@ class ModePolicy:
     deep_search: bool                       # extend searches deeply over candidate fixes
     stop_on_first_win: bool                 # fast: return after the first accepted win
     samples: int = 5                        # measurement samples (fast cheap, extend can afford more)
+    min_rounds_before_diminishing: int = 0  # "compound" needs ≥N wins before diminishing-returns can stop it
 
     def detector_enabled(self, name: str) -> bool:
         return name in self.enabled_detectors
@@ -147,6 +150,7 @@ _POLICIES = {
         deep_search=False,
         stop_on_first_win=False,
         samples=5,
+        min_rounds_before_diminishing=2,             # "compound real wins" — ship ≥2 before stopping on marginal
     ),
     Mode.EXTEND: ModePolicy(
         mode=Mode.EXTEND,

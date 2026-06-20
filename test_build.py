@@ -3272,6 +3272,68 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+def _d7_sortmin_slow(rows):
+    return [sorted(r)[0] + sorted(r)[-1] for r in rows]      # O(m log m) per row, only to take the ends
+
+
+def _d7_sortmin_fast(rows):
+    return [min(r) + max(r) for r in rows]                   # O(m)
+
+
+def _d7_count_slow(items):
+    out = []
+    for x in items:
+        out.append(items.count(x))                           # O(n) per call → O(n²)
+    return out
+
+
+def _d7_count_fast(items):
+    from collections import Counter
+    c = Counter(items)
+    return [c[x] for x in items]                             # O(1) per lookup → O(n)
+
+
+def test_phaseInfinity_D7_detectors():
+    """PHASE ∞ · D7 (v68): two more O-reduction detectors (27 → 29): sorted(x)[0|-1] → min/max
+    (O(n log n)→O(n)) and list.count() in a loop → collections.Counter (O(n²)→O(n)). Each detected,
+    differential-verified whole-program win, correct grade, ★ wrong fix → DECLINE ★, tier-gated."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+
+    # sorted_min_max (normal) — rows must be UNSORTED so sorted() is genuinely O(m log m) (Timsort is O(m) on
+    # already-ordered runs); pseudo-random elements make the asymptotic win real
+    assert D.detect_sorted_min_max(_d7_sortmin_slow).found
+    rows = [[((i * 131 + j * 977) % 1000) for j in range(90)] for i in range(2000)]
+    rmk = lambda: (rows,)
+    ror = RC.record_oracle(_d7_sortmin_slow, [([[3, 1, 2], [9, 4]],)])
+    rv = apply_and_grade(_d7_sortmin_slow, _d7_sortmin_fast, rmk, n=3000, hotspot_fraction=0.9, oracle=ror,
+                         waste_type="sorted_min_max", floor=1.1, samples=5)
+    assert rv.status == KV.PROBABILISTIC and rv.report.whole_program_ratio > 1
+    rw = apply_and_grade(_d7_sortmin_slow, lambda rs: [0 for _ in rs], rmk, n=3000, hotspot_fraction=0.9,
+                         oracle=ror, waste_type="sorted_min_max", samples=5)
+    assert rw.status == KV.DECLINE
+    assert "sorted_min_max" in NORMAL_DETECTORS and "sorted_min_max" not in FAST_DETECTORS
+
+    # count_in_loop (normal): O(n²)→O(n)
+    assert D.detect_count_in_loop(_d7_count_slow).found
+    items = [i % 60 for i in range(3000)]
+    cmk = lambda: (items,)
+    cor = RC.record_oracle(_d7_count_slow, [([1, 1, 2, 3, 3, 3],)])
+    cv = apply_and_grade(_d7_count_slow, _d7_count_fast, cmk, n=3000, hotspot_fraction=0.95, oracle=cor,
+                         waste_type="count_in_loop", samples=5)
+    assert cv.status == KV.PROBABILISTIC and cv.report.whole_program_ratio > 1
+    cw = apply_and_grade(_d7_count_slow, lambda its: [0 for _ in its], cmk, n=3000, hotspot_fraction=0.95,
+                         oracle=cor, waste_type="count_in_loop", samples=5)
+    assert cw.status == KV.DECLINE
+    assert "count_in_loop" in NORMAL_DETECTORS and "count_in_loop" not in FAST_DETECTORS
+
+    print(f"PASS test_phaseInfinity_D7_detectors (2 more detectors → 29 total: sorted(x)[0|-1]→min/max "
+          f"{rv.report.whole_program_ratio:.1f}× (O(n log n)→O(n)), .count()-in-loop→Counter "
+          f"{cv.report.whole_program_ratio:.0f}× (O(n²)→O(n)); each detected/verified/wrong→DECLINE/tier-gated)")
+
+
 def _d6_pop_slow(items):
     q = list(items)
     out = []
