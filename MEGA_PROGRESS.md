@@ -63,6 +63,13 @@ Format: `[T+h.h] PHASE — measured result — next`.
   thesis). Network-blocked ⇒ authored archetypes, tagged. **Next:** PHASE S — extend-mode depth (superopt +
   verified lifting), and PHASE U (product UI), then ∞.
 
+- **[T+4.8] PHASE S (v61) — extend-mode depth: superopt + verified lifting. DONE.**
+  `pillar3/superopt.py`: verified lifting Σc·x→c·Σx (Z3-PROVEN, ~6.5× EXACT), memoised DP fib (EXACT by
+  construction, ~190000×; wrong memo→DECLINE), egg superopt (Z3-PROVEN, ~2× EXACT). ★ The moat at depth: 3/3
+  adversarial wrong swaps (transposed matmul, off-by-one factoring, wrong egg coeff) Z3-REFUTED→DECLINE ★.
+  Depth detectors extend-only (mode spine holds). 125+1 tests, 0 regression. **Next:** PHASE U — the product UI
+  (mode + provider + key), then PHASE ∞.
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early

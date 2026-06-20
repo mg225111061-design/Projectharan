@@ -3272,6 +3272,65 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+def test_phaseS_extend_depth():
+    """PHASE S (v61): extend-mode DEPTH — verified lifting + memoised DP + egg superoptimisation, each EXACT
+    with a measured whole-program win, plus the moat at depth (adversarial wrong swaps Z3-REFUTED → DECLINE).
+    The depth detectors are extend-only, so extend reaches wins fast/normal cannot."""
+    import kernel_verdict as KV
+    from pillar3 import superopt as S, equiv as EQ, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+
+    # 1) verified lifting: Σ c·x → c·Σ x, Z3-PROVEN, measured win (n multiplies → n adds + 1 multiply)
+    assert S.recognize_reduction(S.dist_naive)
+    assert S.prove_distributive()[0] is True
+    dn = lambda: ((7, list(range(4000))),)
+    dor = RC.record_oracle(lambda a: S.dist_naive(*a), [((3, list(range(50))),), ((2, [1, 2, 3]),)])
+    dv = apply_and_grade(lambda a: S.dist_naive(*a), lambda a: S.dist_lifted(*a), dn, n=4000,
+                         hotspot_fraction=0.95, oracle=dor, waste_type="verified_lifting",
+                         exact_justification="z3_distributive_law", floor=1.3, samples=5)
+    assert dv.status == KV.EXACT and dv.report.whole_program_ratio > 1.3
+
+    # 2) memoised DP: exponential recursion → linear memo (EXACT by construction), huge win; wrong memo → DECLINE
+    S.fib_memo.cache_clear()
+    fmk = lambda: ((28,),)
+    forc = RC.record_oracle(lambda a: S.fib_naive(*a), [((10,),), ((18,),)])
+    fv = apply_and_grade(lambda a: S.fib_naive(*a), lambda a: S.fib_memo(*a), fmk, n=28, hotspot_fraction=0.99,
+                         oracle=forc, waste_type="algorithm_recognition", exact_justification="memoised_dp", samples=4)
+    assert fv.status == KV.EXACT and fv.report.whole_program_ratio > 10
+    fw = apply_and_grade(lambda a: S.fib_naive(*a), lambda a: S.fib_wrong(*a), fmk, n=28, hotspot_fraction=0.99,
+                         oracle=forc, waste_type="algorithm_recognition", samples=4)
+    assert fw.status == KV.DECLINE
+
+    # 3) egg superopt: equality saturation → lowest-cost equivalent, Z3-PROVEN, measured win
+    assert S.prove_egg()[0] is True
+    emk = lambda: (list(range(60000)),)
+    eor = RC.record_oracle(lambda xs: [S.egg_naive(x) for x in xs], [(list(range(200)),)])
+    ev = apply_and_grade(lambda xs: [S.egg_naive(x) for x in xs], lambda xs: [S.egg_min(x) for x in xs], emk,
+                         n=60000, hotspot_fraction=0.95, oracle=eor, waste_type="egg_superopt",
+                         exact_justification="z3_equality_saturation", floor=1.05, samples=5)
+    assert ev.status == KV.EXACT and ev.report.whole_program_ratio > 1
+
+    # 4) ★ THE MOAT AT DEPTH: every adversarial wrong swap is Z3-REFUTED → DECLINE ★
+    refs = S.adversarial_refutations()
+    assert all(refuted for _name, refuted, _d in refs) and len(refs) >= 3
+    mo = RC.record_oracle(S.naive_matmul, [([[1, 2], [3, 4]], [[5, 6], [7, 8]])])
+    wm = EQ.grade_replacement(S.naive_matmul, S.wrong_matmul, lambda: ([[1, 2], [3, 4]], [[5, 6], [7, 8]]),
+                              n=2, hotspot_fraction=0.9, oracle=mo,
+                              prove=lambda: EQ.prove_equiv_matmul(S.naive_matmul, S.wrong_matmul), floor=1.0)
+    assert wm.status == KV.DECLINE
+
+    # 5) extend reaches what fast/normal cannot: the depth detectors are extend-only
+    for d in ("verified_lifting", "egg_superopt", "algorithm_recognition"):
+        assert d in EXTEND_DETECTORS and d not in FAST_DETECTORS and d not in NORMAL_DETECTORS
+
+    print(f"PASS test_phaseS_extend_depth (verified lifting Σc·x→c·Σx Z3-PROVEN {dv.report.whole_program_ratio:.1f}× "
+          f"EXACT; memoised DP fib {fv.report.whole_program_ratio:.0f}× EXACT (wrong memo→DECLINE); egg superopt "
+          f"Z3-PROVEN {ev.report.whole_program_ratio:.2f}× EXACT; ★moat at depth: "
+          f"{sum(1 for _n, r, _d in refs if r)}/{len(refs)} adversarial wrong swaps Z3-REFUTED→DECLINE★; depth "
+          f"detectors extend-only — extend reaches wins fast/normal cannot)")
+
+
 def test_phaseR_corpus():
     """PHASE R (v60): run the engine on a real-code CORPUS and report what is ACTUALLY measured — including
     misses. The corpus has five representative archetypes (AI-generated, CLI tool, data util, ETL, well-written
