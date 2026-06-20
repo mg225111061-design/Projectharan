@@ -3272,6 +3272,177 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+# ── PHASE D3 — heavy fixtures (module-level for getsource) ─────────────────────────────────────────────
+import math as _math
+import time as _time
+
+
+def _d3_vec_slow(arr):
+    return [_math.sin(x) * _math.cos(x) + _math.sqrt(abs(x)) for x in arr]
+
+
+def _d3_vec_fast(arr):
+    import numpy as _np
+    a = _np.asarray(arr, dtype=float)
+    return (_np.sin(a) * _np.cos(a) + _np.sqrt(_np.abs(a))).tolist()
+
+
+def _d3_io(x):
+    _time.sleep(0.002)
+    return x * x
+
+
+def _d3_par_slow(items):
+    return [_d3_io(x) for x in items]
+
+
+def _d3_par_fast(items):
+    from pillar3 import transforms as _T
+    return _T.make_concurrent(_d3_io, max_workers=16)(items)
+
+
+def _d3_memo_pure(k):
+    s = 0
+    for i in range(1500):
+        s += (i * k) % 97
+    return s
+
+
+def _d3_memo_slow(ks):
+    return sum(_d3_memo_pure(k) for k in ks)
+
+
+import functools as _ft
+_d3_memo = _ft.lru_cache(maxsize=None)(_d3_memo_pure)
+
+
+def _d3_memo_fast(ks):
+    return sum(_d3_memo(k) for k in ks)
+
+
+def _d3_egg_naive_expr(x):
+    return (x * x) + (x * x) + (x * x) + (x * x) + (x * x) + (x * x) + (x * x) + (x * x)
+
+
+def _d3_egg_simp_expr(x):
+    return 8 * (x * x)
+
+
+def _d3_egg_slow(xs):
+    return [_d3_egg_naive_expr(x) for x in xs]
+
+
+def _d3_egg_fast(xs):
+    return [_d3_egg_simp_expr(x) for x in xs]
+
+
+def _d3_inc_slow(events):
+    out = []
+    data = []
+    for e in events:
+        data.append(e)
+        out.append(sum(data))            # full recompute each step → O(n²)
+    return out
+
+
+def _d3_inc_fast(events):
+    out = []
+    running = 0
+    for e in events:
+        running += e                     # maintain incrementally → O(n)
+        out.append(running)
+    return out
+
+
+def test_phaseD3_heavy_detectors():
+    """PHASE D3 (v59): five heavy detectors (extend-tier). Per detector: detected, differential/Z3-verified
+    whole-program win, correct grade, ★ wrong fix → DECLINE ★, and ModePolicy gating (registered extend-only:
+    present in EXTEND_DETECTORS, ABSENT from fast and normal)."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC, equiv as EQ
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+    import z3
+
+    def fl(a, b):
+        return len(a) == len(b) and all(abs(x - y) < 1e-9 for x, y in zip(a, b))
+
+    wins = {}
+
+    # vectorizable_loop → numpy (PROBABILISTIC, float-tolerant)
+    assert D.detect_vectorizable_loop(_d3_vec_slow).found
+    varr = lambda: ([float(i % 50) - 25 for i in range(30000)],)
+    vor = RC.record_oracle(_d3_vec_slow, [([float(i % 13) - 6 for i in range(64)],)])
+    vv = apply_and_grade(_d3_vec_slow, _d3_vec_fast, varr, n=30000, hotspot_fraction=0.9, oracle=vor,
+                         waste_type="vectorizable_loop", eq=fl, floor=1.05, samples=5)
+    assert vv.status == KV.PROBABILISTIC and vv.report.whole_program_ratio > 1
+    vw = apply_and_grade(_d3_vec_slow, lambda a: [0.0 for _ in a], varr, n=30000, hotspot_fraction=0.9,
+                         oracle=vor, waste_type="vectorizable_loop", eq=fl, samples=5)
+    assert vw.status == KV.DECLINE
+    assert "vectorizable_loop" in EXTEND_DETECTORS and "vectorizable_loop" not in NORMAL_DETECTORS
+    wins["vectorizable_loop"] = vv.report.whole_program_ratio
+
+    # parallelizable_loop → ThreadPool (PROBABILISTIC; I/O-bound dominates)
+    assert D.detect_parallelizable_loop(_d3_par_slow).found
+    pmk = lambda: (list(range(24)),)
+    por = RC.record_oracle(_d3_par_slow, [(list(range(6)),)])
+    pv = apply_and_grade(_d3_par_slow, _d3_par_fast, pmk, n=24, hotspot_fraction=0.95, oracle=por,
+                         waste_type="parallelizable_loop", floor=1.5, samples=4)
+    assert pv.status == KV.PROBABILISTIC and pv.report.whole_program_ratio > 2
+    pw = apply_and_grade(_d3_par_slow, lambda items: [0 for _ in items], pmk, n=24, hotspot_fraction=0.95,
+                         oracle=por, waste_type="parallelizable_loop", samples=4)
+    assert pw.status == KV.DECLINE
+    assert "parallelizable_loop" in EXTEND_DETECTORS and "parallelizable_loop" not in FAST_DETECTORS
+    wins["parallelizable_loop"] = pv.report.whole_program_ratio
+
+    # interproc_memoize → lru_cache (EXACT by construction)
+    calls = [(i % 15,) for i in range(400)]
+    assert D.detect_interproc_memoize(calls).found
+    mmk = lambda: ([i % 15 for i in range(400)],)
+    mor = RC.record_oracle(_d3_memo_slow, [([i % 15 for i in range(120)],)])
+    mv = apply_and_grade(_d3_memo_slow, _d3_memo_fast, mmk, n=400, hotspot_fraction=0.95, oracle=mor,
+                         waste_type="interproc_memoize", exact_justification="memoised_pure_fn", samples=5)
+    assert mv.status == KV.EXACT and mv.certificate.delta is None and mv.report.whole_program_ratio > 1
+    assert "interproc_memoize" in EXTEND_DETECTORS and "interproc_memoize" not in NORMAL_DETECTORS
+    wins["interproc_memoize"] = mv.report.whole_program_ratio
+
+    # egg_algebraic → CSE of a repeated subexpression, Z3-PROVEN (EXACT); a wrong coefficient → DECLINE
+    assert D.detect_egg_algebraic(_d3_egg_naive_expr).found
+    proven, _ = EQ.prove_equiv(_d3_egg_naive_expr, _d3_egg_simp_expr, lambda _n: (z3.Int("x"),), (1,))
+    assert proven is True
+    emk = lambda: (list(range(20000)),)
+    eor = RC.record_oracle(_d3_egg_slow, [(list(range(200)),)])
+    ev = apply_and_grade(_d3_egg_slow, _d3_egg_fast, emk, n=20000, hotspot_fraction=0.9, oracle=eor,
+                         waste_type="egg_algebraic", exact_justification="z3_bounded_validation", floor=1.05, samples=5)
+    assert ev.status == KV.EXACT and ev.report.whole_program_ratio > 1
+    bad, cex = EQ.prove_equiv(_d3_egg_naive_expr, lambda x: 7 * (x * x), lambda _n: (z3.Int("x"),), (1,))
+    assert bad is False and "counterexample" in str(cex)
+    ew = apply_and_grade(_d3_egg_slow, lambda xs: [7 * (x * x) for x in xs], emk, n=20000, hotspot_fraction=0.9,
+                         oracle=eor, waste_type="egg_algebraic", samples=5)
+    assert ew.status == KV.DECLINE
+    assert "egg_algebraic" in EXTEND_DETECTORS and "egg_algebraic" not in NORMAL_DETECTORS
+    wins["egg_algebraic"] = ev.report.whole_program_ratio
+
+    # incremental_recompute → running aggregate (EXACT by construction)
+    assert D.detect_incremental_recompute(_d3_inc_slow).found
+    imk = lambda: (list(range(2500)),)
+    ior = RC.record_oracle(_d3_inc_slow, [(list(range(200)),)])
+    iv = apply_and_grade(_d3_inc_slow, _d3_inc_fast, imk, n=2500, hotspot_fraction=0.95, oracle=ior,
+                         waste_type="incremental_recompute", exact_justification="running_aggregate", samples=5)
+    assert iv.status == KV.EXACT and iv.report.whole_program_ratio > 1
+    iw = apply_and_grade(_d3_inc_slow, lambda events: [e for e in events], imk, n=2500, hotspot_fraction=0.95,
+                         oracle=ior, waste_type="incremental_recompute", samples=5)
+    assert iw.status == KV.DECLINE
+    assert "incremental_recompute" in EXTEND_DETECTORS and "incremental_recompute" not in NORMAL_DETECTORS
+    wins["incremental_recompute"] = iv.report.whole_program_ratio
+
+    print(f"PASS test_phaseD3_heavy_detectors (5 extend-tier detectors: vectorize {wins['vectorizable_loop']:.2f}× "
+          f"(PROB), parallelize {wins['parallelizable_loop']:.1f}× (PROB), interproc-memoize "
+          f"{wins['interproc_memoize']:.0f}× (EXACT), egg-algebraic {wins['egg_algebraic']:.2f}× (EXACT Z3-proven; "
+          f"wrong coeff Z3-REFUTED), incremental-recompute {wins['incremental_recompute']:.0f}× (EXACT) — each "
+          f"detected, verified win, ★wrong→DECLINE★, gated extend-only)")
+
+
 # ── PHASE D2 — structural / data-representation fixtures (module-level for getsource) ──────────────────
 def _d2_expensive(k):
     s = 0

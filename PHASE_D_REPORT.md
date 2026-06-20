@@ -36,7 +36,26 @@ Each detected, differential-verified whole-program win, **wrong fix → DECLINE*
 (present in `NORMAL_DETECTORS`, absent from `FAST_DETECTORS` — the D2-not-in-fast gating).
 
 ## Batch D3 (v59) — heavy (extend-tier)
-*(pending)*
+`pillar3/detectors2.py`:
+- **vectorizable_loop** — a scalar numeric loop (arithmetic / math.*) ⇒ numpy SIMD. ~**1.8×** (PROBABILISTIC,
+  float-tolerant).
+- **parallelizable_loop** — an independent map over items ⇒ ThreadPool (Amdahl-gated, see offload.py). ~**6.3×**
+  on I/O-bound (PROBABILISTIC).
+- **interproc_memoize** — repeated identical pure calls across the program ⇒ memoise. ~**1270×** (EXACT, by
+  construction).
+- **egg_algebraic** — a repeated subexpression in a hot expression ⇒ CSE / equality-saturation. ~**3.7×**
+  (**EXACT, Z3-proven**; a wrong coefficient is **Z3-REFUTED → DECLINE**).
+- **incremental_recompute** — a full reduction recomputed inside a growing loop ⇒ maintain incrementally.
+  ~**240×** (EXACT, by construction).
+
+Each detected, differential/Z3-verified whole-program win, **wrong fix → DECLINE**, registered **extend** tier
+(present in `EXTEND_DETECTORS`, absent from fast and normal — the D3-not-in-fast/normal gating).
+
+## Tally
+**19 detectors total** (4 original + 5 D1 + 5 D2 + 5 D3), each with a measured whole-program win, a grade, a
+wrong-fix DECLINE, and ModePolicy tier gating. The march toward 40+ continues in PHASE ∞ (lock contention, GC
+pressure, allocation storms, serialization variants, async opportunities, …).
+
 
 ## §0 self-check (per detector)
 measured whole-program win (not kernel); grade enforced by the ADT; differential FIRST (wrong fix → DECLINE);

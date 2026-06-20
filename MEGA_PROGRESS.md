@@ -49,6 +49,12 @@ Format: `[T+h.h] PHASE — measured result — next`.
   quad-build→append ~150×, sort-hoist ~88×. Each detected, differential-verified, ★wrong fix→DECLINE★, all
   registered fast-tier. **Next:** D2 (structural/data-representation, normal-tier).
 
+- **[T+3.8] PHASE D3 (v59) — heavy detectors (extend-tier). DONE.**
+  vectorizable_loop (~1.8× numpy, PROB), parallelizable_loop (~6× ThreadPool, PROB), interproc_memoize (~1270×,
+  EXACT), egg_algebraic (~3.7×, EXACT Z3-proven; wrong coeff Z3-REFUTED→DECLINE), incremental_recompute (~240×,
+  EXACT). Gated extend-only. **PHASE D total: 19 detectors** (4→19), each measured/graded/wrong→DECLINE/tier-
+  gated. **Next:** PHASE R — real open-source corpus (the "it actually runs" proof).
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early

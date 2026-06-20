@@ -249,3 +249,79 @@ def detect_deep_n_plus_1(fn: Callable) -> WasteFinding:
                         return WasteFinding("deep_n_plus_1", True, 0.8,
                                             f"`{nm}(...)` inside a nested loop → coalesce (deep N+1)")
     return WasteFinding("deep_n_plus_1", False, 0.0, "no nested-loop fetch")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# BATCH D3 — heavy detectors (extend-tier): vectorize / parallelize / interproc-memoize / egg / incremental
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# 11 · vectorizable scalar numeric loop → numpy (SIMD) ───────────────────────────────────────────────────
+def detect_vectorizable_loop(fn: Callable) -> WasteFinding:
+    """A scalar numeric loop/comprehension (arithmetic and/or math.* over each element) → numpy vectorisation."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("vectorizable_loop", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.ListComp, ast.GeneratorExp, ast.For)):
+            has_arith = any(isinstance(b, ast.BinOp) and isinstance(b.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow))
+                            for b in ast.walk(node))
+            has_math = any(isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute) and c.func.attr in
+                           ("sin", "cos", "sqrt", "exp", "log", "tan", "tanh") for c in ast.walk(node))
+            if has_arith or has_math:
+                return WasteFinding("vectorizable_loop", True, 0.75, "scalar numeric loop → numpy vectorisation (SIMD)")
+    return WasteFinding("vectorizable_loop", False, 0.0, "no vectorisable numeric loop")
+
+
+# 12 · parallelizable independent map → ThreadPool / multiprocessing (Amdahl-gated) ──────────────────────
+def detect_parallelizable_loop(fn: Callable) -> WasteFinding:
+    """A map-like comprehension over independent items (`[g(x) for x in xs]`, g a call, no cross-iteration
+    accumulation) → parallelise (Amdahl-gated; declined when the kernel does not dominate, see offload.py)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("parallelizable_loop", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.ListComp, ast.GeneratorExp)) and len(node.generators) == 1 \
+                and isinstance(node.elt, ast.Call):
+            return WasteFinding("parallelizable_loop", True, 0.7, "independent map over items → parallelise (Amdahl-gated)")
+    return WasteFinding("parallelizable_loop", False, 0.0, "no independent map")
+
+
+# 13 · interprocedural memoisation (repeated identical pure calls across the program) ────────────────────
+def detect_interproc_memoize(call_args: List[tuple]) -> WasteFinding:
+    """Repeated identical args to a pure subcomputation observed across the program → memoise (reuses the
+    Stage-1 repeated-call signature, interprocedurally)."""
+    from pillar3.fixers.detectors import detect_repeated_pure_calls
+    f = detect_repeated_pure_calls(call_args)
+    return WasteFinding("interproc_memoize", f.found, f.confidence, f.evidence)
+
+
+# 14 · egg / equality-saturation algebraic simplification (CSE of a repeated subexpression) ──────────────
+def detect_egg_algebraic(fn: Callable) -> WasteFinding:
+    """A hot arithmetic expression with an algebraic redundancy (a repeated identical subexpression) → equality-
+    saturation / CSE: extract the lowest-cost equivalent (Z3-checkable when the expression is pure arithmetic)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("egg_algebraic", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp):
+            subs = [ast.dump(s) for s in ast.walk(node) if isinstance(s, ast.BinOp)]
+            if len(subs) != len(set(subs)):
+                return WasteFinding("egg_algebraic", True, 0.7,
+                                    "repeated subexpression in a hot expression → CSE / equality saturation")
+    return WasteFinding("egg_algebraic", False, 0.0, "no algebraic redundancy")
+
+
+# 15 · incremental / self-adjusting recompute (full reduction recomputed after small changes) ────────────
+def detect_incremental_recompute(fn: Callable) -> WasteFinding:
+    """A full reduction (sum/min/max over an entire collection) recomputed inside a loop that grows the
+    collection → maintain the aggregate incrementally (only the changed sub-DAG)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("incremental_recompute", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id in ("sum", "min", "max"):
+                    return WasteFinding("incremental_recompute", True, 0.7,
+                                        f"full `{sub.func.id}(...)` recompute inside a loop → maintain incrementally")
+    return WasteFinding("incremental_recompute", False, 0.0, "no full-recompute reduction")
