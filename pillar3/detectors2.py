@@ -443,3 +443,45 @@ def detect_membership_to_set_param(fn: Callable) -> WasteFinding:
                         return WasteFinding("membership_to_set_param", True, 0.75,
                                             f"`in {comp.id}` (a list parameter) inside a loop → convert it to a set once")
     return WasteFinding("membership_to_set_param", False, 0.0, "no list-param membership in a loop")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# BATCH D6 (PHASE ∞) — front-of-list ops + exceptions-as-control-flow
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# 22 · list.pop(0) / list.insert(0, …) in a loop → collections.deque (O(n)→O(1) per op) ──────────────────
+def detect_list_pop_zero(fn: Callable) -> WasteFinding:
+    """`list.pop(0)` or `list.insert(0, …)` inside a loop ⇒ each is O(n) (shifts the whole list) → O(n²) total;
+    a collections.deque does popleft()/appendleft() in O(1)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("list_pop_zero", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.For, ast.While)):
+            continue
+        for s in ast.walk(node):
+            if isinstance(s, ast.Call) and isinstance(s.func, ast.Attribute) and s.args \
+                    and isinstance(s.args[0], ast.Constant) and s.args[0].value == 0:
+                if s.func.attr == "pop":
+                    return WasteFinding("list_pop_zero", True, 0.85,
+                                        "`list.pop(0)` in a loop → collections.deque.popleft() (O(n)→O(1))")
+                if s.func.attr == "insert":
+                    return WasteFinding("list_pop_zero", True, 0.85,
+                                        "`list.insert(0, …)` in a loop → collections.deque.appendleft() (O(n)→O(1))")
+    return WasteFinding("list_pop_zero", False, 0.0, "no front-of-list op in a loop")
+
+
+# 23 · exceptions as control flow in a hot loop → .get() / pre-check ─────────────────────────────────────
+def detect_exception_control_flow(fn: Callable) -> WasteFinding:
+    """A try/except inside a hot loop used for ordinary control flow (e.g. `try: d[k] except KeyError: …`) ⇒
+    raising/catching is expensive when the 'exceptional' path is common; use d.get() / a membership pre-check."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("exception_control_flow", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)):
+            for s in ast.walk(node):
+                if isinstance(s, ast.Try):
+                    return WasteFinding("exception_control_flow", True, 0.7,
+                                        "try/except inside a loop (exceptions as control flow) → .get()/pre-check")
+    return WasteFinding("exception_control_flow", False, 0.0, "no in-loop try/except")

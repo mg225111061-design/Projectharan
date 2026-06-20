@@ -109,6 +109,12 @@ Format: `[T+h.h] PHASE — measured result — next`.
   131 tests, 0 regression. Two §X constitution claims now have executable proofs (grade=output-confidence;
   multiplier=input-size-dependent).
 
+- **[T+8.2] PHASE ∞ · D6 (v67) — front-of-list ops + exceptions-as-control-flow. DONE.**
+  list_pop_zero (normal, ~3×: list.pop(0)/insert(0)→collections.deque, O(n²)→O(n)) and exception_control_flow
+  (normal, ~4.6×: high-miss-rate try/except→.get()). Detectors 25→27. Studio regenerated (counts 12/25/38).
+  132 tests, 0 regression. **REFLECT:** 27/40 detectors covering list/dict/loop/regex/IO/numeric/algebraic/
+  parallel/representation/datastructure/exception wastes; mode spine + moat + constitution intact throughout.
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early

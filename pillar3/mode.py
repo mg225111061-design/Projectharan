@@ -65,6 +65,8 @@ NORMAL_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "loop_invariant_hoist", "materialize_to_lazy", "deep_n_plus_1",
     # D4 (PHASE ∞)
     "nested_loop_join", "sum_genexpr", "manual_groupby",
+    # D6 (PHASE ∞)
+    "list_pop_zero", "exception_control_flow",
 })
 EXTEND_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "algorithm_recognition", "verified_lifting", "egg_superopt", "egg_algebraic", "gpu_simd_offload",

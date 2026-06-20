@@ -3272,6 +3272,79 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+def _d6_pop_slow(items):
+    q = list(items)
+    out = []
+    while q:
+        out.append(q.pop(0))                         # O(n) shift each → O(n²)
+    return out
+
+
+def _d6_pop_fast(items):
+    from collections import deque
+    q = deque(items)
+    out = []
+    while q:
+        out.append(q.popleft())                      # O(1)
+    return out
+
+
+_D6_DB = {i: i * i for i in range(500)}
+
+
+def _d6_exc_slow(keys):
+    out = []
+    for k in keys:
+        try:
+            out.append(_D6_DB[k])                     # KeyError on the (common) misses → exception per miss
+        except KeyError:
+            out.append(-1)
+    return out
+
+
+def _d6_exc_fast(keys):
+    return [_D6_DB.get(k, -1) for k in keys]          # no exception
+
+
+def test_phaseInfinity_D6_detectors():
+    """PHASE ∞ · D6 (v67): two more distinct high-win detectors (25 → 27): front-of-list ops (list.pop(0)/
+    insert(0) → collections.deque, O(n²)→O(n)) and exceptions-as-control-flow in a hot loop (→ .get()). Each
+    detected, differential-verified whole-program win, correct grade, ★ wrong fix → DECLINE ★, tier-gated."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+
+    # list_pop_zero (normal): O(n²)→O(n) via deque
+    assert D.detect_list_pop_zero(_d6_pop_slow).found
+    pmk = lambda: (list(range(4000)),)
+    por = RC.record_oracle(_d6_pop_slow, [(list(range(50)),), ([3, 1, 2],)])
+    pv = apply_and_grade(_d6_pop_slow, _d6_pop_fast, pmk, n=4000, hotspot_fraction=0.95, oracle=por,
+                         waste_type="list_pop_zero", samples=5)
+    assert pv.status == KV.PROBABILISTIC and pv.report.whole_program_ratio > 1
+    pw = apply_and_grade(_d6_pop_slow, lambda items: list(items)[::-1], pmk, n=4000, hotspot_fraction=0.95,
+                         oracle=por, waste_type="list_pop_zero", samples=5)
+    assert pw.status == KV.DECLINE
+    assert "list_pop_zero" in NORMAL_DETECTORS and "list_pop_zero" not in FAST_DETECTORS
+
+    # exception_control_flow (normal): high miss-rate try/except → .get()
+    assert D.detect_exception_control_flow(_d6_exc_slow).found
+    keys = [i if i % 3 == 0 else 10_000 + i for i in range(6000)]   # ~2/3 misses → exceptions dominate
+    emk = lambda: (keys,)
+    eor = RC.record_oracle(_d6_exc_slow, [([0, 99999, 3, 12345],)])
+    ev = apply_and_grade(_d6_exc_slow, _d6_exc_fast, emk, n=6000, hotspot_fraction=0.9, oracle=eor,
+                         waste_type="exception_control_flow", floor=1.1, samples=5)
+    assert ev.status == KV.PROBABILISTIC and ev.report.whole_program_ratio > 1
+    ew = apply_and_grade(_d6_exc_slow, lambda ks: [0 for _ in ks], emk, n=6000, hotspot_fraction=0.9,
+                         oracle=eor, waste_type="exception_control_flow", samples=5)
+    assert ew.status == KV.DECLINE
+    assert "exception_control_flow" in NORMAL_DETECTORS and "exception_control_flow" not in FAST_DETECTORS
+
+    print(f"PASS test_phaseInfinity_D6_detectors (2 more detectors → 27 total: list.pop(0)→deque "
+          f"{pv.report.whole_program_ratio:.0f}× (O(n²)→O(n)), exceptions-as-control-flow→.get() "
+          f"{ev.report.whole_program_ratio:.1f}× (high miss-rate); each detected/verified/wrong→DECLINE/tier-gated)")
+
+
 def test_phaseInfinity_ratio_is_input_size_dependent():
     """PHASE ∞ (v66): §X made executable — 'asymptotic multipliers are input-size-dependent — quote n.' The
     SAME O(n²)→O(n) fix (dedup via membership-in-list → dict.fromkeys) yields a whole-program ratio that GROWS
