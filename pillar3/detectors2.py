@@ -140,3 +140,112 @@ def detect_redundant_sort(fn: Callable) -> WasteFinding:
                     return WasteFinding("redundant_sort", True, 0.85,
                                         "sort of loop-invariant data inside a loop → hoist (sort once)")
     return WasteFinding("redundant_sort", False, 0.0, "no in-loop redundant sort")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# BATCH D2 — structural / data-representation detectors (normal-tier)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# 6 · dict-of-objects → struct-of-arrays (hot scan over list-of-dicts with repeated key access) ──────────
+def detect_dict_to_columnar(fn: Callable) -> WasteFinding:
+    """A hot scan over a list of dicts/objects with repeated subscript field access (`r[k]`) → struct-of-arrays
+    (parallel lists) eliminates per-row dict hashing when the data is scanned many times."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("dict_to_columnar", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.ListComp, ast.GeneratorExp, ast.SetComp)):
+            subs = [s for s in ast.walk(node) if isinstance(s, ast.Subscript) and isinstance(s.value, ast.Name)]
+            if len(subs) >= 2:
+                return WasteFinding("dict_to_columnar", True, 0.7,
+                                    f"{len(subs)} per-row field accesses in a scan → struct-of-arrays")
+    return WasteFinding("dict_to_columnar", False, 0.0, "no list-of-dicts hot scan")
+
+
+# 7 · loop-invariant computation hoisting ────────────────────────────────────────────────────────────────
+def detect_loop_invariant_hoist(fn: Callable) -> WasteFinding:
+    """A non-trivial computation (Call/BinOp) inside a loop whose operands are all loop-invariant (not the loop
+    target, not assigned in the loop) → hoist it out (compute once)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("loop_invariant_hoist", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.For):
+            continue
+        loopvars = {t.id for t in ast.walk(node.target) if isinstance(t, ast.Name)}
+        assigned = {t.id for s in ast.walk(node) if isinstance(s, ast.Assign)
+                    for t in ast.walk(s) if isinstance(t, ast.Name) and isinstance(t.ctx, ast.Store)}
+        for s in node.body:
+            if isinstance(s, ast.Assign) and isinstance(s.value, (ast.Call, ast.BinOp)):
+                names = {x.id for x in ast.walk(s.value) if isinstance(x, ast.Name)}
+                rhs_targets = {t.id for t in ast.walk(s) if isinstance(t, ast.Name) and isinstance(t.ctx, ast.Store)}
+                used = names - rhs_targets
+                if used and not (used & loopvars) and not (used & (assigned - rhs_targets)):
+                    return WasteFinding("loop_invariant_hoist", True, 0.8,
+                                        "loop-invariant computation inside a loop → hoist (compute once)")
+    return WasteFinding("loop_invariant_hoist", False, 0.0, "no hoistable invariant")
+
+
+# 8 · defensive-copy elimination ─────────────────────────────────────────────────────────────────────────
+def detect_copy_elim(fn: Callable) -> WasteFinding:
+    """A defensive copy (list(x) / x[:] / .copy()) of data that is then only read → eliminate the copy."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("copy_elim", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "copy":
+                return WasteFinding("copy_elim", True, 0.7, "`.copy()` of read-only data → eliminate the copy")
+            if isinstance(node.func, ast.Name) and node.func.id in ("list", "dict", "set") and node.args \
+                    and isinstance(node.args[0], ast.Name):
+                return WasteFinding("copy_elim", True, 0.6,
+                                    f"`{node.func.id}(x)` defensive copy of read-only data → eliminate")
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Slice) \
+                and node.slice.lower is None and node.slice.upper is None and node.slice.step is None:
+            return WasteFinding("copy_elim", True, 0.6, "`x[:]` full-slice copy of read-only data → eliminate")
+    return WasteFinding("copy_elim", False, 0.0, "no defensive copy")
+
+
+# 9 · materialize → lazy (a list built only to be iterated once) ─────────────────────────────────────────
+def detect_materialize_to_lazy(fn: Callable) -> WasteFinding:
+    """A list comprehension bound to a name that is then consumed exactly once (a for-loop / any / all / next)
+    → a generator avoids building the whole intermediate list (and enables early exit)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("materialize_to_lazy", False, 0.0, "source unavailable")
+    built = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.ListComp) and len(node.targets) == 1 \
+                and isinstance(node.targets[0], ast.Name):
+            built[node.targets[0].id] = node
+    for node in ast.walk(tree):
+        if isinstance(node, ast.For) and isinstance(node.iter, ast.Name) and node.iter.id in built:
+            return WasteFinding("materialize_to_lazy", True, 0.75,
+                                f"list `{node.iter.id}` materialised only to iterate once → use a generator")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("any", "all", "next") \
+                and node.args and isinstance(node.args[0], ast.Name) and node.args[0].id in built:
+            return WasteFinding("materialize_to_lazy", True, 0.8,
+                                f"list `{node.args[0].id}` materialised then {node.func.id}() → generator (early exit)")
+    return WasteFinding("materialize_to_lazy", False, 0.0, "no materialise-then-consume-once")
+
+
+# 10 · deeper N+1 (per-item fetch inside a NESTED loop) ──────────────────────────────────────────────────
+def detect_deep_n_plus_1(fn: Callable) -> WasteFinding:
+    """A fetch-like call inside a nested loop (depth ≥ 2) → coalesce across both levels (a deeper N+1)."""
+    from pillar3.fixers.detectors import _FETCH
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("deep_n_plus_1", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.For):
+            if not any(isinstance(s, ast.For) and s is not node for s in ast.walk(node)):
+                continue
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call):
+                    nm = (sub.func.attr if isinstance(sub.func, ast.Attribute)
+                          else sub.func.id if isinstance(sub.func, ast.Name) else "")
+                    low = nm.lower()
+                    if any(low.startswith(p) or low.endswith(p) for p in _FETCH):
+                        return WasteFinding("deep_n_plus_1", True, 0.8,
+                                            f"`{nm}(...)` inside a nested loop → coalesce (deep N+1)")
+    return WasteFinding("deep_n_plus_1", False, 0.0, "no nested-loop fetch")

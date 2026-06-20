@@ -23,7 +23,17 @@ wrong fix was caught → DECLINE** every time, and each is registered in the **f
 stable under full-suite load instead of depending on incidental timing. 5/5 stability trials green.)
 
 ## Batch D2 (v58) — structural / data-representation (normal-tier)
-*(pending)*
+`pillar3/detectors2.py`:
+- **dict_to_columnar** — a hot scan over a list of dicts with repeated field access ⇒ struct-of-arrays
+  (parallel lists) removes per-row dict hashing. Measured ~**1.3×** (the honest pure-Python SoA crossover).
+- **loop_invariant_hoist** — a non-trivial loop-invariant computation inside a loop ⇒ hoist. ~**700×**.
+- **copy_elim** — a defensive `list(x)` / `x[:]` / `.copy()` of read-only data ⇒ eliminate. ~**50×**.
+- **materialize_to_lazy** — a list built only to be consumed once (early-exit loop / any / next) ⇒ generator.
+  ~**3000×** (the early exit never materialises the tail).
+- **deep_n_plus_1** — a per-item fetch inside a NESTED loop ⇒ coalesce across both levels. ~**57×**.
+
+Each detected, differential-verified whole-program win, **wrong fix → DECLINE**, registered **normal** tier
+(present in `NORMAL_DETECTORS`, absent from `FAST_DETECTORS` — the D2-not-in-fast gating).
 
 ## Batch D3 (v59) — heavy (extend-tier)
 *(pending)*

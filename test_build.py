@@ -3272,6 +3272,142 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+# ── PHASE D2 — structural / data-representation fixtures (module-level for getsource) ──────────────────
+def _d2_expensive(k):
+    s = 0
+    for i in range(400):
+        s += (i * k) % 97
+    return s
+
+
+_D2_ROWS = [{"a": i, "b": i + 1, "c": i * 2} for i in range(1200)]
+
+
+def _d2_soa_slow(rows):
+    return [sum(r["a"] * r["b"] + r["c"] for r in rows) for _ in range(40)]   # repeated scan of list-of-dicts
+
+
+def _d2_soa_fast(rows):
+    a = [r["a"] for r in rows]; b = [r["b"] for r in rows]; c = [r["c"] for r in rows]   # columnar once
+    return [sum(x * y + z for x, y, z in zip(a, b, c)) for _ in range(40)]
+
+
+def _d2_inv_slow(items, k):
+    out = []
+    for x in items:
+        w = _d2_expensive(k)                      # loop-invariant, recomputed every iteration
+        out.append(w + x)
+    return out
+
+
+def _d2_inv_fast(items, k):
+    w = _d2_expensive(k)                          # hoisted
+    return [w + x for x in items]
+
+
+def _d2_copy_slow(data):
+    c = list(data)                               # defensive O(n) copy — then only cheap O(1) reads
+    return c[0] + c[-1] + len(c)
+
+
+def _d2_copy_fast(data):
+    return data[0] + data[-1] + len(data)        # no copy
+
+
+def _d2_pure(x):
+    s = 0
+    for i in range(60):
+        s += (i ^ x) % 31
+    return s + x
+
+
+def _d2_mat_slow(xs):
+    tmp = [_d2_pure(x) for x in xs]              # builds the WHOLE list...
+    for y in tmp:
+        if y > 5:                                # ...but exits on the first hit
+            return y
+    return -1
+
+
+def _d2_mat_fast(xs):
+    for y in (_d2_pure(x) for x in xs):          # generator: stops early, never materialises the rest
+        if y > 5:
+            return y
+    return -1
+
+
+_D2_DB = {i: i * i for i in range(5000)}
+
+
+def _d2_fetch(i):
+    s = 0
+    for _ in range(40):
+        s += _D2_DB[i]
+    return _D2_DB[i]
+
+
+def _d2_deep_slow(groups):
+    out = []
+    for g in groups:
+        for i in g:
+            out.append(_d2_fetch(i))             # per-item fetch in a NESTED loop
+    return out
+
+
+def _d2_deep_fast(groups):
+    return [_D2_DB[i] for g in groups for i in g]
+
+
+def test_phaseD2_structural_detectors():
+    """PHASE D2 (v58): five structural / data-representation detectors (normal-tier). Per detector: detected,
+    differential-verified whole-program win, correct grade, ★ wrong fix → DECLINE ★, and ModePolicy gating
+    (registered in normal, NOT in fast)."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+
+    cases = [
+        ("dict_to_columnar", D.detect_dict_to_columnar, _d2_soa_slow, _d2_soa_fast,
+         lambda rows: [0 for _ in range(40)], lambda: (_D2_ROWS,), [(_D2_ROWS[:50],)], 1200),
+        ("copy_elim", D.detect_copy_elim, _d2_copy_slow, _d2_copy_fast,
+         lambda data: 0, lambda: (list(range(40000)),), [(list(range(500)),)], 40000),
+        ("materialize_to_lazy", D.detect_materialize_to_lazy, _d2_mat_slow, _d2_mat_fast,
+         lambda xs: -1, lambda: (list(range(4000)),), [(list(range(50)),), ([1, 2, 3],)], 4000),
+        ("deep_n_plus_1", D.detect_deep_n_plus_1, _d2_deep_slow, _d2_deep_fast,
+         lambda groups: [0], lambda: ([list(range(i, i + 30)) for i in range(0, 600, 30)],),
+         [([[1, 2], [3, 4]],)], 600),
+    ]
+    wins = {}
+    for waste, det, slow, fast, wrong, mk, oracases, n in cases:
+        assert det(slow).found, f"{waste}: not detected"
+        oracle = RC.record_oracle(slow, oracases)
+        v = apply_and_grade(slow, fast, mk, n=n, hotspot_fraction=0.9, oracle=oracle, waste_type=waste, samples=5)
+        assert v.status in (KV.EXACT, KV.PROBABILISTIC) and v.report.whole_program_ratio > 1, f"{waste}:{v.status}"
+        w = apply_and_grade(slow, wrong, mk, n=n, hotspot_fraction=0.9, oracle=oracle, waste_type=waste, samples=5)
+        assert w.status == KV.DECLINE, f"{waste}: wrong not caught"
+        assert waste in NORMAL_DETECTORS and waste not in FAST_DETECTORS, f"{waste}: gating"
+        wins[waste] = v.report.whole_program_ratio
+
+    # loop_invariant_hoist (two-arg)
+    assert D.detect_loop_invariant_hoist(_d2_inv_slow).found
+    imk = lambda: (list(range(3000)), 7)
+    ior = RC.record_oracle(_d2_inv_slow, [([1, 2, 3], 7), (list(range(20)), 5)])
+    iv = apply_and_grade(_d2_inv_slow, _d2_inv_fast, imk, n=3000, hotspot_fraction=0.9, oracle=ior,
+                         waste_type="loop_invariant_hoist", samples=5)
+    assert iv.status in (KV.EXACT, KV.PROBABILISTIC) and iv.report.whole_program_ratio > 1
+    iw = apply_and_grade(_d2_inv_slow, lambda items, k: [x for x in items], imk, n=3000, hotspot_fraction=0.9,
+                         oracle=ior, waste_type="loop_invariant_hoist", samples=5)
+    assert iw.status == KV.DECLINE
+    assert "loop_invariant_hoist" in NORMAL_DETECTORS and "loop_invariant_hoist" not in FAST_DETECTORS
+    wins["loop_invariant_hoist"] = iv.report.whole_program_ratio
+
+    print(f"PASS test_phaseD2_structural_detectors (5 normal-tier detectors: SoA {wins['dict_to_columnar']:.1f}×, "
+          f"copy-elim {wins['copy_elim']:.1f}×, materialize→lazy {wins['materialize_to_lazy']:.0f}×, deep-N+1 "
+          f"{wins['deep_n_plus_1']:.1f}×, loop-invariant-hoist {wins['loop_invariant_hoist']:.0f}× — each detected, "
+          f"differential-verified win, ★wrong→DECLINE★, gated normal-only (not fast))")
+
+
 def test_phaseM1_mode_policy():
     """PHASE M1 (v54): the three modes are enforced CONTRACTS, not presets. Assert ModePolicy encodes every row
     of the M.2 table — the verifier-tier ladder (fast=MICRO never-Z3 / normal≤CHEAP_CERT / extend=FULL_CERT),

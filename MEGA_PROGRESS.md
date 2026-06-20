@@ -48,3 +48,9 @@ Format: `[T+h.h] PHASE — measured result — next`.
   redundant_sort. **Measured whole-program wins:** redos ~3400×, parse-hoist ~20×, full-scan→index ~138×,
   quad-build→append ~150×, sort-hoist ~88×. Each detected, differential-verified, ★wrong fix→DECLINE★, all
   registered fast-tier. **Next:** D2 (structural/data-representation, normal-tier).
+
+- **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
+  dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
+  (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early
+  exit), deep-N+1 ~57×. Each detected, differential-verified, ★wrong→DECLINE★, gated normal-only (in
+  NORMAL_DETECTORS, not FAST). 123 tests, 0 regression. **Next:** D3 (heavy, extend-tier).
