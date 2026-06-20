@@ -55,10 +55,14 @@ FAST_DETECTORS: FrozenSet[str] = frozenset({
     "list_as_set", "memoize", "uncached_recompute", "n_plus_1", "repeated_parse",
     # D1 catastrophic single-bug detectors are fast-eligible too
     "redos_regex", "redundant_io_parse", "accidental_full_scan", "quadratic_build", "redundant_sort",
+    # D4 (PHASE ∞)
+    "regex_compile_in_loop",
 })
 NORMAL_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "accidental_quadratic", "serialization", "caching", "dict_to_columnar", "copy_elim",
     "loop_invariant_hoist", "materialize_to_lazy", "deep_n_plus_1",
+    # D4 (PHASE ∞)
+    "nested_loop_join", "sum_genexpr", "manual_groupby",
 })
 EXTEND_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "algorithm_recognition", "verified_lifting", "egg_superopt", "egg_algebraic", "gpu_simd_offload",

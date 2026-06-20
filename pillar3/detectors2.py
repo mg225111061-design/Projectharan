@@ -325,3 +325,78 @@ def detect_incremental_recompute(fn: Callable) -> WasteFinding:
                     return WasteFinding("incremental_recompute", True, 0.7,
                                         f"full `{sub.func.id}(...)` recompute inside a loop → maintain incrementally")
     return WasteFinding("incremental_recompute", False, 0.0, "no full-recompute reduction")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# BATCH D4 (PHASE ∞) — more uncovered wastes (the march toward 40+)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# 16 · regex compiled inside a loop (fast) ───────────────────────────────────────────────────────────────
+def detect_regex_compile_in_loop(fn: Callable) -> WasteFinding:
+    """`re.compile(...)` (or any `.compile(...)`) of a loop-invariant pattern inside a loop ⇒ compile once,
+    reuse the compiled object (compilation is expensive and pure)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("regex_compile_in_loop", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)):
+            for s in ast.walk(node):
+                if isinstance(s, ast.Call) and isinstance(s.func, ast.Attribute) and s.func.attr == "compile":
+                    return WasteFinding("regex_compile_in_loop", True, 0.85,
+                                        "`.compile(...)` inside a loop → precompile once, reuse")
+    return WasteFinding("regex_compile_in_loop", False, 0.0, "no compile in loop")
+
+
+# 17 · nested-loop join on equality (normal) ──────────────────────────────────────────────────────────────
+def detect_nested_loop_join(fn: Callable) -> WasteFinding:
+    """An inner loop scanning for an equality match against an outer-loop value ⇒ O(n·m); index one side into a
+    dict and do a hash join → O(n+m)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("nested_loop_join", False, 0.0, "source unavailable")
+    for outer in ast.walk(tree):
+        if not isinstance(outer, ast.For):
+            continue
+        ovars = {t.id for t in ast.walk(outer.target) if isinstance(t, ast.Name)}
+        for inner in ast.walk(outer):
+            if isinstance(inner, ast.For) and inner is not outer:
+                for cmp in ast.walk(inner):
+                    if isinstance(cmp, ast.Compare) and any(isinstance(o, ast.Eq) for o in cmp.ops):
+                        names = {n.id for n in ast.walk(cmp) if isinstance(n, ast.Name)}
+                        if names & ovars:                    # the equality references the outer key
+                            return WasteFinding("nested_loop_join", True, 0.8,
+                                                "nested loops joined on `==` → hash join (dict index): O(n·m)→O(n+m)")
+    return WasteFinding("nested_loop_join", False, 0.0, "no nested-loop equality join")
+
+
+# 18 · eager list passed to an aggregate (normal) ─────────────────────────────────────────────────────────
+def detect_sum_genexpr(fn: Callable) -> WasteFinding:
+    """A throwaway list comprehension passed straight to an aggregate (`sum([...])`, `any([...])`, …) ⇒ pass a
+    generator: no intermediate list, and any/all gain early exit."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("sum_genexpr", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                and node.func.id in ("sum", "max", "min", "any", "all", "sorted", "set", "tuple", "frozenset") \
+                and node.args and isinstance(node.args[0], ast.ListComp):
+            return WasteFinding("sum_genexpr", True, 0.7,
+                                f"`{node.func.id}([...])` builds a throwaway list → pass a generator")
+    return WasteFinding("sum_genexpr", False, 0.0, "no eager list into an aggregate")
+
+
+# 19 · manual group-by / default init (normal) ───────────────────────────────────────────────────────────
+def detect_manual_groupby(fn: Callable) -> WasteFinding:
+    """A manual `if k not in d: d[k] = <empty>` default-initialisation inside a loop ⇒ collections.defaultdict
+    (one branch + one hash, not two)."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("manual_groupby", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Compare) \
+                and any(isinstance(o, ast.NotIn) for o in node.test.ops):
+            for s in node.body:
+                if isinstance(s, ast.Assign) and any(isinstance(t, ast.Subscript) for t in s.targets):
+                    return WasteFinding("manual_groupby", True, 0.7,
+                                        "manual `if k not in d: d[k]=…` → collections.defaultdict")
+    return WasteFinding("manual_groupby", False, 0.0, "no manual default-init")

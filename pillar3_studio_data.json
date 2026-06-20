@@ -6,7 +6,7 @@
       "mode": "fast",
       "primary_clock": "A (felt speed)",
       "verifier_tier": "MICRO",
-      "detectors": 10,
+      "detectors": 11,
       "acceptable_grades": [
         "EXACT",
         "PROBABILISTIC"
@@ -21,7 +21,7 @@
       "mode": "normal",
       "primary_clock": "balance A/B/C",
       "verifier_tier": "CHEAP_CERT",
-      "detectors": 18,
+      "detectors": 22,
       "acceptable_grades": [
         "EXACT",
         "PROBABILISTIC"
@@ -36,7 +36,7 @@
       "mode": "extend",
       "primary_clock": "C (emitted speed); A sacrificed",
       "verifier_tier": "FULL_CERT",
-      "detectors": 30,
+      "detectors": 34,
       "acceptable_grades": [
         "EXACT"
       ],
@@ -82,15 +82,15 @@
           "name": "S1_list_as_set",
           "waste_type": "list_as_set",
           "grade": "PROBABILISTIC",
-          "ratio": 1.269,
-          "ceiling": 1.28,
-          "hotspot_fraction": 0.217
+          "ratio": 1.239,
+          "ceiling": 1.24,
+          "hotspot_fraction": 0.193
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.243,
+      "cumulative_ratio": 1.294,
       "z3_calls": 0,
-      "latency_ms": 544.9,
+      "latency_ms": 551.1,
       "ran_complexity_sweep": false
     },
     {
@@ -100,31 +100,31 @@
           "name": "S1_list_as_set",
           "waste_type": "list_as_set",
           "grade": "PROBABILISTIC",
-          "ratio": 1.257,
+          "ratio": 1.259,
           "ceiling": 1.27,
-          "hotspot_fraction": 0.215
+          "hotspot_fraction": 0.212
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 1.497,
-          "ceiling": 1.54,
-          "hotspot_fraction": 0.35
+          "ratio": 1.516,
+          "ceiling": 1.56,
+          "hotspot_fraction": 0.361
         },
         {
           "name": "S3_accidental_quadratic",
           "waste_type": "accidental_quadratic",
           "grade": "PROBABILISTIC",
-          "ratio": 1.889,
-          "ceiling": 2.0,
-          "hotspot_fraction": 0.5
+          "ratio": 1.855,
+          "ceiling": 1.97,
+          "hotspot_fraction": 0.491
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.869,
+      "cumulative_ratio": 1.893,
       "z3_calls": 0,
-      "latency_ms": 1316.2,
+      "latency_ms": 1332.5,
       "ran_complexity_sweep": false
     },
     {
@@ -134,15 +134,15 @@
           "name": "S4_algorithm_recognition",
           "waste_type": "algo_replace",
           "grade": "EXACT",
-          "ratio": 1.757,
-          "ceiling": 1.83,
-          "hotspot_fraction": 0.453
+          "ratio": 1.741,
+          "ceiling": 1.78,
+          "hotspot_fraction": 0.439
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 2.274,
+          "ratio": 2.269,
           "ceiling": 2.45,
           "hotspot_fraction": 0.592
         }
@@ -161,9 +161,9 @@
           "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
         }
       ],
-      "cumulative_ratio": 2.254,
+      "cumulative_ratio": 2.292,
       "z3_calls": 2,
-      "latency_ms": 2058.9,
+      "latency_ms": 2186.1,
       "ran_complexity_sweep": true
     }
   ],
@@ -177,7 +177,7 @@
         "dict_to_columnar"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 47.125,
+      "ratio": 45.553,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -193,7 +193,7 @@
         "vectorizable_loop"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 8.632,
+      "ratio": 8.636,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -206,7 +206,7 @@
         "vectorizable_loop"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 114.78,
+      "ratio": 111.718,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -219,7 +219,7 @@
         "parallelizable_loop"
       ],
       "grade": "EXACT",
-      "ratio": 84.235,
+      "ratio": 80.519,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "coalesced_identical_lookups"
@@ -232,8 +232,8 @@
         "parallelizable_loop"
       ],
       "grade": "DECLINE",
-      "ratio": 1.004,
-      "ceiling": 921.31,
+      "ratio": 1.001,
+      "ceiling": 882.37,
       "hotspot_fraction": 0.999,
       "note": "no whole-program win ≥ floor — honest DECLINE (nothing worth shipping)"
     }

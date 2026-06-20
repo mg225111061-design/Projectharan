@@ -78,6 +78,15 @@ Format: `[T+h.h] PHASE — measured result — next`.
   React+live-call build [BLOCKED: toolchain]; visual → human review. 127 tests, 0 regression.
   **THE PHASE QUEUE M→P→D→R→S→U IS COMPLETE.** Entering PHASE ∞ (never-stop loop).
 
+- **[T+6.0] PHASE ∞ · D4 (v63) — more uncovered wastes + moat hardening. DONE.**
+  RESEARCH→JUDGE→BUILD: 4 more detectors (detectors 19→23): regex_compile_in_loop (fast, ~1.9×),
+  nested_loop_join (normal, ~99×, O(n·m)→O(n+m) hash join), sum_genexpr (normal, ~3900× via early-exit any()),
+  manual_groupby (normal, ~1.4× defaultdict). Each detected/differential-verified/wrong→DECLINE/tier-gated.
+  Moat HARDENED: adversarial wrong swaps 3→5 (added doubled-coefficient factoring + sign-flipped Horner), all
+  Z3-REFUTED. Studio data regenerated (detector counts 11/22/34 now match ModePolicy; U test re-binds). 128
+  tests, 0 regression. **REFLECT:** detector march continues toward 40+; next ∞ — harder/larger-input profiling
+  and a D5 batch (string-build/join, set-algebra, comprehension-vs-loop).
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early

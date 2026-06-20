@@ -3272,6 +3272,145 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+# ── PHASE ∞ · D4 — fixtures (module-level for getsource) ──────────────────────────────────────────────
+def _d4_recompile_slow(lines):
+    out = []
+    for ln in lines:
+        pat = _re.compile(r"\d+")                    # recompiled every iteration
+        out.append(bool(pat.search(ln)))
+    return out
+
+
+def _d4_recompile_fast(lines):
+    pat = _re.compile(r"\d+")                         # compiled once
+    return [bool(pat.search(ln)) for ln in lines]
+
+
+def _d4_join_slow(data):
+    left, right = data
+    out = []
+    for a in left:
+        for b in right:
+            if a["k"] == b["k"]:                      # O(n·m) nested-loop join
+                out.append((a["k"], b["v"]))
+    return out
+
+
+def _d4_join_fast(data):
+    left, right = data
+    idx = {b["k"]: b["v"] for b in right}             # hash join O(n+m)
+    return [(a["k"], idx[a["k"]]) for a in left if a["k"] in idx]
+
+
+def _d4_pred(x):
+    s = 0
+    for i in range(80):
+        s += (i * x) % 13
+    return s % 50 == 0
+
+
+def _d4_sum_slow(xs):
+    return any([_d4_pred(x) for x in xs])             # builds the whole list, then any()
+
+
+def _d4_sum_fast(xs):
+    return any(_d4_pred(x) for x in xs)               # generator — early exit
+
+
+def _d4_group_slow(pairs):
+    d = {}
+    for k, v in pairs:
+        if k not in d:                                # manual default-init (two dict ops)
+            d[k] = []
+        d[k].append(v)
+    return d
+
+
+def _d4_group_fast(pairs):
+    import collections
+    d = collections.defaultdict(list)
+    for k, v in pairs:
+        d[k].append(v)
+    return dict(d)
+
+
+def test_phaseInfinity_D4_detectors():
+    """PHASE ∞ · D4 (v63): four more detectors for uncovered wastes (regex-compile-in-loop, nested-loop-join,
+    eager-list-into-aggregate, manual-group-by), pushing the engine 19 → 23 detectors. Per detector: detected,
+    differential-verified whole-program win, correct grade, ★ wrong fix → DECLINE ★, ModePolicy tier gating.
+    Also re-asserts the HARDENED moat (≥5 adversarial wrong swaps Z3-REFUTED)."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC, superopt as S
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+
+    wins = {}
+    # regex_compile_in_loop (fast)
+    assert D.detect_regex_compile_in_loop(_d4_recompile_slow).found
+    lines = [f"line {i} value {i*i}" for i in range(4000)]
+    rmk = lambda: (lines,)
+    ror = RC.record_oracle(_d4_recompile_slow, [([f"a{i} 9" for i in range(40)],)])
+    rv = apply_and_grade(_d4_recompile_slow, _d4_recompile_fast, rmk, n=4000, hotspot_fraction=0.9, oracle=ror,
+                         waste_type="regex_compile_in_loop", floor=1.1, samples=5)
+    assert rv.status == KV.PROBABILISTIC and rv.report.whole_program_ratio > 1
+    rw = apply_and_grade(_d4_recompile_slow, lambda ls: [False for _ in ls], rmk, n=4000, hotspot_fraction=0.9,
+                         oracle=ror, waste_type="regex_compile_in_loop", samples=5)
+    assert rw.status == KV.DECLINE and "regex_compile_in_loop" in FAST_DETECTORS
+    wins["regex_compile_in_loop"] = rv.report.whole_program_ratio
+
+    # nested_loop_join (normal)
+    assert D.detect_nested_loop_join(_d4_join_slow).found
+    left = [{"k": i, "v": i} for i in range(400)]
+    right = [{"k": i, "v": i * 10} for i in range(400)]
+    jmk = lambda: ((left, right),)
+    jor = RC.record_oracle(_d4_join_slow, [((left[:20], right[:20]),)])
+    jv = apply_and_grade(_d4_join_slow, _d4_join_fast, jmk, n=400, hotspot_fraction=0.95, oracle=jor,
+                         waste_type="nested_loop_join", samples=5)
+    assert jv.status == KV.PROBABILISTIC and jv.report.whole_program_ratio > 1
+    jw = apply_and_grade(_d4_join_slow, lambda d: [], jmk, n=400, hotspot_fraction=0.95, oracle=jor,
+                         waste_type="nested_loop_join", samples=5)
+    assert jw.status == KV.DECLINE
+    assert "nested_loop_join" in NORMAL_DETECTORS and "nested_loop_join" not in FAST_DETECTORS
+    wins["nested_loop_join"] = jv.report.whole_program_ratio
+
+    # sum_genexpr (normal) — early-exit any()
+    assert D.detect_sum_genexpr(_d4_sum_slow).found
+    smk = lambda: (list(range(4000)),)
+    sor = RC.record_oracle(_d4_sum_slow, [(list(range(60)),), ([1, 3, 5],)])
+    sv = apply_and_grade(_d4_sum_slow, _d4_sum_fast, smk, n=4000, hotspot_fraction=0.9, oracle=sor,
+                         waste_type="sum_genexpr", floor=1.05, samples=5)
+    assert sv.status == KV.PROBABILISTIC and sv.report.whole_program_ratio > 1
+    sw = apply_and_grade(_d4_sum_slow, lambda xs: not _d4_sum_fast(xs), smk, n=4000, hotspot_fraction=0.9,
+                         oracle=sor, waste_type="sum_genexpr", samples=5)
+    assert sw.status == KV.DECLINE
+    assert "sum_genexpr" in NORMAL_DETECTORS and "sum_genexpr" not in FAST_DETECTORS
+    wins["sum_genexpr"] = sv.report.whole_program_ratio
+
+    # manual_groupby (normal)
+    assert D.detect_manual_groupby(_d4_group_slow).found
+    pairs = [(i % 50, i) for i in range(40000)]
+    gmk = lambda: (pairs,)
+    gor = RC.record_oracle(_d4_group_slow, [([(1, 2), (1, 3), (2, 4)],)])
+    gv = apply_and_grade(_d4_group_slow, _d4_group_fast, gmk, n=40000, hotspot_fraction=0.9, oracle=gor,
+                         waste_type="manual_groupby", floor=1.05, samples=5)
+    assert gv.status == KV.PROBABILISTIC and gv.report.whole_program_ratio > 1
+    gw = apply_and_grade(_d4_group_slow, lambda p: {}, gmk, n=40000, hotspot_fraction=0.9, oracle=gor,
+                         waste_type="manual_groupby", samples=5)
+    assert gw.status == KV.DECLINE
+    assert "manual_groupby" in NORMAL_DETECTORS and "manual_groupby" not in FAST_DETECTORS
+    wins["manual_groupby"] = gv.report.whole_program_ratio
+
+    # hardened moat: ≥5 adversarial wrong swaps, all Z3-REFUTED
+    refs = S.adversarial_refutations()
+    assert len(refs) >= 5 and all(refuted for _n, refuted, _d in refs)
+
+    print(f"PASS test_phaseInfinity_D4_detectors (4 more detectors → 23 total: regex-compile-in-loop "
+          f"{wins['regex_compile_in_loop']:.1f}× (fast), nested-loop-join {wins['nested_loop_join']:.0f}× "
+          f"(normal), eager-list→generator {wins['sum_genexpr']:.0f}× (normal, early-exit any), manual-group-by"
+          f"→defaultdict {wins['manual_groupby']:.2f}× (normal); each detected/verified/wrong→DECLINE/tier-gated; "
+          f"★hardened moat: {sum(1 for _n,r,_d in refs if r)}/{len(refs)} adversarial swaps Z3-REFUTED★)")
+
+
 def test_phaseU_studio():
     """PHASE U (v62): the MR.JEFFREY Studio — mode picker + provider picker + API-key UI, bound to REAL engine
     data. Asserts: the displayed MODE CONTRACTS match ModePolicy exactly and the PROVIDERS match provider.py

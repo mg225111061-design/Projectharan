@@ -127,6 +127,27 @@ def dist_wrong(c, xs):                                   # off-by-one factoring 
     return c * sum(xs) + 1
 
 
+def dist_wrong2(c, xs):                                  # doubled-coefficient bug
+    return 2 * c * sum(xs)
+
+
+def horner_wrong(coeffs, x):                            # sign-flip bug (a wrong "optimized" Horner)
+    r = 0
+    for cc in reversed(coeffs):
+        r = r * x - cc
+    return r
+
+
+def naive_poly(coeffs, x):                              # the reference for the Horner moat check
+    s = 0
+    for i in range(len(coeffs)):
+        term = coeffs[i]
+        for _ in range(i):
+            term = term * x
+        s = s + term
+    return s
+
+
 def adversarial_refutations() -> List[Tuple[str, bool, str]]:
     """Run every adversarial wrong swap through Z3; each MUST be refuted with a counterexample. Returns
     (name, refuted, detail) per swap."""
@@ -140,4 +161,10 @@ def adversarial_refutations() -> List[Tuple[str, bool, str]]:
     # wrong egg coefficient
     ok, cex = EQ.prove_equiv(egg_naive, egg_wrong, lambda _n: (z3.Int("x"),), (1,))
     out.append(("wrong_egg (5x vs 6x)", (ok is False and "counterexample" in str(cex)), str(cex)[:60]))
+    # doubled-coefficient factoring
+    ok, cex = EQ.prove_equiv(dist_naive, dist_wrong2, _sym_c_and_vec, (3, 5))
+    out.append(("wrong_factoring (2c)", (ok is False and "counterexample" in str(cex)), str(cex)[:60]))
+    # sign-flipped Horner vs naive poly eval
+    ok, cex = EQ.prove_equiv(naive_poly, horner_wrong, EQ.sym_poly_inputs, (3, 5))
+    out.append(("wrong_horner (sign)", (ok is False and "counterexample" in str(cex)), str(cex)[:60]))
     return out
