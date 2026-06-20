@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<!-- =====================================================================================================
+     MR.JEFFREY STUDIO — PHASE U. The product surface for the Whole-Program Verified Speedup Engine.
+     Paste code · pick a MODE (fast / normal / extend, each contract shown) · pick a PROVIDER (Claude /
+     ChatGPT / Gemini / compatible) · enter an API key (session-only, never logged) · run write→verify→fix ·
+     watch the panel: per-fix waste type, grade badge, MEASURED whole-program ratio, hotspot fraction, Amdahl
+     ceiling, the three modes' real runs, and the corpus. Bound to REAL engine output (pillar3_studio_data.json
+     from pillar3_studio_gen.py); the embedded island below is a labelled real-run snapshot.
+
+     KEY SAFETY (LEVEL-1): the API key lives only in a session JS variable for the duration of a request. It is
+     never written to localStorage, never logged to the console, never put in the page, never committed. The
+     live provider call needs network + a build toolchain absent here ⇒ [BLOCKED: toolchain]; the data binding
+     (mode contracts, providers, measured runs, grades) is real and tested. Visual quality → human review.
+     ===================================================================================================== -->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MR.JEFFREY Studio — verified speedups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f8fa; --paper-2:#eef1f5; --ink:#0e1116; --ink-2:#39404b; --muted:#6b7280;
+  --surface:#fff; --line:#e2e6ec; --line-2:#cdd3dc; --grid:rgba(14,17,22,.045);
+  --exact:#0d8c5f; --exact-bg:#e7f6ee; --exact-ink:#075537;
+  --prob:#b9750a;  --prob-bg:#fcf2e1;  --prob-ink:#7a4c05;
+  --decline:#5b6472; --decline-bg:#eef0f3; --decline-ink:#414856;
+  --signal:#3b51d9; --signal-bg:#eaedfc; --ceiling:#c2410c;
+  --display:"Space Grotesk",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --r:5px; --r-lg:10px; --shadow:0 1px 2px rgba(14,17,22,.04),0 10px 30px -18px rgba(14,17,22,.22);
+}
+:root[data-theme="dark"]{
+  --paper:#0b0d10; --paper-2:#101317; --ink:#eef1f5; --ink-2:#c0c6d0; --muted:#8b929e;
+  --surface:#14171c; --line:#23282f; --line-2:#323843; --grid:rgba(255,255,255,.04);
+  --exact:#2fce95; --exact-bg:#0e251c; --exact-ink:#8fe9c4; --prob:#e8a23c; --prob-bg:#2a1f0c; --prob-ink:#f3cf8f;
+  --decline:#8a93a3; --decline-bg:#171b21; --decline-ink:#aeb6c2; --signal:#7588f5; --signal-bg:#161a2e; --ceiling:#f0813f;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 14px 40px -22px rgba(0,0,0,.85);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--display);line-height:1.5;-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:34px 34px}
+.mono{font-family:var(--mono)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px 90px}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;align-items:center;justify-content:space-between;height:62px;border-bottom:1px solid var(--line);position:sticky;top:0;
+  background:color-mix(in srgb,var(--surface) 75%,transparent);backdrop-filter:blur(8px);z-index:9}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:-.02em;font-size:18px}
+.seal{width:26px;height:26px;border:1.5px solid var(--ink);border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:600}
+.brand small{font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase}
+.icon-btn{width:40px;height:40px;border:1px solid var(--line-2);border-radius:var(--r);background:transparent;cursor:pointer;color:var(--ink-2)}
+.hero{padding:38px 0 8px}
+.hero h1{font-size:clamp(26px,4.2vw,42px);font-weight:700;letter-spacing:-.03em;line-height:1.04;margin:8px 0}
+.hero p{color:var(--ink-2);max-width:660px;font-size:15px}
+h2.sec{font-size:13px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:30px 0 13px;display:flex;align-items:center;gap:10px}
+h2.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+/* input row */
+.io{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:820px){.io{grid-template-columns:1.4fr 1fr}}
+textarea{width:100%;min-height:150px;font-family:var(--mono);font-size:12.5px;border:1px solid var(--line-2);border-radius:var(--r-lg);
+  background:var(--surface);color:var(--ink);padding:13px;resize:vertical}
+.ctl{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);padding:16px 17px}
+.ctl label{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:block;margin:2px 0 6px}
+select,input[type=password]{width:100%;font-family:var(--mono);font-size:13px;border:1px solid var(--line-2);border-radius:var(--r);
+  background:var(--paper-2);color:var(--ink);padding:9px 11px;margin-bottom:12px}
+.keynote{font-family:var(--mono);font-size:10.5px;color:var(--exact-ink);background:var(--exact-bg);border-radius:var(--r);padding:6px 9px;line-height:1.45}
+.btn{font-family:var(--mono);font-weight:600;font-size:12.5px;border:1px solid var(--signal);background:var(--signal-bg);color:var(--signal);
+  border-radius:var(--r);padding:9px 14px;cursor:pointer;width:100%}
+.valnote{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:8px;min-height:14px}
+/* mode picker */
+.modes{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.modes{grid-template-columns:repeat(3,1fr)}}
+.mode{border:1px solid var(--line);border-top:3px solid var(--mc,var(--line-2));border-radius:var(--r-lg);background:var(--surface);
+  box-shadow:var(--shadow);padding:16px 17px;cursor:pointer;transition:transform .12s}
+.mode:hover{transform:translateY(-2px)} .mode.sel{outline:2px solid var(--signal);outline-offset:1px}
+.mode[data-m="fast"]{--mc:var(--prob)} .mode[data-m="normal"]{--mc:var(--signal)} .mode[data-m="extend"]{--mc:var(--exact)}
+.mode h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:2px;text-transform:lowercase}
+.mode .tag{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.mode dl{font-family:var(--mono);font-size:11.5px;margin-top:10px;line-height:1.7;color:var(--ink-2)}
+.mode dl b{color:var(--ink)} .mode .floor{margin-top:8px;font-family:var(--mono);font-size:11px;font-weight:600}
+/* run output */
+.runout{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);padding:16px 18px;font-family:var(--mono);font-size:12.5px}
+.gbadge{font-family:var(--mono);font-weight:600;font-size:11.5px;padding:3px 9px;border-radius:var(--r);white-space:nowrap}
+.g-EXACT{color:var(--exact-ink);background:var(--exact-bg)} .g-PROBABILISTIC{color:var(--prob-ink);background:var(--prob-bg)} .g-DECLINE{color:var(--decline-ink);background:var(--decline-bg)}
+.shiprow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.shiprow .r{margin-left:auto;font-weight:600}
+/* feed */
+.card{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);margin-bottom:10px;padding:13px 17px}
+.card.g-EXACT{--accent:var(--exact)} .card.g-PROBABILISTIC{--accent:var(--prob)} .card.g-DECLINE{--accent:var(--decline)}
+.card .h{display:flex;align-items:center;gap:12px}
+.card .nm{font-weight:600;font-size:14.5px} .card .arch{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.card .big{margin-left:auto;font-family:var(--mono);font-weight:600;font-size:18px}
+.card.g-EXACT .big{color:var(--exact)} .card.g-PROBABILISTIC .big{color:var(--prob)} .card.g-DECLINE .big{color:var(--decline)}
+.card .det{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:7px}
+.card .ceil{color:var(--ceiling)}
+footer{margin-top:34px;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8;border-top:1px solid var(--line);padding-top:18px}
+footer b{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap" style="display:flex;align-items:center;justify-content:space-between;height:62px;padding-top:0;padding-bottom:0">
+  <div class="brand"><span class="seal mono">MJ</span><span>MR.JEFFREY <small>studio</small></span></div>
+  <button class="icon-btn" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">◐</button>
+</div></header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="eyebrow">Paste code · pick a mode · pick a provider · run</span>
+    <h1>Make it faster — with a proof it still does the same thing.</h1>
+    <p id="meta">loading real engine data…</p>
+  </section>
+
+  <h2 class="sec">your code</h2>
+  <div class="io">
+    <textarea id="code" spellcheck="false">def dedup(items):
+    out = []
+    for x in items:          # O(n^2): membership-in-list
+        if x not in out:
+            out.append(x)
+    return out</textarea>
+    <div class="ctl">
+      <label for="providers">provider</label>
+      <select id="providers"></select>
+      <label for="keyInput">API key — session-only</label>
+      <input id="keyInput" type="password" autocomplete="off" placeholder="sk-… (never logged or stored)">
+      <div class="keynote" id="keynote">🔒 session-only — the key is held only for the request; never logged, never stored, never committed.</div>
+      <button class="btn" id="validateBtn" style="margin-top:12px">validate key (tiny test call)</button>
+      <div class="valnote" id="valnote"></div>
+    </div>
+  </div>
+
+  <h2 class="sec">pick a mode — three contracts, not presets</h2>
+  <div class="modes" id="modes"></div>
+
+  <h2 class="sec">run — <span class="mono" style="text-transform:none;letter-spacing:0;font-size:11px" id="runlabel">select a mode above</span></h2>
+  <div class="runout" id="runout">—</div>
+
+  <h2 class="sec">verification panel — measured whole-program (real corpus)</h2>
+  <div id="feed"></div>
+
+  <footer id="foot"></footer>
+</main>
+
+<script type="application/json" id="studio-snap">
+{"engine":"MR.JEFFREY — the Whole-Program Verified Speedup Engine","generated_by":"pillar3_studio_gen.py — real engine runs; no hand-edited numbers","modes":[{"mode":"fast","primary_clock":"A (felt speed)","verifier_tier":"MICRO","detectors":10,"acceptable_grades":["EXACT","PROBABILISTIC"],"max_hotspots":3,"runs_complexity_sweep":false,"latency_budget_s":1.0,"risk_posture":"miss-a-win OK; block-the-dev NEVER","stop_condition":"first accepted win"},{"mode":"normal","primary_clock":"balance A/B/C","verifier_tier":"CHEAP_CERT","detectors":18,"acceptable_grades":["EXACT","PROBABILISTIC"],"max_hotspots":null,"runs_complexity_sweep":false,"latency_budget_s":30.0,"risk_posture":"balanced","stop_condition":"next marginal whole-program gain < 10%"},{"mode":"extend","primary_clock":"C (emitted speed); A sacrificed","verifier_tier":"FULL_CERT","detectors":30,"acceptable_grades":["EXACT"],"max_hotspots":null,"runs_complexity_sweep":true,"latency_budget_s":null,"risk_posture":"DECLINE-a-real-win OK; ship-unproven NEVER","stop_condition":"every enabled detector tried; floor or Clock-B budget reached"}],"providers":[{"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk"},{"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk"},{"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat"},{"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat"},{"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate"}],"runs":[{"mode":"fast","shipped":[{"name":"S1_list_as_set","waste_type":"list_as_set","grade":"PROBABILISTIC","ratio":1.269,"ceiling":1.28,"hotspot_fraction":0.217}],"declined":[],"cumulative_ratio":1.243,"z3_calls":0,"latency_ms":544.9,"ran_complexity_sweep":false},{"mode":"normal","shipped":[{"name":"S1_list_as_set","waste_type":"list_as_set","grade":"PROBABILISTIC","ratio":1.257,"ceiling":1.27,"hotspot_fraction":0.215},{"name":"S2_n_plus_1","waste_type":"n_plus_1","grade":"EXACT","ratio":1.497,"ceiling":1.54,"hotspot_fraction":0.35},{"name":"S3_accidental_quadratic","waste_type":"accidental_quadratic","grade":"PROBABILISTIC","ratio":1.889,"ceiling":2.0,"hotspot_fraction":0.5}],"declined":[],"cumulative_ratio":1.869,"z3_calls":0,"latency_ms":1316.2,"ran_complexity_sweep":false},{"mode":"extend","shipped":[{"name":"S4_algorithm_recognition","waste_type":"algo_replace","grade":"EXACT","ratio":1.757,"ceiling":1.83,"hotspot_fraction":0.453},{"name":"S2_n_plus_1","waste_type":"n_plus_1","grade":"EXACT","ratio":2.274,"ceiling":2.45,"hotspot_fraction":0.592}],"declined":[{"name":"S1_list_as_set","reason":"grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE"},{"name":"S3_accidental_quadratic","reason":"grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE"},{"name":"S5_simd_offload","reason":"grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE"}],"cumulative_ratio":2.254,"z3_calls":2,"latency_ms":2058.9,"ran_complexity_sweep":true}],"panel_rows":[{"name":"ai_todo_app","archetype":"AI-generated (never profiled)","detected":["list_as_set","accidental_full_scan","dict_to_columnar"],"grade":"PROBABILISTIC","ratio":47.125,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (δ=3/3)"},{"name":"log_analyzer","archetype":"CLI tool","detected":["n_plus_1","redundant_io_parse","dict_to_columnar","loop_invariant_hoist","vectorizable_loop"],"grade":"PROBABILISTIC","ratio":8.632,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (δ=3/3)"},{"name":"csv_stats","archetype":"data utility","detected":["quadratic_build","vectorizable_loop"],"grade":"PROBABILISTIC","ratio":114.78,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (δ=3/3)"},{"name":"json_pipeline","archetype":"ETL pipeline","detected":["n_plus_1","parallelizable_loop"],"grade":"EXACT","ratio":84.235,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"coalesced_identical_lookups"},{"name":"template_render","archetype":"parser/renderer (well-written)","detected":["n_plus_1","parallelizable_loop"],"grade":"DECLINE","ratio":1.004,"ceiling":921.31,"hotspot_fraction":0.999,"note":"no whole-program win ≥ floor — honest DECLINE (nothing worth shipping)"}],"key_policy":"API key is session-only: held in the browser for the request, never logged, never stored, never committed, never phoned home.","scope_note":"Self-contained studio artifact. The full React+TS build (live provider calls, CI visual/a11y/perf gates) needs a frontend toolchain absent in this sandbox [BLOCKED: toolchain]; the data binding here is real and tested, visual quality → human review."}
+</script>
+
+<script>
+"use strict";
+let SESSION_KEY = null;            // the API key lives ONLY here, for the session. Never logged, never stored.
+function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function fmtCeil(c){return c==null?"—":(c==="∞"||c===null?"∞":(typeof c==="number"?(c<100?c.toFixed(2):c.toFixed(0))+"×":esc(c)));}
+
+function render(d, live){
+  document.getElementById("meta").textContent =
+    (live?"live engine data: ":"snapshot · real engine run: ") + d.modes.length + " mode contracts · " +
+    d.providers.length + " providers · " + d.panel_rows.length + " measured corpus rows — grades verifier-enforced";
+
+  // providers
+  const ps = document.getElementById("providers");
+  d.providers.forEach(p => { const o=document.createElement("option"); o.value=p.id; o.textContent=p.label+"  ·  "+p.transport; ps.appendChild(o); });
+
+  // modes
+  const mc = document.getElementById("modes");
+  const runByMode = Object.fromEntries(d.runs.map(r=>[r.mode,r]));
+  d.modes.forEach(m => {
+    const el=document.createElement("div"); el.className="mode"; el.dataset.m=m.mode;
+    const floorTxt = m.acceptable_grades.length===1 ? "EXACT-or-DECLINE (ships nothing unproven)" : "EXACT or PROBABILISTIC";
+    el.innerHTML =
+      `<h3>${m.mode}</h3><div class="tag">optimises ${esc(m.primary_clock)}</div>
+       <dl><div>verifier · <b>${m.verifier_tier}</b>${m.verifier_tier==="MICRO"?" (never Z3)":""}</div>
+         <div>detectors · <b>${m.detectors}</b></div>
+         <div>hotspots · <b>${m.max_hotspots==null?"entire profile":"top "+m.max_hotspots}</b></div>
+         <div>complexity sweep · <b>${m.runs_complexity_sweep?"yes":"no"}</b></div>
+         <div>latency · <b>${m.latency_budget_s==null?"unbounded":"≤ "+m.latency_budget_s+"s"}</b></div></dl>
+       <div class="floor" style="color:var(--mc)">grade floor: ${floorTxt}</div>
+       <div class="tag" style="margin-top:6px">${esc(m.risk_posture)}</div>`;
+    el.addEventListener("click", ()=>selectMode(m.mode, runByMode[m.mode], el));
+    mc.appendChild(el);
+  });
+
+  // feed (corpus panel rows)
+  const feed=document.getElementById("feed");
+  d.panel_rows.forEach(r=>{
+    const el=document.createElement("div"); el.className="card g-"+r.grade;
+    const big = r.grade==="DECLINE" ? "DECLINE" : (r.ratio+"×");
+    el.innerHTML =
+      `<div class="h"><span class="nm">${esc(r.name)}</span><span class="arch">${esc(r.archetype)}</span>
+         <span class="gbadge g-${r.grade}">${r.grade==="EXACT"?"🛡":r.grade==="PROBABILISTIC"?"🎲":"✋"} ${r.grade}</span>
+         <span class="big">${big}</span></div>
+       <div class="det">detected: ${r.detected.length?esc(r.detected.join(", ")):"—"} ·
+         hotspot f=${r.hotspot_fraction} · <span class="ceil">Amdahl ceiling ${fmtCeil(r.ceiling)}</span><br>${esc(r.note)}</div>`;
+    feed.appendChild(el);
+  });
+
+  document.getElementById("foot").innerHTML =
+    `<b>MR.JEFFREY Studio</b> — ${esc(d.generated_by)}. Grades enforced by the verifier (EXACT / PROBABILISTIC / DECLINE), never a label.<br>
+     🔒 <b>${esc(d.key_policy)}</b><br>
+     <b>Honest scope:</b> ${esc(d.scope_note)}`;
+}
+
+function selectMode(mode, run, el){
+  document.querySelectorAll(".mode").forEach(x=>x.classList.remove("sel"));
+  if(el) el.classList.add("sel");
+  document.getElementById("runlabel").textContent = mode + " · real canonical run";
+  const out=document.getElementById("runout");
+  if(!run){ out.textContent="(no run data)"; return; }
+  const rows = run.shipped.map(s=>
+    `<div class="shiprow"><span class="gbadge g-${s.grade}">${s.grade}</span>
+       <span>${esc(s.waste_type)}</span>
+       <span class="r">${s.ratio}× <span style="color:var(--ceiling)">(ceil ${fmtCeil(s.ceiling)})</span></span></div>`).join("");
+  const decl = run.declined.length ? `<div style="color:var(--decline-ink);margin-top:8px">declined: ${run.declined.map(d=>esc(d.name.split("_")[0])).join(", ")} (grade floor / no win)</div>` : "";
+  out.innerHTML =
+    `<div style="margin-bottom:8px">cumulative whole-program <b style="font-size:16px">${run.cumulative_ratio}×</b> ·
+       Z3 calls <b>${run.z3_calls}</b> · latency <b>${run.latency_ms} ms</b> · sweep ${run.ran_complexity_sweep?"ran":"—"}</div>
+     ${rows||"<div>(no fixes shipped)</div>"}${decl}`;
+}
+
+// key handling — session-only, never logged/stored
+document.getElementById("keyInput").addEventListener("input", e => { SESSION_KEY = e.target.value || null; });
+document.getElementById("validateBtn").addEventListener("click", ()=>{
+  const vn=document.getElementById("valnote");
+  if(!SESSION_KEY){ vn.textContent="enter a key first."; return; }
+  // a real build does a tiny test call via the selected provider; here the network/toolchain is absent.
+  vn.textContent = "[BLOCKED: no network in sandbox] — would send one tiny test call to the selected provider; "
+                 + "the key (len "+SESSION_KEY.length+") stays session-only and is never logged.";
+});
+
+(async function(){
+  let d=null, live=false;
+  try{const r=await fetch("pillar3_studio_data.json",{cache:"no-store"}); if(r.ok){d=await r.json(); live=true;}}catch(_){}
+  if(!d){try{d=JSON.parse(document.getElementById("studio-snap").textContent);}catch(_){}}
+  if(d){ render(d, live); const f=d.runs.find(r=>r.mode==="extend"); selectMode("extend", f, document.querySelector('.mode[data-m="extend"]')); }
+})();
+</script>
+</body>
+</html>

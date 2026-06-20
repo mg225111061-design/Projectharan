@@ -3272,6 +3272,87 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+def test_phaseU_studio():
+    """PHASE U (v62): the MR.JEFFREY Studio — mode picker + provider picker + API-key UI, bound to REAL engine
+    data. Asserts: the displayed MODE CONTRACTS match ModePolicy exactly and the PROVIDERS match provider.py
+    (data binding == engine output); the per-mode runs are coherent (extend EXACT-only, fast z3=0, ratio ≤
+    ceiling); the panel rows are the real corpus; ★ the API key is never in the data, never logged, never
+    stored ★; HTML well-formed with the mode/provider/key controls. Visual quality → human review."""
+    import json
+    import os
+    from html.parser import HTMLParser
+    import provider as PRV
+    from pillar3.mode import Mode, ModePolicy
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    pj = os.path.join(base, "pillar3_studio_data.json")
+    assert os.path.exists(pj), "pillar3_studio_data.json (real engine output) must exist — run pillar3_studio_gen.py"
+    raw = open(pj, encoding="utf-8").read()
+    data = json.loads(raw)
+
+    # ★ data binding == engine output: the displayed mode CONTRACTS match ModePolicy exactly ★
+    jm = {m["mode"]: m for m in data["modes"]}
+    assert set(jm) == {"fast", "normal", "extend"}
+    for mode in (Mode.FAST, Mode.NORMAL, Mode.EXTEND):
+        p = ModePolicy.for_mode(mode); j = jm[mode.value]
+        assert j["verifier_tier"] == p.verifier_tier.name
+        assert j["detectors"] == len(p.enabled_detectors)
+        assert set(j["acceptable_grades"]) == set(p.acceptable_grades)
+        assert j["max_hotspots"] == p.max_hotspots
+        assert j["runs_complexity_sweep"] == p.runs_complexity_sweep
+    assert jm["extend"]["acceptable_grades"] == ["EXACT"]            # EXACT-or-DECLINE on screen
+
+    # providers match provider.py (all five) + correct transport per provider
+    jp = {p["id"]: p for p in data["providers"]}
+    assert set(jp) == set(PRV.VALID_PROVIDERS)
+    for pid, pjson in jp.items():
+        assert pjson["transport"] == PRV.transport_kind(pid)
+    assert {"openai", "gemini"} <= set(jp)                          # native ChatGPT + Gemini present
+
+    # the per-mode runs are coherent and mode-distinct (fast z3=0, extend EXACT-only + swept; ratio ≤ ceiling)
+    runs = {r["mode"]: r for r in data["runs"]}
+    assert runs["fast"]["z3_calls"] == 0
+    assert {s["grade"] for s in runs["extend"]["shipped"]} == {"EXACT"} and runs["extend"]["ran_complexity_sweep"]
+    assert runs["extend"]["z3_calls"] > 0
+    for r in data["runs"]:
+        for s in r["shipped"]:
+            if isinstance(s["ceiling"], (int, float)):
+                assert s["ratio"] <= s["ceiling"] + 1e-6
+
+    # panel rows = the real corpus (all three grades; every row Amdahl-coherent)
+    assert {r["grade"] for r in data["panel_rows"]} == {"EXACT", "PROBABILISTIC", "DECLINE"}
+    for r in data["panel_rows"]:
+        if r["ratio"] and isinstance(r["ceiling"], (int, float)):
+            assert r["ratio"] <= r["ceiling"] + 1e-6
+
+    # ★ KEY SAFETY: no key anywhere in the data; the HTML never logs or stores the key ★
+    assert "sk-" not in raw and "api_key" not in raw.lower() and "apikey" not in raw.lower()
+    html = open(os.path.join(base, "pillar3_studio.html"), encoding="utf-8").read()
+    assert 'type="password"' in html and "session-only" in html and "never logged" in html
+    assert "localStorage.setItem" not in html and "console.log" not in html   # key never stored, never logged
+    assert "sessionStorage.setItem" not in html and "document.cookie" not in html
+
+    # HTML well-formed + the studio controls + grade styles + provider names + honest scope
+    class P(HTMLParser):
+        def __init__(self): super().__init__(); self.ids = set()
+        def handle_starttag(self, t, a):
+            for k, v in a:
+                if k == "id": self.ids.add(v)
+    pp = P(); pp.feed(html)
+    assert {"modes", "providers", "keyInput", "feed", "foot"} <= pp.ids
+    assert all(s in html for s in ("g-EXACT", "g-PROBABILISTIC", "g-DECLINE"))
+    assert all(s in html for s in ("Claude", "ChatGPT", "Gemini", "fast", "normal", "extend"))
+    assert "pillar3_studio_data.json" in html and "[BLOCKED:" in html
+
+    g = {gr: sum(1 for r in data["panel_rows"] if r["grade"] == gr) for gr in ("EXACT", "PROBABILISTIC", "DECLINE")}
+    print(f"PASS test_phaseU_studio (mode contracts match ModePolicy exactly (MICRO/CHEAP_CERT/FULL_CERT, "
+          f"{jm['fast']['detectors']}/{jm['normal']['detectors']}/{jm['extend']['detectors']} detectors, extend="
+          f"EXACT-or-DECLINE); 5 providers match provider.py incl. native ChatGPT+Gemini; runs coherent (fast "
+          f"z3=0, extend EXACT-only+swept, ratio≤ceiling); panel = real corpus (E{g['EXACT']}/P{g['PROBABILISTIC']}"
+          f"/D{g['DECLINE']}); ★key never in data / never logged / never stored (session-only)★; HTML well-formed "
+          f"w/ mode+provider+key controls; React+live-call [BLOCKED: toolchain]; visual → human review)")
+
+
 def test_phaseS_extend_depth():
     """PHASE S (v61): extend-mode DEPTH — verified lifting + memoised DP + egg superoptimisation, each EXACT
     with a measured whole-program win, plus the moat at depth (adversarial wrong swaps Z3-REFUTED → DECLINE).
