@@ -3264,6 +3264,94 @@ def test_phaseM2_mode_distinctness():
           f"all rows ratio≤ceiling — the three modes are observably distinct contracts)")
 
 
+def test_phaseP_provider_proposer():
+    """PHASE P (v56): the proposer becomes a real LLM (Claude/ChatGPT/Gemini/compat) but is NEVER the arbiter.
+    Five providers resolve + select the right transport; build_request matches each vendor's API and carries the
+    key only in send-headers (never in the body or the ProposedFix). ★ A wrong LLM fix → DECLINE (the arbiter
+    holds regardless of proposer) ★ and ★ an LLM fix in extend with no certificate → DECLINE (the mode floor
+    holds over the LLM too) ★. No key → deterministic fallback, graded + measured."""
+    import importlib
+    import os
+    import kernel_verdict as KV
+    import provider as PRV
+    from pillar3 import proposer as PP, record as RC
+    from pillar3.mode import Mode
+
+    # (a) five providers resolve and select the correct transport (mock env; restore after)
+    saved = dict(os.environ)
+    try:
+        for prov, kind, base_has in [("openai", "openai_chat", "api.openai.com"),
+                                     ("gemini", "gemini_generate", "generativelanguage.googleapis.com"),
+                                     ("anthropic", "anthropic_sdk", None)]:
+            os.environ.clear(); os.environ.update(saved); os.environ["HARAN_PROVIDER"] = prov
+            importlib.reload(PRV)
+            assert PRV.provider_name() == prov and PRV.transport_kind() == kind
+            if base_has:
+                assert base_has in (PRV.base_url() or "")
+        assert set(PRV.VALID_PROVIDERS) >= {"anthropic", "anthropic_compat", "openai_compat", "openai", "gemini"}
+    finally:
+        os.environ.clear(); os.environ.update(saved); importlib.reload(PRV)
+
+    # (b) build_request: per-provider shape, key ONLY in headers (never in the JSON body)
+    ro = PP.build_request(PRV.Config("openai", "gpt-4o", "https://api.openai.com/v1", True), "speed up", "sk-KEY")
+    assert ro["url"].endswith("/chat/completions") and ro["headers"]["Authorization"] == "Bearer sk-KEY"
+    assert "messages" in ro["json"] and "sk-KEY" not in str(ro["json"])
+    rg = PP.build_request(PRV.Config("gemini", "gemini-1.5-pro", "https://x/v1beta", True), "speed up", "sk-KEY")
+    assert ":generateContent" in rg["url"] and rg["headers"]["x-goog-api-key"] == "sk-KEY" and "contents" in rg["json"]
+    ra = PP.build_request(PRV.Config("anthropic", "claude-opus-4-8", None, True), "speed up", "sk-KEY")
+    assert ra["headers"]["x-api-key"] == "sk-KEY" and "messages" in ra["json"]
+
+    # a list-as-set dedup hotspot with a good fix, a wrong fix, and a recorded oracle
+    def slow(data):
+        out = []
+        for x in data["xs"]:
+            if x not in out:
+                out.append(x)
+        d = dict(data); d["o"] = out; return d
+    good_fix = lambda data: {**data, "o": list(dict.fromkeys(data["xs"]))}
+    wrong_fix = lambda data: {**data, "o": data["xs"][::-1]}          # reversed — not a dedup
+    mk = lambda: ({"xs": list(range(400)) * 2},)
+    oracle = RC.record_oracle(slow, [({"xs": list(range(120)) * 2},)])
+    h = PP.Hotspot("dedup", slow, "list_as_set", deterministic_fix=good_fix, fraction=0.9)
+    cfg = PRV.Config("openai", "gpt-4o", "https://api.openai.com/v1", True)
+
+    # (c) no key → deterministic fallback, MEASURED, graded with a real whole-program win
+    pf = PP.propose_fix(h, Mode.NORMAL)
+    assert pf.source.startswith("deterministic:") and pf.verified_path == "MEASURED" and pf.fast_fn is good_fix
+    v = PP.arbitrate(pf, h, make_args=mk, n=800, oracle=oracle, mode=Mode.NORMAL)
+    assert v.status in (KV.EXACT, KV.PROBABILISTIC) and v.report.whole_program_ratio > 1
+
+    # (d) LLM proposes (mock transport, key present) a CORRECT fix → arbiter accepts; key NEVER in the proposal
+    mock_good = lambda req: {"fast_fn": good_fix, "rationale": "dict.fromkeys"}
+    pg = PP.propose_fix(h, Mode.NORMAL, provider_cfg=cfg, key="sk-SECRETKEY", transport=mock_good)
+    assert pg.source == "llm:openai" and pg.fast_fn is good_fix and "sk-SECRETKEY" not in str(vars(pg))
+    assert PP.arbitrate(pg, h, make_args=mk, n=800, oracle=oracle, mode=Mode.NORMAL).status != KV.DECLINE
+
+    # (e) ★ a WRONG LLM fix → DECLINE (the arbiter holds regardless of proposer) ★
+    mock_wrong = lambda req: {"fast_fn": wrong_fix, "rationale": "reverse it"}
+    pw = PP.propose_fix(h, Mode.NORMAL, provider_cfg=cfg, key="sk-SECRETKEY", transport=mock_wrong)
+    assert PP.arbitrate(pw, h, make_args=mk, n=800, oracle=oracle, mode=Mode.NORMAL).status == KV.DECLINE
+
+    # (f) ★ an LLM fix in EXTEND with no certificate → DECLINE; the SAME proposal in normal → accepted ★
+    pe = PP.propose_fix(h, Mode.EXTEND, provider_cfg=cfg, key="sk-SECRETKEY", transport=mock_good)
+    ve = PP.arbitrate(pe, h, make_args=mk, n=800, oracle=oracle, mode=Mode.EXTEND)
+    assert ve.status == KV.DECLINE and "below extend floor" in ve.reason
+    vn = PP.arbitrate(PP.propose_fix(h, Mode.NORMAL, provider_cfg=cfg, key="sk-SECRETKEY", transport=mock_good),
+                      h, make_args=mk, n=800, oracle=oracle, mode=Mode.NORMAL)
+    assert vn.status == KV.PROBABILISTIC
+
+    # (g) live path: transport returns code text (no runnable fn) → UNVERIFIED, not auto-applied (Rule 6)
+    pl = PP.propose_fix(h, Mode.NORMAL, provider_cfg=cfg, key="sk-SECRETKEY", transport=lambda req: {"code": "..."})
+    assert pl.fast_fn is None and "UNVERIFIED" in pl.verified_path
+    assert PP.arbitrate(pl, h, make_args=mk, n=800, oracle=oracle, mode=Mode.NORMAL).status == KV.DECLINE
+
+    print("PASS test_phaseP_provider_proposer (5 providers anthropic/anthropic_compat/openai_compat/openai/gemini "
+          "resolve + select transport (anthropic_sdk/openai_chat/gemini_generate); build_request per-vendor shape, "
+          "key only in send-headers never in body/proposal; no-key→deterministic MEASURED; LLM proposes but "
+          "VERIFIER arbitrates: ★wrong LLM fix→DECLINE★, ★extend no-cert→DECLINE (normal accepts same)★; live "
+          "code-text→UNVERIFIED not auto-applied)")
+
+
 def test_pillar3_stage3_global_transforms():
     """Pillar 3 · Stage 3: cross-cutting global transforms on a FLAT profile (no dominant hotspot), where local
     hotspot fixing fails. async/batch I/O (verified, measured); serialization swap json→marshal (EXACT round-

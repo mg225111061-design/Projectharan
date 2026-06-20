@@ -23,3 +23,14 @@ Format: `[T+h.h] PHASE — measured result — next`.
   shipped row ratio ≤ ceiling.
   **Next bottleneck:** the proposer is deterministic only — PHASE P wires real LLM providers (still arbitrated
   by the verifier under ModePolicy). Then PHASE D widens detectors 4→40+.
+
+- **[T+1.8] PHASE P (v56) — real LLM provider layer. DONE.**
+  `provider.py` extended to FIVE providers (anthropic, anthropic_compat, openai_compat, + native **openai**
+  ChatGPT and **gemini**), with `transport_kind()` selecting anthropic_sdk / openai_chat / gemini_generate and
+  per-vendor key fallback. `pillar3/proposer.py`: `propose_fix` (LLM-or-deterministic) + `arbitrate` (the
+  verifier decides under ModePolicy). `build_request` puts the key only in send-headers.
+  **Measured:** five providers resolve + pick the right transport; ★ a wrong LLM fix → DECLINE (arbiter holds)
+  ★; ★ an LLM fix in extend with no certificate → DECLINE, same proposal accepted in normal ★; no-key →
+  deterministic MEASURED; live code-text → UNVERIFIED (not auto-executed). Keys never logged/stored/committed.
+  **Next bottleneck:** only ~4 waste types are covered — PHASE D expands detectors 4 → 40+, each gated by the
+  mode tier.

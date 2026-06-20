@@ -30,9 +30,15 @@ from typing import Optional
 _ANTHROPIC = "anthropic"
 _ANTHROPIC_COMPAT = "anthropic_compat"
 _OPENAI_COMPAT = "openai_compat"
-VALID_PROVIDERS = (_ANTHROPIC, _ANTHROPIC_COMPAT, _OPENAI_COMPAT)
+_OPENAI = "openai"            # PHASE P — native ChatGPT (api.openai.com/v1/chat/completions)
+_GEMINI = "gemini"            # PHASE P — native Gemini (generativelanguage.googleapis.com)
+VALID_PROVIDERS = (_ANTHROPIC, _ANTHROPIC_COMPAT, _OPENAI_COMPAT, _OPENAI, _GEMINI)
 
 DEFAULT_MODEL = "claude-opus-4-8"
+
+# PHASE P — native-endpoint defaults (filled from each vendor's public docs; editable in the UI, never guessed).
+_OPENAI_DEFAULT_BASE = "https://api.openai.com/v1"
+_GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 
 def provider_name() -> str:
@@ -56,7 +62,40 @@ def base_url(p: Optional[str] = None) -> Optional[str]:
         return (os.environ.get("OPENAI_BASE_URL") or "").strip() or None
     if p == _ANTHROPIC_COMPAT:
         return (os.environ.get("ANTHROPIC_BASE_URL") or "").strip() or None
+    if p == _OPENAI:                                              # native ChatGPT
+        return (os.environ.get("OPENAI_BASE_URL") or _OPENAI_DEFAULT_BASE).strip()
+    if p == _GEMINI:                                              # native Gemini
+        return (os.environ.get("GEMINI_BASE_URL") or _GEMINI_DEFAULT_BASE).strip()
     return None
+
+
+def transport_kind(p: Optional[str] = None) -> str:
+    """Which wire protocol the chosen provider speaks (PHASE P). The proposer selects its HTTP shape from this:
+      • anthropic_sdk   — Anthropic Messages API (official or anthropic_compat gateway)
+      • openai_chat     — POST {base}/chat/completions (native OpenAI and every openai_compat gateway)
+      • gemini_generate — POST {base}/models/{model}:generateContent?key=… (native Gemini)"""
+    p = p or provider_name()
+    if p in (_ANTHROPIC, _ANTHROPIC_COMPAT):
+        return "anthropic_sdk"
+    if p == _GEMINI:
+        return "gemini_generate"
+    return "openai_chat"                                          # openai + openai_compat
+
+
+def resolve_key_for(p: Optional[str] = None) -> Optional[str]:
+    """Provider-specific key fallback for the server/CLI path. HARAN_KEY always wins; otherwise the vendor's
+    own var (OPENAI_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY). Returns the key or None — never logged,
+    never stored, never phoned home; the web UI passes its own key per request and never touches this."""
+    p = p or provider_name()
+    if os.environ.get("HARAN_KEY"):
+        return os.environ["HARAN_KEY"].strip()
+    if p == _OPENAI:
+        return (os.environ.get("OPENAI_API_KEY") or "").strip() or None
+    if p == _GEMINI:
+        return (os.environ.get("GEMINI_API_KEY") or "").strip() or None
+    if p in (_ANTHROPIC, _ANTHROPIC_COMPAT):
+        return (os.environ.get("ANTHROPIC_API_KEY") or "").strip() or None
+    return (os.environ.get("OPENAI_API_KEY") or "").strip() or None   # openai_compat gateways
 
 
 def resolve_key() -> Optional[str]:
@@ -71,6 +110,14 @@ def is_openai(p: Optional[str] = None) -> bool:
     return (p or provider_name()) == _OPENAI_COMPAT
 
 
+def is_openai_native(p: Optional[str] = None) -> bool:
+    return (p or provider_name()) == _OPENAI
+
+
+def is_gemini(p: Optional[str] = None) -> bool:
+    return (p or provider_name()) == _GEMINI
+
+
 # v26.2 S8 — gateway presets. Each: (provider, base_url, default_model, verified_source).
 # base_urls/models are EDITABLE defaults in the UI; only fill from documentation, never guess.
 # GLM/Z.ai verified via web search (Z.ai docs + multiple corroborating sources, June 2026):
@@ -78,6 +125,8 @@ def is_openai(p: Optional[str] = None) -> bool:
 #   NOTE: "GLM-5.2" is NOT a verified model id anywhere — use the exact id from your Z.ai console.
 GATEWAY_PRESETS = {
     "Claude (official)": (_ANTHROPIC, None, "claude-opus-4-8", "anthropic"),
+    "ChatGPT (OpenAI)":  (_OPENAI, _OPENAI_DEFAULT_BASE, "gpt-4o", "openai docs (native /chat/completions)"),
+    "Gemini (Google)":   (_GEMINI, _GEMINI_DEFAULT_BASE, "gemini-1.5-pro", "google docs (generateContent)"),
     "GLM (Z.ai)":        (_OPENAI_COMPAT, "https://api.z.ai/api/paas/v4/", "glm-4.6", "z.ai docs (web-confirmed)"),
     "OpenRouter":        (_OPENAI_COMPAT, "https://openrouter.ai/api/v1", "", "well-known (editable)"),
     "DeepSeek":          (_OPENAI_COMPAT, "https://api.deepseek.com", "deepseek-chat", "well-known (editable)"),
