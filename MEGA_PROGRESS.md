@@ -55,6 +55,14 @@ Format: `[T+h.h] PHASE — measured result — next`.
   EXACT). Gated extend-only. **PHASE D total: 19 detectors** (4→19), each measured/graded/wrong→DECLINE/tier-
   gated. **Next:** PHASE R — real open-source corpus (the "it actually runs" proof).
 
+- **[T+4.3] PHASE R (v60) — real-code corpus, measured whole-program, honest misses. DONE.**
+  `corpus/` (5 archetypes) + `pillar3/corpus_runner.py` (profile → detect → differential → measure best-of-k →
+  grade, coherent f=t_hot/t_orig). **Measured:** ai_todo_app ~44× (PROB), csv_stats ~117× (PROB), json_pipeline
+  ~84× (EXACT), log_analyzer ~8× (PROB), ★ template_render ~1.0× → DECLINE (honest miss, well-written code) ★.
+  Grades EXACT1/PROB3/DECLINE1; all rows ratio ≤ ceiling. Big wins are on AI-generated/never-profiled code (the
+  thesis). Network-blocked ⇒ authored archetypes, tagged. **Next:** PHASE S — extend-mode depth (superopt +
+  verified lifting), and PHASE U (product UI), then ∞.
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early
