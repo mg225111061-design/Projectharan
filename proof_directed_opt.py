@@ -134,10 +134,11 @@ def measure_noalias_vectorization(n: int = 200_000, reps: int = 50) -> ProofOptR
     if not bit_exact:
         return ProofOptResult("DECLINE", "non-aliasing", False,
                               detail=f"bit-exact gate failed (noalias={na_val}, mayalias={ma_val}, ref={ref})")
-    def bench(cfn):
-        cfn(ap, bp, n)                                        # warm
-        return min(_t(lambda: cfn(ap, bp, n)) for _ in range(reps))
-    na_ms, ma_ms = bench(cfn_na), bench(cfn_ma)
+    cfn_na(ap, bp, n); cfn_ma(ap, bp, n)                      # warm both
+    na_ms = ma_ms = float("inf")
+    for _ in range(reps):                                     # INTERLEAVE na/ma so a load spike hits both equally
+        na_ms = min(na_ms, _t(lambda: cfn_na(ap, bp, n)))     # (sequential blocks let one block catch a spike and
+        ma_ms = min(ma_ms, _t(lambda: cfn_ma(ap, bp, n)))     #  skew the ratio; interleaving keeps it stable)
     vectorized = ("<" in ir_na and "x i64>" in ir_na)         # vector types present in the optimized IR
     speedup = round(ma_ms / na_ms, 2) if na_ms > 0 else 1.0
     note = (f"non-aliasing proof unlocked vectorization → {speedup}× over may-alias -O3"
