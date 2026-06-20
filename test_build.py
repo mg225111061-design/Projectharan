@@ -3032,6 +3032,125 @@ def test_pillar3_stage4_recognition_and_certificate():
           f"a wrong fast swap)")
 
 
+def test_pillar3_stage5_offload():
+    """Pillar 3 · Stage 5: GPU/SIMD offload, Amdahl-gated and whole-program-honest (Rules 1/2 at their hardest).
+    ★ THE KEY TEST: a 700× kernel that is only 40% of runtime is DECLINED — 'offload not worth it' — because the
+    Amdahl ceiling 1/(1−0.4)=1.67× < 2× ★. A vectorizable kernel that DOES dominate is offloaded via numpy (SIMD)
+    and reported as a WHOLE-PROGRAM ratio (never the kernel ratio). GPU is absent ⇒ UNVERIFIED, auto-apply-excluded."""
+    import math
+    import numpy as np
+    import kernel_verdict as KV
+    from pillar3 import offload as O, record as RC
+
+    # the Amdahl gate states its own ceiling BEFORE any offload (Rule 2): dominant passes, non-dominant fails
+    assert O.amdahl_gate(0.98, 2.0)[0] is True and abs(O.amdahl_gate(0.98, 2.0)[1] - 50.0) < 1e-9
+    assert O.amdahl_gate(0.40, 2.0)[0] is False and abs(O.amdahl_gate(0.40, 2.0)[1] - 5.0 / 3.0) < 1e-9
+
+    # a genuinely compute-heavy, element-wise kernel (sin·cos+√) — the SIMD/vectorize sweet spot
+    def slow_kernel(arr):
+        return [math.sin(x) * math.cos(x) + math.sqrt(abs(x)) for x in arr]
+    def fast_kernel(arr):
+        a = np.asarray(arr, dtype=float)
+        return (np.sin(a) * np.cos(a) + np.sqrt(np.abs(a))).tolist()
+    def close(a, b):                                            # float-tolerant equality (vectorized FP reorders)
+        return len(a) == len(b) and all(abs(x - y) < 1e-9 for x, y in zip(a, b))
+
+    mk = lambda: ([float(i % 100) - 50.0 for i in range(60000)],)
+    oracle = RC.record_oracle(slow_kernel, [([float((i * k) % 90) - 45.0 for i in range(80)],) for k in range(1, 31)])
+
+    # DOMINANT hotspot (98%) → offload proceeds, graded PROBABILISTIC on a measured WHOLE-PROGRAM win (not kernel)
+    dv = O.consider_offload(slow_kernel, fast_kernel, mk, n=60000, hotspot_fraction=0.98, oracle=oracle,
+                            eq=close, device="simd", floor=1.2, min_speedup=2.0, samples=5)
+    assert dv.status == KV.PROBABILISTIC and dv.certificate.delta is not None
+    assert dv.report.whole_program_ratio > 1.3 and abs(dv.report.amdahl_ceiling - 50.0) < 1e-9
+    assert dv.certificate.delta == 3.0 / 30                     # rule-of-three on the 30-case oracle (δ=0.1)
+
+    # ★ NON-DOMINANT hotspot (40%): even a 700× kernel is DECLINED — Amdahl ceiling 1.67× < 2× (the whole point) ★
+    nd = O.consider_offload(slow_kernel, fast_kernel, mk, n=60000, hotspot_fraction=0.40, oracle=oracle, eq=close,
+                            kernel_speedup_hint=700, device="simd", min_speedup=2.0)
+    assert nd.status == KV.DECLINE and "1.67×" in nd.reason and "700×" in nd.reason and "Amdahl ceiling" in nd.reason
+
+    # GPU is absent in this sandbox ⇒ UNVERIFIED, excluded from auto-apply (Rule 6) — even with a dominant hotspot
+    gp = O.consider_offload(slow_kernel, fast_kernel, mk, n=60000, hotspot_fraction=0.98, oracle=oracle, eq=close,
+                            device="gpu", min_speedup=2.0)
+    assert gp.status == KV.DECLINE and "UNVERIFIED" in gp.reason and "no GPU" in gp.reason
+
+    print(f"PASS test_pillar3_stage5_offload (Amdahl gate: ceiling 50.0× @98% PASS / 1.67× @40% FAIL; dominant SIMD "
+          f"offload {dv.report.whole_program_ratio:.2f}× WHOLE-program @n=60000 (ceiling {dv.report.amdahl_ceiling:.0f}×, "
+          f"δ=3/30={dv.certificate.delta:.2f}) → PROBABILISTIC; ★700× kernel @40% → DECLINE (Amdahl 1.67×<2×, NOT a "
+          f"big number)★; GPU → UNVERIFIED auto-apply-excluded — kernel≠whole-program enforced)")
+
+
+def test_pillar3_verification_panel():
+    """Pillar 3 verification panel. Visual quality → HUMAN review (not auto-tested). What IS tested: the panel
+    binds to REAL engine output (pillar3_panel_data.json from pillar3_panel_gen.py), shows all three grades, the
+    displayed grade MATCHES what the engine actually returns (re-run + compare — no fabricated grade), every
+    measured row is Amdahl-COHERENT (whole-program ratio ≤ its ceiling), and the HTML is well-formed with the
+    panel's anchors (feed/curve/clocks), grade styles, three clocks, and the honest 'must not claim' section."""
+    import json
+    import os
+    import re
+    from html.parser import HTMLParser
+    import kernel_verdict as KV
+    from pillar3 import offload as O, equiv as EQ, record as RC
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    pj = os.path.join(base, "pillar3_panel_data.json")
+    assert os.path.exists(pj), "pillar3_panel_data.json (real engine output) must exist — run pillar3_panel_gen.py"
+    data = json.load(open(pj, encoding="utf-8"))
+    rows = {r["name"]: r for r in data["rows"]}
+    assert {r["grade"] for r in data["rows"]} == {KV.EXACT, KV.PROBABILISTIC, KV.DECLINE}   # all three, honestly
+    assert data["meta"]["total"] == len(data["rows"]) and data["meta"]["grades"]["EXACT"] >= 1
+
+    # ★ Amdahl coherence (the thesis): no measured row's whole-program ratio exceeds its own ceiling ★
+    for r in data["rows"]:
+        if r["whole_program_ratio"] and isinstance(r["amdahl_ceiling"], (int, float)):
+            assert r["whole_program_ratio"] <= r["amdahl_ceiling"] + 1e-6, f"ratio>ceiling: {r['name']}"
+
+    # ★ honesty: re-run the deterministic engine paths and assert the displayed grade == the engine's grade ★
+    triv = RC.record_oracle(lambda a: a, [([1],)])
+    nd = O.consider_offload(lambda a: a, lambda a: a, lambda: ([1],), n=10, hotspot_fraction=0.40,
+                            oracle=triv, kernel_speedup_hint=700, device="simd", min_speedup=2.0)   # Amdahl-gated DECLINE
+    assert nd.status == KV.DECLINE == rows["700× kernel @40% of runtime — declined"]["grade"]
+    gpu = O.consider_offload(lambda a: a, lambda a: a, lambda: ([1],), n=10, hotspot_fraction=0.98,
+                             oracle=triv, device="gpu", min_speedup=2.0)                            # UNVERIFIED DECLINE
+    assert gpu.status == KV.DECLINE == rows["GPU offload — absent in sandbox"]["grade"]
+    assert O.amdahl_gate(0.40, 2.0)[0] is False and "1.67×" in rows["700× kernel @40% of runtime — declined"]["detail"]
+    # the moat, re-proven: correct Horner is Z3-proven (EXACT row), wrong Horner is refuted (DECLINE row)
+    assert EQ.prove_equiv(_p3_naive_poly, _p3_horner, EQ.sym_poly_inputs, (3, 5))[0] is True
+    assert rows["Horner: O(n²)→O(n), Z3-proven ≡"]["grade"] == KV.EXACT
+    okw, cexw = EQ.prove_equiv(_p3_naive_poly, _p3_wrong_horner, EQ.sym_poly_inputs, (3, 5))
+    assert okw is False and "counterexample" in str(cexw)
+    assert rows["Horner: WRONG swap (− for +) — caught"]["grade"] == KV.DECLINE
+
+    # HTML well-formed + structural anchors + grade styling + three clocks + honest scope
+    html = open(os.path.join(base, "pillar3_panel.html"), encoding="utf-8").read()
+    class P(HTMLParser):
+        def __init__(self): super().__init__(); self.ids = set(); self.n = 0
+        def handle_starttag(self, t, a):
+            self.n += 1
+            for k, v in a:
+                if k == "id": self.ids.add(v)
+    p = P(); p.feed(html)
+    assert {"feed", "curve", "clocks", "meta", "foot"} <= p.ids
+    assert all(s in html for s in ("g-EXACT", "g-PROBABILISTIC", "g-DECLINE", "CLOCK A", "CLOCK B", "CLOCK C"))
+    assert "pillar3_panel_data.json" in html and "[BLOCKED:" in html         # honest binding + scope note
+    assert "kernel ≠ whole-program" in html and "Amdahl" in html and "1/(1" in html   # the thesis is on screen
+    assert "what we must not claim" in html.lower()
+    # regression guard (flagged past bug): the expandable certificate must NOT be clipped by the card
+    assert ".card.open .cert{max-height" in html
+    # the embedded fallback island is a faithful REAL snapshot (parses; carries all three grades)
+    m = re.search(r'<script type="application/json" id="p3-snap">(.*?)</script>', html, re.S)
+    snap = json.loads(m.group(1))
+    assert {r["grade"] for r in snap["rows"]} == {KV.EXACT, KV.PROBABILISTIC, KV.DECLINE}
+
+    print(f"PASS test_pillar3_verification_panel (panel binds REAL engine data: {len(data['rows'])} fixes, all 3 "
+          f"grades; displayed grade == engine grade (offload@40%→DECLINE, GPU→DECLINE, Horner→EXACT, wrong "
+          f"Horner→DECLINE re-verified); ★every measured row Amdahl-coherent (ratio ≤ ceiling)★; HTML well-formed "
+          f"w/ feed/curve/clocks + 3 grade styles + 3 clocks + 'must not claim'; cert not clipped; visual → HUMAN "
+          f"review; React+CI gates [BLOCKED: toolchain] noted)")
+
+
 def test_pillar3_stage3_global_transforms():
     """Pillar 3 · Stage 3: cross-cutting global transforms on a FLAT profile (no dominant hotspot), where local
     hotspot fixing fails. async/batch I/O (verified, measured); serialization swap json→marshal (EXACT round-
