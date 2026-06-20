@@ -56,6 +56,21 @@ def time_median(fn: Callable, make_args: Callable[[], tuple], samples: int = 7, 
     return statistics.median(ts)
 
 
+def time_best(fn: Callable, make_args: Callable[[], tuple], samples: int = 7, warmup: int = 1) -> float:
+    """Best-of-k (minimum) wall-clock — the least-contended run. For CPU-bound deterministic work the minimum is
+    the most stable estimator of the true cost (it filters ALL upward OS/GC contention, which the median does
+    not when a spike is sustained across several samples). Fresh args each run."""
+    for _ in range(warmup):
+        fn(*make_args())
+    best = float("inf")
+    for _ in range(samples):
+        args = make_args()
+        t = time.perf_counter()
+        fn(*args)
+        best = min(best, time.perf_counter() - t)
+    return best
+
+
 def measure_whole_program(original: Callable, candidate: Callable, make_args: Callable[[], tuple], *,
                           n: int, hotspot_fraction: float, samples: int = 7, warmup: int = 1) -> SpeedupReport:
     """The neutral-baseline whole-program ratio: median(original) / median(candidate) on the SAME workload,

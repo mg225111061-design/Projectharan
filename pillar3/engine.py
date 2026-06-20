@@ -112,13 +112,14 @@ def _floor_pipeline(cands: List[Candidate], active: Set[str], residual: Optional
     return run
 
 
-def _measure_coherent(baseline_pipe, cand_pipe, floor_pipe, make_args, *, n: int, samples: int,
-                      t_base: float) -> M.SpeedupReport:
-    """A whole-program ratio AND its Amdahl ceiling from one measurement session: f = 1 − T_floor/T_base (the
-    real hotspot fraction of the active set), ceiling = 1/(1−f) = T_base/T_floor, ratio = T_base/T_cand. The
+def _measure_coherent(baseline_pipe, cand_pipe, floor_pipe, make_args, *, n: int, samples: int) -> M.SpeedupReport:
+    """A whole-program ratio AND its Amdahl ceiling from ONE measurement session — baseline, floor and candidate
+    are all timed back-to-back here (no stale reused baseline that a single GC blip could corrupt). f = 1 −
+    T_floor/T_base (the real hotspot fraction), ceiling = 1/(1−f) = T_base/T_floor, ratio = T_base/T_cand. The
     floor is clamped ≤ the candidate (it cannot beat the infinitely-fast limit), so ratio ≤ ceiling holds."""
-    t_floor = M.time_median(floor_pipe, make_args, samples)
-    t_cand = M.time_median(cand_pipe, make_args, samples)
+    t_base = M.time_best(baseline_pipe, make_args, samples)     # best-of-k: filters upward contention spikes
+    t_floor = M.time_best(floor_pipe, make_args, samples)
+    t_cand = M.time_best(cand_pipe, make_args, samples)
     t_floor = min(t_floor, t_cand)                          # residual+inactive ≤ fully-fixed pipeline (clamp)
     f = max(0.0, min(0.999, 1.0 - t_floor / max(t_base, 1e-12)))
     ratio = t_base / max(t_cand, 1e-12)
@@ -154,7 +155,6 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
     baseline = _pipeline(candidates, set(), residual)
     oracle = RC.record_oracle(baseline, [(make_input(),) for _ in range(3)])
     make_args = lambda: (make_input(),)
-    t_base = M.time_median(baseline, make_args, ModePolicy.for_mode(mode).samples)  # neutral baseline (once)
 
     # complexity sweep — policy-gated (extend always; fast never)
     if policy.runs_complexity_sweep and sweep_fn is not None:
@@ -197,8 +197,7 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
         # Rule 1/2: fresh whole-program measurement carrying a CONSISTENT hotspot fraction + Amdahl ceiling
         # (ratio ≤ ceiling by construction, from one measurement session via the floor pipeline)
         floor_pipe = _floor_pipeline(candidates, active | {c.name}, residual)
-        sr = _measure_coherent(baseline, cand_pipe, floor_pipe, make_args, n=n, samples=policy.samples,
-                               t_base=t_base)
+        sr = _measure_coherent(baseline, cand_pipe, floor_pipe, make_args, n=n, samples=policy.samples)
         if not sr.beats(c.floor):
             rep.declined.append(Declined(c.name, c.waste_type, c.detector,
                                          f"no whole-program win ≥ {c.floor:.2f}× (got {sr.whole_program_ratio:.2f}×)"))
@@ -231,7 +230,7 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
     if active:
         fresh = _measure_coherent(baseline, _pipeline(candidates, active, residual),
                                   _floor_pipeline(candidates, active, residual), make_args, n=n,
-                                  samples=policy.samples, t_base=t_base)
+                                  samples=policy.samples)
         rep.fresh_cumulative_ratio = fresh.whole_program_ratio
         rep.cumulative_ratio = prev_cumulative
         rep.final_ceiling = fresh.amdahl_ceiling

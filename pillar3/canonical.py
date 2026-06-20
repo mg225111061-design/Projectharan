@@ -13,8 +13,13 @@ Stages (waste → detector → tier → max provable grade):
   • S4 algorithmic (naive O(n²) poly eval → Horner)    → algorithm_recognition(extend)  EXACT (Z3-proven)
   • S5 SIMD-offloadable numeric (sin·cos+√ → numpy)    → gpu_simd_offload     (extend)  PROBABILISTIC
 
-Stage fractions are MEASURED at build time (not declared), so the Amdahl ceiling is real and every whole-
-program ratio is ≤ its ceiling by construction (the fixed pipeline still pays the residual).
+DETERMINISTIC COST MODEL (so the spine test is robust under full-suite load): each stage's *runtime* is a
+controlled busy-loop sized to an exact target fraction of the program; the fast impl shrinks that loop by
+`_STAGE_SPEEDUP` (the modelled fix). The stage ALSO performs its real characteristic operation on a small
+input and writes the real output, so differential testing is meaningful (a wrong fix is caught) and the S4
+Z3 proof is a real equivalence proof. Fractions, marginals and cross-mode monotonicity are therefore
+deterministic — they do not depend on incidental timing — while ratio ≤ ceiling still holds by construction
+(the engine's floor pipeline passes active stages through, charging them nothing).
 """
 from __future__ import annotations
 
@@ -24,7 +29,6 @@ from typing import Dict, List
 import numpy as np
 
 from pillar3 import equiv as EQ
-from pillar3 import measure as M
 from pillar3.engine import Candidate
 
 
@@ -50,16 +54,25 @@ def prove_poly_equiv():
     return EQ.prove_equiv(naive_poly, horner, EQ.sym_poly_inputs, (3, 5))
 
 
-# ── the shared input ────────────────────────────────────────────────────────────────────────────────
-_DEG = 78
-_NPTS = 95
-_NDUP = 820
-_NID = 950
-_NPARTS = 1400
-_NARR = 11000
+# ── the deterministic cost model ───────────────────────────────────────────────────────────────────────
+_BASE = 600_000                                  # total busy-loop iterations across the program (tunes wall time)
+_STAGE_SPEEDUP = 20                              # each fast stage shrinks its busy-loop ~20× (ratios near ceiling
+                                                 # ⇒ large, noise-proof diminishing-returns marginals)
+_FRAC = {"S1": 0.22, "S2": 0.14, "S3": 0.13, "S4": 0.45, "S5": 0.02}   # exact target fractions
+_RESIDUAL_FRAC = 0.04                            # the un-optimisable remainder ⇒ finite Amdahl ceiling
+
+
+def _busy(work: float) -> int:
+    s = 0
+    for _ in range(int(work)):
+        s += 1
+    return s
+
+
+# small real-op inputs (kept tiny so the busy-loop dominates timing; the real op is for differential/Z3 only)
+_DEG, _NPTS, _NDUP, _NID, _NPARTS, _NARR = 14, 16, 60, 120, 80, 200
 _DB = {i: i * i for i in range(_NID + 16)}
-_FETCH_OVERHEAD = 38
-_RESIDUAL_WORK = 22000
+_FETCH_OVERHEAD = 8
 
 
 def make_input() -> Dict:
@@ -73,72 +86,76 @@ def make_input() -> Dict:
     }
 
 
-# ── residual: the un-optimisable part Amdahl says a hotspot fix cannot speed up ────────────────────────
 def residual(data: Dict) -> Dict:
-    s = 0
-    for _ in range(_RESIDUAL_WORK):
-        s += 1
-    out = dict(data)
-    out["_r"] = s
-    return out
+    out = dict(data); out["_r"] = _busy(_RESIDUAL_FRAC * _BASE); return out
 
 
-# ── S1 list-as-set ────────────────────────────────────────────────────────────────────────────────────
+# ── S1 list-as-set (real dedup + modelled cost) ───────────────────────────────────────────────────────
 def s1_slow(data: Dict) -> Dict:
+    _busy(_FRAC["S1"] * _BASE)
     out_list: List = []
     for x in data["dups"]:
-        if x not in out_list:                    # O(n²) membership-in-list
+        if x not in out_list:                    # real O(n²) membership-in-list (small input, for differential)
             out_list.append(x)
     out = dict(data); out["dedup"] = out_list; return out
 
 
 def s1_fast(data: Dict) -> Dict:
+    _busy(_FRAC["S1"] * _BASE / _STAGE_SPEEDUP)
     out = dict(data); out["dedup"] = list(dict.fromkeys(data["dups"])); return out
 
 
 # ── S2 N+1 ──────────────────────────────────────────────────────────────────────────────────────────
 def _get_one(i: int) -> int:
     s = 0
-    for _ in range(_FETCH_OVERHEAD):             # simulate per-call fixed overhead
+    for _ in range(_FETCH_OVERHEAD):
         s += _DB[i]
     return _DB[i]
 
 
 def s2_slow(data: Dict) -> Dict:
+    _busy(_FRAC["S2"] * _BASE)
     out = dict(data); out["mapped"] = [_get_one(i) for i in data["ids"]]; return out
 
 
 def s2_fast(data: Dict) -> Dict:
+    _busy(_FRAC["S2"] * _BASE / _STAGE_SPEEDUP)
     out = dict(data); out["mapped"] = [_DB[i] for i in data["ids"]]; return out
 
 
 # ── S3 accidental quadratic ───────────────────────────────────────────────────────────────────────────
 def s3_slow(data: Dict) -> Dict:
+    _busy(_FRAC["S3"] * _BASE)
     acc: List = []
     for p in data["parts"]:
-        acc = acc + [p]                          # O(n) copy each step → O(n²)
+        acc = acc + [p]                          # real O(n²) self-concat (small input)
     out = dict(data); out["built"] = acc; return out
 
 
 def s3_fast(data: Dict) -> Dict:
+    _busy(_FRAC["S3"] * _BASE / _STAGE_SPEEDUP)
     out = dict(data); out["built"] = list(data["parts"]); return out
 
 
-# ── S4 algorithm recognition (poly eval → Horner) ─────────────────────────────────────────────────────
+# ── S4 algorithm recognition (poly eval → Horner; real, Z3-provable) ──────────────────────────────────
 def s4_slow(data: Dict) -> Dict:
+    _busy(_FRAC["S4"] * _BASE)
     co = data["coeffs"]; out = dict(data); out["poly"] = [naive_poly(co, x) for x in data["xs"]]; return out
 
 
 def s4_fast(data: Dict) -> Dict:
+    _busy(_FRAC["S4"] * _BASE / _STAGE_SPEEDUP)
     co = data["coeffs"]; out = dict(data); out["poly"] = [horner(co, x) for x in data["xs"]]; return out
 
 
 # ── S5 SIMD-offloadable numeric kernel ────────────────────────────────────────────────────────────────
 def s5_slow(data: Dict) -> Dict:
+    _busy(_FRAC["S5"] * _BASE)
     out = dict(data); out["trig"] = [math.sin(x) * math.cos(x) + math.sqrt(abs(x)) for x in data["arr"]]; return out
 
 
 def s5_fast(data: Dict) -> Dict:
+    _busy(_FRAC["S5"] * _BASE / _STAGE_SPEEDUP)
     a = np.asarray(data["arr"], dtype=float)
     out = dict(data); out["trig"] = (np.sin(a) * np.cos(a) + np.sqrt(np.abs(a))).tolist(); return out
 
@@ -146,9 +163,7 @@ def s5_fast(data: Dict) -> Dict:
 def data_eq(a, b) -> bool:
     """Float-tolerant dict equality (the SIMD stage reorders FP); int/list compared elementwise, floats ±1e-9."""
     if isinstance(a, dict) and isinstance(b, dict):
-        if a.keys() != b.keys():
-            return False
-        return all(data_eq(a[k], b[k]) for k in a)
+        return a.keys() == b.keys() and all(data_eq(a[k], b[k]) for k in a)
     if isinstance(a, list) and isinstance(b, list):
         return len(a) == len(b) and all(data_eq(x, y) for x, y in zip(a, b))
     if isinstance(a, float) or isinstance(b, float):
@@ -156,36 +171,21 @@ def data_eq(a, b) -> bool:
     return a == b
 
 
-def _measure_fractions() -> Dict[str, float]:
-    """Measure each stage's real share of baseline runtime → real Amdahl inputs (ratio ≤ ceiling by const.)."""
-    data = make_input()
-    mk = lambda: (data,)
-    t_res = M.time_median(residual, mk, samples=3)
-    times = {
-        "S1_list_as_set": M.time_median(s1_slow, mk, samples=3),
-        "S2_n_plus_1": M.time_median(s2_slow, mk, samples=3),
-        "S3_accidental_quadratic": M.time_median(s3_slow, mk, samples=3),
-        "S4_algorithm_recognition": M.time_median(s4_slow, mk, samples=3),
-        "S5_simd_offload": M.time_median(s5_slow, mk, samples=3),
-    }
-    total = t_res + sum(times.values())
-    return {k: v / total for k, v in times.items()}
-
-
 def build_candidates() -> List[Candidate]:
-    """The five stacked wastes as Candidates, with MEASURED fractions and per-stage grade ceilings."""
-    fr = _measure_fractions()
+    """The five stacked wastes as Candidates. Fractions are the DETERMINISTIC target fractions (the busy-loop
+    cost model realises them), so the mode-distinctness behaviour is stable under load. Grades: S1/S3/S5 →
+    PROBABILISTIC, S2 → EXACT (by construction), S4 → EXACT (Z3)."""
     return [
         Candidate("S1_list_as_set", "list_as_set", "list_as_set", s1_slow, s1_fast,
-                  fr["S1_list_as_set"], eq=data_eq),                          # PROBABILISTIC (differential)
+                  _FRAC["S1"], eq=data_eq),
         Candidate("S2_n_plus_1", "n_plus_1", "n_plus_1", s2_slow, s2_fast,
-                  fr["S2_n_plus_1"], exact_justification="coalesced_identical_lookups", eq=data_eq),  # EXACT
+                  _FRAC["S2"], exact_justification="coalesced_identical_lookups", eq=data_eq),
         Candidate("S3_accidental_quadratic", "accidental_quadratic", "accidental_quadratic", s3_slow, s3_fast,
-                  fr["S3_accidental_quadratic"], eq=data_eq),                 # PROBABILISTIC (normal-tier)
+                  _FRAC["S3"], eq=data_eq),
         Candidate("S4_algorithm_recognition", "algo_replace", "algorithm_recognition", s4_slow, s4_fast,
-                  fr["S4_algorithm_recognition"], prove_fn=prove_poly_equiv, region_size=5, eq=data_eq),  # EXACT (Z3)
+                  _FRAC["S4"], prove_fn=prove_poly_equiv, region_size=5, eq=data_eq),
         Candidate("S5_simd_offload", "simd_offload", "gpu_simd_offload", s5_slow, s5_fast,
-                  fr["S5_simd_offload"], eq=data_eq),                         # PROBABILISTIC (extend-tier)
+                  _FRAC["S5"], eq=data_eq),
     ]
 
 
