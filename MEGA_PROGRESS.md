@@ -34,3 +34,17 @@ Format: `[T+h.h] PHASE — measured result — next`.
   deterministic MEASURED; live code-text → UNVERIFIED (not auto-executed). Keys never logged/stored/committed.
   **Next bottleneck:** only ~4 waste types are covered — PHASE D expands detectors 4 → 40+, each gated by the
   mode tier.
+
+- **[T+2.6] PHASE M2 spine — STABILIZED (robustness fix).** The full suite exposed `test_phaseM2` as flaky
+  under load (the diminishing-returns marginal and a once-measured-then-reused baseline are noise-sensitive).
+  Fixes: (1) `canonical.py` now uses a DETERMINISTIC cost model (each stage's runtime is a busy-loop sized to
+  an exact target fraction; the real op is kept small for differential/Z3), (2) `engine.py` measures
+  baseline/floor/candidate in ONE session via best-of-k (`measure.time_best`) — no stale baseline, contention
+  spikes filtered. Larger per-stage speedup (20×) makes the marginals noise-proof. **15/15 stability trials
+  green** (min extend−normal gap 0.29, normal−fast 0.50).
+
+- **[T+3.0] PHASE D1 (v57) — catastrophic single-bug detectors (fast-eligible). DONE.**
+  `pillar3/detectors2.py`: redos_regex, redundant_io_parse, accidental_full_scan, quadratic_build,
+  redundant_sort. **Measured whole-program wins:** redos ~3400×, parse-hoist ~20×, full-scan→index ~138×,
+  quad-build→append ~150×, sort-hoist ~88×. Each detected, differential-verified, ★wrong fix→DECLINE★, all
+  registered fast-tier. **Next:** D2 (structural/data-representation, normal-tier).

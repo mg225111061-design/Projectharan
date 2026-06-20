@@ -3151,6 +3151,127 @@ def test_pillar3_verification_panel():
           f"review; React+CI gates [BLOCKED: toolchain] noted)")
 
 
+import re as _re
+
+
+# ── PHASE D1 — planted-waste fixtures (module-level so detectors' getsource works) ─────────────────────
+def _d1_redos_slow(strs):
+    return [bool(_re.match(r"(a+)+$", s)) for s in strs]          # catastrophic backtracking
+
+
+def _d1_redos_fast(strs):
+    return [bool(_re.match(r"a+$", s)) for s in strs]             # linear, equivalent set
+
+
+def _d1_parse_slow(items):
+    import json
+    out = []
+    for x in items:
+        c = json.loads('{"mul": 3, "add": 1}')                   # loop-invariant parse, every iteration
+        out.append(x * c["mul"] + c["add"])
+    return out
+
+
+def _d1_parse_fast(items):
+    import json
+    c = json.loads('{"mul": 3, "add": 1}')                       # parse once
+    return [x * c["mul"] + c["add"] for x in items]
+
+
+_D1_TABLE = [{"id": i, "v": i * i} for i in range(800)]
+
+
+def _d1_scan_slow(ids):
+    out = []
+    for q in ids:
+        out.append([r for r in _D1_TABLE if r["id"] == q][0]["v"])   # O(n) linear find inside the loop
+    return out
+
+
+def _d1_scan_fast(ids):
+    idx = {r["id"]: r["v"] for r in _D1_TABLE}                    # O(1) indexed lookups
+    return [idx[q] for q in ids]
+
+
+def _d1_build_slow(parts):
+    acc = []
+    for p in parts:
+        acc = acc + [p]                                          # O(n²) copy each step
+    return acc
+
+
+def _d1_build_fast(parts):
+    out = []
+    for p in parts:
+        out.append(p)                                           # O(n)
+    return out
+
+
+def _d1_sort_slow(items, ref):
+    out = []
+    for x in items:
+        s = sorted(ref)                                         # loop-invariant sort, every iteration
+        out.append(s[0] + x)
+    return out
+
+
+def _d1_sort_fast(items, ref):
+    s = sorted(ref)                                            # sort once, hoisted
+    return [s[0] + x for x in items]
+
+
+def test_phaseD1_catastrophic_detectors():
+    """PHASE D1 (v57): five catastrophic single-bug detectors (fast-eligible). Per detector: (a) the planted
+    waste is detected, (b) the known-good fix passes differential + has a measured whole-program win + correct
+    grade, (c) ★ a WRONG fix is caught → DECLINE ★, (d) the detector is registered in the fast tier."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS
+
+    adv = ["a" * 16 + "!" for _ in range(5)] + ["aaaa", "a!", "aaa"]
+    cases = [
+        ("redos_regex", D.detect_redos_regex, _d1_redos_slow, _d1_redos_fast,
+         lambda s: [True for _ in s], lambda: (adv,), [(["aaaa", "a!", "aa", "aaaa!", ""],)], 8),
+        ("redundant_io_parse", D.detect_redundant_io_parse, _d1_parse_slow, _d1_parse_fast,
+         lambda items: [x for x in items], lambda: (list(range(3000)),), [(list(range(200)),)], 3000),
+        ("accidental_full_scan", D.detect_accidental_full_scan, _d1_scan_slow, _d1_scan_fast,
+         lambda ids: [0 for _ in ids], lambda: (list(range(0, 800, 2)),), [(list(range(0, 800, 40)),)], 400),
+        ("quadratic_build", D.detect_quadratic_build, _d1_build_slow, _d1_build_fast,
+         lambda parts: parts[::-1], lambda: (list(range(2500)),), [(list(range(300)),)], 2500),
+    ]
+    wins = {}
+    for waste, det, slow, fast, wrong, mk, oracases, n in cases:
+        assert det(slow).found, f"{waste}: detector did not fire on planted waste"
+        assert not det(_d1_redos_fast if waste == "redos_regex" else fast).found or waste != "redos_regex"
+        oracle = RC.record_oracle(slow, oracases)
+        v = apply_and_grade(slow, fast, mk, n=n, hotspot_fraction=0.9, oracle=oracle, waste_type=waste, samples=5)
+        assert v.status in (KV.EXACT, KV.PROBABILISTIC) and v.report.whole_program_ratio > 1, f"{waste}: {v.status}"
+        w = apply_and_grade(slow, wrong, mk, n=n, hotspot_fraction=0.9, oracle=oracle, waste_type=waste, samples=5)
+        assert w.status == KV.DECLINE, f"{waste}: wrong fix not caught"
+        assert waste in FAST_DETECTORS, f"{waste} must be fast-eligible"
+        wins[waste] = v.report.whole_program_ratio
+
+    # redundant_sort (two-arg signature)
+    assert D.detect_redundant_sort(_d1_sort_slow).found
+    sref = list(range(500, 0, -1))
+    smk = lambda: (list(range(400)), sref)
+    soracle = RC.record_oracle(_d1_sort_slow, [([1, 2, 3], [3, 1, 2])])
+    sv = apply_and_grade(_d1_sort_slow, _d1_sort_fast, smk, n=400, hotspot_fraction=0.9, oracle=soracle,
+                         waste_type="redundant_sort", samples=5)
+    assert sv.status in (KV.EXACT, KV.PROBABILISTIC) and sv.report.whole_program_ratio > 1
+    sw = apply_and_grade(_d1_sort_slow, lambda items, ref: [x for x in items], smk, n=400, hotspot_fraction=0.9,
+                         oracle=soracle, waste_type="redundant_sort", samples=5)
+    assert sw.status == KV.DECLINE and "redundant_sort" in FAST_DETECTORS
+    wins["redundant_sort"] = sv.report.whole_program_ratio
+
+    print(f"PASS test_phaseD1_catastrophic_detectors (5 fast-eligible detectors: "
+          f"redos {wins['redos_regex']:.0f}×, parse-hoist {wins['redundant_io_parse']:.1f}×, full-scan→index "
+          f"{wins['accidental_full_scan']:.1f}×, quad-build→append {wins['quadratic_build']:.0f}×, sort-hoist "
+          f"{wins['redundant_sort']:.0f}× — each detected, differential-verified whole-program win, ★wrong fix→"
+          f"DECLINE★, all registered fast-tier)")
+
+
 def test_phaseM1_mode_policy():
     """PHASE M1 (v54): the three modes are enforced CONTRACTS, not presets. Assert ModePolicy encodes every row
     of the M.2 table — the verifier-tier ladder (fast=MICRO never-Z3 / normal≤CHEAP_CERT / extend=FULL_CERT),
