@@ -2942,6 +2942,61 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase1_router_and_kernels():
+    """v40 PHASE 1: the unified ROUTER + GRADE ADT + number-theory/PRNG EXACT kernels. Each kernel meets the
+    §1.2 obligations (detector · HARAN contract · fast certificate · enforced grade · measured crossover).
+    Constitution: grades never mix (enforced), no unmeasured claims, rule-of-three δ=3/n."""
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory as NT
+
+    # contracts well-formed (dogfood §0.1/§4) — all PHASE-1 kernels VERIFIED, none UNVERIFIED
+    vc = R.verify_contracts()
+    assert vc["all_well_formed"] and vc["verified"] >= 5 and not vc["unverified"]
+
+    # router dispatches to the right kernel, each EXACT with a PASSED certificate, decision in µs
+    v = R.dispatch({"kind": "modpow", "a": 7, "b": 1_000_000, "m": 1_000_000_007})
+    assert v.status == KV.EXACT and v.certificate.passed and v.result == pow(7, 1_000_000, 1_000_000_007)
+    assert R.last_decision_us() < 5000
+    v = R.dispatch({"kind": "best_rational", "p": 314159, "q": 100000, "max_denom": 113})
+    assert v.status == KV.EXACT and v.result == {"num": 355, "den": 113}      # the famous π convergent
+    v = R.dispatch({"kind": "zeckendorf", "n": 100})
+    assert v.status == KV.EXACT and sum(v.result["terms"]) == 100
+    v = R.dispatch({"kind": "crt", "residues": [(2, 3), (3, 5), (2, 7)]})
+    assert v.status == KV.EXACT and all(v.result["x"] % m == r for r, m in [(2, 3), (3, 5), (2, 7)])
+    v = R.dispatch({"kind": "prng_index", "gen": "counter", "seed": 42, "index": 1_000_000})
+    assert v.status == KV.EXACT and v.result == NT._prng_at(42, 1_000_000)
+
+    # honest DECLINE: undeclared PRNG (can't replay) + unknown input (fallback)
+    assert R.dispatch({"kind": "prng_index", "gen": "mystery", "seed": 1, "index": 5}).status == KV.DECLINE
+    assert R.dispatch({"kind": "unknown_thing"}).status == KV.DECLINE
+
+    # ★ grades never mix — ENFORCED by the ADT, not a label ★
+    try:
+        KV.Verdict(KV.EXACT, 1, "x", "O(1)", KV.Cert(KV.EXACT, "k", passed=False)); raise SystemExit("no enforce")
+    except AssertionError:
+        pass
+    try:
+        KV.Verdict(KV.EXACT, 1, "x", "O(1)", KV.Cert(KV.EXACT, "k", passed=True, delta=1e-9)); raise SystemExit("δ")
+    except AssertionError:
+        pass
+    # §0.2 rule-of-three: a sampling count can't be forced below 3/n ⇒ DECLINE rather than overclaim EXACT
+    assert KV.sampling_verdict(1, "k", "O(1)", n_samples=100, required_delta=1e-9).status == KV.DECLINE
+    assert KV.sampling_verdict(1, "k", "O(1)", n_samples=100, required_delta=0.05).status == KV.PROBABILISTIC
+
+    # ★ NO UNMEASURED CLAIMS (§0.1): crossovers are MEASURED, not theoretical ★
+    me = NT.measure_modexp()
+    assert me["crossover_b"] is not None and me["points_us"][-1][1] > me["points_us"][-1][2]   # naive > fast @big b
+    mp = NT.measure_prng()
+    big = mp["points_(k,seq_us,o1_us,exact)"][-1]
+    assert big[3] is True and big[1] > big[2] * 100                # O(1) ≫ faster than O(k) at k=1e6, bit-exact
+
+    print(f"PASS test_v40_phase1_router_and_kernels (5 EXACT kernels via router, contracts well-formed, decision "
+          f"<{R.last_decision_us():.0f}µs; π→355/113; modexp@4096 {me['points_us'][-1][1]:.0f}µs→"
+          f"{me['points_us'][-1][2]:.1f}µs; prng@1e6 {big[1]/1000:.0f}ms→{big[2]:.0f}µs bit-exact; grades ENFORCED "
+          f"(fake-pass & EXACT+δ rejected); rule-of-three δ=3/n; undeclared/unknown→DECLINE)")
+
+
 def test_v39_c1_proof_dag_cutoff():
     """v39 PHASE C1 (bonus): proof_dag EARLY-CUTOFF incremental recheck (Salsa/Adapton firewall) — a verdict-
     preserving edit stops at the firewall instead of invalidating all transitive dependents. ADDITIVE (existing
