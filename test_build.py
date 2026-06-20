@@ -3272,6 +3272,56 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+def test_phaseInfinity_grade_is_output_confidence():
+    """PHASE ∞ (v65): §X made executable — 'the grade is OUTPUT confidence at runtime (input + verifier), not a
+    fixed property of a fixer or a mode.' The SAME fixer (the distributive rewrite Σc·x → c·Σx) earns THREE
+    different grades depending only on the input and the verifier:
+      • integer inputs + Z3                  → EXACT      (provably equivalent over ℤ)
+      • float inputs + tolerant differential → PROBABILISTIC (equal within ε; IEEE reorders the last ULPs)
+      • float inputs + exact-equality        → DECLINE    (the same rewrite, now refused — bit-inequality)
+    One fixer, three grades — the grade lives on the output, not the fixer."""
+    import math
+    import kernel_verdict as KV
+    from pillar3 import superopt as S, equiv as EQ, record as RC
+    from pillar3.fixers.pipeline import apply_and_grade
+    import z3
+
+    ints = [((i * 7) % 19) - 9 for i in range(600)]
+    floats = [math.pi * (i % 13) - 19.0 for i in range(600)]   # wide-enough spread to reorder the last ULPs
+
+    # (1) integers + Z3 ⇒ EXACT (the rewrite is provably equivalent over the integers)
+    assert EQ.prove_equiv(S.dist_naive, S.dist_lifted, S._sym_c_and_vec, (3, 5))[0] is True
+    oi = RC.record_oracle(lambda a: S.dist_naive(*a), [((3, ints[:40]),), ((2, ints[:25]),)])
+    vi = apply_and_grade(lambda a: S.dist_naive(*a), lambda a: S.dist_lifted(*a), lambda: ((7, ints),),
+                         n=600, hotspot_fraction=0.9, oracle=oi, waste_type="verified_lifting",
+                         exact_justification="z3_distributive_over_integers", floor=1.2, samples=5)
+    assert vi.status == KV.EXACT
+
+    # (2) floats + TOLERANT differential ⇒ PROBABILISTIC (equal within ε)
+    def tol(a, b):
+        return abs(a - b) <= 1e-6 * max(abs(a), abs(b), 1.0)
+    of = RC.record_oracle(lambda a: S.dist_naive(*a), [((7.3, floats),)])
+    vp = apply_and_grade(lambda a: S.dist_naive(*a), lambda a: S.dist_lifted(*a), lambda: ((7.3, floats),),
+                         n=600, hotspot_fraction=0.9, oracle=of, waste_type="verified_lifting", eq=tol,
+                         floor=1.2, samples=5)
+    assert vp.status == KV.PROBABILISTIC and vp.certificate.delta is not None
+
+    # (3) floats + EXACT-equality ⇒ DECLINE (the SAME rewrite, refused — IEEE bit-inequality on the last ULP)
+    assert S.dist_naive(7.3, floats) != S.dist_lifted(7.3, floats)      # the rounding divergence is real
+    vd = apply_and_grade(lambda a: S.dist_naive(*a), lambda a: S.dist_lifted(*a), lambda: ((7.3, floats),),
+                         n=600, hotspot_fraction=0.9, oracle=of, waste_type="verified_lifting", eq=None,
+                         floor=1.2, samples=5)
+    assert vd.status == KV.DECLINE
+
+    # one fixer, three grades — proven by the same candidate (dist_lifted) reaching EXACT / PROBABILISTIC / DECLINE
+    assert {vi.status, vp.status, vd.status} == {KV.EXACT, KV.PROBABILISTIC, KV.DECLINE}
+
+    print(f"PASS test_phaseInfinity_grade_is_output_confidence (§X executable: the SAME fixer Σc·x→c·Σx earns "
+          f"EXACT on ℤ+Z3, PROBABILISTIC on floats+tolerant-differential (δ={vp.certificate.delta:.2g}), and "
+          f"DECLINE on floats+exact-equality (IEEE ULP {abs(S.dist_naive(7.3, floats) - S.dist_lifted(7.3, floats)):.1e}) "
+          f"— the grade is OUTPUT confidence (input + verifier), NOT a property of the fixer or the mode)")
+
+
 # ── PHASE ∞ · D5 — fixtures (module-level for getsource) ──────────────────────────────────────────────
 def _d5_pow_expr_naive(x):
     return x ** 2 + x ** 3
