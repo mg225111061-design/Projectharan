@@ -2942,6 +2942,95 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_pillar3_stage1_fixers():
+    """Pillar 3 · Stage 1: the four highest-leverage detectors+fixers, each verify→measure→graded. For each:
+    detector finds the planted waste, the known-good fix gets a measured whole-program win + correct grade, and
+    ★ a WRONG fix is caught by differential testing → DECLINE ★ (Rule 4 safety net — the key assertion)."""
+    import functools
+    import kernel_verdict as KV
+    from pillar3 import record as RC
+    from pillar3.fixers import detectors as D
+    from pillar3.fixers.pipeline import apply_and_grade
+
+    # ---- 1) list-as-set: dedup via membership-in-list → dict.fromkeys ----
+    def slow_dedup(data):
+        out = []
+        for x in data:
+            if x not in out:                                   # O(n²)
+                out.append(x)
+        return out
+    fast_dedup = lambda data: list(dict.fromkeys(data))
+    assert D.detect_membership_in_loop(slow_dedup).found       # detector finds it
+    args = lambda: (list(range(600)) * 2,)
+    oracle = RC.record_oracle(slow_dedup, [(list(range(300)) * 2,), (list(range(50)),)])
+    v = apply_and_grade(slow_dedup, fast_dedup, args, n=1200, hotspot_fraction=0.95, oracle=oracle,
+                        waste_type="list_as_set")
+    assert v.status == KV.PROBABILISTIC and v.report.whole_program_ratio > 1
+    # wrong fix → DECLINE (safety net)
+    wrong = apply_and_grade(slow_dedup, lambda d: d[::-1], args, n=1200, hotspot_fraction=0.95, oracle=oracle,
+                            waste_type="list_as_set")
+    assert wrong.status == KV.DECLINE
+
+    # ---- 2) uncached recompute: memoize a pure fn (EXACT by construction) ----
+    def pure_expensive(k):
+        s = 0
+        for i in range(2000):
+            s += (i * k) % 97
+        return s
+    calls = [(i % 20,) for i in range(500)]                    # heavy repetition
+    assert D.detect_repeated_pure_calls([a for a in calls]).found
+    def slow_prog(ks):
+        return sum(pure_expensive(k) for k in ks)
+    memo = functools.lru_cache(maxsize=None)(pure_expensive)
+    def fast_prog(ks):
+        return sum(memo(k) for k in ks)
+    margs = lambda: ([i % 20 for i in range(500)],)
+    moracle = RC.record_oracle(slow_prog, [([i % 20 for i in range(200)],)])
+    vm = apply_and_grade(slow_prog, fast_prog, margs, n=500, hotspot_fraction=0.98, oracle=moracle,
+                         waste_type="uncached_recompute", exact_justification="by_construction")
+    assert vm.status == KV.EXACT and vm.certificate.delta is None and vm.report.whole_program_ratio > 1
+
+    # ---- 3) accidental quadratic: list built by concatenation `acc = acc + [p]` → list(parts) ----
+    # (NOT string `s=s+p` — CPython's refcount-1 in-place realloc makes that ~linear; the fitter correctly
+    #  would not flag it. List-concat is genuinely O(n²) and is a real accidental-quadratic pattern.)
+    def slow_concat(parts):
+        acc = []
+        for p in parts:
+            acc = acc + [p]                                    # O(n) copy each step → O(n²)
+        return acc
+    fast_concat = lambda parts: list(parts)
+    q = D.detect_accidental_quadratic(lambda n: slow_concat(["x"] * n), [200, 800, 3200, 12800])
+    assert q.found                                             # complexity fitter flags super-linear
+    cargs = lambda: (["ab"] * 4000,)
+    coracle = RC.record_oracle(slow_concat, [(["ab"] * 1000,), (["q"] * 7,)])
+    vc = apply_and_grade(slow_concat, fast_concat, cargs, n=4000, hotspot_fraction=0.97, oracle=coracle,
+                         waste_type="accidental_quadratic")
+    assert vc.status == KV.PROBABILISTIC and vc.report.whole_program_ratio > 1
+
+    # ---- 4) N+1: per-item fetch in a loop → batched fetch ----
+    _DB = {i: i * i for i in range(2000)}
+    def get_one(i):
+        s = 0
+        for _ in range(300):                                   # simulate per-call fixed overhead
+            s += _DB[i]
+        return _DB[i]
+    def slow_nplus1(ids):
+        return [get_one(i) for i in ids]                       # AST: get_* in a loop
+    def fast_batch(ids):
+        return [_DB[i] for i in ids]                           # one coalesced access
+    assert D.detect_n_plus_1(slow_nplus1).found
+    nargs = lambda: (list(range(1500)),)
+    noracle = RC.record_oracle(slow_nplus1, [(list(range(400)),)])
+    vn = apply_and_grade(slow_nplus1, fast_batch, nargs, n=1500, hotspot_fraction=0.95, oracle=noracle,
+                         waste_type="n_plus_1")
+    assert vn.status == KV.PROBABILISTIC and vn.report.whole_program_ratio > 1
+
+    print(f"PASS test_pillar3_stage1_fixers (list_as_set {v.report.whole_program_ratio:.1f}× (wrong fix→DECLINE ✓); "
+          f"memoize EXACT-by-construction {vm.report.whole_program_ratio:.1f}×; accidental-quadratic detected "
+          f"{q.evidence[:30]}… {vc.report.whole_program_ratio:.1f}×; N+1 {vn.report.whole_program_ratio:.1f}× — "
+          f"all whole-program measured w/ Amdahl ceilings, graded, Rule-4 safety net verified)")
+
+
 def test_pillar3_stage0_foundation():
     """Pillar 3 · Stage 0: profiler (ground truth) + neutral-baseline whole-program measure + empirical-
     complexity fitter (Goldsmith-Aiken trend-prof) + I/O recorder/differential tester. The foundation
