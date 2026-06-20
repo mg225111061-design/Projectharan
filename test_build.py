@@ -2942,6 +2942,51 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_pillar3_stage2_compounding_loop():
+    """Pillar 3 · Stage 2: the iterative compounding loop walks down the flame graph, verifying each step. The
+    cumulative whole-program speedup compounds across rounds AND ★ equals a fresh end-to-end measurement, NOT
+    the product of component multipliers ★ (the Whatnot honesty check). Diminishing-returns stop fires."""
+    from pillar3 import loop as L
+
+    def mk_stage(name, work, mult):
+        def slow(data):
+            s = 0
+            for _ in range(work):
+                s += 1
+            return data
+        def fast(data):
+            s = 0
+            for _ in range(max(1, work // mult)):
+                s += 1
+            return data
+        return L.Stage(name, slow, fast)
+
+    stages = [mk_stage("A", 5000, 10), mk_stage("B", 3000, 20), mk_stage("C", 2000, 5)]
+    for s, w in zip(stages, [5000, 3000, 2000]):
+        s.fraction = w / 10000
+    rep = L.compound_optimize(stages, lambda: [1, 2, 3], n=10000, min_marginal_gain=0.02, samples=5)
+
+    assert len(rep.rounds) >= 2                                     # the loop walked down the flame graph
+    # compounds beyond the best single fix
+    assert rep.final_cumulative_ratio > rep.rounds[0].cumulative_ratio * 1.5
+    # ★ Whatnot check: cumulative == a FRESH end-to-end measurement, NOT the product of local multipliers ★
+    fresh = L.fresh_end_to_end_ratio(stages, lambda: [1, 2, 3], n=10000, samples=7)
+    assert abs(rep.final_cumulative_ratio - fresh) / fresh < 0.30   # cumulative ≈ fresh end-to-end
+    assert rep.product_of_locals > rep.final_cumulative_ratio * 3   # product of locals ≫ real whole-program
+
+    # diminishing-returns stop fires when the marginal gain is tiny (a near-useless 4th stage)
+    stages2 = stages + [mk_stage("D", 20, 2)]                       # negligible share
+    for s, w in zip(stages2, [5000, 3000, 2000, 20]):
+        s.fraction = w / 10020
+    rep2 = L.compound_optimize(stages2, lambda: [1, 2, 3], n=10000, min_marginal_gain=0.10, samples=5)
+    assert "diminishing returns" in rep2.stop_reason or "D" not in [r.applied for r in rep2.rounds]
+
+    print(f"PASS test_pillar3_stage2_compounding_loop (compounds {' → '.join(f'{r.cumulative_ratio:.1f}×' for r in rep.rounds)}; "
+          f"cumulative {rep.final_cumulative_ratio:.1f}× ≈ fresh end-to-end {fresh:.1f}× — NOT the "
+          f"product-of-locals {rep.product_of_locals:.0f}× (Whatnot check ✓); diminishing-returns stop: "
+          f"'{rep2.stop_reason[:40]}'; each round verified)")
+
+
 def test_pillar3_stage1_fixers():
     """Pillar 3 · Stage 1: the four highest-leverage detectors+fixers, each verify→measure→graded. For each:
     detector finds the planted waste, the known-good fix gets a measured whole-program win + correct grade, and

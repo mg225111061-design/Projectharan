@@ -132,15 +132,16 @@ def measure_abft(dim: int = 96, k: int = 24, seed: int = 7) -> AbftMeasurement:
     B = [[rng.randint(-9, 9) for _ in range(dim)] for _ in range(dim)]
     C = matmul(A, B)
 
-    def _time_ms(fn, reps: int = 5):
-        """median-of-reps wall-clock (ms), with one warmup — de-noises the ratio so it is not flaky near 1×
-        under CPU contention (rule 1: black-box the measurement, never assert on a single noisy sample)."""
-        fn()                                              # warmup (cache effects out of the median)
+    def _time_ms(fn, reps: int = 7):
+        """BEST-of-reps wall-clock (ms), with one warmup. The minimum is the least-contended sample — the
+        standard noise-robust micro-benchmark estimator — so the ratio is not flaky near 1× under full-suite
+        CPU contention (rule 1: black-box the measurement, never assert on a single noisy sample)."""
+        fn()                                              # warmup (cache effects out)
         ts = []
         for _ in range(reps):
             t = time.perf_counter(); r = fn(); ts.append((time.perf_counter() - t) * 1000)
         _time_ms.last = r                                 # keep the last result for the .ok checks
-        return sorted(ts)[len(ts) // 2]
+        return min(ts)                                    # best-of: removes contention spikes
     # baseline verification: recompute (O(N³))
     recompute_ms = _time_ms(lambda: (matmul(A, B) == C))
     # checksum (O(N²))
