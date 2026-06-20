@@ -102,6 +102,13 @@ Format: `[T+h.h] PHASE — measured result — next`.
   0 regression. **REFLECT:** the constitution holds end-to-end; the engine is mode-separated, multi-provider,
   25-detector, corpus-validated, extend-deep, and product-fronted — every claim measured, graded, and verified.
 
+- **[T+7.6] PHASE ∞ (v66) — §X executable: the multiplier is input-size-dependent (quote n). DONE.**
+  The SAME O(n²)→O(n) dedup fix measures 47×@n=400 → 99×@800 → 202×@1600 → ~410×@3200 — the multiplier GROWS
+  with n, so a bare "speedup×" is meaningless and the engine always quotes n (SpeedupReport refuses to exist
+  without it). Also fixed a pre-existing load-flake (proof_directed_opt: interleaved noalias/mayalias timing).
+  131 tests, 0 regression. Two §X constitution claims now have executable proofs (grade=output-confidence;
+  multiplier=input-size-dependent).
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early

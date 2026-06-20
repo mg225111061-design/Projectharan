@@ -3272,6 +3272,40 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+def test_phaseInfinity_ratio_is_input_size_dependent():
+    """PHASE ∞ (v66): §X made executable — 'asymptotic multipliers are input-size-dependent — quote n.' The
+    SAME O(n²)→O(n) fix (dedup via membership-in-list → dict.fromkeys) yields a whole-program ratio that GROWS
+    with n (because the asymptotic gap widens). A single 'speedup×' with no n attached is therefore meaningless;
+    the engine always reports the operating-point n with the ratio (SpeedupReport refuses to exist without it)."""
+    from pillar3 import measure as M
+
+    def slow(xs):
+        out = []
+        for x in xs:
+            if x not in out:                         # O(n²) membership-in-list
+                out.append(x)
+        return out
+    fast = lambda xs: list(dict.fromkeys(xs))        # O(n)
+
+    ratios = {}
+    for n in (400, 800, 1600, 3200):
+        xs = list(range(n))                          # all-distinct ⇒ slow is genuinely O(n²)
+        rep = M.measure_whole_program(slow, fast, lambda: (xs,), n=n, hotspot_fraction=0.99, samples=5,
+                                      timer=M.time_best)
+        assert rep.n == n                            # the ratio is inseparable from its operating point
+        ratios[n] = rep.whole_program_ratio
+
+    # the ratio GROWS with n (O(n²)/O(n) = O(n)); robust non-adjacent assertions (avoid tight-step noise)
+    assert ratios[1600] > ratios[400]                # 4× n → clearly larger ratio
+    assert ratios[3200] > ratios[800]                # again at the next octave
+    assert ratios[3200] >= 3 * ratios[400]           # 8× n → at least ~3× the ratio (a single number is meaningless)
+
+    print(f"PASS test_phaseInfinity_ratio_is_input_size_dependent (§X: the SAME O(n²)→O(n) fix measures "
+          f"{ratios[400]:.0f}× @n=400 → {ratios[800]:.0f}× @n=800 → {ratios[1600]:.0f}× @n=1600 → "
+          f"{ratios[3200]:.0f}× @n=3200 — the multiplier GROWS with n, so the engine always quotes n with the "
+          f"ratio (SpeedupReport refuses to exist without it); a bare 'speedup×' is meaningless)")
+
+
 def test_phaseInfinity_grade_is_output_confidence():
     """PHASE ∞ (v65): §X made executable — 'the grade is OUTPUT confidence at runtime (input + verifier), not a
     fixed property of a fixer or a mode.' The SAME fixer (the distributive rewrite Σc·x → c·Σx) earns THREE
