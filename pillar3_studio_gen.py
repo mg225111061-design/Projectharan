@@ -9,6 +9,7 @@ numbers. The API key is never part of this data — it is a session-only field i
 from __future__ import annotations
 
 import json
+import math
 import os
 
 import provider as PRV
@@ -45,8 +46,11 @@ def _run(m: Mode) -> dict:
     r = E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
     return {
         "mode": m.value,
-        "shipped": [{"name": s.name, "waste_type": s.waste_type, "grade": s.grade, "ratio": round(s.ratio, 3),
-                     "ceiling": (round(s.ceiling, 2) if s.ceiling != float("inf") else "∞"),
+        # round ratio DOWN and ceiling UP so the displayed ratio ≤ displayed ceiling by construction (the engine
+        # already guarantees ratio ≤ ceiling; this keeps display rounding from inverting it on tight rows)
+        "shipped": [{"name": s.name, "waste_type": s.waste_type, "grade": s.grade,
+                     "ratio": math.floor(s.ratio * 1000) / 1000,
+                     "ceiling": (math.ceil(s.ceiling * 100) / 100 if s.ceiling != float("inf") else "∞"),
                      "hotspot_fraction": round(s.hotspot_fraction, 3)} for s in r.shipped],
         "declined": [{"name": d.name, "reason": d.reason[:90]} for d in r.declined],
         "cumulative_ratio": round(r.fresh_cumulative_ratio, 3),

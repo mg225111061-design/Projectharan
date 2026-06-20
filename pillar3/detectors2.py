@@ -400,3 +400,46 @@ def detect_manual_groupby(fn: Callable) -> WasteFinding:
                     return WasteFinding("manual_groupby", True, 0.7,
                                         "manual `if k not in d: d[k]=…` → collections.defaultdict")
     return WasteFinding("manual_groupby", False, 0.0, "no manual default-init")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# BATCH D5 (PHASE ∞) — strength reduction + caller-side data-structure choice
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+# 20 · small-integer power → repeated multiply (extend; Z3-provable strength reduction) ──────────────────
+def detect_power_strength_reduction(fn: Callable) -> WasteFinding:
+    """`x ** k` for a small constant integer k ⇒ repeated multiplication (BINARY_POWER → BINARY_MULTIPLY), a
+    Z3-provable strength reduction with a real per-op win."""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("power_strength_reduction", False, 0.0, "source unavailable")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and isinstance(node.right, ast.Constant) \
+                and isinstance(node.right.value, int) and 2 <= node.right.value <= 4:
+            return WasteFinding("power_strength_reduction", True, 0.8,
+                                f"`x ** {node.right.value}` → repeated multiply (strength reduction; Z3-provable)")
+    return WasteFinding("power_strength_reduction", False, 0.0, "no small-integer power")
+
+
+# 21 · repeated membership against a list PARAMETER → convert to a set once (fast) ───────────────────────
+def detect_membership_to_set_param(fn: Callable) -> WasteFinding:
+    """`x in p` inside a loop, where `p` is a function PARAMETER (a list the caller passed) ⇒ build a set from
+    `p` once at entry → O(1) membership instead of O(len p) per probe. (Distinct from list_as_set, which is for
+    a list built inside the function.)"""
+    tree = _ast_of(fn)
+    if tree is None:
+        return WasteFinding("membership_to_set_param", False, 0.0, "source unavailable")
+    params = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            params = {a.arg for a in node.args.args}
+            break
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Compare) and any(isinstance(o, ast.In) for o in sub.ops):
+                    comp = sub.comparators[0]
+                    if isinstance(comp, ast.Name) and comp.id in params:
+                        return WasteFinding("membership_to_set_param", True, 0.75,
+                                            f"`in {comp.id}` (a list parameter) inside a loop → convert it to a set once")
+    return WasteFinding("membership_to_set_param", False, 0.0, "no list-param membership in a loop")

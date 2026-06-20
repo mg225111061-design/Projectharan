@@ -57,6 +57,8 @@ FAST_DETECTORS: FrozenSet[str] = frozenset({
     "redos_regex", "redundant_io_parse", "accidental_full_scan", "quadratic_build", "redundant_sort",
     # D4 (PHASE ∞)
     "regex_compile_in_loop",
+    # D5 (PHASE ∞)
+    "membership_to_set_param",
 })
 NORMAL_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "accidental_quadratic", "serialization", "caching", "dict_to_columnar", "copy_elim",
@@ -68,6 +70,8 @@ EXTEND_ONLY_DETECTORS: FrozenSet[str] = frozenset({
     "algorithm_recognition", "verified_lifting", "egg_superopt", "egg_algebraic", "gpu_simd_offload",
     "simd_offload", "vectorizable_loop", "parallelization", "parallelizable_loop", "global_transforms",
     "incremental_recompute", "interproc_memoize",
+    # D5 (PHASE ∞)
+    "power_strength_reduction",
 })
 
 NORMAL_DETECTORS: FrozenSet[str] = FAST_DETECTORS | NORMAL_ONLY_DETECTORS

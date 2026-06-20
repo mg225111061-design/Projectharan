@@ -3272,6 +3272,77 @@ def test_phaseD1_catastrophic_detectors():
           f"DECLINE★, all registered fast-tier)")
 
 
+# ── PHASE ∞ · D5 — fixtures (module-level for getsource) ──────────────────────────────────────────────
+def _d5_pow_expr_naive(x):
+    return x ** 2 + x ** 3
+
+
+def _d5_pow_expr_simp(x):
+    return x * x + x * x * x
+
+
+def _d5_pow_slow(xs):
+    return [x ** 2 + x ** 3 for x in xs]
+
+
+def _d5_pow_fast(xs):
+    return [x * x + x * x * x for x in xs]
+
+
+def _d5_mem_slow(queries, pool):
+    return [q for q in queries if q in pool]          # pool is a list parameter → O(n·m) membership
+
+
+def _d5_mem_fast(queries, pool):
+    s = set(pool)                                     # build a set once → O(1) membership
+    return [q for q in queries if q in s]
+
+
+def test_phaseInfinity_D5_detectors():
+    """PHASE ∞ · D5 (v64): two more distinct detectors (23 → 25): small-integer power strength reduction
+    (x**k → repeated multiply, Z3-PROVEN EXACT) and list-parameter membership → set (caller-side data-structure
+    choice). Each detected, verified whole-program win, correct grade, ★ wrong fix → DECLINE ★, tier-gated."""
+    import kernel_verdict as KV
+    from pillar3 import detectors2 as D, record as RC, equiv as EQ
+    from pillar3.fixers.pipeline import apply_and_grade
+    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+    import z3
+
+    # power_strength_reduction (extend): x**k → repeated multiply, Z3-PROVEN EXACT; wrong form → DECLINE
+    assert D.detect_power_strength_reduction(_d5_pow_slow).found
+    assert EQ.prove_equiv(_d5_pow_expr_naive, _d5_pow_expr_simp, lambda _n: (z3.Int("x"),), (1,))[0] is True
+    pmk = lambda: (list(range(60000)),)
+    por = RC.record_oracle(_d5_pow_slow, [(list(range(200)),)])
+    pv = apply_and_grade(_d5_pow_slow, _d5_pow_fast, pmk, n=60000, hotspot_fraction=0.9, oracle=por,
+                         waste_type="power_strength_reduction", exact_justification="z3_strength_reduction",
+                         floor=1.05, samples=5)
+    assert pv.status == KV.EXACT and pv.report.whole_program_ratio > 1
+    bad, cex = EQ.prove_equiv(_d5_pow_expr_naive, lambda x: x * x + x * x, lambda _n: (z3.Int("x"),), (1,))
+    assert bad is False and "counterexample" in str(cex)
+    pw = apply_and_grade(_d5_pow_slow, lambda xs: [x * x + x * x for x in xs], pmk, n=60000, hotspot_fraction=0.9,
+                         oracle=por, waste_type="power_strength_reduction", samples=5)
+    assert pw.status == KV.DECLINE
+    assert "power_strength_reduction" in EXTEND_DETECTORS and "power_strength_reduction" not in NORMAL_DETECTORS
+
+    # membership_to_set_param (fast): list param → set membership, O(n·m)→O(n+m)
+    assert D.detect_membership_to_set_param(_d5_mem_slow).found
+    queries = list(range(0, 800, 2)); pool = list(range(600))
+    mmk = lambda: (queries, pool)
+    mor = RC.record_oracle(_d5_mem_slow, [(list(range(20)), list(range(10)))])
+    mv = apply_and_grade(_d5_mem_slow, _d5_mem_fast, mmk, n=400, hotspot_fraction=0.95, oracle=mor,
+                         waste_type="membership_to_set_param", samples=5)
+    assert mv.status == KV.PROBABILISTIC and mv.report.whole_program_ratio > 1
+    mw = apply_and_grade(_d5_mem_slow, lambda queries, pool: list(queries), mmk, n=400, hotspot_fraction=0.95,
+                         oracle=mor, waste_type="membership_to_set_param", samples=5)
+    assert mw.status == KV.DECLINE
+    assert "membership_to_set_param" in FAST_DETECTORS
+
+    print(f"PASS test_phaseInfinity_D5_detectors (2 more detectors → 25 total: power-strength-reduction "
+          f"x**k→x*x* {pv.report.whole_program_ratio:.2f}× (EXACT, Z3-proven; wrong form Z3-REFUTED→DECLINE); "
+          f"list-param→set membership {mv.report.whole_program_ratio:.0f}× (fast, O(n·m)→O(n+m)); each detected/"
+          f"verified/wrong→DECLINE/tier-gated)")
+
+
 # ── PHASE ∞ · D4 — fixtures (module-level for getsource) ──────────────────────────────────────────────
 def _d4_recompile_slow(lines):
     out = []

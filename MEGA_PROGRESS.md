@@ -87,6 +87,13 @@ Format: `[T+h.h] PHASE — measured result — next`.
   tests, 0 regression. **REFLECT:** detector march continues toward 40+; next ∞ — harder/larger-input profiling
   and a D5 batch (string-build/join, set-algebra, comprehension-vs-loop).
 
+- **[T+6.6] PHASE ∞ · D5 (v64) — strength reduction + caller-side data structure. DONE.**
+  power_strength_reduction (extend, ~1.36×, Z3-PROVEN EXACT; wrong form Z3-REFUTED→DECLINE),
+  membership_to_set_param (fast, ~58×, list-param→set, O(n·m)→O(n+m)). Detectors 23→25. Studio regenerated
+  (counts 12/23/36) with ratio-down/ceiling-up rounding so the displayed ratio ≤ ceiling by construction. 129
+  tests, 0 regression. **REFLECT:** 25/40 detectors; mode spine + moat intact under every addition; the engine
+  now covers list/dict/loop/regex/IO/numeric/algebraic/parallel/representation wastes across all three tiers.
+
 - **[T+3.4] PHASE D2 (v58) — structural / data-representation detectors (normal-tier). DONE.**
   dict_to_columnar, loop_invariant_hoist, copy_elim, materialize_to_lazy, deep_n_plus_1. **Measured:** SoA ~1.3×
   (honest pure-Python crossover), loop-invariant-hoist ~700×, copy-elim ~50×, materialize→lazy ~3000× (early
