@@ -2942,6 +2942,32 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_v40_phase4_succinct():
+    """v40 PHASE 4: succinct/index structures — Sparse-Table RMQ O(1)/query + prefix-sum range O(1)/query.
+    §0.1 strict: QUERY-TIME collapse (not value recovery, not data compute). EXACT, measured."""
+    import random
+    import kernel_router as R
+    import kernel_verdict as KV
+    import kernels_numtheory, kernels_structured, kernels_symbolic  # noqa: F401
+    import kernels_succinct as KSU
+
+    rng = random.Random(0)
+    a = [rng.randint(-100, 100) for _ in range(500)]
+    qs = [tuple(sorted((rng.randrange(500), rng.randrange(500)))) for _ in range(80)]
+    v = R.dispatch({"kind": "rmq", "array": a, "queries": qs})
+    assert v.status == KV.EXACT and v.result == [min(a[l:r + 1]) for l, r in qs] and "query" in v.complexity
+    v2 = R.dispatch({"kind": "range_sum", "array": a, "queries": qs})
+    assert v2.status == KV.EXACT and v2.result == [sum(a[l:r + 1]) for l, r in qs]
+    # out-of-range query ⇒ DECLINE
+    assert R.dispatch({"kind": "rmq", "array": a, "queries": [(0, 999)]}).status == KV.DECLINE
+
+    m = KSU.measure_rmq()
+    assert m["exact"] and m["naive_ms"] > m["sparse_table_ms"]      # query-time collapse, bit-exact
+    print(f"PASS test_v40_phase4_succinct (RMQ O(1)/query {m['naive_ms']:.0f}ms→{m['sparse_table_ms']:.0f}ms over "
+          f"{m['queries']} queries (bit-exact, QUERY-TIME collapse not value recovery); prefix-sum O(1)/query; "
+          f"out-of-range→DECLINE; router {len(R.REGISTRY)} kernels)")
+
+
 def test_v40_phase3_symbolic():
     """v40 PHASE 3: algebraic/symbolic closed-form kernels. Walsh-Hadamard O(n²)→O(n log n) EXACT (involution
     cert); C-finite n-th term O(n)→O(log n) via the companion engine (verified). Grades enforced, measured."""
