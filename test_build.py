@@ -3151,6 +3151,119 @@ def test_pillar3_verification_panel():
           f"review; React+CI gates [BLOCKED: toolchain] noted)")
 
 
+def test_phaseM1_mode_policy():
+    """PHASE M1 (v54): the three modes are enforced CONTRACTS, not presets. Assert ModePolicy encodes every row
+    of the M.2 table — the verifier-tier ladder (fast=MICRO never-Z3 / normal≤CHEAP_CERT / extend=FULL_CERT),
+    monotone detector sets, mode-dependent grade floors (extend = EXACT-or-DECLINE), hotspot caps, sweep flags,
+    and stop conditions. A reader of mode.py can state exactly what each mode will and won't do."""
+    import kernel_verdict as KV
+    from pillar3 import verifier as V
+    from pillar3.mode import Mode, ModePolicy, FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+
+    fast, normal, extend = (ModePolicy.for_mode(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND))
+
+    # verifier-tier ladder (the spine of "never blocks" vs "always proves")
+    assert fast.verifier_tier == V.VerifierTier.MICRO
+    assert normal.verifier_tier == V.VerifierTier.CHEAP_CERT
+    assert extend.verifier_tier == V.VerifierTier.FULL_CERT
+    assert V.VerifierTier.MICRO < V.VerifierTier.CHEAP_CERT < V.VerifierTier.FULL_CERT
+    # tier gate: MICRO never certifies; CHEAP_CERT only small regions; FULL_CERT always
+    assert V.tier_allows_certificate(V.VerifierTier.MICRO, 1) is False                  # fast NEVER invokes Z3
+    assert V.tier_allows_certificate(V.VerifierTier.CHEAP_CERT, 3) is True
+    assert V.tier_allows_certificate(V.VerifierTier.CHEAP_CERT, 9999) is False          # too large for cheap
+    assert V.tier_allows_certificate(V.VerifierTier.FULL_CERT, 9999) is True
+
+    # the grade floor is mode-dependent (extend = EXACT-or-DECLINE)
+    assert fast.acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
+    assert normal.acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
+    assert extend.acceptable_grades == frozenset({KV.EXACT})                            # PROBABILISTIC REJECTED
+    assert not extend.grade_acceptable(KV.PROBABILISTIC) and fast.grade_acceptable(KV.PROBABILISTIC)
+
+    # detector sets are strictly monotone fast ⊂ normal ⊂ extend
+    assert FAST_DETECTORS < NORMAL_DETECTORS < EXTEND_DETECTORS
+    assert fast.enabled_detectors == FAST_DETECTORS and extend.enabled_detectors == EXTEND_DETECTORS
+    assert "list_as_set" in fast.enabled_detectors                                      # cheap structural: all modes
+    assert "accidental_quadratic" in normal.enabled_detectors and "accidental_quadratic" not in fast.enabled_detectors
+    assert "gpu_simd_offload" in extend.enabled_detectors                               # heavy: extend only
+    assert "gpu_simd_offload" not in fast.enabled_detectors and "gpu_simd_offload" not in normal.enabled_detectors
+    assert "algorithm_recognition" in extend.enabled_detectors and "algorithm_recognition" not in normal.enabled_detectors
+
+    # iteration / sweep / latency posture
+    assert fast.max_hotspots == 3 and fast.stop_on_first_win and not fast.runs_complexity_sweep
+    assert normal.max_hotspots is None and normal.marginal_floor >= 0.10
+    assert extend.max_hotspots is None and extend.runs_complexity_sweep and extend.deep_search
+    assert extend.latency_budget_s is None and fast.latency_budget_s is not None        # extend unbounded
+
+    # the Z3 counter (the instrument that makes separation checkable) works
+    V.reset_z3_checks(); assert V.z3_check_count() == 0
+    V.note_z3_check(); V.note_z3_check(); assert V.z3_check_count() == 2
+    V.reset_z3_checks()
+
+    print(f"PASS test_phaseM1_mode_policy (verifier-tier ladder MICRO<CHEAP_CERT<FULL_CERT, fast NEVER certifies; "
+          f"grade floor mode-dependent: extend=EXACT-or-DECLINE (PROBABILISTIC rejected); detector sets strictly "
+          f"monotone fast⊂normal⊂extend ({len(FAST_DETECTORS)}⊂{len(NORMAL_DETECTORS)}⊂{len(EXTEND_DETECTORS)}); "
+          f"fast top-{fast.max_hotspots} first-win no-sweep, extend unbounded full-sweep deep-search — contract enforced)")
+
+
+def test_phaseM2_mode_distinctness():
+    """PHASE M2 (v55): the seven distinctness proofs on ONE canonical multi-waste program. The single most
+    important assertion: a fix that passes differential testing but has NO certificate is ACCEPTED in normal and
+    DECLINEd in extend (EXACT-or-DECLINE). Plus: fast never invokes Z3 (z3_calls==0); cross-mode monotonicity of
+    BOTH speedup and latency; detector gating; and every shipped row is Amdahl-coherent (ratio ≤ ceiling)."""
+    from pillar3 import engine as E, canonical as C
+    from pillar3.mode import Mode
+
+    cands = C.build_candidates()
+    runs = {m: E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
+            for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND)}
+    f, n, e = runs[Mode.FAST], runs[Mode.NORMAL], runs[Mode.EXTEND]
+
+    # (1) fast: ≤3 hotspots attacked; Z3 NEVER invoked; one accepted win; accepts a PROBABILISTIC; fast latency
+    assert f.hotspots_attacked <= 3
+    assert f.z3_calls == 0, f"fast invoked Z3 ({f.z3_calls}) — fast must NEVER block on Z3"
+    assert len(f.shipped) == 1 and "first accepted win" in f.stop_reason
+    assert any(s.grade == "PROBABILISTIC" for s in f.shipped)              # a fast likely-win
+    assert f.latency_s < 2.0                                               # sub-second target (generous CI bound)
+
+    # (2) normal: iterates ≥2 rounds; ships EXACT and PROBABILISTIC; compounds a measured fresh cumulative win
+    assert n.rounds >= 2 and {s.grade for s in n.shipped} == {"EXACT", "PROBABILISTIC"}
+    assert n.fresh_cumulative_ratio > f.fresh_cumulative_ratio
+
+    # (3) extend: ran the multi-size complexity sweep (≥3 sizes); invoked full Z3 (z3_calls>0); ships ONLY EXACT;
+    #     reaches a higher whole-program speedup than fast
+    assert e.ran_complexity_sweep and len(e.sweep_sizes) >= 3
+    assert e.z3_calls > 0, "extend must invoke full Z3 on the algorithm swap"
+    assert {s.grade for s in e.shipped} == {"EXACT"}
+    assert e.fresh_cumulative_ratio > f.fresh_cumulative_ratio
+
+    # ★ THE KEY ASSERTION: the same PROBABILISTIC-only fix (S3) is ACCEPTED in normal, DECLINEd in extend ★
+    assert "S3_accidental_quadratic" in n.shipped_names()
+    s3_decline = next((d for d in e.declined if d.name == "S3_accidental_quadratic"), None)
+    assert s3_decline is not None and "below extend floor" in s3_decline.reason
+
+    # (4) cross-mode monotonicity: speedup extend ≥ normal ≥ fast; latency fast < normal < extend
+    assert e.fresh_cumulative_ratio >= n.fresh_cumulative_ratio >= f.fresh_cumulative_ratio
+    assert f.latency_s < n.latency_s < e.latency_s
+
+    # (5) detector gating: an extend-only detector (gpu_simd_offload) fires in extend, NOT in fast or normal
+    assert "gpu_simd_offload" in e.attempted_detectors
+    assert "gpu_simd_offload" not in f.attempted_detectors and "gpu_simd_offload" not in n.attempted_detectors
+
+    # (6) verifier-tier gating already proven structurally in M1; here: fast reached zero Z3 at runtime (above)
+    # (7) Amdahl coherence: EVERY shipped row across ALL modes has ratio ≤ its own ceiling (by construction)
+    for m, r in runs.items():
+        for s in r.shipped:
+            assert s.ratio <= s.ceiling + 1e-6, f"{m.value}:{s.name} ratio {s.ratio} > ceiling {s.ceiling}"
+
+    print(f"PASS test_phaseM2_mode_distinctness (fast: 1 PROBABILISTIC win, z3=0, {f.latency_s*1e3:.0f}ms, "
+          f"{f.fresh_cumulative_ratio:.2f}×; normal: {n.rounds} rounds EXACT+PROB {n.fresh_cumulative_ratio:.2f}×; "
+          f"extend: EXACT-only {e.fresh_cumulative_ratio:.2f}× z3={e.z3_calls} sweep={e.sweep_klass}({len(e.sweep_sizes)} "
+          f"sizes); ★S3 PROBABILISTIC accepted-in-normal / DECLINEd-in-extend★; monotonic speedup "
+          f"{e.fresh_cumulative_ratio:.2f}≥{n.fresh_cumulative_ratio:.2f}≥{f.fresh_cumulative_ratio:.2f} & latency "
+          f"{f.latency_s*1e3:.0f}<{n.latency_s*1e3:.0f}<{e.latency_s*1e3:.0f}ms; gpu-offload fires only in extend; "
+          f"all rows ratio≤ceiling — the three modes are observably distinct contracts)")
+
+
 def test_pillar3_stage3_global_transforms():
     """Pillar 3 · Stage 3: cross-cutting global transforms on a FLAT profile (no dominant hotspot), where local
     hotspot fixing fails. async/batch I/O (verified, measured); serialization swap json→marshal (EXACT round-
