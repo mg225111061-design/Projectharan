@@ -2942,6 +2942,58 @@ def test_v37_stage234_frontier_dogfood():
           f"rejected → all_pass)")
 
 
+def test_pillar3_stage0_foundation():
+    """Pillar 3 · Stage 0: profiler (ground truth) + neutral-baseline whole-program measure + empirical-
+    complexity fitter (Goldsmith-Aiken trend-prof) + I/O recorder/differential tester. The foundation
+    everything gates on. Rule 1/2: measure refuses a ratio without n + hotspot_fraction and states the
+    Amdahl ceiling."""
+    import math
+    from pillar3 import profiler as P, measure as M, complexity as C, record as RC
+
+    # complexity fitter recovers known exponents (op-counts = noise-free, trend-prof style), R²>0.95, ±0.15
+    for exp, want in [(1.0, "O(n)"), (2.0, "O(n²)"), (3.0, "O(n³)")]:
+        sz = [100, 300, 1000, 3000]
+        f = C.fit_counts(sz, [int(n ** exp) for n in sz])
+        assert abs(f.exponent - exp) < 0.15 and f.r2 > 0.95 and f.klass == want, f"{exp}: {f}"
+    nlogn = C.fit_counts([100, 1000, 10000, 100000], [int(n * math.log2(n)) for n in [100, 1000, 10000, 100000]])
+    assert nlogn.klass == "O(n log n)"
+    quad = C.fit_counts([100, 300, 1000], [10000, 90000, 1000000])
+    assert quad.superlinear and quad.klass == "O(n²)"            # super-linear flagged
+
+    # profiler ranks a planted hotspot #1 by self-time with a high fraction (ground truth, not a heuristic)
+    def slow(data):
+        out = []
+        for x in data:
+            if x not in out:                                    # O(n²) membership-in-list
+                out.append(x)
+        return out
+
+    def program(n):
+        d = list(range(n)) + list(range(n)); sum(d); slow(d); return True
+    top = P.rank_by_self_time(P.profile(program, 400))[0]
+    assert "slow" in top.name and top.fraction > 0.5
+
+    # measure REFUSES a ratio without n / hotspot_fraction (Rule 1/2); a real run gives the Amdahl ceiling
+    try:
+        M.SpeedupReport(2.0, None, 100, 7, 1, 0.1, 0.05); raise SystemExit("refuse failed")
+    except ValueError:
+        pass
+    rep = M.measure_whole_program(lambda d: slow(d), lambda d: list(dict.fromkeys(d)),
+                                  lambda: (list(range(400)) * 2,), n=800, hotspot_fraction=0.9, samples=5)
+    assert rep.whole_program_ratio > 1 and abs(rep.amdahl_ceiling - 10.0) < 1e-9 and rep.n == 800
+
+    # recorder + differential tester: trusted-original oracle; good candidate passes, wrong candidate caught
+    oracle = RC.record_oracle(slow, [(list(range(10)) + list(range(5)),)])
+    good = RC.differential_test(lambda d: list(dict.fromkeys(d)), oracle)
+    bad = RC.differential_test(lambda d: d[::-1], oracle)
+    assert good.passed and not bad.passed and good.rule_of_three_delta == 3.0 / good.n
+
+    print(f"PASS test_pillar3_stage0_foundation (complexity fitter O(n)/O(n log n)/O(n²)/O(n³) recovered "
+          f"(super-linear flagged); profiler ranks hotspot {top.fraction:.0%} self-time; measure refuses w/o "
+          f"n+hotspot, real run {rep.whole_program_ratio:.0f}× @n=800 Amdahl-ceiling {rep.amdahl_ceiling:.0f}×; "
+          f"differential oracle catches wrong candidate (δ=3/n={good.rule_of_three_delta:.2f}))")
+
+
 def test_v40_phase9_verification_panel():
     """v40 PHASE 9: MR.JEFFREY verification panel. Visual quality → HUMAN review (not auto-tested). What IS
     tested: the panel binds to REAL engine data (panel_data.json from the v40 router), shows all three grades,
