@@ -133,7 +133,80 @@ def two_sum_wrong(xs, target):                              # allows i==j (uses 
     return False
 
 
+# majority element: naive O(n²) (count each) → Boyer-Moore voting O(n) (+ an O(n) verify pass)
+def majority_naive(xs):
+    n = len(xs)
+    best = None
+    bestc = 0
+    for x in xs:                                             # no early return ⇒ genuinely O(n²)
+        c = 0
+        for y in xs:
+            if y == x:
+                c += 1
+        if c > bestc:
+            bestc = c
+            best = x
+    return best if bestc > n // 2 else None
+
+
+def majority_fast(xs):
+    cand = None
+    cnt = 0
+    for x in xs:
+        if cnt == 0:
+            cand = x
+            cnt = 1
+        elif x == cand:
+            cnt += 1
+        else:
+            cnt -= 1
+    if cand is not None:                                     # verify (Boyer-Moore needs the confirm pass)
+        c = 0
+        for y in xs:
+            if y == cand:
+                c += 1
+        if c > len(xs) // 2:
+            return cand
+    return None
+
+
+def majority_wrong(xs):                                      # skips the verify ⇒ returns a non-majority candidate
+    cand = None
+    cnt = 0
+    for x in xs:
+        if cnt == 0:
+            cand = x
+            cnt = 1
+        elif x == cand:
+            cnt += 1
+        else:
+            cnt -= 1
+    return cand
+
+
 import random as _rnd
+
+_MAJ_CACHE: dict = {}
+
+
+def _make_majority_input(size: int = 260):
+    if size not in _MAJ_CACHE:
+        rng = _rnd.Random(41)
+        half = size // 2 + 1
+        xs = [7] * half + [rng.randrange(0, 50) for _ in range(size - half)]
+        rng.shuffle(xs)
+        _MAJ_CACHE[size] = xs
+    return (_MAJ_CACHE[size],)
+
+
+def _majority_inputs() -> List[tuple]:
+    rng = _rnd.Random(5)
+    cases = [([1, 1, 2],), ([1, 2, 3],), ([5, 5, 5],), ([4],), ([1, 2, 1, 2, 1],), ([1, 2, 3, 4],)]
+    for _ in range(20):
+        s = rng.randrange(1, 14)
+        cases.append(([rng.randrange(0, 6) for _ in range(s)],))     # small range ⇒ majorities + non-majorities
+    return cases
+
 
 _KAD_CACHE: dict = {}
 
@@ -181,4 +254,7 @@ def catalog() -> List[Recognizer]:
         Recognizer("two_sum_hash", "algo_replace", two_sum_naive, two_sum_fast,
                    lambda: _make_two_sum_input(600), residual_iters=120, gen_inputs=_two_sum_inputs,
                    relations=[], n=600, floor=1.15),
+        Recognizer("majority_boyer_moore", "algo_replace", majority_naive, majority_fast,
+                   lambda: _make_majority_input(260), residual_iters=160, gen_inputs=_majority_inputs,
+                   relations=[("result_in_input", lambda f, xs: f(xs) is None or f(xs) in xs)], n=260, floor=1.15),
     ]

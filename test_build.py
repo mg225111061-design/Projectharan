@@ -5641,8 +5641,11 @@ def test_phaseA_algorithm_recognition():
                       lambda: A._make_kadane_input(240), 200, A._kadane_inputs, [], 240, 1.15)
     tw = A.Recognizer("two_sum_WRONG", "algo_replace", A.two_sum_naive, A.two_sum_wrong,
                       lambda: A._make_two_sum_input(600), 120, A._two_sum_inputs, [], 600, 1.15)
+    mw = A.Recognizer("maj_WRONG", "algo_replace", A.majority_naive, A.majority_wrong,
+                      lambda: A._make_majority_input(260), 160, A._majority_inputs, [], 260, 1.15)
     assert A.recognize_and_grade(kw, samples=5).status == KV.DECLINE, "wrong Kadane must DECLINE"
     assert A.recognize_and_grade(tw, samples=5).status == KV.DECLINE, "wrong two-sum must DECLINE"
+    assert A.recognize_and_grade(mw, samples=5).status == KV.DECLINE, "wrong majority (no verify) must DECLINE"
 
     desc = "; ".join(f"{n} {r:.0f}×≤{c:.0f}×" for n, r, c in rows)
     print(f"PASS test_phaseA_algorithm_recognition ({desc}; both O(n²)→O(n), PROBABILISTIC (control flow ⇒ no Z3, "
