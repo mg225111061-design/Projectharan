@@ -5575,6 +5575,14 @@ def test_phaseI_input_generation():
     both = IG.z3_guided_branch(lambda x: x > 0)
     assert any(v > 0 for v in both) and any(v <= 0 for v in both), "both branches must be covered"
 
+    # float coverage: NaN/inf/-0.0 edges catch a fix that silently drops non-finite values
+    import math
+    fev = IG.float_list_evidence()
+    drop_nonfinite = lambda xs: sum(x for x in xs if math.isfinite(x))
+    assert IG.first_divergence(lambda xs: sum(xs), drop_nonfinite, fev.inputs) is not None, \
+        "float edge set must catch a drop-non-finite bug"
+    assert any(math.isnan(x) for x in IG.float_edges()) and any(math.isinf(x) for x in IG.float_edges())
+
     print(f"PASS test_phaseI_input_generation (boundary+property+Z3-guided evidence set n={ev.n}, δ={ev.delta:.3f} "
           f"« 3/3=1.0; catches an empty-list bug a 3-sample random check misses; equivalent fix passes the whole "
           f"set; Z3 covers both branches of x>0)")

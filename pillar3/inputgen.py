@@ -30,6 +30,28 @@ def edge_lists() -> List[List[int]]:
             [5] * 6, [0, 0, 1, 1, 2, 2], [-3, -3, 4, 4]]
 
 
+def float_edges() -> List[float]:
+    """Floating-point boundary values bugs love: zeros (incl. −0.0), tiny/huge, subnormal-ish, and the
+    non-finite specials. (NaN/inf are returned so a transform that mishandles them is exercised.)"""
+    return [0.0, -0.0, 1.0, -1.0, 0.5, -0.5, 1e-12, -1e-12, 1e12, -1e12,
+            float("inf"), float("-inf"), float("nan")]
+
+
+def random_floats(rng: random.Random, k: int = 16, scale: float = 1000.0) -> List[float]:
+    return [(rng.random() - 0.5) * scale for _ in range(k)]
+
+
+def float_list_evidence(rng: Optional[random.Random] = None) -> "Evidence":
+    """Evidence set for float-list kernels: edge-bearing lists (incl. specials) + random over several sizes."""
+    rng = rng or random.Random(0)
+    fe = float_edges()
+    inputs: List[Any] = [[], [0.0], [-0.0], [float("nan")], [float("inf"), 1.0], list(fe)]
+    for s in (1, 2, 5, 16, 50):
+        inputs.append(random_floats(rng, s))
+    n = len(inputs)
+    return Evidence(inputs, 3.0 / n if n else 1.0, n)
+
+
 def random_lists(rng: random.Random, sizes=(0, 1, 2, 3, 8, 25, 64), lo: int = -50, hi: int = 50) -> List[List[int]]:
     out: List[List[int]] = []
     for s in sizes:
