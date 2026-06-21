@@ -229,6 +229,54 @@ def wrs_optimized(a, w):
     return out
 
 
+# 5) range-sum queries —  re-sum a[l:r] per query (O(K·n))  →  prefix array, pref[r]−pref[l] per query (O(n+K))
+def rq_original(a, q):
+    out = []
+    for (l, r) in q:
+        s = 0
+        for j in range(l, r):
+            s = s + a[j]
+        out.append(s)
+    return out
+
+
+def rq_spec(a, q):
+    return [sum(a[l:r]) for (l, r) in q]
+
+
+def rq_optimized(a, q):
+    pref = [0] * (len(a) + 1)
+    for i in range(len(a)):
+        pref[i + 1] = pref[i] + a[i]
+    return [pref[r] - pref[l] for (l, r) in q]
+
+
+def rq_wrong(a, q):                                          # off-by-one: pref[l-1] (wraps for l=0) ⇒ wrong
+    pref = [0] * (len(a) + 1)
+    for i in range(len(a)):
+        pref[i + 1] = pref[i] + a[i]
+    return [pref[r] - pref[l - 1] for (l, r) in q]
+
+
+_RQ_PROOF_Q = [(0, 2), (1, 3), (0, 3), (2, 3)]
+
+
+def _sym_int_list_and_q(n):
+    return ([z3.Int(f"a{i}") for i in range(n)], _RQ_PROOF_Q)
+
+
+def _make_rq_input(size: int = 500, k: int = 300):
+    import random
+    rng = random.Random(23)
+    a = [rng.randrange(-1000, 1000) for _ in range(size)]
+    q = []
+    for _ in range(k):
+        l = rng.randrange(0, size - 1)
+        r = rng.randrange(l + 1, size)
+        q.append((l, r))
+    return (a, q)
+
+
 def _make_ts_input(size: int = 6000):
     import random
     rng = random.Random(13)
@@ -264,4 +312,7 @@ def catalog() -> List[Lift]:
              _sym_int_list, lambda: _make_ts_input(6000), residual_iters=200, sizes=(3, 5, 8), n=6000),
         Lift("weighted_running_sum_lift", "verified_lift", wrs_original, wrs_spec, wrs_optimized,
              _sym_int_list_and_c, lambda: _make_wrs_input(220), residual_iters=900, sizes=(3, 5, 8), n=220),
+        Lift("range_sum_query_lift", "verified_lift", rq_original, rq_spec, rq_optimized,
+             _sym_int_list_and_q, lambda: _make_rq_input(500, 300), residual_iters=200,
+             sizes=(3, 5, 8), n=500),
     ]

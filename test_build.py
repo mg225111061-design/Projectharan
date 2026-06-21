@@ -5431,9 +5431,9 @@ def test_phaseL_verified_lifting():
         lo, so, cex = L.prove_lift(lift.original, lift.spec, lift.optimized, lift.sym_factory, lift.sizes)
         assert lo and so, f"{lift.name}: lift+synth must both Z3-prove (cex={cex})"
 
-    # the two O(n²)→O(n) flagships: EXACT + robust measured whole-program win, ratio ≤ ceiling, no δ (ADT)
+    # the asymptotic flagships: EXACT + robust measured whole-program win, ratio ≤ ceiling, no δ (ADT)
     r = None
-    for name in ("running_sum_lift", "weighted_running_sum_lift"):
+    for name in ("running_sum_lift", "weighted_running_sum_lift", "range_sum_query_lift"):
         f = next(x for x in L.catalog() if x.name == name)
         v = L.lift_and_grade(f, samples=9)
         assert v.status == KV.EXACT, f"{name} must be EXACT, got {v.status}"
@@ -5451,11 +5451,15 @@ def test_phaseL_verified_lifting():
     wrong_ts = L.Lift("ts_WRONG", "verified_lift", L.ts_original, L.ts_spec, L.ts_wrong, L._sym_int_list,
                       lambda: L._make_ts_input(6000), residual_iters=200, sizes=(3, 5, 8), n=6000)
     assert L.lift_and_grade(wrong_ts, samples=5).status == KV.DECLINE, "a wrong telescoping lift must DECLINE"
+    wrong_rq = L.Lift("rq_WRONG", "verified_lift", L.rq_original, L.rq_spec, L.rq_wrong, L._sym_int_list_and_q,
+                      lambda: L._make_rq_input(500, 300), residual_iters=200, sizes=(3, 5, 8), n=500)
+    assert L.lift_and_grade(wrong_rq, samples=5).status == KV.DECLINE, "a wrong range-query lift must DECLINE"
 
-    print(f"PASS test_phaseL_verified_lifting (4 lifts two-step Z3-proven: running-sum/weighted-running-sum "
-          f"O(n²)→O(n), telescoping O(n)→O(1), factor-constant; flagship running-sum [no fixed detector covers "
-          f"it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling {r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); "
-          f"off-by-one + wrong-telescope lifts Z3-REFUTED ⇒ DECLINE)")
+    print(f"PASS test_phaseL_verified_lifting (5 lifts two-step Z3-proven: running-sum/weighted-running-sum "
+          f"O(n²)→O(n), range-sum-query O(K·n)→O(n+K), telescoping O(n)→O(1), factor-constant; flagship "
+          f"running-sum [no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling "
+          f"{r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); off-by-one + wrong-telescope + wrong-range-query "
+          f"lifts Z3-REFUTED ⇒ DECLINE)")
 
 
 def test_phaseV_equivalence_coverage():
