@@ -2,8 +2,42 @@ import { useState } from "react";
 import type { KeyValidation, Provider } from "../types";
 import { api } from "../api";
 import { Arrow, Check, Info, Lock } from "../icons";
+import { useTilt } from "../useTilt";
 
 type VState = { phase: "idle" | "checking" | "ok" | "bad"; res?: KeyValidation };
+
+// a provider as a neutral dimensional object (slate depth — never a mode accent, so it can't read as a mode)
+function ProviderTile({ p, picked, onPick }: { p: Provider; picked: boolean; onPick: () => void }) {
+  const ref = useTilt<HTMLButtonElement>(5);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="mode-card provider-card mode-slab"
+      aria-pressed={picked}
+      onClick={onPick}
+      style={{ gap: 8 }}
+    >
+      <div className="mc-head" style={{ width: "100%" }}>
+        <span className="glyph"><Lock /></span>
+        <div style={{ flex: 1 }}>
+          <div className="mc-name" style={{ fontSize: 15, textTransform: "none" }}>{p.label}</div>
+          <div className="mc-clock">{p.transport}</div>
+        </div>
+        {p.free_no_card && <span className="badge-free"><span className="gd" />Free · no card</span>}
+      </div>
+      <div className="row" style={{ width: "100%", justifyContent: "space-between" }}>
+        <span className="v-sub">default: <span className="mono">{p.default_model || "—"}</span></span>
+        {p.get_key_url && (
+          <a className="getkey" href={p.get_key_url} target="_blank" rel="noreferrer"
+             onClick={(e) => e.stopPropagation()}>
+            Get a key ↗
+          </a>
+        )}
+      </div>
+    </button>
+  );
+}
 
 export function ProviderKey({
   providers,
@@ -60,44 +94,17 @@ export function ProviderKey({
         engine's verified detectors with no key at all.
       </p>
 
-      <div className="grid cols-2 mt">
+      <div className="grid cols-2 mt stage">
         {providers.map((p) => (
-          <button
+          <ProviderTile
             key={p.id}
-            type="button"
-            className="mode-card provider-card"
-            aria-pressed={picked === p.id}
-            onClick={() => {
+            p={p}
+            picked={picked === p.id}
+            onPick={() => {
               onPick(p);
               reset();
             }}
-            style={{ gap: 8 }}
-          >
-            <div className="mc-head" style={{ width: "100%" }}>
-              <span className="glyph"><Lock /></span>
-              <div style={{ flex: 1 }}>
-                <div className="mc-name" style={{ fontSize: 15, textTransform: "none" }}>{p.label}</div>
-                <div className="mc-clock">{p.transport}</div>
-              </div>
-              {p.free_no_card && (
-                <span className="badge-free"><span className="gd" />Free · no card</span>
-              )}
-            </div>
-            <div className="row" style={{ width: "100%", justifyContent: "space-between" }}>
-              <span className="v-sub">default: <span className="mono">{p.default_model || "—"}</span></span>
-              {p.get_key_url && (
-                <a
-                  className="getkey"
-                  href={p.get_key_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Get a key ↗
-                </a>
-              )}
-            </div>
-          </button>
+          />
         ))}
       </div>
 

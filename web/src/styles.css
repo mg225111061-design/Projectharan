@@ -171,6 +171,8 @@ main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22
 
 /* ── provider cards — NEUTRAL selection (slate), never a mode accent ──────── */
 .provider-card { cursor: pointer; }
+.provider-card.mode-slab { box-shadow: 0 2px 4px rgba(20, 20, 23, 0.04), 0 8px 18px rgba(20, 20, 23, 0.05); }
+:root[data-theme="dark"] .provider-card.mode-slab { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 14px 28px rgba(0, 0, 0, 0.45); }
 .provider-card:hover { border-color: var(--pick); }
 .provider-card[aria-pressed="true"] { border-color: var(--pick);
   box-shadow: 0 0 0 1px var(--pick), 0 8px 24px rgba(0, 0, 0, 0.06); }

@@ -5536,6 +5536,41 @@ def test_phaseM_metamorphic_crosscheck():
           "FP-sum order-invariance holds for a true sum, refutes a fake; gate only downgrades, never invents a win)")
 
 
+def test_phaseI_input_generation():
+    """PHASE I — stronger input generation (shrink δ, catch what a tiny random sample misses). Boundary/edge
+    enumeration + property-based random over many sizes + Z3-guided branch coverage. A wrong fix that only
+    diverges on the empty list slips past a 3-sample mid-size random check, but the boundary-enumerating evidence
+    set (which includes []) catches it. δ = 3/n shrinks as n grows. Slow-correct original is the gold oracle."""
+    import random
+    from pillar3 import inputgen as IG
+
+    orig = lambda xs: sum(xs)
+    cand = lambda xs: xs[0] + sum(xs[1:])                      # wrong only on [] (IndexError); fine otherwise
+
+    # a thin random sample of non-empty lists misses the bug entirely
+    tiny = [[3, 1, 2], [5, 9, 1, 4], [2, 2, 2]]
+    assert IG.first_divergence(orig, cand, tiny) is None, "thin sample should miss the empty-list bug"
+
+    # the stronger evidence set catches it, and reports a far smaller δ
+    ev = IG.list_evidence(random.Random(1))
+    w = IG.first_divergence(orig, cand, ev.inputs)
+    assert w is not None and "[]" in w, f"boundary evidence must catch the empty-list bug, got {w}"
+    assert ev.delta < 3.0 / len(tiny), "δ must shrink as the sample grows (rule of three)"
+    assert ev.delta == 3.0 / ev.n
+
+    # an equivalent fix passes the WHOLE evidence set (no false divergence)
+    good = lambda xs: 0 if not xs else xs[0] + sum(xs[1:])
+    assert IG.first_divergence(orig, good, ev.inputs) is None, "an equivalent fix must pass the whole set"
+
+    # Z3-guided branch coverage: predicate x>0 yields both a satisfying and a negating input
+    both = IG.z3_guided_branch(lambda x: x > 0)
+    assert any(v > 0 for v in both) and any(v <= 0 for v in both), "both branches must be covered"
+
+    print(f"PASS test_phaseI_input_generation (boundary+property+Z3-guided evidence set n={ev.n}, δ={ev.delta:.3f} "
+          f"« 3/3=1.0; catches an empty-list bug a 3-sample random check misses; equivalent fix passes the whole "
+          f"set; Z3 covers both branches of x>0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
