@@ -5617,6 +5617,39 @@ def test_phaseO_simd_offload_coherent():
           f"DECLINEs on measured Amdahl ceiling; wrong vectorization DECLINEs; GPU UNVERIFIED ⇒ DECLINE)")
 
 
+def test_phaseA_algorithm_recognition():
+    """PHASE A — algorithm recognition (hand-rolled idiom → optimal). Kadane (max-subarray O(n²)→O(n)) and
+    two-sum (pair-scan O(n²)→hash O(n)) are recognized, then graded by the REAL nets: differential over a
+    PHASE-I strong evidence set + the PHASE-M metamorphic invariants + a coherent whole-program measurement.
+    These carry control flow ⇒ no Z3 ⇒ PROBABILISTIC with a stated δ (never EXACT, §X). A subtly-wrong
+    replacement (Kadane forgetting the running sum; two-sum allowing i==j) is caught by the net ⇒ DECLINE."""
+    from pillar3 import algorithms as A
+    import kernel_verdict as KV
+
+    rows = []
+    for R in A.catalog():
+        v = A.recognize_and_grade(R, samples=9)
+        assert v.status == KV.PROBABILISTIC, f"{R.name} should be PROBABILISTIC (control flow, no Z3), got {v.status}"
+        assert v.certificate.delta is not None, "PROBABILISTIC must state δ"
+        rep = v.report
+        assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+        assert rep.whole_program_ratio >= 3.0, f"{R.name} O(n²)→O(n) should be a real win, got {rep.whole_program_ratio:.1f}×"
+        rows.append((R.name, rep.whole_program_ratio, rep.amdahl_ceiling))
+
+    # subtly-wrong replacements are caught by the net ⇒ DECLINE (never a faked win)
+    kw = A.Recognizer("kadane_WRONG", "algo_replace", A.kadane_naive, A.kadane_wrong,
+                      lambda: A._make_kadane_input(240), 200, A._kadane_inputs, [], 240, 1.15)
+    tw = A.Recognizer("two_sum_WRONG", "algo_replace", A.two_sum_naive, A.two_sum_wrong,
+                      lambda: A._make_two_sum_input(600), 120, A._two_sum_inputs, [], 600, 1.15)
+    assert A.recognize_and_grade(kw, samples=5).status == KV.DECLINE, "wrong Kadane must DECLINE"
+    assert A.recognize_and_grade(tw, samples=5).status == KV.DECLINE, "wrong two-sum must DECLINE"
+
+    desc = "; ".join(f"{n} {r:.0f}×≤{c:.0f}×" for n, r, c in rows)
+    print(f"PASS test_phaseA_algorithm_recognition ({desc}; both O(n²)→O(n), PROBABILISTIC (control flow ⇒ no Z3, "
+          f"δ stated, never EXACT); ratio quoted with n (input-size-dependent); wrong Kadane + wrong two-sum "
+          f"caught by differential/metamorphic net ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

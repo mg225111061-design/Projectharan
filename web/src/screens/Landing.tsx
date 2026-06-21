@@ -1,9 +1,11 @@
 import type { Demo, ShippedRow } from "../types";
 import { Arrow, Check } from "../icons";
 import { SpeedupSlab } from "../components/SpeedupSlab";
+import { useParallax } from "../useParallax";
 
 export function Landing({ demo, onStart }: { demo: Demo | null; onStart: () => void }) {
   const totalDetectors = demo ? Math.max(...demo.modes.map((m) => m.detectors)) : 40;
+  const heroRef = useParallax<HTMLDivElement>(0.06);
   // the hero IS the thesis: one real measured speedup as a floating dimensional object (prefer an EXACT win)
   const heroRun = demo?.runs.find((r) => r.shipped.length) ?? null;
   const heroRow: ShippedRow | null = heroRun
@@ -29,7 +31,7 @@ export function Landing({ demo, onStart }: { demo: Demo | null; onStart: () => v
             <span className="pill"><Check /> {totalDetectors} verified detectors</span>
           </div>
         </div>
-        <div className="hero-object">
+        <div className="hero-object" ref={heroRef}>
           {heroRow && heroRun ? (
             <SpeedupSlab row={heroRow} mode={heroRun.mode} />
           ) : (
