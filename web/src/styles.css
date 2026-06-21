@@ -203,6 +203,16 @@ main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22
 }
 @media (prefers-reduced-motion: reduce) { .float-in { animation: none; } }
 
+/* ── minimal tenets: borderless, airy — chrome subtracted so the slabs carry the weight ─ */
+.tenets { margin: 4px 0 48px; gap: 36px; }
+.feat { padding: 0; }
+.feat h3 { font-size: 15px; margin-bottom: 8px; position: relative; padding-top: 14px; }
+.feat h3::before { content: ""; position: absolute; top: 0; left: 0; width: 22px; height: 2px;
+  background: var(--accent); border-radius: 2px; opacity: 0.85; }
+.slab-stack > *:nth-child(2) { animation-delay: 0.09s; }
+.slab-stack > *:nth-child(3) { animation-delay: 0.16s; }
+.slab-stack > *:nth-child(4) { animation-delay: 0.22s; }
+
 /* ── hero: copy at left, the floating signature object at right, lots of air ── */
 .hero {
   display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center;

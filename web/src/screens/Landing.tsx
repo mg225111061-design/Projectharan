@@ -43,22 +43,22 @@ export function Landing({ demo, onStart }: { demo: Demo | null; onStart: () => v
         </div>
       </section>
 
-      <div className="grid cols-3">
-        <div className="card mb0">
+      <div className="grid cols-3 tenets">
+        <div className="feat">
           <h3>Measured, not estimated</h3>
           <p className="mb0">
             Speedups are timed end-to-end with warmup and best-of-k. A fast kernel that doesn't move the
             whole program doesn't count.
           </p>
         </div>
-        <div className="card mb0">
+        <div className="feat">
           <h3>Amdahl honesty</h3>
           <p className="mb0">
             Each result shows the hotspot fraction <span className="mono">f</span> and the ceiling{" "}
             <span className="mono">1/(1−f)</span>. The bar's fill can't pass the wall.
           </p>
         </div>
-        <div className="card mb0">
+        <div className="feat">
           <h3>Grades, enforced</h3>
           <p className="mb0">
             <span className="grade exact"><span className="gd" />exact</span>{" "}
