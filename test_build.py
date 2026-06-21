@@ -5457,11 +5457,14 @@ def test_phaseL_verified_lifting():
     wrong_da = L.Lift("da_WRONG", "verified_lift", L.da_original, L.da_spec, L.da_wrong, L._sym_int_list_and_ups,
                       lambda: L._make_da_input(500, 300), residual_iters=200, sizes=(3, 5, 8), n=500)
     assert L.lift_and_grade(wrong_da, samples=5).status == KV.DECLINE, "a wrong difference-array lift must DECLINE"
+    wrong_lfz = L.Lift("lfz_WRONG", "verified_lift", L.lfz_unfused, L.lfz_spec, L.lfz_wrong, L._sym_int_list,
+                       lambda: L._make_lfz_input(5000), residual_iters=80, sizes=(3, 5, 8), n=5000)
+    assert L.lift_and_grade(wrong_lfz, samples=5).status == KV.DECLINE, "a wrong loop-fusion lift must DECLINE"
 
-    print(f"PASS test_phaseL_verified_lifting (6 lifts two-step Z3-proven: running-sum/weighted-running-sum "
-          f"O(n²)→O(n), range-sum-query + difference-array O(K·n)→O(n+K), telescoping O(n)→O(1), factor-constant; "
-          f"flagship running-sum [no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling "
-          f"{r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); 4 adversarial wrong lifts Z3-REFUTED ⇒ DECLINE)")
+    print(f"PASS test_phaseL_verified_lifting (7 lifts two-step Z3-proven: running-sum/weighted-running-sum "
+          f"O(n²)→O(n), range-sum-query + difference-array O(K·n)→O(n+K), telescoping O(n)→O(1), factor-constant, "
+          f"multi-loop-fusion; flagship running-sum [no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× "
+          f"≤ ceiling {r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); 5 adversarial wrong lifts Z3-REFUTED ⇒ DECLINE)")
 
 
 def test_phaseV_equivalence_coverage():

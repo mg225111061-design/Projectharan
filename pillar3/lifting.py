@@ -277,6 +277,57 @@ def _make_rq_input(size: int = 500, k: int = 300):
     return (a, q)
 
 
+# 7) multi-loop FUSION — two passes over the same array → one fused pass (same results, half the iteration)
+def lfz_unfused(a):
+    s = 0
+    for x in a:
+        s = s + x
+    t = 0
+    for x in a:
+        t = t + x * 2
+    return (s, t)
+
+
+def lfz_spec(a):
+    s = 0
+    for x in a:
+        s = s + x
+    t = 0
+    for x in a:
+        t = t + x * 2
+    return (s, t)
+
+
+def lfz_fused(a):
+    s = 0
+    t = 0
+    for x in a:
+        s = s + x
+        t = t + x * 2
+    return (s, t)
+
+
+def lfz_wrong(a):                                            # fused but t accumulates x, not x*2 ⇒ wrong
+    s = 0
+    t = 0
+    for x in a:
+        s = s + x
+        t = t + x
+    return (s, t)
+
+
+_LFZ_CACHE: dict = {}
+
+
+def _make_lfz_input(size: int = 5000):
+    # cached: the timed region is the two-pass kernel, not input-gen (fair fixed workload; read-only)
+    if size not in _LFZ_CACHE:
+        import random
+        rng = random.Random(43)
+        _LFZ_CACHE[size] = [rng.randrange(-1000, 1000) for _ in range(size)]
+    return (_LFZ_CACHE[size],)
+
+
 # 6) range UPDATES via a difference array —  add d to a[l:r] per update (O(K·n))  →  diff array (O(n+K))
 def da_original(a, ups):
     b = list(a)
@@ -382,4 +433,6 @@ def catalog() -> List[Lift]:
         Lift("difference_array_lift", "verified_lift", da_original, da_spec, da_optimized,
              _sym_int_list_and_ups, lambda: _make_da_input(500, 300), residual_iters=200,
              sizes=(3, 5, 8), n=500),
+        Lift("loop_fusion_lift", "verified_lift", lfz_unfused, lfz_spec, lfz_fused,
+             _sym_int_list, lambda: _make_lfz_input(5000), residual_iters=80, sizes=(3, 5, 8), n=5000),
     ]
