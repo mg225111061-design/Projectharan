@@ -5496,6 +5496,46 @@ def test_phaseV_equivalence_coverage():
           f"required (no 'EXACT 1.0×'))")
 
 
+def test_phaseM_metamorphic_crosscheck():
+    """PHASE M — metamorphic relations + cross-checking (catches what differential misses, zero human audit).
+    A wrong 'sort' that drops duplicates PASSES differential on distinct-element inputs (the recorded oracle),
+    but the metamorphic multiset-preserved relation — run on inputs WITH duplicates — refutes it ⇒ DECLINE.
+    Cross-checking two independent implementations flags the same disagreement. The gate only ever downgrades a
+    borderline pass to DECLINE; it never manufactures a win (Rule 6)."""
+    import random
+    from pillar3 import metamorphic as MM
+    from pillar3 import record as RC
+
+    good = lambda x: sorted(x)
+    buggy = lambda x: sorted(set(x))                            # drops duplicates — a wrong "sort"
+
+    # differential with DISTINCT-element inputs: the buggy sort passes (the bug isn't exercised)
+    distinct_cases = [([9, 3, 7, 1, 5, 2, 8],), ([4, 0, 6, 2, 1],), ([5, 9, 3, 8, 7, 1],)]
+    oracle = RC.record_oracle(good, distinct_cases)
+    assert RC.differential_test(buggy, oracle).passed, "setup: buggy must pass differential on distinct inputs"
+
+    # but the metamorphic gate, on inputs WITH duplicates, catches it ⇒ DECLINE
+    gen_dups = lambda: [random.Random().randrange(0, 8) for _ in range(12)]
+    ok_good, dg = MM.metamorphic_gate(good, MM.sort_relations(random.Random(1)), gen_dups, k=14)
+    assert ok_good, f"a correct sort must pass all metamorphic relations ({dg})"
+    ok_bad, db = MM.metamorphic_gate(buggy, MM.sort_relations(random.Random(1)), gen_dups, k=14)
+    assert not ok_bad and "multiset_preserved" in db, f"metamorphic must catch the dedup-sort, got: {db}"
+
+    # cross-check: the two independent implementations disagree on a duplicate-bearing input
+    agree, _w = MM.cross_check(good, buggy, gen_dups, k=14)
+    assert not agree, "cross-check must flag the disagreement"
+
+    # FP sum: order-invariant holds for a true sum; a 'first element' fake violates it ⇒ DECLINE
+    rng2 = random.Random(2)
+    gen_f = lambda: [random.Random().random() for _ in range(10)]
+    assert MM.metamorphic_gate(lambda x: float(sum(x)), MM.sum_relations(rng2), gen_f, k=10)[0]
+    assert not MM.metamorphic_gate(lambda x: float(x[0]), MM.sum_relations(rng2), gen_f, k=10)[0]
+
+    print("PASS test_phaseM_metamorphic_crosscheck (dedup-sort passes differential on distinct inputs but the "
+          "multiset-preserved metamorphic relation REFUTES it on duplicate inputs ⇒ DECLINE; cross-check agrees; "
+          "FP-sum order-invariance holds for a true sum, refutes a fake; gate only downgrades, never invents a win)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -7,6 +7,7 @@ import { ProviderKey } from "./screens/ProviderKey";
 import { CodeRun } from "./screens/CodeRun";
 import { Verification } from "./screens/Verification";
 import { Corpus } from "./screens/Corpus";
+import { Toast } from "./components/Toast";
 
 type Screen = "landing" | "mode" | "provider" | "code" | "verify" | "corpus";
 
@@ -36,6 +37,7 @@ export default function App() {
   const [keyValid, setKeyValid] = useState(false);
   const [code, setCode] = useState("");
   const [result, setResult] = useState<OptimizeResult | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -164,6 +166,12 @@ export default function App() {
             onResult={(r) => {
               setResult(r);
               setScreen("verify");
+              const n = r.shipped.length;
+              setToast(
+                n > 0
+                  ? `Optimization complete — ${n} verified fix${n === 1 ? "" : "es"} shipped`
+                  : "Optimization complete — nothing safe to ship (honest DECLINE)"
+              );
             }}
           />
         )}
@@ -178,6 +186,8 @@ export default function App() {
       <footer className="footer">
         Measured whole-program · Amdahl-honest · grades enforced · proposer ≠ arbiter · keys held in-tab only.
       </footer>
+
+      <Toast msg={toast} onDone={() => setToast(null)} />
     </div>
   );
 }

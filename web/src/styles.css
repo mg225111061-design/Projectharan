@@ -324,6 +324,18 @@ main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none !important; transition: none !important; } }
 
+/* ── toast — a calm dimensional confirmation that settles in from below ─────── */
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 9px;
+  background: var(--card); color: var(--ink); font-size: 13.5px; font-weight: 500;
+  padding: 12px 18px; border-radius: 12px; box-shadow: var(--slab), var(--slab-hi); z-index: 50;
+  animation: toastIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.toast-ic { color: var(--exact); display: inline-flex; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
 .footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px; border-top: 1px solid var(--line); }
 .divider { height: 1px; background: var(--line-soft); margin: 18px 0; }
 .muted { color: var(--muted); } .mt { margin-top: 14px; } .mb0 { margin-bottom: 0; }
