@@ -46,6 +46,21 @@ def square_ref(a):
     return [x * x for x in a]
 
 
+def rs_wrong_double_last(a):                                 # correct prefix sums EXCEPT the last entry is doubled
+    out = []
+    s = 0
+    for x in a:
+        s = s + x
+        out.append(s)
+    if out:
+        out[-1] = out[-1] + a[-1]
+    return out
+
+
+def fc_wrong_off_by_one(a, c):                              # c·Σa but +1 — wrong by a constant
+    return c * sum(a) + 1
+
+
 _Z3_WRONGS: List[Tuple[str, Callable, Callable, Callable]] = [
     ("prefix_sum_offbyone", LF.rs_original, LF.rs_wrong, LF._sym_int_list),
     ("prefix_sum_drop_first", LF.rs_original, rs_wrong_drop_first, LF._sym_int_list),
@@ -56,6 +71,8 @@ _Z3_WRONGS: List[Tuple[str, Callable, Callable, Callable]] = [
     ("strength_reduction_wrong", ET.sr_original, ET.sr_wrong, ET._sym_list),
     ("cse_wrong", ET.cse_original, ET.cse_wrong, ET._sym_list),
     ("loop_invariant_wrong", ET.li_original, ET.li_wrong, ET._sym_abxs),
+    ("prefix_sum_double_last", LF.rs_original, rs_wrong_double_last, LF._sym_int_list),
+    ("factor_constant_off_by_one", LF.fc_original, fc_wrong_off_by_one, LF._sym_int_list_and_c),
 ]
 
 
