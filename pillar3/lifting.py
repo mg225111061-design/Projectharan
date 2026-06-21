@@ -277,6 +277,70 @@ def _make_rq_input(size: int = 500, k: int = 300):
     return (a, q)
 
 
+# 6) range UPDATES via a difference array —  add d to a[l:r] per update (O(K·n))  →  diff array (O(n+K))
+def da_original(a, ups):
+    b = list(a)
+    for (l, r, d) in ups:
+        for j in range(l, r):
+            b[j] = b[j] + d
+    return b
+
+
+def da_spec(a, ups):
+    b = list(a)
+    for (l, r, d) in ups:
+        for j in range(l, r):
+            b[j] = b[j] + d
+    return b
+
+
+def da_optimized(a, ups):
+    n = len(a)
+    diff = [0] * (n + 1)
+    for (l, r, d) in ups:
+        diff[l] = diff[l] + d
+        diff[r] = diff[r] - d
+    b = list(a)
+    run = 0
+    for i in range(n):
+        run = run + diff[i]
+        b[i] = b[i] + run
+    return b
+
+
+def da_wrong(a, ups):                                        # diff[r]+=d (forgot the minus) ⇒ wrong
+    n = len(a)
+    diff = [0] * (n + 1)
+    for (l, r, d) in ups:
+        diff[l] = diff[l] + d
+        diff[r] = diff[r] + d
+    b = list(a)
+    run = 0
+    for i in range(n):
+        run = run + diff[i]
+        b[i] = b[i] + run
+    return b
+
+
+_DA_PROOF_UPS = [(0, 2, 5), (1, 3, -3), (0, 3, 2)]
+
+
+def _sym_int_list_and_ups(n):
+    return ([z3.Int(f"a{i}") for i in range(n)], _DA_PROOF_UPS)
+
+
+def _make_da_input(size: int = 500, k: int = 300):
+    import random
+    rng = random.Random(29)
+    a = [rng.randrange(-1000, 1000) for _ in range(size)]
+    ups = []
+    for _ in range(k):
+        l = rng.randrange(0, size - 1)
+        r = rng.randrange(l + 1, size)
+        ups.append((l, r, rng.randrange(-50, 50)))
+    return (a, ups)
+
+
 def _make_ts_input(size: int = 6000):
     import random
     rng = random.Random(13)
@@ -314,5 +378,8 @@ def catalog() -> List[Lift]:
              _sym_int_list_and_c, lambda: _make_wrs_input(220), residual_iters=900, sizes=(3, 5, 8), n=220),
         Lift("range_sum_query_lift", "verified_lift", rq_original, rq_spec, rq_optimized,
              _sym_int_list_and_q, lambda: _make_rq_input(500, 300), residual_iters=200,
+             sizes=(3, 5, 8), n=500),
+        Lift("difference_array_lift", "verified_lift", da_original, da_spec, da_optimized,
+             _sym_int_list_and_ups, lambda: _make_da_input(500, 300), residual_iters=200,
              sizes=(3, 5, 8), n=500),
     ]

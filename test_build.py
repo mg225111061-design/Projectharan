@@ -5433,7 +5433,7 @@ def test_phaseL_verified_lifting():
 
     # the asymptotic flagships: EXACT + robust measured whole-program win, ratio ≤ ceiling, no δ (ADT)
     r = None
-    for name in ("running_sum_lift", "weighted_running_sum_lift", "range_sum_query_lift"):
+    for name in ("running_sum_lift", "weighted_running_sum_lift", "range_sum_query_lift", "difference_array_lift"):
         f = next(x for x in L.catalog() if x.name == name)
         v = L.lift_and_grade(f, samples=9)
         assert v.status == KV.EXACT, f"{name} must be EXACT, got {v.status}"
@@ -5454,12 +5454,14 @@ def test_phaseL_verified_lifting():
     wrong_rq = L.Lift("rq_WRONG", "verified_lift", L.rq_original, L.rq_spec, L.rq_wrong, L._sym_int_list_and_q,
                       lambda: L._make_rq_input(500, 300), residual_iters=200, sizes=(3, 5, 8), n=500)
     assert L.lift_and_grade(wrong_rq, samples=5).status == KV.DECLINE, "a wrong range-query lift must DECLINE"
+    wrong_da = L.Lift("da_WRONG", "verified_lift", L.da_original, L.da_spec, L.da_wrong, L._sym_int_list_and_ups,
+                      lambda: L._make_da_input(500, 300), residual_iters=200, sizes=(3, 5, 8), n=500)
+    assert L.lift_and_grade(wrong_da, samples=5).status == KV.DECLINE, "a wrong difference-array lift must DECLINE"
 
-    print(f"PASS test_phaseL_verified_lifting (5 lifts two-step Z3-proven: running-sum/weighted-running-sum "
-          f"O(n²)→O(n), range-sum-query O(K·n)→O(n+K), telescoping O(n)→O(1), factor-constant; flagship "
-          f"running-sum [no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling "
-          f"{r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); off-by-one + wrong-telescope + wrong-range-query "
-          f"lifts Z3-REFUTED ⇒ DECLINE)")
+    print(f"PASS test_phaseL_verified_lifting (6 lifts two-step Z3-proven: running-sum/weighted-running-sum "
+          f"O(n²)→O(n), range-sum-query + difference-array O(K·n)→O(n+K), telescoping O(n)→O(1), factor-constant; "
+          f"flagship running-sum [no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling "
+          f"{r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); 4 adversarial wrong lifts Z3-REFUTED ⇒ DECLINE)")
 
 
 def test_phaseV_equivalence_coverage():
