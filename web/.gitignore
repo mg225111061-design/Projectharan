@@ -1,0 +1,12 @@
+# dependencies — regenerable with `npm install` (do not commit; large)
+node_modules/
+
+# vite/tsc local caches
+.vite/
+*.tsbuildinfo
+
+# logs
+npm-debug.log*
+
+# NOTE: dist/ is intentionally committed — webapi/app.py serves web/dist at /app, so the built
+# front end ships with the repo and the site works immediately after clone without a build step.
