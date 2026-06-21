@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
+import { applyMode } from "./theme";
 import type { Demo, ModeContract, ModeId, OptimizeResult, Provider } from "./types";
 import { Landing } from "./screens/Landing";
 import { ModeSelect } from "./screens/ModeSelect";
@@ -57,6 +58,11 @@ export default function App() {
   }, []);
 
   const activeMode: ModeId = mode ?? "extend";
+  const appRef = useRef<HTMLDivElement>(null);
+  // A1: selecting a mode re-themes the WHOLE app — write the accent vars on the root in JS (robust + matches CSS)
+  useEffect(() => {
+    if (appRef.current) applyMode(appRef.current, activeMode);
+  }, [activeMode]);
   const reached = useMemo(() => {
     // which steps are navigable given session progress
     const r: Record<Screen, boolean> = {
@@ -82,7 +88,7 @@ export default function App() {
   }
 
   return (
-    <div className="app" data-mode={activeMode}>
+    <div className="app" data-mode={activeMode} ref={appRef} style={{ transition: "color .3s" }}>
       <header className="topbar">
         <div className="brand">
           <span className="dot" />
