@@ -5571,6 +5571,46 @@ def test_phaseI_input_generation():
           f"set; Z3 covers both branches of x>0)")
 
 
+def test_phaseO_simd_offload_coherent():
+    """PHASE O (deeper) — GPU/SIMD offload, Amdahl-gated and whole-program-honest. A real numpy-vectorized
+    transcendental kernel is measured against the scalar Python loop with a COHERENT whole-program measurement
+    (residual + kernel, floor pipeline ⇒ ratio ≤ ceiling by construction) and float-tolerant differential ⇒
+    PROBABILISTIC (never EXACT for floats). A NON-dominant kernel DECLINEs on the measured Amdahl ceiling even
+    though its kernel speedup is large; a wrong vectorization DECLINEs; GPU is UNVERIFIED [no GPU]."""
+    from pillar3 import offload as OF
+    import kernel_verdict as KV
+
+    cases = OF.demo_cases(4)
+    # dominant kernel (tiny residual): real measured SIMD win, ratio ≤ ceiling, PROBABILISTIC (floats)
+    v = OF.consider_offload_coherent(OF.scalar_demo_kernel, OF.simd_demo_kernel, OF.make_demo_input, 30,
+                                     n=6000, oracle_cases=cases, min_ceiling=2.0, floor=1.10,
+                                     eq=OF.demo_eq, samples=9)
+    assert v.status == KV.PROBABILISTIC, f"dominant SIMD offload should be PROBABILISTIC, got {v.status}"
+    assert v.certificate.delta is not None, "float SIMD must carry δ (PROBABILISTIC, never EXACT)"
+    assert v.report.whole_program_ratio <= v.report.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert v.report.whole_program_ratio >= 1.2, f"vectorized kernel should win, got {v.report.whole_program_ratio:.2f}×"
+
+    # non-dominant kernel (huge residual): the measured Amdahl ceiling forces a DECLINE (kernel speed can't help)
+    vnd = OF.consider_offload_coherent(OF.scalar_demo_kernel, OF.simd_demo_kernel, OF.make_demo_input, 90000,
+                                       n=6000, oracle_cases=cases, min_ceiling=2.0, floor=1.10,
+                                       eq=OF.demo_eq, samples=7)
+    assert vnd.status == KV.DECLINE, "a non-dominant kernel must DECLINE on the Amdahl ceiling (whole-program)"
+
+    # wrong vectorization (log(x+2) ≠ log(x+1)) ⇒ DECLINE on differential
+    vw = OF.consider_offload_coherent(OF.scalar_demo_kernel, OF.simd_demo_wrong, OF.make_demo_input, 30,
+                                      n=6000, oracle_cases=cases, eq=OF.demo_eq, samples=5)
+    assert vw.status == KV.DECLINE, "a wrong vectorization must DECLINE"
+
+    # GPU path is honestly UNVERIFIED ⇒ DECLINE (excluded from auto-apply), never a faked win
+    vg = OF.consider_offload_coherent(OF.scalar_demo_kernel, OF.simd_demo_kernel, OF.make_demo_input, 30,
+                                      n=6000, oracle_cases=cases, eq=OF.demo_eq, samples=5, device="gpu")
+    assert vg.status == KV.DECLINE and "UNVERIFIED" in vg.reason, "GPU must be UNVERIFIED ⇒ DECLINE"
+
+    print(f"PASS test_phaseO_simd_offload_coherent (numpy SIMD dominant {v.report.whole_program_ratio:.2f}× ≤ "
+          f"ceiling {v.report.amdahl_ceiling:.0f}× PROBABILISTIC (floats, δ stated); non-dominant kernel "
+          f"DECLINEs on measured Amdahl ceiling; wrong vectorization DECLINEs; GPU UNVERIFIED ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

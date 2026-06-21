@@ -294,6 +294,10 @@ main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22
 .samples button { font: inherit; font-size: 12px; font-family: var(--mono); background: var(--page);
   border: 1px solid var(--line); color: var(--ink-2); padding: 5px 10px; border-radius: 6px; cursor: pointer; }
 .samples button:hover { border-color: var(--accent); color: var(--ink); }
+.upload { font: inherit; font-size: 12px; font-family: var(--mono); background: var(--page);
+  border: 1px dashed var(--line); color: var(--ink-2); padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+.upload:hover { border-color: var(--accent); color: var(--ink); }
+.upload input { display: none; }
 
 /* ── key field ───────────────────────────────────────────────────────────── */
 .field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; }

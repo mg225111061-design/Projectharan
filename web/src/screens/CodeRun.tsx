@@ -61,6 +61,21 @@ export function CodeRun({
             {s.label}
           </button>
         ))}
+        <label className="upload">
+          upload .py ↑
+          <input
+            type="file"
+            accept=".py,.txt,text/x-python,text/plain"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const r = new FileReader();
+              r.onload = () => onCode(String(r.result || ""));
+              r.readAsText(f);
+              e.currentTarget.value = ""; // allow re-uploading the same file
+            }}
+          />
+        </label>
       </div>
 
       <textarea
