@@ -48,7 +48,7 @@ DEFAULT_MODELS = {
     _ANTHROPIC_COMPAT: DEFAULT_MODEL,
     _OPENAI: "gpt-4o",
     _OPENAI_COMPAT: "",                                         # gateway-specific; user fills it in
-    _GEMINI: "gemini-2.5-flash",                                # free tier, no card
+    _GEMINI: "gemini-3.5-flash",                                # free tier, no card (per directive; editable in UI)
     _GROQ: "llama-3.3-70b-versatile",                           # free, fast, no card
 }
 
@@ -151,7 +151,7 @@ def is_groq(p: Optional[str] = None) -> bool:
 GATEWAY_PRESETS = {
     "Claude (official)": (_ANTHROPIC, None, DEFAULT_MODEL, "anthropic"),
     "ChatGPT (OpenAI)":  (_OPENAI, _OPENAI_DEFAULT_BASE, "gpt-4o", "openai docs (native /chat/completions)"),
-    "Gemini (Google)":   (_GEMINI, _GEMINI_DEFAULT_BASE, "gemini-2.5-flash", "google docs (generateContent; free, no card)"),
+    "Gemini (Google)":   (_GEMINI, _GEMINI_DEFAULT_BASE, "gemini-3.5-flash", "google docs (generateContent; free, no card)"),
     "Groq":              (_GROQ, _GROQ_DEFAULT_BASE, "llama-3.3-70b-versatile", "groq docs (OpenAI-compatible; free, no card)"),
     "GLM (Z.ai)":        (_OPENAI_COMPAT, "https://api.z.ai/api/paas/v4/", "glm-4.6", "z.ai docs (web-confirmed)"),
     "OpenRouter":        (_OPENAI_COMPAT, "https://openrouter.ai/api/v1", "", "well-known (editable)"),
