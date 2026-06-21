@@ -46,6 +46,8 @@ export function ModeCard({
         <dd>{m.verifier_tier === "MICRO" ? "never" : m.verifier_tier === "FULL_CERT" ? "full" : "small regions"}</dd>
         <dt>latency</dt>
         <dd>{m.latency_budget_s == null ? "unbounded" : `≤ ${m.latency_budget_s}s`}</dd>
+        <dt>posture</dt>
+        <dd style={{ fontSize: 11 }}>{m.risk_posture}</dd>
       </dl>
       <div className="v-sub" style={{ marginTop: 2 }}>{m.stop_condition}</div>
     </button>
