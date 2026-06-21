@@ -1,5 +1,6 @@
 import type { OptimizeResult } from "../types";
-import { DeclinedVRow, ShippedVRow } from "../components/VerificationRow";
+import { DeclinedVRow } from "../components/VerificationRow";
+import { SpeedupSlab } from "../components/SpeedupSlab";
 import { Arrow, Check, Info } from "../icons";
 
 export function Verification({
@@ -11,11 +12,6 @@ export function Verification({
   onAgain: () => void;
   onCorpus: () => void;
 }) {
-  const maxCeil = Math.max(
-    1,
-    ...result.shipped.map((s) => s.ceiling ?? s.ratio),
-    ...result.shipped.map((s) => s.ratio)
-  );
   const nothing = result.shipped.length === 0 && result.declined.length === 0;
 
   return (
@@ -95,11 +91,13 @@ export function Verification({
       )}
 
       {result.shipped.length > 0 && (
-        <div className="card mt">
-          <div className="eyebrow"><Check /> shipped — measured ≤ ceiling, by construction</div>
-          {result.shipped.map((s, i) => (
-            <ShippedVRow key={i} row={s} max={maxCeil} />
-          ))}
+        <div className="mt">
+          <div className="eyebrow"><Check /> shipped — each a floating object; the fill never crosses its ceiling</div>
+          <div className="slab-stack">
+            {result.shipped.map((s, i) => (
+              <SpeedupSlab key={i} row={s} mode={result.mode} />
+            ))}
+          </div>
         </div>
       )}
 

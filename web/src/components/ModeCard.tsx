@@ -1,5 +1,9 @@
 import type { ModeContract } from "../types";
 import { ModeIcon } from "../icons";
+import { useTilt } from "../useTilt";
+
+// depth/intensity rises with mode caution: fast = light & shallow, extend = deep & full
+const DEPTH: Record<string, number> = { fast: 5, normal: 7, extend: 10 };
 
 export function ModeCard({
   m,
@@ -10,10 +14,12 @@ export function ModeCard({
   selected: boolean;
   onPick: () => void;
 }) {
+  const ref = useTilt<HTMLButtonElement>(DEPTH[m.mode] ?? 7);
   return (
     <button
+      ref={ref}
       type="button"
-      className="mode-card"
+      className={`mode-card mode-slab depth-${m.mode}`}
       data-mode={m.mode}
       aria-pressed={selected}
       onClick={onPick}
