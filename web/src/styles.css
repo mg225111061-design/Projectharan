@@ -199,6 +199,12 @@ main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22
   transform-style: preserve-3d; will-change: transform;
   transition: box-shadow 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
+.slab::before { /* a lit-from-above specular sheen so the surface reads as a physical, lit plane */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(177deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 24%);
+  opacity: 0.55; transform: translateZ(0.1px);
+}
+:root[data-theme="dark"] .slab::before { background: linear-gradient(177deg, rgba(255, 255, 255, 0.08), transparent 24%); }
 .slab::after { /* a soft contact shadow that grounds the object in the volume */
   content: ""; position: absolute; left: 8%; right: 8%; bottom: -26px; height: 40px; z-index: -1;
   background: radial-gradient(60% 100% at 50% 0%, rgba(20, 20, 23, 0.16), transparent 70%);
