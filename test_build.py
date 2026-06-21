@@ -5653,6 +5653,25 @@ def test_phaseA_algorithm_recognition():
           f"caught by differential/metamorphic net ⇒ DECLINE)")
 
 
+def test_moat_battery():
+    """§∞ moat hardening — ONE battery proving the verifier refutes EVERY wrong swap, across every family. 13
+    subtly-wrong transforms (off-by-ones, sign flips, dropped terms, same-index reuse, no-verify, negative-only
+    bugs) must each be caught: by Z3 (a counterexample, for linear-arithmetic swaps) or by differential over a
+    strong input set (for control-flow swaps). ZERO false-accepts — not one faster-but-wrong swap slips through."""
+    from pillar3 import moat
+
+    rows = moat.battery()
+    missed = [(n, m, w) for (n, m, ok, w) in rows if not ok]
+    assert not missed, f"moat MISS (a wrong swap slipped through): {missed}"
+    z3n = sum(1 for (_n, m, _ok, _w) in rows if m == "z3")
+    diffn = sum(1 for (_n, m, _ok, _w) in rows if m == "differential")
+    assert len(rows) >= 13, "battery should cover the whole adversarial set"
+
+    print(f"PASS test_moat_battery ({len(rows)}/{len(rows)} adversarial wrong swaps REFUTED — {z3n} by Z3 "
+          f"counterexample, {diffn} by differential over a strong input set; off-by-ones, sign-flips, dropped "
+          f"terms, same-index reuse, no-verify, negative-only bugs; ZERO false-accepts — the moat holds)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
