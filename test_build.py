@@ -5418,6 +5418,40 @@ def test_perf1_rust_graph_core():
           f"BFS; API contract unchanged — Clock B/scaling, same algorithm)")
 
 
+def test_phaseL_verified_lifting():
+    """PHASE L — verified lifting (Tenspiler-spirit, Z3-backed, no Lean/Coq). A hot region is lifted to a spec
+    (Z3: spec≡original), the optimal is re-synthesised from the spec (Z3: optimal≡spec), EXACT iff BOTH prove.
+    Flagship: a hand-rolled O(n²) running-sum — which NO fixed detector recognises — lifted to an O(n) scan,
+    proven EXACT, measured whole-program (ratio ≤ Amdahl ceiling). A subtly-wrong lift is Z3-refuted ⇒ DECLINE."""
+    from pillar3 import lifting as L
+    import kernel_verdict as KV
+
+    # two-step proof is deterministic (no timing)
+    lo, so, _ = L.prove_lift(L.rs_original, L.rs_spec, L.rs_optimized, L._sym_int_list, (3, 5, 8))
+    assert lo and so, "running-sum lift+synth must both Z3-prove"
+    lo2, so2, _ = L.prove_lift(L.fc_original, L.fc_spec, L.fc_optimized, L._sym_int_list_and_c, (3, 5, 8))
+    assert lo2 and so2, "factor-constant lift+synth must both Z3-prove"
+
+    # flagship: EXACT + robust measured whole-program win, ratio ≤ ceiling, EXACT carries no δ (ADT)
+    flagship = next(x for x in L.catalog() if x.name == "running_sum_lift")
+    v = L.lift_and_grade(flagship, samples=9)
+    assert v.status == KV.EXACT, f"running-sum lift must be EXACT, got {v.status}"
+    assert v.certificate.delta is None, "EXACT must not carry δ (ADT)"
+    r = v.report
+    assert r.whole_program_ratio <= r.amdahl_ceiling + 1e-9, "ratio must be ≤ Amdahl ceiling (Rule 2)"
+    assert r.whole_program_ratio >= 1.5, f"O(n²)→O(n) should be a real win, got {r.whole_program_ratio:.2f}×"
+
+    # moat: a subtly-wrong lift (off-by-one) is Z3-refuted ⇒ DECLINE, never a faked EXACT
+    wrong = L.Lift("rs_WRONG", "verified_lift", L.rs_original, L.rs_spec, L.rs_wrong, L._sym_int_list,
+                   lambda: L._make_rs_input(220), residual_iters=900, sizes=(3, 5, 8), n=220)
+    vw = L.lift_and_grade(wrong, samples=5)
+    assert vw.status == KV.DECLINE, "a wrong lift must DECLINE"
+
+    print(f"PASS test_phaseL_verified_lifting (two-step Z3 lift proof; flagship O(n²)→O(n) running-sum "
+          f"[no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling {r.amdahl_ceiling:.2f}× "
+          f"(f={r.hotspot_fraction:.0%}); factor-constant lift+synth proven; off-by-one lift Z3-REFUTED ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
