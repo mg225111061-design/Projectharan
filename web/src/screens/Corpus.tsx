@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { CorpusResult } from "../types";
 import { api } from "../api";
 import { Check, Info } from "../icons";
+import { Slab } from "../components/Slab";
 
 export function Corpus({ onRestart }: { onRestart: () => void }) {
   const [data, setData] = useState<CorpusResult | null>(null);
@@ -41,7 +42,8 @@ export function Corpus({ onRestart }: { onRestart: () => void }) {
             </span>
           </div>
 
-          <div className="card">
+          <div className="stage">
+          <Slab className="corpus-slab" max={4}>
             {data.rows.map((r) => {
               const unbounded = !isFinite(r.ceiling);
               const denom = Math.max(maxRatio, r.ratio) || 1;
@@ -79,6 +81,7 @@ export function Corpus({ onRestart }: { onRestart: () => void }) {
                 </div>
               );
             })}
+          </Slab>
           </div>
 
           <div className="honesty">

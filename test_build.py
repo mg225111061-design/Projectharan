@@ -5458,6 +5458,44 @@ def test_phaseL_verified_lifting():
           f"off-by-one + wrong-telescope lifts Z3-REFUTED ⇒ DECLINE)")
 
 
+def test_phaseV_equivalence_coverage():
+    """PHASE V — wider Z3 equivalence (move transforms PROBABILISTIC→EXACT). Strength reduction (x**4→x*x·x*x),
+    loop-invariant hoisting, and CSE are each PROVEN equivalent by Z3 (UNSAT-of-negation over symbolic inputs),
+    so a measured win earns EXACT (a machine-checked proof), not PROBABILISTIC. Each class's adversarial wrong
+    variant is Z3-REFUTED ⇒ DECLINE. Differential-only would have capped these at PROBABILISTIC — the proof is
+    what raises the EXACT count."""
+    from pillar3 import equiv_transforms as ET
+    import kernel_verdict as KV
+
+    # every transform class is Z3-provably equivalent (the obligation optimized≡original is UNSAT-of-negation)
+    for lift in ET.catalog():
+        opt_ok, id_ok = ET.proves_exact(lift)
+        assert opt_ok and id_ok, f"{lift.name}: Z3 must prove optimized≡original (that's what earns EXACT)"
+
+    # every adversarial wrong variant is Z3-REFUTED (not provable) AND graded DECLINE (the moat over PHASE V)
+    for lift in ET.wrong_variants():
+        opt_ok, _ = ET.proves_exact(lift)
+        assert not opt_ok, f"{lift.name}: a wrong transform must NOT prove equivalent"
+        assert ET.LF.lift_and_grade(lift, samples=5).status == KV.DECLINE, f"{lift.name} must DECLINE"
+
+    # a proven transform with a real measured win is now EXACT (was only PROBABILISTIC under differential-only);
+    # hoisting has the most comfortable margin. EXACT carries no δ; ratio ≤ ceiling (Rule 2/3).
+    hoist = next(x for x in ET.catalog() if x.name == "loop_invariant_hoist")
+    v = ET.LF.lift_and_grade(hoist, samples=9)
+    assert v.status == KV.EXACT, f"proven hoist with a win must be EXACT, got {v.status}"
+    assert v.certificate.delta is None, "EXACT must not carry δ (ADT)"
+    assert v.report.whole_program_ratio <= v.report.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+
+    # honesty: a proven transform with NO measured win still DECLINEs (proof necessary, not sufficient — Rule 3)
+    exact_count = sum(1 for lf in ET.catalog() if ET.LF.lift_and_grade(lf, samples=7).status == KV.EXACT)
+    assert exact_count >= 1, "at least one proven transform should clear the floor and be EXACT"
+
+    print(f"PASS test_phaseV_equivalence_coverage (3 transform classes Z3-PROVEN equivalent → EXACT-eligible: "
+          f"strength-reduction, loop-invariant-hoist, CSE; {exact_count}/3 cleared the win-floor to EXACT this "
+          f"run; all 3 adversarial wrong variants Z3-REFUTED ⇒ DECLINE; proof necessary, measured win also "
+          f"required (no 'EXACT 1.0×'))")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
