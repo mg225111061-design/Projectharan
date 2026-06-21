@@ -1,6 +1,7 @@
 import type { OptimizeResult } from "../types";
 import { DeclinedVRow } from "../components/VerificationRow";
 import { SpeedupSlab } from "../components/SpeedupSlab";
+import { CompoundCurve } from "../components/CompoundCurve";
 import { Arrow, Check, Info } from "../icons";
 
 export function Verification({
@@ -97,6 +98,9 @@ export function Verification({
             {result.shipped.map((s, i) => (
               <SpeedupSlab key={i} row={s} mode={result.mode} />
             ))}
+          </div>
+          <div style={{ marginTop: 40 }}>
+            <CompoundCurve shipped={result.shipped} cumulative={result.cumulative_ratio} mode={result.mode} />
           </div>
         </div>
       )}
