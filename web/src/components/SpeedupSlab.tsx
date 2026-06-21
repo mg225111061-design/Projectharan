@@ -10,10 +10,16 @@ export function SpeedupSlab({ row, mode }: { row: ShippedRow; mode: string }) {
   const denom = Math.max(ceil, row.ratio) || 1;
   const fillPct = Math.min(100, (row.ratio / denom) * 94);
   const wallPct = unbounded ? 99 : Math.min(99, (ceil / denom) * 94);
+  const ceilTxt = unbounded ? "unbounded" : `${ceil.toFixed(2)} times`;
   return (
     <div className="stage">
       <Slab className="speed-slab" data-mode={mode} max={8}>
-        <div className="plane ss-head" style={{ ["--z" as string]: "26px" }}>
+        <span className="sr-only">
+          {row.waste_type}: measured whole-program speedup {row.ratio.toFixed(2)} times, hotspot fraction{" "}
+          {row.hotspot_fraction.toFixed(2)}, Amdahl ceiling {ceilTxt}, grade {row.grade}. The measured value
+          never exceeds the ceiling.
+        </span>
+        <div className="plane ss-head" aria-hidden="true" style={{ ["--z" as string]: "26px" }}>
           <span className="ss-waste">{row.waste_type}</span>
           <span className={`grade ${row.grade}`}>
             <span className="gd" />

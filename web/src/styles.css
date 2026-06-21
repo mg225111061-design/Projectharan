@@ -69,8 +69,9 @@ code, .mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums
 /* ── shell ───────────────────────────────────────────────────────────────── */
 .app { min-height: 100%; display: flex; flex-direction: column; }
 .topbar {
-  display: flex; align-items: center; gap: 14px; padding: 14px 22px;
-  border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 14px; padding: 13px 22px;
+  border-bottom: 1px solid var(--line-soft); background: color-mix(in srgb, var(--page) 82%, transparent);
+  backdrop-filter: saturate(1.2) blur(8px); position: sticky; top: 0; z-index: 10;
 }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 500; letter-spacing: 0.02em; }
 .brand .dot { width: 11px; height: 11px; border-radius: 3px; background: var(--accent);
@@ -92,8 +93,11 @@ code, .mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums
 }
 .ghost:hover { border-color: var(--ink-2); color: var(--ink); }
 
-main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22px 80px; }
+main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22px 80px;
+  perspective: var(--persp); perspective-origin: 50% 22%; }   /* one shared volume for every floating slab */
 .wide { max-width: 1180px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ── primitives ──────────────────────────────────────────────────────────── */
 .card {
