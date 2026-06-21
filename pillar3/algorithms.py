@@ -184,7 +184,63 @@ def majority_wrong(xs):                                      # skips the verify 
     return cand
 
 
+# binary search: linear membership scan over a SORTED list, per query (O(n·Q)) → bisect (O(Q·log n))
+def linsearch_naive(sorted_xs, queries):
+    res = []
+    for q in queries:
+        found = False
+        for x in sorted_xs:
+            if x == q:
+                found = True
+                break
+        res.append(found)
+    return res
+
+
+def bisect_fast(sorted_xs, queries):
+    import bisect
+    res = []
+    n = len(sorted_xs)
+    for q in queries:
+        i = bisect.bisect_left(sorted_xs, q)
+        res.append(i < n and sorted_xs[i] == q)
+    return res
+
+
+def bisect_wrong(sorted_xs, queries):                        # bisect_right but checks xs[i] (off-by-one) ⇒ wrong
+    import bisect
+    res = []
+    n = len(sorted_xs)
+    for q in queries:
+        i = bisect.bisect_right(sorted_xs, q)
+        res.append(i < n and sorted_xs[i] == q)
+    return res
+
+
 import random as _rnd
+
+_BS_CACHE: dict = {}
+
+
+def _make_binsearch_input(size: int = 400, k: int = 400):
+    if size not in _BS_CACHE:
+        rng = _rnd.Random(47)
+        xs = sorted(rng.randrange(0, size * 4) for _ in range(size))
+        qs = [rng.randrange(0, size * 4) for _ in range(k)]
+        _BS_CACHE[size] = (xs, qs)
+    return _BS_CACHE[size]
+
+
+def _binsearch_inputs() -> List[tuple]:
+    rng = _rnd.Random(6)
+    cases = [([1, 3, 5, 7], [3, 4, 7, 0]), ([], [1]), ([2], [2, 3]), ([1, 1, 2, 2], [1, 2, 3])]
+    for _ in range(18):
+        s = rng.randrange(0, 12)
+        xs = sorted(rng.randrange(0, 30) for _ in range(s))
+        qs = [rng.randrange(0, 30) for _ in range(rng.randrange(1, 6))]
+        cases.append((xs, qs))
+    return cases
+
 
 _MAJ_CACHE: dict = {}
 
@@ -257,4 +313,7 @@ def catalog() -> List[Recognizer]:
         Recognizer("majority_boyer_moore", "algo_replace", majority_naive, majority_fast,
                    lambda: _make_majority_input(260), residual_iters=160, gen_inputs=_majority_inputs,
                    relations=[("result_in_input", lambda f, xs: f(xs) is None or f(xs) in xs)], n=260, floor=1.15),
+        Recognizer("binary_search", "algo_replace", linsearch_naive, bisect_fast,
+                   lambda: _make_binsearch_input(400, 400), residual_iters=120, gen_inputs=_binsearch_inputs,
+                   relations=[], n=400, floor=1.15),
     ]

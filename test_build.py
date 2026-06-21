@@ -5649,11 +5649,15 @@ def test_phaseA_algorithm_recognition():
     assert A.recognize_and_grade(kw, samples=5).status == KV.DECLINE, "wrong Kadane must DECLINE"
     assert A.recognize_and_grade(tw, samples=5).status == KV.DECLINE, "wrong two-sum must DECLINE"
     assert A.recognize_and_grade(mw, samples=5).status == KV.DECLINE, "wrong majority (no verify) must DECLINE"
+    bw = A.Recognizer("bs_WRONG", "algo_replace", A.linsearch_naive, A.bisect_wrong,
+                      lambda: A._make_binsearch_input(400, 400), 120, A._binsearch_inputs, [], 400, 1.15)
+    assert A.recognize_and_grade(bw, samples=5).status == KV.DECLINE, "wrong binary-search (off-by-one) must DECLINE"
 
     desc = "; ".join(f"{n} {r:.0f}×≤{c:.0f}×" for n, r, c in rows)
-    print(f"PASS test_phaseA_algorithm_recognition ({desc}; both O(n²)→O(n), PROBABILISTIC (control flow ⇒ no Z3, "
-          f"δ stated, never EXACT); ratio quoted with n (input-size-dependent); wrong Kadane + wrong two-sum "
-          f"caught by differential/metamorphic net ⇒ DECLINE)")
+    print(f"PASS test_phaseA_algorithm_recognition ({len(rows)} recognizers: {desc}; asymptotic wins "
+          f"(O(n²)→O(n), O(n·Q)→O(Q·log n)) graded PROBABILISTIC (control flow ⇒ no Z3, δ stated, never EXACT); "
+          f"ratio quoted with n (input-size-dependent); all 4 adversarial wrong variants caught by the "
+          f"differential/metamorphic net ⇒ DECLINE)")
 
 
 def test_moat_battery():
