@@ -67,7 +67,10 @@ def measure_lift(region_orig: Callable, region_opt: Callable, make_input: Callab
     t_floor = M.time_best(whole(noop), args, samples)
     t_cand = M.time_best(whole(region_opt), args, samples)
     t_floor = min(t_floor, t_cand)                            # floor cannot beat the real optimized candidate
-    f = max(0.0, min(0.999, 1.0 - t_floor / max(t_base, 1e-12)))
+    # f = 1 − T_floor/T_base ⇒ ceiling = 1/(1−f) = T_base/T_floor ≥ T_base/T_cand = ratio (floor ≤ cand). The cap
+    # only avoids an exactly-infinite ceiling; it must stay ABOVE the measured ratio for big asymptotic wins
+    # (e.g. O(2^n)→O(n)), so it is 1−1e-12, NOT 0.999 (which would wrongly cap the ceiling below the ratio).
+    f = max(0.0, min(1.0 - 1e-12, 1.0 - t_floor / max(t_base, 1e-12)))
     ratio = t_base / max(t_cand, 1e-12)
     return M.SpeedupReport(whole_program_ratio=ratio, hotspot_fraction=f, n=n, samples=samples,
                            warmup_discarded=1, orig_median_s=t_base, cand_median_s=t_cand)

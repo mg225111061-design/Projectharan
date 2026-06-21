@@ -5660,6 +5660,12 @@ def test_phaseA_algorithm_recognition():
     bw = A.Recognizer("bs_WRONG", "algo_replace", A.linsearch_naive, A.bisect_wrong,
                       lambda: A._make_binsearch_input(400, 400), 120, A._binsearch_inputs, [], 400, 1.15)
     assert A.recognize_and_grade(bw, samples=5).status == KV.DECLINE, "wrong binary-search (off-by-one) must DECLINE"
+    fw = A.Recognizer("fib_WRONG", "algo_replace", A.fib_naive, A.fib_wrong,
+                      lambda: A._make_fib_input(20), 0, A._fib_inputs, [], 20, 1.30)
+    assert A.recognize_and_grade(fw, samples=3).status == KV.DECLINE, "wrong memoized-DP recurrence must DECLINE"
+    hw = A.Recognizer("hj_WRONG", "algo_replace", A.nlj_naive, A.hj_wrong,
+                      lambda: A._make_hj_input(300, 300), 60, A._hj_inputs, [], 300, 1.15)
+    assert A.recognize_and_grade(hw, samples=3).status == KV.DECLINE, "wrong-key hash-join must DECLINE"
 
     desc = "; ".join(f"{n} {r:.0f}×≤{c:.0f}×" for n, r, c in rows)
     print(f"PASS test_phaseA_algorithm_recognition ({len(rows)} recognizers: {desc}; asymptotic wins "

@@ -302,6 +302,96 @@ def _two_sum_inputs() -> List[tuple]:
     return cases
 
 
+# memoized DP — exponential self-recursion O(2^n) → linear memoised O(n) (a big asymptotic jump; quote n)
+def fib_naive(n):
+    return n if n < 2 else fib_naive(n - 1) + fib_naive(n - 2)
+
+
+def fib_memo(n):
+    memo = {0: 0, 1: 1}
+    def go(k):
+        if k in memo:
+            return memo[k]
+        v = go(k - 1) + go(k - 2)
+        memo[k] = v
+        return v
+    return go(n)
+
+
+def fib_wrong(n):                                            # wrong recurrence (off-by-one) ⇒ differential catches
+    memo = {0: 0, 1: 1}
+    def go(k):
+        if k in memo:
+            return memo[k]
+        v = go(k - 1) + go(k - 3 if k >= 3 else 0)
+        memo[k] = v
+        return v
+    return go(n)
+
+
+def _make_fib_input(n: int = 29):
+    return (n,)
+
+
+def _fib_inputs() -> List[tuple]:
+    return [(0,), (1,), (2,), (5,), (10,), (15,), (20,), (24,)]
+
+
+# nested-loop join O(n·m) → hash join O(n+m) (equi-join on the first field; right-order preserved)
+def nlj_naive(left, right):
+    out = []
+    for a in left:
+        for b in right:
+            if a[0] == b[0]:
+                out.append((a[0], a[1], b[1]))
+    return out
+
+
+def hash_join(left, right):
+    idx = {}
+    for b in right:
+        idx.setdefault(b[0], []).append(b[1])
+    out = []
+    for a in left:
+        for bv in idx.get(a[0], []):
+            out.append((a[0], a[1], bv))
+    return out
+
+
+def hj_wrong(left, right):                                   # joins on the wrong field ⇒ differential catches
+    idx = {}
+    for b in right:
+        idx.setdefault(b[1], []).append(b[1])
+    out = []
+    for a in left:
+        for bv in idx.get(a[0], []):
+            out.append((a[0], a[1], bv))
+    return out
+
+
+_HJ_CACHE: dict = {}
+
+
+def _make_hj_input(n: int = 300, m: int = 300):
+    key = (n, m)
+    if key not in _HJ_CACHE:
+        rng = _rnd.Random(51)
+        left = [(rng.randrange(0, n), rng.randrange(0, 1000)) for _ in range(n)]
+        right = [(rng.randrange(0, n), rng.randrange(0, 1000)) for _ in range(m)]
+        _HJ_CACHE[key] = (left, right)
+    return _HJ_CACHE[key]
+
+
+def _hj_inputs() -> List[tuple]:
+    rng = _rnd.Random(8)
+    cases = [([(1, 10), (2, 20)], [(1, 100), (3, 300)]), ([], [(1, 1)]), ([(5, 5)], [])]
+    for _ in range(12):
+        n = rng.randrange(1, 8)
+        cases.append(([(rng.randrange(0, 6), rng.randrange(0, 99)) for _ in range(n)],
+                      [(rng.randrange(0, 6), rng.randrange(0, 99)) for _ in range(rng.randrange(1, 8))]))
+    return cases
+
+
 def catalog() -> List[Recognizer]:
     return [
         Recognizer("kadane_max_subarray", "algo_replace", kadane_naive, kadane_fast,
@@ -316,4 +406,10 @@ def catalog() -> List[Recognizer]:
         Recognizer("binary_search", "algo_replace", linsearch_naive, bisect_fast,
                    lambda: _make_binsearch_input(400, 400), residual_iters=120, gen_inputs=_binsearch_inputs,
                    relations=[], n=400, floor=1.15),
+        Recognizer("memoized_dp_fib", "algo_replace", fib_naive, fib_memo,
+                   lambda: _make_fib_input(29), residual_iters=0, gen_inputs=_fib_inputs,
+                   relations=[], n=29, floor=1.30),
+        Recognizer("hash_join", "algo_replace", nlj_naive, hash_join,
+                   lambda: _make_hj_input(300, 300), residual_iters=60, gen_inputs=_hj_inputs,
+                   relations=[], n=300, floor=1.15),
     ]
