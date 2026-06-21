@@ -185,6 +185,62 @@ def fc_optimized(a, c):
     return c * sum(a)
 
 
+# 3) telescoping sum —  Σ (a[i+1]−a[i])  →  a[-1] − a[0]   (O(n) → O(1); pure arithmetic, Z3-provable)
+def ts_original(a):
+    s = 0
+    for i in range(len(a) - 1):
+        s = s + (a[i + 1] - a[i])
+    return s
+
+
+def ts_spec(a):
+    return sum(a[i + 1] - a[i] for i in range(len(a) - 1))
+
+
+def ts_optimized(a):
+    return a[len(a) - 1] - a[0]
+
+
+def ts_wrong(a):                                            # wrong: forgets it telescopes, drops a sign
+    return a[len(a) - 1] + a[0]
+
+
+# 4) weighted running sum —  [Σ_{j≤i} w·a[j]]  →  single-pass scan with running accumulator  (O(n²) → O(n))
+def wrs_original(a, w):
+    out = []
+    for i in range(len(a)):
+        s = 0
+        for j in range(i + 1):
+            s = s + w * a[j]
+        out.append(s)
+    return out
+
+
+def wrs_spec(a, w):
+    return [sum(w * a[j] for j in range(i + 1)) for i in range(len(a))]
+
+
+def wrs_optimized(a, w):
+    out = []
+    s = 0
+    for x in a:
+        s = s + w * x
+        out.append(s)
+    return out
+
+
+def _make_ts_input(size: int = 6000):
+    import random
+    rng = random.Random(13)
+    return ([rng.randrange(-1000, 1000) for _ in range(size)],)
+
+
+def _make_wrs_input(size: int = 220):
+    import random
+    rng = random.Random(17)
+    return ([rng.randrange(-1000, 1000) for _ in range(size)], 3)
+
+
 def _make_rs_input(size: int = 220):
     import random
     rng = random.Random(7)
@@ -204,4 +260,8 @@ def catalog() -> List[Lift]:
              _sym_int_list, lambda: _make_rs_input(220), residual_iters=900, sizes=(3, 5, 8), n=220),
         Lift("factor_constant_lift", "verified_lift", fc_original, fc_spec, fc_optimized,
              _sym_int_list_and_c, lambda: _make_fc_input(4000), residual_iters=300, sizes=(3, 5, 8), n=4000),
+        Lift("telescoping_sum_lift", "verified_lift", ts_original, ts_spec, ts_optimized,
+             _sym_int_list, lambda: _make_ts_input(6000), residual_iters=200, sizes=(3, 5, 8), n=6000),
+        Lift("weighted_running_sum_lift", "verified_lift", wrs_original, wrs_spec, wrs_optimized,
+             _sym_int_list_and_c, lambda: _make_wrs_input(220), residual_iters=900, sizes=(3, 5, 8), n=220),
     ]

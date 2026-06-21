@@ -5426,30 +5426,36 @@ def test_phaseL_verified_lifting():
     from pillar3 import lifting as L
     import kernel_verdict as KV
 
-    # two-step proof is deterministic (no timing)
-    lo, so, _ = L.prove_lift(L.rs_original, L.rs_spec, L.rs_optimized, L._sym_int_list, (3, 5, 8))
-    assert lo and so, "running-sum lift+synth must both Z3-prove"
-    lo2, so2, _ = L.prove_lift(L.fc_original, L.fc_spec, L.fc_optimized, L._sym_int_list_and_c, (3, 5, 8))
-    assert lo2 and so2, "factor-constant lift+synth must both Z3-prove"
+    # every catalogued lift's two-step proof is deterministic (no timing): spec≡original AND optimized≡spec
+    for lift in L.catalog():
+        lo, so, cex = L.prove_lift(lift.original, lift.spec, lift.optimized, lift.sym_factory, lift.sizes)
+        assert lo and so, f"{lift.name}: lift+synth must both Z3-prove (cex={cex})"
 
-    # flagship: EXACT + robust measured whole-program win, ratio ≤ ceiling, EXACT carries no δ (ADT)
-    flagship = next(x for x in L.catalog() if x.name == "running_sum_lift")
-    v = L.lift_and_grade(flagship, samples=9)
-    assert v.status == KV.EXACT, f"running-sum lift must be EXACT, got {v.status}"
-    assert v.certificate.delta is None, "EXACT must not carry δ (ADT)"
-    r = v.report
-    assert r.whole_program_ratio <= r.amdahl_ceiling + 1e-9, "ratio must be ≤ Amdahl ceiling (Rule 2)"
-    assert r.whole_program_ratio >= 1.5, f"O(n²)→O(n) should be a real win, got {r.whole_program_ratio:.2f}×"
+    # the two O(n²)→O(n) flagships: EXACT + robust measured whole-program win, ratio ≤ ceiling, no δ (ADT)
+    r = None
+    for name in ("running_sum_lift", "weighted_running_sum_lift"):
+        f = next(x for x in L.catalog() if x.name == name)
+        v = L.lift_and_grade(f, samples=9)
+        assert v.status == KV.EXACT, f"{name} must be EXACT, got {v.status}"
+        assert v.certificate.delta is None, "EXACT must not carry δ (ADT)"
+        rr = v.report
+        assert rr.whole_program_ratio <= rr.amdahl_ceiling + 1e-9, "ratio must be ≤ Amdahl ceiling (Rule 2)"
+        assert rr.whole_program_ratio >= 1.5, f"{name} O(n²)→O(n) should win, got {rr.whole_program_ratio:.2f}×"
+        if name == "running_sum_lift":
+            r = rr
 
-    # moat: a subtly-wrong lift (off-by-one) is Z3-refuted ⇒ DECLINE, never a faked EXACT
+    # moat: subtly-wrong lifts are Z3-refuted ⇒ DECLINE, never a faked EXACT (off-by-one + sign-flip telescope)
     wrong = L.Lift("rs_WRONG", "verified_lift", L.rs_original, L.rs_spec, L.rs_wrong, L._sym_int_list,
                    lambda: L._make_rs_input(220), residual_iters=900, sizes=(3, 5, 8), n=220)
-    vw = L.lift_and_grade(wrong, samples=5)
-    assert vw.status == KV.DECLINE, "a wrong lift must DECLINE"
+    assert L.lift_and_grade(wrong, samples=5).status == KV.DECLINE, "a wrong running-sum lift must DECLINE"
+    wrong_ts = L.Lift("ts_WRONG", "verified_lift", L.ts_original, L.ts_spec, L.ts_wrong, L._sym_int_list,
+                      lambda: L._make_ts_input(6000), residual_iters=200, sizes=(3, 5, 8), n=6000)
+    assert L.lift_and_grade(wrong_ts, samples=5).status == KV.DECLINE, "a wrong telescoping lift must DECLINE"
 
-    print(f"PASS test_phaseL_verified_lifting (two-step Z3 lift proof; flagship O(n²)→O(n) running-sum "
-          f"[no fixed detector covers it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling {r.amdahl_ceiling:.2f}× "
-          f"(f={r.hotspot_fraction:.0%}); factor-constant lift+synth proven; off-by-one lift Z3-REFUTED ⇒ DECLINE)")
+    print(f"PASS test_phaseL_verified_lifting (4 lifts two-step Z3-proven: running-sum/weighted-running-sum "
+          f"O(n²)→O(n), telescoping O(n)→O(1), factor-constant; flagship running-sum [no fixed detector covers "
+          f"it] EXACT {r.whole_program_ratio:.2f}× ≤ ceiling {r.amdahl_ceiling:.2f}× (f={r.hotspot_fraction:.0%}); "
+          f"off-by-one + wrong-telescope lifts Z3-REFUTED ⇒ DECLINE)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
