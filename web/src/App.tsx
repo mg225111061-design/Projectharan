@@ -112,7 +112,7 @@ export default function App() {
         </button>
       </header>
 
-      <main className={screen === "corpus" || screen === "verify" ? "wide" : undefined}>
+      <main key={screen} className={`screen-enter ${screen === "corpus" || screen === "verify" ? "wide" : ""}`}>
         {bootErr && (
           <div className="card">
             <strong>Back end unreachable.</strong>
