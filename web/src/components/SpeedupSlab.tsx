@@ -1,15 +1,12 @@
 import type { ShippedRow } from "../types";
 import { Slab } from "./Slab";
+import { slabGeometry } from "../meter";
 
 // THE signature object: one measured speedup, rendered as a floating dimensional slab. The measured-speedup
 // bar and its Amdahl-ceiling marker live on a raised plane (translateZ) above the slab face — the fill can
 // never cross the wall, so the object literally cannot show a claim larger than its ceiling.
 export function SpeedupSlab({ row, mode }: { row: ShippedRow; mode: string }) {
-  const unbounded = row.ceiling == null;
-  const ceil = row.ceiling ?? row.ratio * 1.25;
-  const denom = Math.max(ceil, row.ratio) || 1;
-  const fillPct = Math.min(100, (row.ratio / denom) * 94);
-  const wallPct = unbounded ? 99 : Math.min(99, (ceil / denom) * 94);
+  const { unbounded, ceil, fillPct, wallPct } = slabGeometry(row.ratio, row.ceiling);
   const ceilTxt = unbounded ? "unbounded" : `${ceil.toFixed(2)} times`;
   return (
     <div className="stage">

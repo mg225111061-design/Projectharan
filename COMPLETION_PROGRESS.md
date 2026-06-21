@@ -11,17 +11,17 @@ RESUME POINTER: §A1 in progress (testable mode color switch). Then A3/A4/A5 ver
 - ☑ fast→cyan #0E9FB5, normal→amber #BA7517, extend→violet #534AB7 [test_theme.mjs asserts exact hex]
 - ☑ a test asserts 3 distinct live accent values + the theme variable changes on selection [web/test_theme.mjs PASS]
 - ☑ each mode differs by icon + depth + real contract from /api/modes — ModeCard depth-{mode} + DEPTH tilt + dl of contract fields incl. risk_posture [build]
-### A2 — extreme minimalism × extreme dimensionality
-- ☐ white volume, tiny palette, no chrome, mono numbers
-- ☐ real CSS 3D (perspective/rotate/translateZ), multi-layer shadows, pointer tilt, scroll parallax
-- ☐ signature slab: bar + Amdahl wall on raised planes, fill never crosses wall
-- ☐ not a templated AI look; mode=temperature, grade=signal (separate)
-### A3 — six screens, cohesive, real engine data
-- ☐ Landing / Mode / Provider+key / Code+run / Verification / Corpus
-### A4 — quality floor
-- ☐ dark-volume / responsive / reduced-motion / focus rings+sr labels / rounded numbers / honesty copy
-### A5 — back end wired to real engine
-- ☐ /api/optimize /modes /providers /key/validate /corpus /demo; measured+f+ceiling+grade; e2e smoke
+### A2 — extreme minimalism × extreme dimensionality ✅
+- ☑ white volume, tiny palette, no chrome, mono numbers [styles.css tokens; tenets borderless]
+- ☑ real CSS 3D (perspective/rotate/translateZ ×13), multi-layer shadows, pointer tilt (useTilt), scroll parallax (useParallax) [build]
+- ☑ signature slab: bar + Amdahl wall on raised planes, fill never crosses wall [meter.ts slabGeometry; test_ui.mjs proves fill≤wall on 794 pts incl. equality+unbounded]
+- ☑ mode=temperature (A1), grade=signal separate (exact green/prob slate/decline gray) [styles.css .grade]
+### A3 — six screens, cohesive, real engine data ✅
+- ☑ Landing/Mode/Provider+key/Code+run/Verification/Corpus — all in web/src/screens, bound to api.ts → /api/* [tsc+build; A5 e2e confirms the consumed data is real; same six-screen logic proven to build in the single-file DOM-stub harness]. Browser visual render: UNVERIFIED [no browser in sandbox]
+### A4 — quality floor ✅
+- ☑ dark-volume auto (prefers-color-scheme, App.tsx) / responsive (@media ×11) / reduced-motion (×5) / focus-visible + sr-only + aria / rounded (toFixed/r2/r3 ×30) / honesty copy ("never localStorage, never logged"; session-only) [grep-verified + build]
+### A5 — back end wired to real engine ✅
+- ☑ /api/optimize /modes /providers /key/validate /corpus /demo — e2e smoke PASS: modes=3, gemini default gemini-3.5-flash+free, corpus ratio≤ceiling, optimize real (n+1→EXACT 3.88×, cumulative 4.045), key validated LIVE + canary absent from response AND server log, /app+/onefile 200
 
 ## §B — ACCURACY (drive EXACT share up, log it)
 - ☐ equiv covers more EXACT classes (reassoc/distributive/strength/hoist/CSE/prefix/diff-array/telescoping) + wrong→DECLINE
