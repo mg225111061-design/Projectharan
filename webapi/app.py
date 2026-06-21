@@ -101,3 +101,10 @@ def root():
 def studio():
     p = os.path.join(_ROOT, "pillar3_studio.html")
     return FileResponse(p) if os.path.exists(p) else JSONResponse({"error": "studio not found"}, status_code=404)
+
+
+@app.get("/onefile")
+def onefile():
+    # the entire app in a single self-contained HTML (real embedded data; upgrades to live /api here)
+    p = os.path.join(_ROOT, "mrjeffrey.html")
+    return FileResponse(p) if os.path.exists(p) else JSONResponse({"error": "mrjeffrey.html not found"}, status_code=404)

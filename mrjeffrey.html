@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light dark" />
+<title>MR.JEFFREY — whole-program verified speedup</title>
+<meta name="description" content="Paste code, pick a mode, watch a verifier arbitrate. Every speedup is measured whole-program and carries its Amdahl ceiling. No win, no claim." />
+<style>
+/* MR.JEFFREY — single-file app. Extreme minimalism × extreme dimensionality. White volume, one ink, three
+   mode accents; the few objects are deeply dimensional floating slabs. Honesty encoded: a row can only be as
+   loud as its grade; the speedup bar can never cross its Amdahl-ceiling wall. */
+:root{
+  --page:#fafaf8;--card:#fff;--ink:#1a1a17;--ink-2:#55534c;--muted:#85827a;
+  --line:rgba(0,0,0,.12);--line-soft:rgba(0,0,0,.07);
+  --fast:#0e9fb5;--fast-deep:#0b5566;--fast-tint:#e4f6f9;
+  --normal:#ba7517;--normal-deep:#633806;--normal-tint:#faeeda;
+  --extend:#534ab7;--extend-deep:#26215c;--extend-tint:#eeedfe;
+  --exact:#3b6d11;--exact-bg:#eaf3de;--prob:#444441;--prob-bg:#f1efe8;--decline:#5f5e5a;--decline-bg:#f1efe8;
+  --free:#0f766e;--free-bg:#e6f3f1;--pick:#44423c;--wall:rgba(0,0,0,.52);--track:#efeee9;
+  --r:8px;--r-lg:12px;--focus:#534ab7;--persp:1100px;
+  --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",monospace;
+  --accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint);
+  --slab:0 1px 1px rgba(20,20,23,.03),0 2px 4px rgba(20,20,23,.035),0 6px 12px rgba(20,20,23,.045),0 14px 28px rgba(20,20,23,.05),0 30px 60px rgba(20,20,23,.06),0 60px 110px rgba(20,20,23,.05);
+}
+:root[data-theme="dark"]{
+  --page:#0e0e10;--card:#171719;--ink:#eceae3;--ink-2:#b7b4ac;--muted:#8c897f;
+  --line:rgba(255,255,255,.15);--line-soft:rgba(255,255,255,.08);
+  --fast-tint:#0b5566;--normal-tint:#633806;--extend-tint:#26215c;
+  --exact:#9ad16a;--exact-bg:#19260f;--prob:#c8c5bc;--prob-bg:#201f1b;--decline:#a8a49b;--decline-bg:#201f1b;
+  --free:#5ec0b4;--free-bg:#13302c;--pick:#c8c5bc;--wall:rgba(255,255,255,.55);--track:#26262a;--focus:#a79ef5;
+  --slab:0 2px 4px rgba(0,0,0,.4),0 8px 16px rgba(0,0,0,.45),0 18px 36px rgba(0,0,0,.5),0 40px 80px rgba(0,0,0,.55),0 80px 130px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-weight:500;letter-spacing:-.01em;margin:0}
+h1{font-size:clamp(28px,4vw,46px);line-height:1.08}h2{font-size:21px}h3{font-size:16px}
+p{margin:0 0 12px;color:var(--ink-2)}a{color:var(--accent-deep)}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+[data-mode="fast"]{--accent:var(--fast);--accent-deep:var(--fast-deep);--accent-tint:var(--fast-tint)}
+[data-mode="normal"]{--accent:var(--normal);--accent-deep:var(--normal-deep);--accent-tint:var(--normal-tint)}
+[data-mode="extend"]{--accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint)}
+.app{min-height:100%;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--line-soft);background:color-mix(in srgb,var(--page) 82%,transparent);backdrop-filter:saturate(1.2) blur(8px);position:sticky;top:0;z-index:10}
+.brand{display:flex;align-items:center;gap:9px;font-weight:500;letter-spacing:.02em}
+.brand .dot{width:11px;height:11px;border-radius:3px;background:var(--accent);box-shadow:0 0 0 4px var(--accent-tint);transition:.25s}
+.brand small{color:var(--muted);font-weight:400}
+.steps{display:flex;gap:2px;margin-left:8px;flex-wrap:wrap}
+.steps button{font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;padding:6px 10px;border-radius:6px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.steps button:hover{color:var(--ink);background:var(--page)}
+.steps button[aria-current="true"]{color:var(--ink);background:var(--accent-tint)}
+.steps button:disabled{opacity:.4;cursor:not-allowed}.steps .n{font-family:var(--mono);font-size:11px;opacity:.7}
+.spacer{margin-left:auto}
+.ghost{font:inherit;font-size:13px;background:none;border:1px solid var(--line);color:var(--ink-2);padding:7px 12px;border-radius:var(--r);cursor:pointer}
+.ghost:hover{border-color:var(--ink-2);color:var(--ink)}
+main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;perspective:var(--persp);perspective-origin:50% 22%;animation:screenIn .42s cubic-bezier(.2,.8,.2,1) both}
+.wide{max-width:1180px}
+@keyframes screenIn{from{opacity:0;transform:perspective(var(--persp)) translateY(14px) translateZ(-40px)}to{opacity:1;transform:none}}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.lead{font-size:16px;color:var(--ink-2);max-width:60ch}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;gap:14px}.cols-3{grid-template-columns:repeat(3,1fr)}.cols-2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:860px){.cols-3,.cols-2{grid-template-columns:1fr}}
+.btn{font:inherit;font-size:14px;font-weight:500;cursor:pointer;background:var(--accent);color:#fff;border:1px solid var(--accent-deep);padding:10px 18px;border-radius:var(--r);transition:filter .15s}
+.btn:hover{filter:brightness(1.06)}.btn:disabled{opacity:.45;cursor:not-allowed}.btn.lg{font-size:15px;padding:12px 22px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
+.kbd{font-family:var(--mono);font-size:12px;background:var(--track);padding:1px 6px;border-radius:5px}
+.grade{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:500;padding:3px 9px;border-radius:999px;text-transform:lowercase}
+.grade.exact{color:var(--exact);background:var(--exact-bg)}.grade.probabilistic{color:var(--prob);background:var(--prob-bg)}.grade.decline{color:var(--decline);background:var(--decline-bg)}
+.grade .gd{width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge-free{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;color:var(--free);background:var(--free-bg)}
+.badge-free .gd{width:6px;height:6px;border-radius:50%;background:currentColor}
+.getkey{font-family:var(--mono);font-size:11.5px;color:var(--free);text-decoration:none}.getkey:hover{text-decoration:underline}
+/* dimensionality */
+.slab{position:relative;background:var(--card);border-radius:18px;padding:22px 24px;box-shadow:var(--slab);transform:perspective(var(--persp)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(var(--lift,0px));transform-style:preserve-3d;transition:box-shadow .4s;will-change:transform}
+.slab::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(177deg,rgba(255,255,255,.5),transparent 24%);opacity:.55}
+:root[data-theme="dark"] .slab::before{background:linear-gradient(177deg,rgba(255,255,255,.08),transparent 24%)}
+.slab::after{content:"";position:absolute;left:8%;right:8%;bottom:-26px;height:40px;z-index:-1;background:radial-gradient(60% 100% at 50% 0%,rgba(20,20,23,.16),transparent 70%);filter:blur(8px);transform:translateZ(-60px);opacity:.7}
+.plane{transform:translateZ(var(--z,0px))}
+.float-in{animation:floatIn .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes floatIn{from{opacity:0;transform:perspective(var(--persp)) rotateX(10deg) translateY(26px) translateZ(-80px)}to{opacity:1;transform:none}}
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;min-height:min(70vh,600px);padding:20px 0 60px}
+.hero-copy h1{max-width:16ch}.hero-cap{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:16px}
+@media(max-width:880px){.hero{grid-template-columns:1fr;gap:28px;min-height:0}.hero>div:last-child{order:-1}}
+.tenets{margin:4px 0 40px;gap:36px}.feat h3{font-size:15px;margin-bottom:8px;position:relative;padding-top:14px}
+.feat h3::before{content:"";position:absolute;top:0;left:0;width:22px;height:2px;background:var(--accent);border-radius:2px}
+.feat p{margin:0}
+.speed-slab{max-width:560px;margin:0 auto;width:100%}
+.ss-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.ss-waste{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+.meter3{position:relative;height:62px;border-radius:12px;background:var(--track);box-shadow:inset 0 2px 6px rgba(0,0,0,.08)}
+.fill3{position:absolute;inset:0 auto 0 0;border-radius:12px 4px 4px 12px;background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,white),var(--accent));box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent);transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.wall3{position:absolute;top:-10px;bottom:-10px;width:2px;background:var(--wall);border-radius:2px}
+.wall3-lbl{position:absolute;bottom:-26px;right:0;white-space:nowrap;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.meter3-val{position:absolute;top:50%;left:16px;transform:translateY(-50%);font-family:var(--mono);font-size:22px;font-weight:500;color:#fff;mix-blend-mode:difference}
+.ss-read{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:38px}
+.ss-k{font-size:11px;color:var(--muted);display:block}.ss-v{font-family:var(--mono);font-size:17px;color:var(--ink)}
+.slab-stack{display:flex;flex-direction:column;gap:52px;padding:22px 0 34px}
+@media(max-width:560px){.ss-read{grid-template-columns:1fr;gap:8px}.meter3-val{font-size:18px}:root{--slab:0 2px 6px rgba(20,20,23,.06),0 10px 22px rgba(20,20,23,.07),0 24px 44px rgba(20,20,23,.06)}.slab::after{display:none}}
+.mode-card{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;cursor:pointer;display:flex;flex-direction:column;gap:10px;font:inherit;color:var(--ink);transform:perspective(var(--persp)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(var(--lift,0px));transition:box-shadow .35s,border-color .18s}
+.mode-card:hover{border-color:var(--accent)}.mode-card[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.06)}
+.depth-fast{box-shadow:0 1px 2px rgba(20,20,23,.04),0 4px 10px rgba(20,20,23,.05)}
+.depth-normal{box-shadow:0 2px 4px rgba(20,20,23,.045),0 8px 18px rgba(20,20,23,.06),0 18px 36px rgba(20,20,23,.05)}
+.depth-extend{box-shadow:0 2px 6px rgba(20,20,23,.05),0 10px 24px rgba(20,20,23,.07),0 26px 52px rgba(20,20,23,.07),0 50px 90px rgba(20,20,23,.06)}
+.mc-head{display:flex;align-items:center;gap:10px}.glyph{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-deep);flex:none;font-size:16px}
+.mc-name{font-weight:500;font-size:16px;text-transform:capitalize}.mc-clock{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.mode-card dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:4px 0 0;font-size:12.5px}
+.mode-card dt{color:var(--muted)}.mode-card dd{margin:0;color:var(--ink-2);font-family:var(--mono);font-size:12px;text-align:right}
+.provider-card{flex-direction:row;align-items:center;gap:12px}.provider-card[aria-pressed="true"]{border-color:var(--pick);box-shadow:0 0 0 1px var(--pick),0 8px 24px rgba(0,0,0,.06)}
+.provider-card .glyph{background:var(--track);color:var(--pick)}
+.editor{width:100%;min-height:260px;resize:vertical;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;tab-size:4}
+.samples{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.samples button,.upload{font:inherit;font-size:12px;font-family:var(--mono);background:var(--page);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer}
+.samples button:hover,.upload:hover{border-color:var(--accent);color:var(--ink)}.upload input{display:none}
+.field{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.field label{font-size:13px;color:var(--ink-2)}
+.field input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.note{font-size:12.5px;color:var(--muted)}.note.good{color:var(--exact)}.note.warn{color:var(--normal-deep)}
+.honesty{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--ink-2);background:var(--card);border:1px dashed var(--line);border-radius:var(--r);padding:12px 14px;margin:16px 0 0}
+.tags{display:flex;gap:6px;flex-wrap:wrap}.tag{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:var(--track);padding:2px 8px;border-radius:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;margin:0 0 16px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-size:13px}.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);font-size:12.5px;text-align:right}
+.vrow{display:grid;grid-template-columns:1.6fr .9fr 1.4fr auto;gap:14px;align-items:center;padding:13px 4px;border-bottom:1px solid var(--line-soft)}
+.vrow:last-child{border-bottom:0}.v-name{font-weight:500}.v-sub{color:var(--muted);font-size:12px}.v-waste{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.meter{position:relative;height:26px;background:var(--track);border-radius:6px;overflow:hidden}.meter .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);opacity:.9;border-radius:6px 0 0 6px}
+.meter .wall{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--wall)}.meter .lbl{position:absolute;inset:0;display:flex;align-items:center;padding-left:9px;font-family:var(--mono);font-size:12px;color:#fff;mix-blend-mode:difference}
+.v-ceil{font-family:var(--mono);font-size:12px;color:var(--ink-2);text-align:right;white-space:nowrap}
+.curve{display:block;overflow:visible;width:100%}.curve-axis{stroke:var(--line)}.curve-base{stroke:var(--line-soft);stroke-dasharray:3 4}
+.curve-area{fill:var(--accent);opacity:.1}.curve-line{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round}
+.curve-dot{fill:var(--card);stroke:var(--accent);stroke-width:2}.curve-lbl{font-family:var(--mono);font-size:10px;fill:var(--ink-2)}.curve-axlbl{font-family:var(--mono);font-size:9px;fill:var(--muted)}
+.spin{width:15px;height:15px;border:2px solid var(--accent-tint);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:9px;background:var(--card);color:var(--ink);font-size:13.5px;font-weight:500;padding:12px 18px;border-radius:12px;box-shadow:var(--slab);z-index:50;animation:toastIn .4s cubic-bezier(.2,.8,.2,1) both}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
+.footer{color:var(--muted);font-size:12px;text-align:center;padding:24px;border-top:1px solid var(--line)}
+.mt{margin-top:14px}.muted{color:var(--muted)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const DATA = {"modes":[{"mode":"fast","primary_clock":"A (felt speed)","verifier_tier":"MICRO","detectors":12,"acceptable_grades":["exact","probabilistic"],"max_hotspots":3,"runs_complexity_sweep":false,"latency_budget_s":1.0,"risk_posture":"miss-a-win OK; block-the-dev NEVER","stop_condition":"first accepted win"},{"mode":"normal","primary_clock":"balance A/B/C","verifier_tier":"CHEAP_CERT","detectors":27,"acceptable_grades":["exact","probabilistic"],"max_hotspots":null,"runs_complexity_sweep":false,"latency_budget_s":30.0,"risk_posture":"balanced","stop_condition":"next marginal whole-program gain < 10%"},{"mode":"extend","primary_clock":"C (emitted speed); A sacrificed","verifier_tier":"FULL_CERT","detectors":40,"acceptable_grades":["exact"],"max_hotspots":null,"runs_complexity_sweep":true,"latency_budget_s":null,"risk_posture":"DECLINE-a-real-win OK; ship-unproven NEVER","stop_condition":"every enabled detector tried; floor or Clock-B budget reached"}],"providers":[{"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate","key_env":"GEMINI_API_KEY","default_model":"gemini-3.5-flash","free_no_card":true,"key_label":"Google AI Studio API key","get_key_url":"https://aistudio.google.com/apikey"},{"id":"groq","label":"Groq","transport":"openai_chat","key_env":"GROQ_API_KEY","default_model":"llama-3.3-70b-versatile","free_no_card":true,"key_label":"Groq API key","get_key_url":"https://console.groq.com/keys"},{"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk","key_env":"ANTHROPIC_API_KEY","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Anthropic API key","get_key_url":"https://console.anthropic.com/settings/keys"},{"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","key_env":"ANTHROPIC_API_KEY","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null},{"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat","key_env":"OPENAI_API_KEY","default_model":"gpt-4o","free_no_card":false,"key_label":"OpenAI API key","get_key_url":"https://platform.openai.com/api-keys"},{"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat","key_env":"OPENAI_API_KEY","default_model":"","free_no_card":false,"key_label":"OpenAI-compatible gateway API key","get_key_url":null}],"demo":{"engine":"MR.JEFFREY \u2014 the Whole-Program Verified Speedup Engine","generated_by":"pillar3_studio_gen.py \u2014 real engine runs; no hand-edited numbers","modes":[{"mode":"fast","primary_clock":"A (felt speed)","verifier_tier":"MICRO","detectors":12,"acceptable_grades":["EXACT","PROBABILISTIC"],"max_hotspots":3,"runs_complexity_sweep":false,"latency_budget_s":1.0,"risk_posture":"miss-a-win OK; block-the-dev NEVER","stop_condition":"first accepted win"},{"mode":"normal","primary_clock":"balance A/B/C","verifier_tier":"CHEAP_CERT","detectors":27,"acceptable_grades":["EXACT","PROBABILISTIC"],"max_hotspots":null,"runs_complexity_sweep":false,"latency_budget_s":30.0,"risk_posture":"balanced","stop_condition":"next marginal whole-program gain < 10%"},{"mode":"extend","primary_clock":"C (emitted speed); A sacrificed","verifier_tier":"FULL_CERT","detectors":40,"acceptable_grades":["EXACT"],"max_hotspots":null,"runs_complexity_sweep":true,"latency_budget_s":null,"risk_posture":"DECLINE-a-real-win OK; ship-unproven NEVER","stop_condition":"every enabled detector tried; floor or Clock-B budget reached"}],"providers":[{"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk"},{"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk"},{"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat"},{"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat"},{"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate"},{"id":"groq","label":"groq","transport":"openai_chat"}],"runs":[{"mode":"fast","shipped":[{"name":"S1_list_as_set","waste_type":"list_as_set","grade":"PROBABILISTIC","ratio":1.246,"ceiling":1.29,"hotspot_fraction":0.223}],"declined":[],"cumulative_ratio":1.267,"z3_calls":0,"latency_ms":541.0,"ran_complexity_sweep":false},{"mode":"normal","shipped":[{"name":"S1_list_as_set","waste_type":"list_as_set","grade":"PROBABILISTIC","ratio":1.254,"ceiling":1.27,"hotspot_fraction":0.212},{"name":"S2_n_plus_1","waste_type":"n_plus_1","grade":"EXACT","ratio":1.521,"ceiling":1.56,"hotspot_fraction":0.357},{"name":"S3_accidental_quadratic","waste_type":"accidental_quadratic","grade":"PROBABILISTIC","ratio":1.878,"ceiling":1.97,"hotspot_fraction":0.491}],"declined":[],"cumulative_ratio":1.848,"z3_calls":0,"latency_ms":1293.8,"ran_complexity_sweep":false},{"mode":"extend","shipped":[{"name":"S4_algorithm_recognition","waste_type":"algo_replace","grade":"EXACT","ratio":1.742,"ceiling":1.82,"hotspot_fraction":0.449},{"name":"S2_n_plus_1","waste_type":"n_plus_1","grade":"EXACT","ratio":2.292,"ceiling":2.47,"hotspot_fraction":0.595}],"declined":[{"name":"S1_list_as_set","reason":"grade PROBABILISTIC below extend floor ['EXACT'] \u21d2 DECLINE (differential only (no proof av"},{"name":"S3_accidental_quadratic","reason":"grade PROBABILISTIC below extend floor ['EXACT'] \u21d2 DECLINE (differential only (no proof av"},{"name":"S5_simd_offload","reason":"grade PROBABILISTIC below extend floor ['EXACT'] \u21d2 DECLINE (differential only (no proof av"}],"cumulative_ratio":2.277,"z3_calls":2,"latency_ms":2627.3,"ran_complexity_sweep":true}],"panel_rows":[{"name":"ai_todo_app","archetype":"AI-generated (never profiled)","detected":["list_as_set","accidental_full_scan","dict_to_columnar"],"grade":"PROBABILISTIC","ratio":47.1,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"log_analyzer","archetype":"CLI tool","detected":["n_plus_1","redundant_io_parse","dict_to_columnar","loop_invariant_hoist","vectorizable_loop"],"grade":"PROBABILISTIC","ratio":8.743,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"csv_stats","archetype":"data utility","detected":["quadratic_build","vectorizable_loop"],"grade":"PROBABILISTIC","ratio":111.887,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"json_pipeline","archetype":"ETL pipeline","detected":["n_plus_1","parallelizable_loop"],"grade":"EXACT","ratio":82.349,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"coalesced_identical_lookups"},{"name":"template_render","archetype":"parser/renderer (well-written)","detected":["n_plus_1","parallelizable_loop"],"grade":"DECLINE","ratio":0.995,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"no whole-program win \u2265 floor \u2014 honest DECLINE (nothing worth shipping)"}],"key_policy":"API key is session-only: held in the browser for the request, never logged, never stored, never committed, never phoned home.","scope_note":"Self-contained studio artifact. The full React+TS build (live provider calls, CI visual/a11y/perf gates) needs a frontend toolchain absent in this sandbox [BLOCKED: toolchain]; the data binding here is real and tested, visual quality \u2192 human review."},"corpus":{"rows":[{"name":"ai_todo_app","archetype":"AI-generated (never profiled)","detected":["list_as_set","accidental_full_scan","dict_to_columnar"],"grade":"probabilistic","ratio":43.943,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"log_analyzer","archetype":"CLI tool","detected":["n_plus_1","redundant_io_parse","dict_to_columnar","loop_invariant_hoist","vectorizable_loop"],"grade":"probabilistic","ratio":8.656,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"csv_stats","archetype":"data utility","detected":["quadratic_build","vectorizable_loop"],"grade":"probabilistic","ratio":107.834,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"json_pipeline","archetype":"ETL pipeline","detected":["n_plus_1","parallelizable_loop"],"grade":"exact","ratio":81.755,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"coalesced_identical_lookups"},{"name":"template_render","archetype":"parser/renderer (well-written)","detected":["n_plus_1","parallelizable_loop"],"grade":"decline","ratio":0.989,"ceiling":946.39,"hotspot_fraction":0.999,"note":"no whole-program win \u2265 floor \u2014 honest DECLINE (nothing worth shipping)"}],"grades":{"exact":1,"probabilistic":3,"decline":1},"found_nothing":["template_render"]}};
+</script>
+<script>
+"use strict";
+// ── MR.JEFFREY single-file app. Vanilla JS. Real embedded engine data (DATA). When served behind the FastAPI
+// back end (webapi.app) it upgrades to LIVE calls (/api/optimize, /api/key/validate) on your exact code; opened
+// as a file:// it runs in STATIC mode — heuristic detection on your code + the real measured canonical run for
+// the chosen mode (honestly labelled). The API key is held in a JS variable for the tab only: never stored,
+// never logged, never sent anywhere except the provider you pick (live mode).
+const $ = (t, p = {}, kids = []) => {
+  const e = document.createElement(t);
+  for (const k in p) {
+    if (k === "class") e.className = p[k];
+    else if (k === "html") e.innerHTML = p[k];
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), p[k]);
+    else if (k === "style") e.setAttribute("style", p[k]);
+    else if (p[k] != null) e.setAttribute(k, p[k]);
+  }
+  (Array.isArray(kids) ? kids : [kids]).forEach((c) => c != null && e.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
+  return e;
+};
+const fmt = (x, d = 2) => (x == null ? "∞" : Number(x).toFixed(d));
+const STEPS = [["landing","0","Overview"],["mode","1","Mode"],["provider","2","Provider"],["code","3","Code"],["verify","4","Verify"],["corpus","5","Proof"]];
+const SAMPLES = [
+  ["N+1 fetch in a loop","def enrich(order_ids, allowed):\n    rows = []\n    for oid in order_ids:\n        if oid in allowed:\n            user = fetch_user(oid)\n            rows.append((oid, user))\n    return rows"],
+  ["Accidental O(n²) build","def build_report(events):\n    report = \"\"\n    for e in events:\n        report = report + format_line(e)\n    seen = []\n    for e in events:\n        if e.id in seen:\n            continue\n        seen.append(e.id)\n    return report"],
+  ["Scalar math over a list","import math\n\ndef features(samples):\n    out = []\n    for x in samples:\n        out.append(math.sqrt(x) * 2 + math.sin(x))\n    energy = sum(v ** 2 for v in out)\n    return out, energy"],
+  ["Clean code (expect DECLINE)","def total(prices):\n    return sum(prices)"],
+];
+const S = { screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null, live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
+let TOAST_T = null;
+const activeMode = () => S.mode || "extend";
+
+// heuristic, regex-based waste detection on the pasted code (STATIC mode). The SERVER does true AST analysis.
+function detect(code){
+  const found=[]; const add=(wt,ev)=>{ if(!found.some(f=>f.waste_type===wt)) found.push({waste_type:wt,evidence:ev}); };
+  const lines=code.split("\n"); const listVars=new Set();
+  lines.forEach(l=>{ const m=l.match(/(\w+)\s*=\s*\[/); if(m) listVars.add(m[1]); });
+  const hasLoop=/\b(for|while)\b/.test(code);
+  if(hasLoop){
+    [...listVars].forEach(v=>{ if(new RegExp("\\bin\\s+"+v+"\\b").test(code)) add("list_as_set",`\`x in ${v}\` (a list) inside a loop → O(n) membership`); });
+    if(/\b(fetch|get_|query|load|select_|lookup|find_)\w*\s*\(/.test(code)) add("n_plus_1","a per-item fetch/query inside a loop → N+1");
+    if(/(\w+)\s*=\s*\1\s*\+/.test(code) || /\+=/.test(code)) add("accidental_quadratic","accumulation inside a loop → O(n²) build");
+    if(/\.count\s*\(/.test(code)) add("accidental_quadratic","`.count()` inside a loop → O(n²)");
+  }
+  if(/\*\*\s*[234]\b/.test(code)) add("algo_replace","`x ** k` → strength-reducible");
+  if(/math\.(sin|cos|sqrt|exp|log)\s*\(/.test(code)) add("simd_offload","scalar math.* over each element → SIMD/vectorizable");
+  return found;
+}
+
+async function runOptimize(){
+  const mode=activeMode(); const code=S.code;
+  if(S.live){
+    try{
+      const r=await fetch("/api/optimize",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,mode,provider:S.provider||undefined,key:S.key||undefined,model:S.model||undefined})});
+      return await r.json();
+    }catch(e){ /* fall through to static */ }
+  }
+  // STATIC: heuristic detection on the user's code + the real measured canonical run for this mode (embedded)
+  const det=detect(code);
+  const run=DATA.demo.runs.find(r=>r.mode===mode)||DATA.demo.runs[0];
+  const types=new Set(det.map(d=>d.waste_type));
+  const shipped=run.shipped.filter(s=>types.size===0?false:types.has(s.waste_type));
+  const declined=run.declined.filter(s=>types.has(s.waste_type));
+  // recompute a representative cumulative from the matched shipped rows (the last matched row's cumulative-so-far)
+  const cumulative= shipped.length? shipped[shipped.length-1].ratio : 1.0;
+  const policy=DATA.modes.find(m=>m.mode===mode);
+  return { mode, detected:det, shipped, declined, cumulative_ratio:cumulative, z3_calls:(mode==="extend"&&shipped.length?run.z3_calls:0),
+    ran_complexity_sweep:run.ran_complexity_sweep, latency_ms:run.latency_ms, policy,
+    proposer:{used:false,mode:"deterministic",note:"static build (no server): detection is a heuristic on your code; the rows are the engine's real measured canonical result for each detected waste class under the "+mode+" contract. Open via the FastAPI server for a live AST run on your exact code (and LLM proposals with a key)."},
+    note:"STATIC build — representative measured results from the embedded engine run. Serve via webapi.app for a live, per-code run." };
+}
+
+async function validateKey(){
+  const p=S.provider; if(!p||!S.key){return;}
+  S.keyState={phase:"checking"}; render();
+  if(S.live){
+    try{ const r=await fetch("/api/key/validate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({provider:p,key:S.key,model:S.model||undefined})}); const j=await r.json(); S.keyState={phase:j.ok?"ok":"bad",res:j}; render(); return; }
+    catch(e){ S.keyState={phase:"bad",res:{detail:String(e)}}; render(); return; }
+  }
+  const prov=DATA.providers.find(x=>x.id===p);
+  S.keyState={phase:"bad",res:{blocked:true,detail:"static build (no server): a live 1-token test call needs the FastAPI back end. Your key is held in this tab only — never stored or logged. Get a key: "+(prov&&prov.get_key_url||"")}};
+  render();
+}
+
+// ── pointer tilt on every .slab / .mode-card (real CSS 3D), reduced-motion safe ─────────────────────────
+const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function attachTilt(el, max){
+  if(REDUCE) return; let raf=0,tx=0,ty=0,cx=0,cy=0,tl=0,lift=0;
+  const tick=()=>{ cx+=(tx-cx)*.12; cy+=(ty-cy)*.12; lift+=(tl-lift)*.12;
+    el.style.setProperty("--rx",cx.toFixed(2)+"deg"); el.style.setProperty("--ry",cy.toFixed(2)+"deg"); el.style.setProperty("--lift",lift.toFixed(1)+"px");
+    raf=(Math.abs(tx-cx)>.01||Math.abs(ty-cy)>.01||Math.abs(tl-lift)>.05)?requestAnimationFrame(tick):0; };
+  el.addEventListener("pointermove",e=>{ const r=el.getBoundingClientRect(); tx=-((e.clientY-r.top)/r.height-.5)*max; ty=((e.clientX-r.left)/r.width-.5)*max; tl=6; if(!raf)raf=requestAnimationFrame(tick); });
+  el.addEventListener("pointerleave",()=>{ tx=0;ty=0;tl=0; if(!raf)raf=requestAnimationFrame(tick); });
+}
+
+// ── the signature speedup slab ──────────────────────────────────────────────────────────────────────────
+function speedupSlab(rowObj, mode){
+  const unbounded = rowObj.ceiling==null || !isFinite(rowObj.ceiling);
+  const ceil = unbounded? rowObj.ratio*1.25 : rowObj.ceiling;
+  const denom = Math.max(ceil, rowObj.ratio)||1;
+  const fillPct=Math.min(100,(rowObj.ratio/denom)*94), wallPct=unbounded?99:Math.min(99,(ceil/denom)*94);
+  const stage=$("div",{class:"slab speed-slab float-in","data-mode":mode},[
+    $("span",{class:"sr-only"},`${rowObj.waste_type}: measured whole-program speedup ${fmt(rowObj.ratio)} times, hotspot fraction ${fmt(rowObj.hotspot_fraction)}, Amdahl ceiling ${unbounded?"unbounded":fmt(ceil)}, grade ${rowObj.grade}. The measured value never exceeds the ceiling.`),
+    $("div",{class:"plane ss-head","aria-hidden":"true",style:"--z:26px"},[
+      $("span",{class:"ss-waste"},rowObj.waste_type),
+      $("span",{class:"grade "+rowObj.grade},[$("span",{class:"gd"}),rowObj.grade]),
+    ]),
+    $("div",{class:"plane","aria-hidden":"true",style:"--z:52px"},[
+      (()=>{const m=$("div",{class:"meter3",title:`measured ${fmt(rowObj.ratio)}× ≤ ceiling ${unbounded?"∞":fmt(ceil)+"×"}`},[
+        $("div",{class:"fill3",style:`width:${fillPct}%`}),
+        $("div",{class:"wall3",style:`left:${wallPct}%`},[$("span",{class:"wall3-lbl"},`ceiling ${unbounded?"∞":fmt(ceil)+"×"}`)]),
+        $("div",{class:"meter3-val"},fmt(rowObj.ratio)+"×"),
+      ]);return m;})(),
+    ]),
+    $("div",{class:"plane ss-read",style:"--z:20px"},[
+      $("div",{},[$("span",{class:"ss-k"},"measured whole-program"),$("span",{class:"ss-v"},fmt(rowObj.ratio,3)+"×")]),
+      $("div",{},[$("span",{class:"ss-k"},"hotspot fraction f"),$("span",{class:"ss-v"},fmt(rowObj.hotspot_fraction,3))]),
+      $("div",{},[$("span",{class:"ss-k"},"ceiling 1/(1−f)"),$("span",{class:"ss-v"},unbounded?"∞":fmt(ceil)+"×")]),
+    ]),
+  ]);
+  setTimeout(()=>attachTilt(stage,8),0);
+  return $("div",{class:"stage"},[stage]);
+}
+
+function compoundCurve(shipped, cumulative, mode){
+  if(!shipped.length) return null;
+  const pts=[1.0,...shipped.map(s=>s.ratio)]; const W=520,H=150,pX=34,pY=18;
+  const maxY=Math.max(...pts)*1.08, minY=1.0;
+  const x=i=>pX+(i/(pts.length-1||1))*(W-pX*2), y=v=>H-pY-((v-minY)/(maxY-minY||1))*(H-pY*2);
+  const line=pts.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area=`${line} L${x(pts.length-1).toFixed(1)},${(H-pY).toFixed(1)} L${x(0).toFixed(1)},${(H-pY).toFixed(1)} Z`;
+  const NS="http://www.w3.org/2000/svg"; const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.setAttribute("class","curve"); svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",`Cumulative whole-program speedup compounds to ${fmt(cumulative)} times over ${shipped.length} verified fixes, measured fresh.`);
+  const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+  svg.appendChild(mk("line",{x1:pX,y1:H-pY,x2:W-pX,y2:H-pY,class:"curve-axis"}));
+  svg.appendChild(mk("line",{x1:pX,y1:y(1),x2:W-pX,y2:y(1),class:"curve-base"}));
+  svg.appendChild(mk("path",{d:area,class:"curve-area"}));
+  svg.appendChild(mk("path",{d:line,class:"curve-line"}));
+  pts.forEach((v,i)=>{ svg.appendChild(mk("circle",{cx:x(i),cy:y(v),r:3.2,class:"curve-dot"}));
+    if(i){const t=mk("text",{x:x(i),y:y(v)-8,class:"curve-lbl","text-anchor":"middle"});t.textContent=fmt(v)+"×";svg.appendChild(t);} });
+  const head=$("div",{class:"ss-head",style:"margin-bottom:8px"},[$("span",{class:"ss-waste"},"cumulative compounding · measured fresh"),$("span",{class:"mono",style:"font-size:18px;font-weight:500"},fmt(cumulative,3)+"×")]);
+  const slab=$("div",{class:"slab speed-slab float-in","data-mode":mode},[head,svg]);
+  setTimeout(()=>attachTilt(slab,5),0);
+  return $("div",{class:"stage"},[slab]);
+}
+
+function setScreen(s){ S.screen=s; render(); }
+function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>{S.toast=null;render();},3200); }
+
+// ── screens ─────────────────────────────────────────────────────────────────────────────────────────────
+function scrLanding(){
+  const run=DATA.demo.runs.find(r=>r.shipped.length); const row=run? (run.shipped.find(s=>s.grade==="exact")||run.shipped[0]):null;
+  const td=Math.max(...DATA.modes.map(m=>m.detectors));
+  return $("div",{},[
+    $("section",{class:"hero"},[
+      $("div",{},[
+        $("div",{class:"eyebrow"},"whole-program · measured · Amdahl-honest"),
+        $("h1",{},"A speedup you can trust — because a verifier, not the model, decides what ships."),
+        $("p",{class:"lead mt",html:"Paste your code. Pick how cautious to be. MR.JEFFREY profiles it, proposes fixes, and <strong>measures the whole program</strong> before and after. Every win carries the hotspot fraction it came from and its Amdahl ceiling — and the measured number can never cross that ceiling. No win, no claim."}),
+        $("div",{class:"row mt"},[$("button",{class:"btn lg",onclick:()=>setScreen("mode")},"Paste your code →"),$("span",{class:"pill"},`${td} verified detectors`),S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"live engine"]):$("span",{class:"pill"},"static demo data")]),
+      ]),
+      $("div",{},[ row?speedupSlab(row,run.mode):$("div",{class:"slab speed-slab",style:"min-height:200px"}), row?$("div",{class:"hero-cap"},`measured whole-program · ${run.mode} mode · grade ${row.grade} · ratio ≤ ceiling`):null ]),
+    ]),
+    $("div",{class:"grid cols-3 tenets"},[
+      $("div",{class:"feat"},[$("h3",{},"Measured, not estimated"),$("p",{},"Speedups are timed end-to-end with warmup and best-of-k. A fast kernel that doesn't move the whole program doesn't count.")]),
+      $("div",{class:"feat"},[$("h3",{},"Amdahl honesty"),$("p",{html:"Each result shows the hotspot fraction <span class='mono'>f</span> and the ceiling <span class='mono'>1/(1−f)</span>. The bar's fill can't pass the wall."})]),
+      $("div",{class:"feat"},[$("h3",{},"Grades, enforced"),$("p",{html:"<span class='grade exact'><span class='gd'></span>exact</span> <span class='grade probabilistic'><span class='gd'></span>probabilistic</span> <span class='grade decline'><span class='gd'></span>decline</span> — proven, tested, or honestly nothing."})]),
+    ]),
+    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},"Your API key is held in this browser tab only — never written to disk, never logged, never sent anywhere except the provider you choose. We don't claim 50–100× averages; we claim exactly what we measured, bounded by Amdahl.")]),
+  ]);
+}
+
+function scrMode(){
+  const wrap=$("div",{},[$("div",{class:"eyebrow"},"step 1 · pick a contract"),$("h2",{},"How cautious should the verifier be?"),
+    $("p",{class:"lead"},"The mode is a contract: it fixes which verifier tier runs, which grades may ship, how many hotspots get attacked, and when to stop. The accent colour follows your choice.")]);
+  const grid=$("div",{class:"grid cols-3 mt"});
+  const icon={fast:"⚡",normal:"⚖",extend:"⛨"};
+  DATA.modes.forEach(m=>{
+    const card=$("button",{class:`mode-card depth-${m.mode}`,"data-mode":m.mode,"aria-pressed":String(S.mode===m.mode),onclick:()=>{S.mode=m.mode;render();}},[
+      $("div",{class:"mc-head"},[$("span",{class:"glyph"},icon[m.mode]||""),$("div",{},[$("div",{class:"mc-name"},m.mode),$("div",{class:"mc-clock"},"clock · "+m.primary_clock)])]),
+      $("dl",{},[
+        $("dt",{},"verifier"),$("dd",{},m.verifier_tier),$("dt",{},"detectors"),$("dd",{},String(m.detectors)),
+        $("dt",{},"ships"),$("dd",{},m.acceptable_grades.join(" · ")),$("dt",{},"hotspots"),$("dd",{},m.max_hotspots==null?"all":String(m.max_hotspots)),
+        $("dt",{},"z3"),$("dd",{},m.verifier_tier==="MICRO"?"never":m.verifier_tier==="FULL_CERT"?"full":"small regions"),
+        $("dt",{},"latency"),$("dd",{},m.latency_budget_s==null?"unbounded":"≤ "+m.latency_budget_s+"s"),
+        $("dt",{},"posture"),$("dd",{style:"font-size:11px"},m.risk_posture),
+      ]),
+      $("div",{class:"v-sub",style:"margin-top:2px"},m.stop_condition),
+    ]);
+    setTimeout(()=>attachTilt(card,{fast:5,normal:7,extend:10}[m.mode]||7),0);
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+  if(S.mode) wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"btn",onclick:()=>setScreen("provider")},"Choose provider →"),$("span",{class:"muted"},`${S.mode} selected`)]));
+  return wrap;
+}
+
+function scrProvider(){
+  const wrap=$("div",{},[$("div",{class:"eyebrow"},"step 2 · proposer (optional)"),$("h2",{},"Pick a provider, paste a key — it just works."),
+    $("p",{class:"lead"},"The LLM only proposes rewrites; the verifier decides what ships. Groq and Gemini are free with no credit card. You can also skip and run the engine's verified detectors with no key.")]);
+  const grid=$("div",{class:"grid cols-2 mt stage"});
+  DATA.providers.forEach(p=>{
+    const card=$("button",{class:"mode-card provider-card","aria-pressed":String(S.provider===p.id),onclick:()=>{S.provider=p.id;S.model=p.default_model;S.keyState={phase:"idle"};render();}},[
+      $("div",{class:"mc-head",style:"width:100%"},[$("span",{class:"glyph"},"⚿"),
+        $("div",{style:"flex:1"},[$("div",{class:"mc-name",style:"font-size:15px;text-transform:none"},p.label),$("div",{class:"mc-clock"},p.transport)]),
+        p.free_no_card?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"Free · no card"]):null]),
+      $("div",{class:"row",style:"width:100%;justify-content:space-between"},[$("span",{class:"v-sub"},[$("span",{},"default: "),$("span",{class:"mono"},p.default_model||"—")]),
+        p.get_key_url?$("a",{class:"getkey",href:p.get_key_url,target:"_blank",rel:"noreferrer",onclick:e=>e.stopPropagation()},"Get a key ↗"):null]),
+    ]);
+    setTimeout(()=>attachTilt(card,5),0); grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+  const sel=DATA.providers.find(p=>p.id===S.provider);
+  if(sel){
+    const keyInput=$("input",{type:"password",autocomplete:"off",spellcheck:"false",placeholder:`paste your ${sel.label} key…`,value:S.key,oninput:e=>{S.key=e.target.value;S.keyState={phase:"idle"};},onblur:()=>{if(S.key)validateKey();}});
+    const modelInput=$("input",{spellcheck:"false",placeholder:sel.default_model,value:S.model,oninput:e=>{S.model=e.target.value;}});
+    const ks=S.keyState;
+    wrap.appendChild($("div",{class:"card mt"},[
+      $("div",{class:"row",style:"gap:18px;align-items:flex-start"},[
+        $("div",{class:"field",style:"flex:2;min-width:240px;margin:0"},[$("label",{},`${sel.key_label}`),keyInput]),
+        $("div",{class:"field",style:"flex:1;min-width:170px;margin:0"},[$("label",{},"model"),modelInput]),
+      ]),
+      $("div",{class:"row mt"},[
+        $("button",{class:"ghost",onclick:()=>validateKey(),disabled:(!S.key||ks.phase==="checking")?"":null},ks.phase==="checking"?$("span",{class:"spin"}):"Verify key"),
+        ks.phase==="ok"?$("span",{class:"note good"},`valid — live ${sel.label} call returned 200.`):null,
+        ks.phase==="bad"&&ks.res?$("span",{class:"note warn"},(ks.res.blocked?"⚠ ":"✕ ")+(ks.res.detail||"")):null,
+      ]),
+      $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},`Your key stays in this session and is never stored, written to disk, logged, or committed — it only travels to ${sel.label}'s own API.`)]),
+    ]));
+  }
+  wrap.appendChild($("div",{class:"row mt"},[
+    $("button",{class:"btn",onclick:()=>setScreen("code")},"Continue to your code →"),
+    $("button",{class:"ghost",onclick:()=>{S.provider=null;S.key="";S.keyState={phase:"idle"};setScreen("code");}},"Skip — run verified detectors only"),
+  ]));
+  return wrap;
+}
+
+function scrCode(){
+  const mode=activeMode();
+  const ta=$("textarea",{class:"editor",spellcheck:"false",placeholder:"def my_function(...):\n    ..."},S.code);
+  ta.value=S.code; ta.addEventListener("input",e=>{S.code=e.target.value;});
+  const samples=$("div",{class:"samples"},[$("span",{class:"muted",style:"align-self:center;font-size:12px"},"try:")]);
+  SAMPLES.forEach(([label,code])=>samples.appendChild($("button",{onclick:()=>{S.code=code;render();}},label)));
+  const up=$("label",{class:"upload"},["upload .py ↑"]);
+  const fi=$("input",{type:"file",accept:".py,.txt"}); fi.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.code=String(r.result||"");render();};r.readAsText(f);e.target.value="";});
+  up.appendChild(fi); samples.appendChild(up);
+  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; runBtn.disabled=true; runBtn.textContent="running…"; S.result=await runOptimize(); const n=S.result.shipped.length; setScreen("verify"); showToast(n>0?`Optimization complete — ${n} verified fix${n===1?"":"es"} shipped`:"Optimization complete — nothing safe to ship (honest DECLINE)"); }},`Run ${mode} verification →`);
+  return $("div",{"data-mode":mode},[
+    $("div",{class:"eyebrow"},"step 3 · your code"),$("h2",{},"Paste a function. We'll profile it for real."),
+    $("p",{class:"lead"},S.live?"Detection is genuine AST analysis of your source (server). For each waste class, the engine runs its verified fix and reports the measured whole-program result under the "+mode+" contract.":"Static build: detection is a heuristic on your code; results are the engine's real measured canonical run for each detected waste class. Serve via the FastAPI back end for a live per-code run."),
+    samples, ta,
+    $("div",{class:"row mt"},[runBtn, S.provider?$("span",{class:"pill"},"proposer: "+S.provider):$("span",{class:"pill"},"verified detectors only (no LLM)")]),
+  ]);
+}
+
+function scrVerify(){
+  const r=S.result; if(!r) return $("div",{},[$("p",{},"No run yet."),$("button",{class:"btn",onclick:()=>setScreen("code")},"Go to code")]);
+  const wrap=$("div",{"data-mode":r.mode},[
+    $("div",{class:"eyebrow"},"step 4 · verification panel · "+r.mode+" contract"),$("h2",{},"What the verifier let through."),
+    $("div",{class:"grid cols-3 mt"},[
+      $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"cumulative whole-program"),$("div",{class:"num",style:"font-size:30px;font-weight:500"},fmt(r.cumulative_ratio,3)+"×"),$("div",{class:"v-sub"},"measured fresh, all fixes active")]),
+      $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"verifier work"),$("dl",{class:"kv mt"},[$("dt",{},"z3 calls"),$("dd",{},String(r.z3_calls)),$("dt",{},"complexity sweep"),$("dd",{},r.ran_complexity_sweep?"yes":"no"),$("dt",{},"latency"),$("dd",{},r.latency_ms!=null?r.latency_ms+" ms":"—"),$("dt",{},"tier"),$("dd",{},r.policy?r.policy.verifier_tier:"—")])]),
+      $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"detected in your code"),(r.detected&&r.detected.length)?$("div",{class:"tags mt"},r.detected.map(d=>$("span",{class:"tag",title:d.evidence},d.waste_type))):$("p",{class:"muted",style:"margin:0"},"no known waste pattern found.")]),
+    ]),
+  ]);
+  if(r.proposer) wrap.appendChild($("div",{class:"card mt"},[$("div",{class:"eyebrow"},"proposer "+(r.proposer.used?"· "+r.proposer.provider:"· deterministic")),$("div",{class:"row",style:"align-items:flex-start"},[$("span",{class:"badge-free",style:"background:var(--track);color:var(--ink-2)"},r.proposer.used?"LLM consulted":"deterministic detectors"),$("span",{class:"muted",style:"flex:1"},r.proposer.note)])]));
+  if(r.shipped.length){
+    const stack=$("div",{class:"slab-stack"}); r.shipped.forEach(s=>stack.appendChild(speedupSlab(s,r.mode)));
+    wrap.appendChild($("div",{class:"mt"},[$("div",{class:"eyebrow"},"✓ shipped — each a floating object; the fill never crosses its ceiling"),stack]));
+    const cc=compoundCurve(r.shipped,r.cumulative_ratio,r.mode); if(cc) wrap.appendChild($("div",{style:"margin-top:40px"},[cc]));
+  }
+  if(r.declined&&r.declined.length){
+    const dc=$("div",{class:"card"},[$("div",{class:"eyebrow"},"declined — honest no-claims")]);
+    r.declined.forEach(d=>dc.appendChild($("div",{class:"vrow"},[$("div",{},[$("div",{class:"v-name"},d.name),$("div",{class:"v-sub"},d.reason)]),$("div",{class:"v-waste"},d.waste_type),$("div",{class:"meter",style:"opacity:.6"},[$("div",{class:"lbl",style:"color:var(--decline);mix-blend-mode:normal"},"no claim")]),$("span",{class:"grade decline"},[$("span",{class:"gd"}),"decline"])])));
+    wrap.appendChild(dc);
+  }
+  if(!r.shipped.length && !(r.declined&&r.declined.length)) wrap.appendChild($("div",{class:"card mt"},[$("p",{style:"margin:0"},"Nothing safe to ship — a real answer, not a failure. "+(r.note||""))]));
+  wrap.appendChild($("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},r.note||"")]));
+  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>setScreen("code")},"← Run another"),$("button",{class:"btn",onclick:()=>setScreen("corpus")},"See it on real repos →")]));
+  return wrap;
+}
+
+function scrCorpus(){
+  const c=DATA.corpus; const maxRatio=Math.max(1,...c.rows.map(r=>r.ratio));
+  const wrap=$("div",{},[$("div",{class:"eyebrow"},"step 5 · the proof · real repositories"),$("h2",{},"The same engine, run on whole programs we didn't write."),
+    $("p",{class:"lead"},"Five archetypal codebases — including AI-generated code never profiled. Each row is a measured whole-program result with its Amdahl ceiling and an enforced grade. The honest DECLINEs are the point."),
+    $("div",{class:"row mt",style:"margin-bottom:14px"},[$("span",{class:"grade exact"},[$("span",{class:"gd"}),"exact · "+c.grades.exact]),$("span",{class:"grade probabilistic"},[$("span",{class:"gd"}),"probabilistic · "+c.grades.probabilistic]),$("span",{class:"grade decline"},[$("span",{class:"gd"}),"decline · "+c.grades.decline]),$("span",{class:"pill spacer"},`${c.rows.length} repos · ratio ≤ ceiling on every row`)]),
+  ]);
+  const stage=$("div",{class:"stage"}); const slab=$("div",{class:"slab float-in",style:"max-width:960px;margin:8px auto;padding:18px 24px"});
+  c.rows.forEach(r=>{
+    const unbounded=!isFinite(r.ceiling); const denom=Math.max(maxRatio,r.ratio)||1;
+    const fillPct=Math.min(92,(r.ratio/denom)*92), wallPct=unbounded?98:Math.min(99,(r.ceiling/denom)*92);
+    slab.appendChild($("div",{class:"vrow"},[
+      $("div",{},[$("div",{class:"v-name"},r.name),$("div",{class:"v-sub"},r.archetype),$("div",{class:"tags",style:"margin-top:4px"},r.detected.map(d=>$("span",{class:"tag"},d)))]),
+      $("div",{class:"v-waste"},"f = "+fmt(r.hotspot_fraction,3)),
+      r.grade==="decline"?$("div",{class:"meter",style:"opacity:.6"},[$("div",{class:"lbl",style:"color:var(--decline);mix-blend-mode:normal"},"no claim")]):
+        $("div",{class:"meter",title:`measured ${fmt(r.ratio)}× ≤ ceiling ${unbounded?"∞":fmt(r.ceiling,0)+"×"}`},[$("div",{class:"fill",style:`width:${fillPct}%;background:var(--extend)`}),$("div",{class:"wall",style:`left:${wallPct}%`}),$("div",{class:"lbl"},fmt(r.ratio)+"×")]),
+      $("div",{class:"v-ceil"},[$("span",{class:"grade "+r.grade},[$("span",{class:"gd"}),r.grade]),$("div",{style:"margin-top:4px"},"≤ "+(unbounded?"∞":fmt(r.ceiling,0)+"×"))]),
+    ]));
+  });
+  setTimeout(()=>attachTilt(slab,4),0); stage.appendChild(slab); wrap.appendChild(stage);
+  wrap.appendChild($("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},"Big ratios here come from genuinely quadratic code on large inputs (high hotspot fraction → high ceiling) — not a flattering average. The ceiling is shown next to every number, and the measured value never exceeds it.")]));
+  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>{S.mode=null;S.provider=null;S.key="";S.code="";S.result=null;setScreen("landing");}},"↺ Start over")]));
+  return wrap;
+}
+
+function render(){
+  document.documentElement.setAttribute("data-theme",S.theme);
+  const reached={landing:1,mode:1,provider:!!S.mode,code:!!S.mode,verify:!!S.result,corpus:1};
+  const root=document.getElementById("root"); root.innerHTML="";
+  const app=$("div",{class:"app","data-mode":activeMode()});
+  const steps=$("nav",{class:"steps","aria-label":"progress"});
+  STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
+  app.appendChild($("header",{class:"topbar"},[
+    $("div",{class:"brand"},[$("span",{class:"dot"}),"MR.JEFFREY",$("small",{},"whole-program verified speedup")]),
+    steps,$("div",{class:"spacer"}),
+    $("button",{class:"ghost",onclick:()=>{S.theme=S.theme==="light"?"dark":"light";render();}},S.theme==="light"?"Dark":"Light"),
+  ]));
+  const main=$("main",{class:(S.screen==="corpus"||S.screen==="verify")?"wide":""});
+  main.appendChild({landing:scrLanding,mode:scrMode,provider:scrProvider,code:scrCode,verify:scrVerify,corpus:scrCorpus}[S.screen]());
+  app.appendChild(main);
+  app.appendChild($("footer",{class:"footer"},"Measured whole-program · Amdahl-honest · grades enforced · proposer ≠ arbiter · keys held in-tab only."));
+  if(S.toast) app.appendChild($("div",{class:"toast",role:"status"},["✓ ",S.toast]));
+  root.appendChild(app);
+}
+
+// detect live back end (served by webapi.app) — else stay in honest STATIC mode
+fetch("/api/health").then(r=>r.json()).then(j=>{S.live=!!(j&&j.ok);render();}).catch(()=>{S.live=false;});
+render();
+</script>
+</body>
+</html>
