@@ -7,12 +7,16 @@ import { Arrow, Info } from "../icons";
 export function CodeRun({
   mode,
   provider,
+  apiKey,
+  model,
   code,
   onCode,
   onResult,
 }: {
   mode: ModeId;
   provider: string | null;
+  apiKey: string;
+  model: string;
   code: string;
   onCode: (c: string) => void;
   onResult: (r: OptimizeResult) => void;
@@ -25,7 +29,13 @@ export function CodeRun({
     setRunning(true);
     setErr(null);
     try {
-      const r = await api.optimize(code, mode, provider ?? undefined);
+      const r = await api.optimize(
+        code,
+        mode,
+        provider ?? undefined,
+        apiKey || undefined,
+        model || undefined
+      );
       onResult(r); // parent advances to the verification panel
     } catch (e) {
       setErr(String(e));

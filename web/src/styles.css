@@ -12,6 +12,8 @@
   --prob: #444441; --prob-bg: #f1efe8;
   --decline: #5f5e5a; --decline-bg: #f1efe8;
   --wall: rgba(0, 0, 0, 0.52); --track: #efeee9;
+  /* provider layer — deliberately NEUTRAL (teal/slate), never a mode accent, so it can't read as a mode */
+  --free: #0f766e; --free-bg: #e6f3f1; --pick: #44423c;
   --r: 8px; --r-lg: 12px; --focus: #534ab7;
   --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", monospace;
@@ -23,6 +25,7 @@
   --fast-tint: #0b5566; --normal-tint: #633806; --extend-tint: #26215c;
   --exact: #9ad16a; --exact-bg: #19260f; --prob: #c8c5bc; --prob-bg: #201f1b;
   --decline: #a8a49b; --decline-bg: #201f1b;
+  --free: #5ec0b4; --free-bg: #13302c; --pick: #c8c5bc;
   --wall: rgba(255, 255, 255, 0.55); --track: #26262a; --focus: #a79ef5;
 }
 
@@ -128,6 +131,18 @@ main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 34px 22
 .mode-card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 4px 0 0; font-size: 12.5px; }
 .mode-card dt { color: var(--muted); }
 .mode-card dd { margin: 0; color: var(--ink-2); font-family: var(--mono); font-size: 12px; text-align: right; }
+
+/* ── provider cards — NEUTRAL selection (slate), never a mode accent ──────── */
+.provider-card { cursor: pointer; }
+.provider-card:hover { border-color: var(--pick); }
+.provider-card[aria-pressed="true"] { border-color: var(--pick);
+  box-shadow: 0 0 0 1px var(--pick), 0 8px 24px rgba(0, 0, 0, 0.06); }
+.provider-card .glyph { background: var(--track); color: var(--pick); }
+.badge-free { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px;
+  font-weight: 500; padding: 2px 8px; border-radius: 999px; color: var(--free); background: var(--free-bg); }
+.badge-free .gd { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.getkey { font-family: var(--mono); font-size: 11.5px; color: var(--free); text-decoration: none; }
+.getkey:hover { text-decoration: underline; }
 
 /* ── verification rows (the signature element) ───────────────────────────── */
 .vrow {

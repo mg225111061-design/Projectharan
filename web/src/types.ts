@@ -22,6 +22,10 @@ export interface Provider {
   label: string;
   transport: string; // anthropic_sdk | openai_chat | gemini_generate
   key_env: string;
+  default_model: string;
+  free_no_card: boolean;
+  key_label: string;
+  get_key_url: string | null;
 }
 
 export interface ShippedRow {
@@ -45,6 +49,20 @@ export interface Detected {
   line: number;
 }
 
+export interface ProposerInfo {
+  used: boolean;
+  mode?: string;
+  live?: boolean;
+  provider?: string;
+  model?: string;
+  transport?: string;
+  status?: string; // llm-consulted | llm-unavailable | (deterministic)
+  applied?: string;
+  rationale?: string;
+  detail?: string;
+  note: string;
+}
+
 export interface OptimizeResult {
   mode: ModeId;
   detected: Detected[];
@@ -54,6 +72,7 @@ export interface OptimizeResult {
   z3_calls: number;
   ran_complexity_sweep: boolean;
   latency_ms?: number;
+  proposer?: ProposerInfo;
   note: string;
   policy: ModeContract;
 }
@@ -61,9 +80,12 @@ export interface OptimizeResult {
 export interface KeyValidation {
   ok: boolean;
   live?: boolean;
+  blocked?: boolean;
   transport?: string;
-  url?: string;
+  model?: string;
+  provider?: string;
   key_in_headers_only?: boolean;
+  get_key_url?: string | null;
   detail: string;
 }
 

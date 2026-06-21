@@ -72,6 +72,11 @@
       "id": "gemini",
       "label": "Gemini (Google)",
       "transport": "gemini_generate"
+    },
+    {
+      "id": "groq",
+      "label": "groq",
+      "transport": "openai_chat"
     }
   ],
   "runs": [
@@ -82,15 +87,15 @@
           "name": "S1_list_as_set",
           "waste_type": "list_as_set",
           "grade": "PROBABILISTIC",
-          "ratio": 1.238,
-          "ceiling": 1.27,
-          "hotspot_fraction": 0.21
+          "ratio": 1.279,
+          "ceiling": 1.31,
+          "hotspot_fraction": 0.234
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.284,
+      "cumulative_ratio": 1.293,
       "z3_calls": 0,
-      "latency_ms": 590.6,
+      "latency_ms": 556.4,
       "ran_complexity_sweep": false
     },
     {
@@ -100,31 +105,31 @@
           "name": "S1_list_as_set",
           "waste_type": "list_as_set",
           "grade": "PROBABILISTIC",
-          "ratio": 1.273,
-          "ceiling": 1.29,
-          "hotspot_fraction": 0.224
+          "ratio": 1.229,
+          "ceiling": 1.28,
+          "hotspot_fraction": 0.218
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 1.513,
+          "ratio": 1.536,
           "ceiling": 1.57,
-          "hotspot_fraction": 0.36
+          "hotspot_fraction": 0.361
         },
         {
           "name": "S3_accidental_quadratic",
           "waste_type": "accidental_quadratic",
           "grade": "PROBABILISTIC",
-          "ratio": 1.883,
+          "ratio": 1.925,
           "ceiling": 1.96,
-          "hotspot_fraction": 0.489
+          "hotspot_fraction": 0.49
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.893,
+      "cumulative_ratio": 1.867,
       "z3_calls": 0,
-      "latency_ms": 1309.1,
+      "latency_ms": 1356.7,
       "ran_complexity_sweep": false
     },
     {
@@ -134,17 +139,17 @@
           "name": "S4_algorithm_recognition",
           "waste_type": "algo_replace",
           "grade": "EXACT",
-          "ratio": 1.731,
-          "ceiling": 1.79,
-          "hotspot_fraction": 0.441
+          "ratio": 1.782,
+          "ceiling": 1.82,
+          "hotspot_fraction": 0.45
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 2.264,
-          "ceiling": 2.41,
-          "hotspot_fraction": 0.583
+          "ratio": 2.277,
+          "ceiling": 2.47,
+          "hotspot_fraction": 0.595
         }
       ],
       "declined": [
@@ -161,9 +166,9 @@
           "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
         }
       ],
-      "cumulative_ratio": 2.329,
+      "cumulative_ratio": 2.267,
       "z3_calls": 2,
-      "latency_ms": 2174.2,
+      "latency_ms": 2135.4,
       "ran_complexity_sweep": true
     }
   ],
@@ -177,7 +182,7 @@
         "dict_to_columnar"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 47.031,
+      "ratio": 47.033,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -193,7 +198,7 @@
         "vectorizable_loop"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 8.824,
+      "ratio": 8.745,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -206,7 +211,7 @@
         "vectorizable_loop"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 112.312,
+      "ratio": 115.494,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -219,7 +224,7 @@
         "parallelizable_loop"
       ],
       "grade": "EXACT",
-      "ratio": 79.531,
+      "ratio": 83.67,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "coalesced_identical_lookups"
@@ -232,8 +237,8 @@
         "parallelizable_loop"
       ],
       "grade": "DECLINE",
-      "ratio": 0.971,
-      "ceiling": 794.24,
+      "ratio": 1.003,
+      "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "no whole-program win ≥ floor — honest DECLINE (nothing worth shipping)"
     }

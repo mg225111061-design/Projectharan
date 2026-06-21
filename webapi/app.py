@@ -32,11 +32,13 @@ class OptimizeBody(BaseModel):
     mode: str = "normal"
     provider: Optional[str] = None
     model: Optional[str] = None
+    key: Optional[str] = None          # session-only; used to call the proposer, never logged or stored
 
 
 class KeyBody(BaseModel):
     provider: str
     key: str
+    model: Optional[str] = None
 
 
 @app.get("/api/health")
@@ -66,13 +68,14 @@ def get_demo():
 
 @app.post("/api/optimize")
 def post_optimize(body: OptimizeBody):
-    return B.run_optimize(body.code, body.mode, body.provider, body.model)
+    # body.key (if any) is passed to the bridge to call the proposer; never logged or stored here.
+    return B.run_optimize(body.code, body.mode, body.provider, body.model, body.key)
 
 
 @app.post("/api/key/validate")
 def post_validate(body: KeyBody):
-    # body.key is used only to build the provider request inside the bridge; never logged or stored here.
-    return B.validate_key(body.provider, body.key)
+    # body.key is used only to make the live test call inside the bridge; never logged or stored here.
+    return B.validate_key(body.provider, body.key, body.model)
 
 
 # ── static front end ──────────────────────────────────────────────────────────────────────────────────

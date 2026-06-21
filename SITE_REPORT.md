@@ -89,8 +89,10 @@ React 18 + TypeScript 5 + Vite 5. `npm run build` → 42 modules, `dist/index.ht
 1. **Landing** — what it is and why a verifier (not the model) decides; live mode summary from `/api/demo`.
 2. **Mode select** — the three modes as **contracts**; picking one recolors the whole app's accent (fast=cyan,
    normal=amber, extend=violet) from `/api/modes`.
-3. **Provider + key** — 5 providers from `/api/providers`; paste a key, “validate request shape” hits
-   `/api/key/validate`; the key stays in this tab. Skippable (verified detectors run with no key).
+3. **Provider + key** — 6 providers from `/api/providers`; **Groq and Gemini are badged "Free · no card"**
+   (neutral teal, never a mode color) with a "Get a key ↗" link and a prefilled default model. Paste a key →
+   it validates **live** against the provider (`/api/key/validate` makes a real 1-token call); the key stays in
+   this tab. Run enables once a key validates. Skippable (verified detectors run with no key).
 4. **Code input + run** — paste a function (or a sample), `POST /api/optimize` under the chosen mode.
 5. **Verification panel** — cumulative whole-program ratio, z3 calls, sweep, latency, what was detected, and
    the shipped/declined rows drawn with ceiling walls and enforced grade chips.
@@ -113,16 +115,51 @@ React 18 + TypeScript 5 + Vite 5. `npm run build` → 42 modules, `dist/index.ht
 
 ---
 
+## Providers — Groq + Gemini (free, no credit card)
+
+The default way to test the whole site: pick **Groq** or **Gemini**, paste a free key, and run — no config
+files, no env editing, no restart.
+
+| Provider | id | Transport | Default model | Get a key |
+|---|---|---|---|---|
+| Gemini (Google) | `gemini` | `gemini_generate` (native) | `gemini-2.5-flash` | https://aistudio.google.com/apikey |
+| Groq | `groq` | `openai_chat` (OpenAI-compatible) | `llama-3.3-70b-versatile` | https://console.groq.com/keys |
+
+Plus Claude (official), ChatGPT, a Claude-compatible gateway, and a generic OpenAI-compatible gateway
+(OpenRouter, Z.ai, DeepSeek, …). Groq reuses the OpenAI-compatible transport directly
+(`https://api.groq.com/openai/v1/chat/completions`, `Authorization: Bearer`); Gemini stays on its native
+`…/v1beta/models/{model}:generateContent` with `x-goog-api-key`.
+
+**Endpoints used.** `GET /api/providers` returns each provider with `free_no_card`, `default_model`,
+`key_label`, and `get_key_url`. `POST /api/key/validate {provider,key,model?}` makes a **real 1-token test
+call** and returns `{ok, live, blocked?, detail}`. `POST /api/optimize {…,provider,key,model}` routes the
+proposer to the chosen provider; the verifier still arbitrates, and a missing/invalid/unreachable key falls
+back to the deterministic structural detectors — stated honestly in the response's `proposer` block.
+
+**Key-safety guarantee (verified in code + at runtime).** The key is placed only in the request header; it is
+never logged, never written to disk, never persisted, never committed, and never returned in any response. A
+canary key sent to `/api/optimize` appeared in **neither** the JSON response **nor** the server logs. The only
+place it ever travels is the provider's own API.
+
+**How to test with a free key.** Get a Gemini key (`aistudio.google.com/apikey`) or Groq key
+(`console.groq.com/keys`) → run `uvicorn webapi.app:app --port 8000` → open `/app/` → step 2, pick the
+provider, paste the key, "Verify key" → pick a mode → paste code → Run.
+
+---
+
 ## VERIFIED / UNVERIFIED / BLOCKED
 
 | Item | Status |
 |---|---|
 | Back end serves real engine output on all 7 endpoints | **VERIFIED** (smoke-tested on :8000) |
 | `ratio ≤ ceiling` on optimize + corpus rows | **VERIFIED** |
-| Honest empty/DECLINE paths | **VERIFIED** |
+| Honest empty/DECLINE paths + deterministic proposer fallback | **VERIFIED** |
 | React app builds + type-checks + is served at `/app` | **VERIFIED** |
-| Python regression suite (`test_build.py`) | **VERIFIED — see commit message for count** |
-| Live LLM provider round-trip (real key over the network) | **UNVERIFIED [toolchain]** — no outbound provider call in this sandbox; the request is built and shape-checked, and this is labeled as such in the UI |
+| Python regression suite (`test_build.py`) — 133/133, 0 regression | **VERIFIED** |
+| Key never in response or server logs (canary test) | **VERIFIED** |
+| **Gemini** live key validation (real round-trip to Google) | **VERIFIED** — a bogus key gets a real `API_KEY_INVALID` (HTTP 400); a valid key returns 200 |
+| **Groq** live key validation | **BLOCKED [egress]** — `api.groq.com` is not in this sandbox's egress allowlist; the request is correct and the UI says so honestly (add the host to the allowlist to enable it) |
+| LLM-proposed rewrite auto-applied to your exact source | **UNVERIFIED [Rule 6]** — LLM-emitted code is never auto-executed here; the measured, applied result is always the verifier-arbitrated structural fix |
 
-Nothing is faked to look passing. The one thing we can't do here — a live provider call — is the one thing
-the UI explicitly tags UNVERIFIED.
+Nothing is faked to look passing. Gemini's live round-trip genuinely works from this sandbox; Groq is correctly
+wired but egress-blocked here, and that is reported as a network-policy limitation, never as a bad key.

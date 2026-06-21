@@ -32,13 +32,30 @@ _ANTHROPIC_COMPAT = "anthropic_compat"
 _OPENAI_COMPAT = "openai_compat"
 _OPENAI = "openai"            # PHASE P — native ChatGPT (api.openai.com/v1/chat/completions)
 _GEMINI = "gemini"            # PHASE P — native Gemini (generativelanguage.googleapis.com)
-VALID_PROVIDERS = (_ANTHROPIC, _ANTHROPIC_COMPAT, _OPENAI_COMPAT, _OPENAI, _GEMINI)
+_GROQ = "groq"               # PHASE P2 — Groq (OpenAI-compatible; free, no credit card)
+VALID_PROVIDERS = (_ANTHROPIC, _ANTHROPIC_COMPAT, _OPENAI_COMPAT, _OPENAI, _GEMINI, _GROQ)
 
 DEFAULT_MODEL = "claude-opus-4-8"
 
 # PHASE P — native-endpoint defaults (filled from each vendor's public docs; editable in the UI, never guessed).
 _OPENAI_DEFAULT_BASE = "https://api.openai.com/v1"
 _GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta"
+_GROQ_DEFAULT_BASE = "https://api.groq.com/openai/v1"           # OpenAI-compatible /chat/completions
+
+# Per-provider default model ids (free, no-card tiers for groq/gemini). Editable in the UI; never guessed.
+DEFAULT_MODELS = {
+    _ANTHROPIC: DEFAULT_MODEL,
+    _ANTHROPIC_COMPAT: DEFAULT_MODEL,
+    _OPENAI: "gpt-4o",
+    _OPENAI_COMPAT: "",                                         # gateway-specific; user fills it in
+    _GEMINI: "gemini-2.5-flash",                                # free tier, no card
+    _GROQ: "llama-3.3-70b-versatile",                           # free, fast, no card
+}
+
+
+def default_model_for(p: Optional[str] = None) -> str:
+    """The prefilled default model for a provider (free-tier ids for groq/gemini). Editable in the UI."""
+    return DEFAULT_MODELS.get(p or provider_name(), DEFAULT_MODEL)
 
 
 def provider_name() -> str:
@@ -66,6 +83,8 @@ def base_url(p: Optional[str] = None) -> Optional[str]:
         return (os.environ.get("OPENAI_BASE_URL") or _OPENAI_DEFAULT_BASE).strip()
     if p == _GEMINI:                                              # native Gemini
         return (os.environ.get("GEMINI_BASE_URL") or _GEMINI_DEFAULT_BASE).strip()
+    if p == _GROQ:                                                # Groq (OpenAI-compatible)
+        return (os.environ.get("GROQ_BASE_URL") or _GROQ_DEFAULT_BASE).strip()
     return None
 
 
@@ -79,7 +98,7 @@ def transport_kind(p: Optional[str] = None) -> str:
         return "anthropic_sdk"
     if p == _GEMINI:
         return "gemini_generate"
-    return "openai_chat"                                          # openai + openai_compat
+    return "openai_chat"                                          # openai + openai_compat + groq
 
 
 def resolve_key_for(p: Optional[str] = None) -> Optional[str]:
@@ -93,6 +112,8 @@ def resolve_key_for(p: Optional[str] = None) -> Optional[str]:
         return (os.environ.get("OPENAI_API_KEY") or "").strip() or None
     if p == _GEMINI:
         return (os.environ.get("GEMINI_API_KEY") or "").strip() or None
+    if p == _GROQ:
+        return (os.environ.get("GROQ_API_KEY") or "").strip() or None
     if p in (_ANTHROPIC, _ANTHROPIC_COMPAT):
         return (os.environ.get("ANTHROPIC_API_KEY") or "").strip() or None
     return (os.environ.get("OPENAI_API_KEY") or "").strip() or None   # openai_compat gateways
@@ -118,19 +139,41 @@ def is_gemini(p: Optional[str] = None) -> bool:
     return (p or provider_name()) == _GEMINI
 
 
+def is_groq(p: Optional[str] = None) -> bool:
+    return (p or provider_name()) == _GROQ
+
+
 # v26.2 S8 — gateway presets. Each: (provider, base_url, default_model, verified_source).
 # base_urls/models are EDITABLE defaults in the UI; only fill from documentation, never guess.
 # GLM/Z.ai verified via web search (Z.ai docs + multiple corroborating sources, June 2026):
 #   OpenAI-compatible base_url = https://api.z.ai/api/paas/v4/ , model id e.g. glm-4.6 (glm-4.7 also).
 #   NOTE: "GLM-5.2" is NOT a verified model id anywhere — use the exact id from your Z.ai console.
 GATEWAY_PRESETS = {
-    "Claude (official)": (_ANTHROPIC, None, "claude-opus-4-8", "anthropic"),
+    "Claude (official)": (_ANTHROPIC, None, DEFAULT_MODEL, "anthropic"),
     "ChatGPT (OpenAI)":  (_OPENAI, _OPENAI_DEFAULT_BASE, "gpt-4o", "openai docs (native /chat/completions)"),
-    "Gemini (Google)":   (_GEMINI, _GEMINI_DEFAULT_BASE, "gemini-1.5-pro", "google docs (generateContent)"),
+    "Gemini (Google)":   (_GEMINI, _GEMINI_DEFAULT_BASE, "gemini-2.5-flash", "google docs (generateContent; free, no card)"),
+    "Groq":              (_GROQ, _GROQ_DEFAULT_BASE, "llama-3.3-70b-versatile", "groq docs (OpenAI-compatible; free, no card)"),
     "GLM (Z.ai)":        (_OPENAI_COMPAT, "https://api.z.ai/api/paas/v4/", "glm-4.6", "z.ai docs (web-confirmed)"),
     "OpenRouter":        (_OPENAI_COMPAT, "https://openrouter.ai/api/v1", "", "well-known (editable)"),
     "DeepSeek":          (_OPENAI_COMPAT, "https://api.deepseek.com", "deepseek-chat", "well-known (editable)"),
 }
+
+# Free, no-credit-card providers (the default way to test the whole site) + where to get a key.
+FREE_NO_CARD = (_GEMINI, _GROQ)
+GET_KEY_URL = {
+    _GEMINI: "https://aistudio.google.com/apikey",
+    _GROQ: "https://console.groq.com/keys",
+    _OPENAI: "https://platform.openai.com/api-keys",
+    _ANTHROPIC: "https://console.anthropic.com/settings/keys",
+}
+
+
+def is_free_no_card(p: Optional[str] = None) -> bool:
+    return (p or provider_name()) in FREE_NO_CARD
+
+
+def get_key_url(p: Optional[str] = None) -> Optional[str]:
+    return GET_KEY_URL.get(p or provider_name())
 
 
 @dataclass

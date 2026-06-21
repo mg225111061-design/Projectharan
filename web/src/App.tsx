@@ -32,6 +32,8 @@ export default function App() {
   const [mode, setMode] = useState<ModeId | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
+  const [keyValid, setKeyValid] = useState(false);
   const [code, setCode] = useState("");
   const [result, setResult] = useState<OptimizeResult | null>(null);
 
@@ -67,6 +69,8 @@ export default function App() {
     setMode(null);
     setProvider(null);
     setApiKey("");
+    setModel("");
+    setKeyValid(false);
     setCode("");
     setResult(null);
     setScreen("landing");
@@ -130,16 +134,31 @@ export default function App() {
             providers={providers}
             picked={provider}
             apiKey={apiKey}
-            onPick={setProvider}
+            model={model}
+            onPick={(p) => {
+              setProvider(p.id);
+              setModel(p.default_model);
+              setKeyValid(false);
+            }}
             onKey={setApiKey}
+            onModel={setModel}
+            onValidated={setKeyValid}
             onNext={() => setScreen("code")}
+            onSkip={() => {
+              setProvider(null);
+              setApiKey("");
+              setKeyValid(false);
+              setScreen("code");
+            }}
           />
         )}
 
         {screen === "code" && (
           <CodeRun
             mode={activeMode}
-            provider={provider}
+            provider={keyValid ? provider : null}
+            apiKey={keyValid ? apiKey : ""}
+            model={model}
             code={code}
             onCode={setCode}
             onResult={(r) => {

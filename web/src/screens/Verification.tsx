@@ -60,6 +60,40 @@ export function Verification({
         </div>
       </div>
 
+      {result.proposer && (
+        <div className="card mt">
+          <div className="eyebrow">
+            proposer {result.proposer.used ? `· ${result.proposer.provider}` : "· deterministic"}
+          </div>
+          <div className="row" style={{ alignItems: "flex-start" }}>
+            <span className={`badge-free`} style={{ background: "var(--track)", color: "var(--ink-2)" }}>
+              {result.proposer.used
+                ? `LLM consulted${result.proposer.live ? " (live)" : ""}`
+                : "deterministic detectors"}
+            </span>
+            <span className="muted" style={{ flex: 1 }}>{result.proposer.note}</span>
+          </div>
+          {result.proposer.rationale && (
+            <pre
+              className="mono"
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: 12,
+                color: "var(--ink-2)",
+                background: "var(--page)",
+                border: "1px solid var(--line-soft)",
+                borderRadius: 8,
+                padding: "10px 12px",
+                marginTop: 10,
+              }}
+            >
+              {result.proposer.rationale}
+            </pre>
+          )}
+          {result.proposer.detail && <div className="note warn mt">{result.proposer.detail}</div>}
+        </div>
+      )}
+
       {result.shipped.length > 0 && (
         <div className="card mt">
           <div className="eyebrow"><Check /> shipped — measured ≤ ceiling, by construction</div>

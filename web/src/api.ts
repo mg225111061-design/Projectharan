@@ -33,11 +33,12 @@ export const api = {
   providers: () => jget<{ providers: Provider[] }>("/api/providers").then((d) => d.providers),
   corpus: () => jget<CorpusResult>("/api/corpus"),
   demo: () => jget<Demo>("/api/demo"),
-  optimize: (code: string, mode: ModeId, provider?: string, model?: string) =>
-    jpost<OptimizeResult>("/api/optimize", { code, mode, provider, model }),
-  // key is sent only here, only to validate request shape; the back end never logs/stores it.
-  validateKey: (provider: string, key: string) =>
-    jpost<KeyValidation>("/api/key/validate", { provider, key }),
+  // key (optional) is sent so the back end can call the proposer; it is never logged or stored server-side.
+  optimize: (code: string, mode: ModeId, provider?: string, key?: string, model?: string) =>
+    jpost<OptimizeResult>("/api/optimize", { code, mode, provider, key, model }),
+  // key is sent only here, only for a live 1-token test call; the back end never logs/stores it.
+  validateKey: (provider: string, key: string, model?: string) =>
+    jpost<KeyValidation>("/api/key/validate", { provider, key, model }),
 };
 
 export type { ModeId };
