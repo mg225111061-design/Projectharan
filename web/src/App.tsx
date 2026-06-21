@@ -87,6 +87,7 @@ export default function App() {
         <div className="brand">
           <span className="dot" />
           MR.JEFFREY <small>whole-program verified speedup</small>
+          {!demo && !bootErr && <span className="syncing" aria-live="polite">· syncing engine…</span>}
         </div>
         <nav className="steps" aria-label="progress">
           {STEPS.map((s) => (
