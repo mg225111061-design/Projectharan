@@ -1,32 +1,47 @@
-import type { Demo } from "../types";
+import type { Demo, ShippedRow } from "../types";
 import { Arrow, Check } from "../icons";
+import { SpeedupSlab } from "../components/SpeedupSlab";
 
 export function Landing({ demo, onStart }: { demo: Demo | null; onStart: () => void }) {
   const totalDetectors = demo ? Math.max(...demo.modes.map((m) => m.detectors)) : 40;
+  // the hero IS the thesis: one real measured speedup as a floating dimensional object (prefer an EXACT win)
+  const heroRun = demo?.runs.find((r) => r.shipped.length) ?? null;
+  const heroRow: ShippedRow | null = heroRun
+    ? heroRun.shipped.find((s) => s.grade === "exact") ?? heroRun.shipped[0]
+    : null;
+
   return (
     <div className="fade">
-      <div className="card" style={{ padding: "34px 30px" }}>
-        <div className="eyebrow">whole-program · measured · Amdahl-honest</div>
-        <h1>
-          A speedup you can trust, because a verifier — not the model — decides what ships.
-        </h1>
-        <p className="lead mt">
-          Paste your code. Pick how cautious to be. MR.JEFFREY profiles it, proposes fixes, and{" "}
-          <strong>measures the whole program</strong> before and after. Every win carries the hotspot
-          fraction it came from and its Amdahl ceiling — and the measured number can never exceed that
-          ceiling. No win, no claim.
-        </p>
-        <div className="row mt">
-          <button className="btn lg" onClick={onStart}>
-            Start <Arrow />
-          </button>
-          <span className="pill">
-            <Check /> {totalDetectors} verified detectors
-          </span>
-          <span className="pill">5 LLM providers, bring your own key</span>
-          <span className="pill">Z3 translation validation</span>
+      <section className="hero">
+        <div className="hero-copy">
+          <div className="eyebrow">whole-program · measured · Amdahl-honest</div>
+          <h1>A speedup you can trust — because a verifier, not the model, decides what ships.</h1>
+          <p className="lead mt">
+            Paste your code. Pick how cautious to be. MR.JEFFREY profiles it, proposes fixes, and{" "}
+            <strong>measures the whole program</strong> before and after. Every win carries the hotspot
+            fraction it came from and its Amdahl ceiling — and the measured number can never cross that
+            ceiling. No win, no claim.
+          </p>
+          <div className="row mt">
+            <button className="btn lg" onClick={onStart}>
+              Paste your code <Arrow />
+            </button>
+            <span className="pill"><Check /> {totalDetectors} verified detectors</span>
+          </div>
         </div>
-      </div>
+        <div className="hero-object">
+          {heroRow && heroRun ? (
+            <SpeedupSlab row={heroRow} mode={heroRun.mode} />
+          ) : (
+            <div className="slab speed-slab" style={{ minHeight: 220 }} />
+          )}
+          {heroRow && (
+            <div className="hero-cap">
+              measured whole-program · {heroRun!.mode} mode · grade {heroRow.grade} · ratio ≤ ceiling
+            </div>
+          )}
+        </div>
+      </section>
 
       <div className="grid cols-3">
         <div className="card mb0">
