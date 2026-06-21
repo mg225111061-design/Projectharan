@@ -22,7 +22,10 @@ const STEPS: { id: Screen; n: string; label: string }[] = [
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("landing");
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  // initial theme follows the OS — the white volume inverts to a deep near-black volume automatically
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+  );
 
   const [modes, setModes] = useState<ModeContract[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
