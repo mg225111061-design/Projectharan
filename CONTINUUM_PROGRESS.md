@@ -29,3 +29,4 @@ Reflect: Round-3 Group P/Q verification cluster largely complete (#65,67,68,69,7
 recognizers (fib/KMP/union-find/coin/fenwick/RMQ/dijkstra/LIS/summed-area). Horner SUBSTITUTED (§A2: Z3 unknown
 on the nonlinear identity → couldn't earn EXACT; replaced with summed-area). Next: #61 BMC, #63 SMT portfolio,
 #73 effects, #74 interprocedural summaries; then SPEED broth families + Clock-A/B throughput.
+| ACC | #74 interprocedural purity summaries (call-graph fixpoint) → EXACT memoization | EXACT | proves a top-level fn pure that single-fn #68 rejects (calls helpers) ⇒ memoize ~76×; impure-helper caller → DECLINE | test_round3_interprocedural_purity | 161/161 |

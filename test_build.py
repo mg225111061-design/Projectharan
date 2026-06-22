@@ -6197,6 +6197,39 @@ def test_round3_aliasing_dependence():
           f"with a real loop-carried dependence ⇒ DECLINE+witness — sound, never a false 'independent')")
 
 
+def test_round3_interprocedural_purity():
+    """ROUND 3 (item 74) — interprocedural summaries (purity across the call graph) → EXACT memoization. #68
+    proves a SINGLE function pure and rejects any helper call; this computes a purity SUMMARY over the call graph
+    by a monotone fixpoint (a fn is pure iff its callees are proven pure), so a top-level fn whose whole reachable
+    callee set is pure becomes provably pure ⇒ memoizable EXACT. An impure reachable helper (I/O) ⇒ the caller
+    stays impure ⇒ DECLINE (sound)."""
+    from pillar3 import interproc as IP
+    from pillar3 import purity as PU
+    import kernel_verdict as KV
+
+    # the value-add contrast: single-function analysis CANNOT prove compute_pure (it calls a helper) ...
+    assert PU.is_pure(IP.compute_pure)[0] is False, "single-fn purity must reject the helper call (too weak)"
+    # ... but the interprocedural summary proves the WHOLE graph pure
+    summ = IP.purity_summary(IP.PURE_GRAPH)
+    assert all(v[0] for v in summ.values()), f"the whole pure call graph should be proven pure: {summ}"
+    impure_summ = IP.purity_summary(IP.IMPURE_GRAPH)
+    assert impure_summ["compute_impure"][0] is False, "a caller reaching an impure (I/O) helper must stay impure"
+
+    v, rep = IP.memoize_grade_ip(IP.compute_pure, "compute_pure", IP.PURE_GRAPH,
+                                 lambda: IP.make_workload(60, 5000), n=5000, samples=5)
+    assert v.status == KV.EXACT and v.certificate.kind == "interprocedural_purity_memoization"
+    assert v.certificate.delta is None and rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9
+    assert rep.whole_program_ratio >= 5.0, f"interproc-pure memoization should win, got {rep.whole_program_ratio:.1f}×"
+
+    vi, _ = IP.memoize_grade_ip(IP.compute_impure, "compute_impure", IP.IMPURE_GRAPH,
+                                lambda: IP.make_workload(60, 5000), n=5000, samples=2)
+    assert vi.status == KV.DECLINE, "memoizing a fn that reaches an impure helper must DECLINE"
+
+    print(f"PASS test_round3_interprocedural_purity (single-fn purity REJECTS compute_pure (calls a helper) but "
+          f"the call-graph fixpoint PROVES the whole graph pure ⇒ memoized EXACT {rep.whole_program_ratio:.0f}× "
+          f"≤ ceiling; a caller reaching an I/O helper ⇒ DECLINE — sound interprocedural summary, extends #68)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).

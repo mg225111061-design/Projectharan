@@ -28,4 +28,4 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (cite test) · ☐ pending 
 
 DETERMINISTIC SUITE RUN: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` ⇒ 158/158. Thread caps remove numpy/numba/BLAS worker-pool inter-test CONTENTION (the load-induced flake source: offload, partial_eval, phaseM2, foldext2, pillar3_stage2) while PRESERVING the SIMD/JIT wins (vectorization/compilation, not parallelism). Each flake also passes in isolation uncapped.
 73. ☐ effects analysis (I/O / mutation) → safe reordering & batching
-74. ☐ interprocedural summaries (purity/range/effects across calls)
+74. ☑ interprocedural summaries (purity across the call graph) → EXACT memoization — monotone fixpoint (fn pure iff callees proven pure); proves compute_pure that single-fn #68 REJECTS (calls helpers) → memoize EXACT ~76×; caller reaching I/O helper → DECLINE (sound, extends #68) [test_round3_interprocedural_purity; pillar3/interproc.py]

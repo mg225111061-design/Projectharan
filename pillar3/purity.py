@@ -29,8 +29,10 @@ _MUTATING_METHODS = {"append", "extend", "insert", "pop", "remove", "add", "upda
                      "setdefault", "popitem", "discard", "writelines", "write", "seek", "__setitem__"}
 
 
-def is_pure(fn: Callable) -> Tuple[bool, str]:
-    """Conservative AST purity proof. Returns (pure, reason). Unknown ⇒ impure (sound — never over-approximate)."""
+def is_pure(fn: Callable, known_pure: "Optional[set]" = None) -> Tuple[bool, str]:
+    """Conservative AST purity proof. Returns (pure, reason). Unknown ⇒ impure (sound — never over-approximate).
+    `known_pure` names (callees already PROVEN pure) are accepted — the hook for interprocedural summaries (#74)."""
+    known_pure = known_pure or set()
     try:
         src = textwrap.dedent(inspect.getsource(fn))
         tree = ast.parse(src)
@@ -67,7 +69,7 @@ def is_pure(fn: Callable) -> Tuple[bool, str]:
             if isinstance(f, ast.Name):
                 if f.id in _IMPURE_BUILTINS:
                     reasons.append(f"calls impure builtin {f.id}()")
-                elif f.id not in _PURE_BUILTINS and f.id not in local_fns:
+                elif f.id not in _PURE_BUILTINS and f.id not in local_fns and f.id not in known_pure:
                     reasons.append(f"calls non-whitelisted function {f.id}() (unknown purity)")
             elif isinstance(f, ast.Attribute):
                 base = f.value.id if isinstance(f.value, ast.Name) else None
