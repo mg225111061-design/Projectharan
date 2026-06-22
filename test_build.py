@@ -6174,6 +6174,28 @@ def test_round3_kinduction_unbounded():
           f"invariants proven; non-inductive closed forms (n(n+1)/2, n²) fail the step ⇒ DECLINE)")
 
 
+def test_round3_aliasing_dependence():
+    """ROUND 3 (item 69) — alias / loop-carried dependence analysis (Z3, SOUND) → safe parallelize/reorder.
+    Reordering `for i: a[w(i)] = g(a[r(i)])` is valid only if distinct iterations don't interfere; we prove
+    ∀ i≠j≥0: w(i)≠r(j) ∧ w(i)≠w(j) (no flow/anti/output dependence) over the affine indices. Proven ⇒ EXACT
+    (parallel ≡ sequential). A real dependence (consecutive a[i]=g(a[i+1])) ⇒ Z3 counterexample ⇒ DECLINE
+    (keep sequential — a wrong 'independent' is a correctness bug)."""
+    from pillar3 import aliasing as AL
+    import kernel_verdict as KV
+
+    for nm, w, r in AL.independent_loops():
+        res = AL.analyze_dependence(nm, w, r)
+        assert res.verdict.status == KV.EXACT and res.independent, f"{nm} should be independent, cex={res.counterexample}"
+        assert res.verdict.certificate.kind == "no_loop_carried_dependence" and res.verdict.certificate.delta is None
+    for nm, w, r in AL.dependent_loops():
+        res = AL.analyze_dependence(nm, w, r)
+        assert res.verdict.status == KV.DECLINE and res.counterexample, f"{nm} has a real dependence ⇒ must DECLINE+witness"
+
+    print(f"PASS test_round3_aliasing_dependence ({len(AL.independent_loops())} loops PROVEN independent (∀ i≠j "
+          f"no flow/output dependence over affine indices) ⇒ EXACT parallel-safe; {len(AL.dependent_loops())} "
+          f"with a real loop-carried dependence ⇒ DECLINE+witness — sound, never a false 'independent')")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
