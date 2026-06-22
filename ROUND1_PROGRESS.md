@@ -24,7 +24,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 12. ☑ Fenwick/BIT repeated point-update + range-query O((U+Q)·n)→O((U+Q)·log n) ~9×@n=2000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers; round1.py]
 13. ☑ sparse-table RMQ O(q·n)→O(n log n build + O(1)/query) ~10×@n=4000 PROBABILISTIC; inclusive-split off-by-one wrong→DECLINE [test_round1_big_recognizers; round1.py]
 14. ☑ union-find + path compression near-O(1) connectivity ~121×@n=600 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers]
-15. ◩ blocked/Strassen matmul large n — [test_v40_phase2_structured_matrices]; verify whole-program+wrong
+15. ☑ naive O(n³) matmul → blocked/BLAS (numpy int64) ~65×@n=160 EXACT under PROVEN no-overflow bound (|C_ij|<2^63 ⇒ exact integers), bit-exact vs naive δ=None; bound-exceeded→DECLINE (no wrap), wrong-axis→DECLINE; UNVERIFIED[no numpy] [test_round1_matmul_blocked_exact; pillar3/matmul.py]
 ## Group C — redundancy elimination
 16. ☐ incremental / self-adjusting computation (recompute affected sub-DAG only)
 17. ◩ interprocedural memoization of pure functions — superopt fib memo [test_phaseS_extend_depth]

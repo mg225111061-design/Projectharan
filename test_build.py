@@ -5887,6 +5887,34 @@ def test_round1_egraph_simplify_exact():
           f"(δ=None); a non-equivalent rewrite (x·999) ⇒ DECLINE)")
 
 
+def test_round1_matmul_blocked_exact():
+    """ROUND 1 (Group B, item 15) — naive O(n³) integer matmul → blocked/BLAS (numpy int64) matmul, graded
+    EXACT under a PROVEN no-overflow bound (|C_ij| < 2^63 ⇒ the int64 product IS the true integer — exact, no
+    wrap). Measured whole-program (ratio ≤ ceiling). Bound exceeded ⇒ honest DECLINE (never a wrapped answer);
+    a wrong product (multiply by Bᵀ) ⇒ full-matrix spot-check disagrees ⇒ DECLINE. UNVERIFIED [no numpy]."""
+    from pillar3 import matmul as MM
+    import kernel_verdict as KV
+
+    if not MM._NP:
+        print("UNVERIFIED test_round1_matmul_blocked_exact [no numpy in sandbox] — transform built, excluded")
+        return
+    v, rep = MM.matmul_grade(lambda: MM.make_matmul_input(160, 1000), n=160, samples=5)
+    assert v.status == KV.EXACT, f"blocked matmul under the bound should be EXACT, got {v.status}"
+    assert v.certificate.kind == "int64_bound+spotcheck" and v.certificate.delta is None, "EXACT, no probabilistic δ"
+    assert v.result == MM.matmul_naive(*MM.make_matmul_input(160, 1000)), "blocked product is bit-exact vs naive"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 5.0, f"O(n³)→BLAS should be a big win, got {rep.whole_program_ratio:.1f}×"
+
+    vo, _ = MM.matmul_grade(lambda: MM.make_matmul_input_overflow(64, 10 ** 9), n=64, samples=2)
+    assert vo.status == KV.DECLINE, "magnitude bound ≥ 2^63 must DECLINE the int64 fast path (no wrap)"
+    vw, _ = MM.matmul_grade(lambda: MM.make_matmul_input(160, 1000), fast_fn=MM.matmul_wrong, n=160, samples=2)
+    assert vw.status == KV.DECLINE, "a wrong-axis product must DECLINE"
+
+    print(f"PASS test_round1_matmul_blocked_exact (naive O(n³)→blocked/BLAS int64 {rep.whole_program_ratio:.0f}× "
+          f"≤ ceiling {rep.amdahl_ceiling:.0f}× @ n=160, EXACT (proven |C_ij|<2^63 ⇒ exact integers, δ=None, "
+          f"bit-exact vs naive); bound-exceeded ⇒ DECLINE (no wrap); wrong-axis ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
