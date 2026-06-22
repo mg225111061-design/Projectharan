@@ -613,8 +613,41 @@ def _p2d_in():
             ([[5]], [(0, 0, 1, 1)])]
 
 
+# ── item 16c — accidental O(n²) string build: concat into a subscript/attr target → list-accumulate + join ─
+# (CPython's in-place += optimization applies ONLY to a simple LOCAL name; a subscript/attribute target like
+#  acc["s"] = acc["s"] + ln does NOT qualify ⇒ each concat copies the whole prefix ⇒ genuine O(n²).)
+def report_naive(lines):
+    acc = {"s": ""}
+    for ln in lines:
+        acc["s"] = acc["s"] + ln                            # subscript target ⇒ no in-place opt ⇒ O(n²)
+    return acc["s"]
+
+
+def report_fast(lines):
+    return "".join(lines)                                   # O(total length)
+
+
+def report_wrong(lines):                                    # wrong order ⇒ differential catches
+    return "".join(reversed(lines))
+
+
+_REP_CACHE: dict = {}
+
+
+def _mk_report(n=16000):
+    if n not in _REP_CACHE:
+        _REP_CACHE[n] = ([f"event-{i}: ok;\n" for i in range(n)],)
+    return _REP_CACHE[n]
+
+
+def _report_in():
+    return [(["a", "b", "c"],), (["x"],), ([],), (["1", "2", "3", "4", "5"],), (["foo", "bar"],)]
+
+
 def catalog() -> List[Recognizer]:
     return [
+        Recognizer("string_build_join", "accidental_quadratic", report_naive, report_fast,
+                   lambda: _mk_report(16000), residual_iters=0, gen_inputs=_report_in, relations=[], n=16000, floor=1.30),
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
                    lambda: _mk_fib(24000), residual_iters=0, gen_inputs=_fib_in, relations=[], n=24000, floor=1.30),
         Recognizer("kmp_substring", "algo_replace", search_naive, search_kmp,

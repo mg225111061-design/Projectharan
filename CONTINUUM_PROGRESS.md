@@ -41,3 +41,4 @@ unbounded proofs. Next: #63 SMT portfolio (Clock-B speed), #64 CEGAR, then SPEED
 
 Reflect: ROUND 3 COMPLETE (Group P #61,63,64,65,67 built + #62,66 verify-existing; Group Q #68-74 all built).
 EXACT-share majority. Next per CONTINUUM: SPEED broth families + Clock-A/B throughput, more big-multipliers.
+| SPEED | big-multiplier recognizer: accidental O(n²) string-build (subscript-target concat) → list+join O(n) | PROBABILISTIC | ~452×@n=16000 (the common AI antipattern; CPython's in-place += opt does NOT apply to a subscript/attr target); wrong order→DECLINE | test_round1_big_recognizers | 165/165 |
