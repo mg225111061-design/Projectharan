@@ -37,3 +37,7 @@ Reflect: ROUND 3 Group P + Q essentially complete (#61,65,67 P-built + 62,66 ver
 #64 CEGAR remain in P; Q all done #68-74). EXACT-share keeps climbing via sound static analyses + bounded/
 unbounded proofs. Next: #63 SMT portfolio (Clock-B speed), #64 CEGAR, then SPEED broth families + Clock-A/B.
 | SPEED | #63 cheap-first verification tiering (Clock-B) — syntactic→interval→Z3 | EXACT (sound fast path) | Z3 calls 9→2 (4.5× fewer); cheap tiers cross-checked sound vs Z3; disagreeing tier→DECLINE | test_round3_verification_tiering | 164/164 |
+| ACC | #64 CEGAR — refine loop invariant until inductive & strong enough | EXACT | x≠51 PROVEN via refining predicate x%2==0; false x≠50 → REFUTED (bounded-reach witness) | test_round3_cegar_refinement | 165/165 |
+
+Reflect: ROUND 3 COMPLETE (Group P #61,63,64,65,67 built + #62,66 verify-existing; Group Q #68-74 all built).
+EXACT-share majority. Next per CONTINUUM: SPEED broth families + Clock-A/B throughput, more big-multipliers.

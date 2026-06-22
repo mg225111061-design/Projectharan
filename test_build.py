@@ -6308,6 +6308,34 @@ def test_round3_verification_tiering():
           f"{rep.by_tier['smt']}), cheap tiers cross-checked SOUND vs Z3; a disagreeing fast path ⇒ DECLINE)")
 
 
+def test_round3_cegar_refinement():
+    """ROUND 3 (item 64) — CEGAR: counterexample-guided abstraction refinement for loop invariants. The weakest
+    invariant (True) can't prove x≠51 for x:=x+2 from 0; CEGAR refines by adding the predicate 'x is EVEN'
+    (which keeps the invariant inductive) and then PROVES it ⇒ EXACT (a machine-checked safety proof). A
+    genuinely-false property (x≠50, since 50 is reachable) is NOT proved — a bounded-reachability witness shows
+    the real counterexample ⇒ DECLINE (REFUTED). Never a false 'safe'."""
+    from pillar3 import cegar as CG
+    import kernel_verdict as KV
+
+    r = CG.cegar_prove("safe_x_ne_51", bad=lambda x: x == 51, bad_int=lambda x: x == 51,
+                       candidates=CG.CANDIDATES, **CG._SYS)
+    assert r.verdict.status == KV.EXACT and r.status == "PROVEN", f"x≠51 should be proven by refinement, got {r.status}"
+    assert "x%2==0" in r.invariant, "the refinement must add the parity predicate (the spurious-cex eliminator)"
+    assert r.verdict.certificate.kind == "cegar_inductive_invariant" and r.verdict.certificate.delta is None
+
+    r2 = CG.cegar_prove("false_x_ne_50", bad=lambda x: x == 50, bad_int=lambda x: x == 50,
+                        candidates=CG.CANDIDATES, **CG._SYS)
+    assert r2.verdict.status == KV.DECLINE and r2.status == "REFUTED", "x≠50 is FALSE (50 reachable) ⇒ REFUTED/DECLINE"
+
+    r3 = CG.cegar_prove("safe_x_ne_101", bad=lambda x: x == 101, bad_int=lambda x: x == 101,
+                        candidates=CG.CANDIDATES, **CG._SYS)
+    assert r3.verdict.status == KV.EXACT, "x≠101 (odd) should be proven via the parity invariant"
+
+    print(f"PASS test_round3_cegar_refinement (coarse invariant can't prove x≠51 → CEGAR refines with 'x%2==0' "
+          f"(inductive) → PROVEN EXACT @ iter {r.iterations}; x≠101 EXACT; the FALSE x≠50 (50 reachable) → "
+          f"bounded-reachability witness ⇒ REFUTED/DECLINE — never a false 'safe')")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
