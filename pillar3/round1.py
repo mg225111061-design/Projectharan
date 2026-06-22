@@ -407,6 +407,98 @@ def _rmq_in():
             ([1, 100, 100, 100, 100], [(1, 5), (0, 5)])]
 
 
+# ── item 13b — single-source shortest path: naive O(V²) scan-for-min → heap-based O((V+E)·log V) ─────────
+import heapq as _heapq
+
+
+def _dij_adj(n, edges):
+    adj = [[] for _ in range(n)]
+    for u, v, w in edges:
+        adj[u].append((v, w))
+        adj[v].append((u, w))
+    return adj
+
+
+def dijkstra_naive(n, edges, src):
+    adj = _dij_adj(n, edges)
+    INF = float("inf")
+    dist = [INF] * n
+    dist[src] = 0
+    visited = [False] * n
+    for _ in range(n):
+        u, best = -1, INF
+        for i in range(n):                                  # O(V) scan for the min each step ⇒ O(V²) total
+            if not visited[i] and dist[i] < best:
+                best, u = dist[i], i
+        if u == -1:
+            break
+        visited[u] = True
+        for v, w in adj[u]:
+            if dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+    return dist
+
+
+def dijkstra_heap(n, edges, src):
+    adj = _dij_adj(n, edges)
+    INF = float("inf")
+    dist = [INF] * n
+    dist[src] = 0
+    pq = [(0, src)]
+    while pq:
+        d, u = _heapq.heappop(pq)
+        if d > dist[u]:
+            continue                                        # stale entry
+        for v, w in adj[u]:
+            nd = d + w
+            if nd < dist[v]:
+                dist[v] = nd
+                _heapq.heappush(pq, (nd, v))
+    return dist
+
+
+def dijkstra_wrong(n, edges, src):                          # stores d instead of d+w on relax ⇒ wrong distances
+    adj = _dij_adj(n, edges)
+    INF = float("inf")
+    dist = [INF] * n
+    dist[src] = 0
+    pq = [(0, src)]
+    while pq:
+        d, u = _heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        for v, w in adj[u]:
+            nd = d + w
+            if nd < dist[v]:
+                dist[v] = d                                 # BUG: drops the edge weight w
+                _heapq.heappush(pq, (d, v))
+    return dist
+
+
+_DIJ_CACHE: dict = {}
+
+
+def _mk_dij(n=1500, extra=2200):
+    key = (n, extra)
+    if key not in _DIJ_CACHE:
+        rng = _rnd.Random(91)
+        edges = [(i, i + 1, rng.randrange(1, 20)) for i in range(n - 1)]   # a path ⇒ connected
+        for _ in range(extra):
+            a, b = rng.randrange(n), rng.randrange(n)
+            if a != b:
+                edges.append((a, b, rng.randrange(1, 20)))
+        _DIJ_CACHE[key] = (n, edges, 0)
+    return _DIJ_CACHE[key]
+
+
+def _dij_in():
+    return [(4, [(0, 1, 1), (1, 2, 2), (0, 2, 4), (2, 3, 1)], 0),
+            (3, [(0, 1, 5), (1, 2, 5), (0, 2, 3)], 0),
+            (5, [(0, 1, 1), (1, 2, 1), (2, 3, 1), (3, 4, 1)], 0),
+            (2, [(0, 1, 7)], 0),
+            (4, [(0, 1, 2), (0, 2, 2), (1, 3, 3), (2, 3, 1)], 0)]
+
+
 def catalog() -> List[Recognizer]:
     return [
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
@@ -421,4 +513,6 @@ def catalog() -> List[Recognizer]:
                    lambda: _mk_fenwick(2000, 1500), residual_iters=0, gen_inputs=_fen_in, relations=[], n=2000, floor=1.20),
         Recognizer("sparse_table_rmq", "algo_replace", rmq_naive, rmq_sparse,
                    lambda: _mk_rmq(4000, 4000), residual_iters=0, gen_inputs=_rmq_in, relations=[], n=4000, floor=1.30),
+        Recognizer("dijkstra_heap", "algo_replace", dijkstra_naive, dijkstra_heap,
+                   lambda: _mk_dij(1500, 2200), residual_iters=0, gen_inputs=_dij_in, relations=[], n=1500, floor=1.30),
     ]

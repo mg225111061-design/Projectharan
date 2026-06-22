@@ -19,3 +19,4 @@ NOTE: this continues the OMEGA Tier-2 / Round-3 verification deepening (raising 
 Reflect: the EXACT-promotion + sound-static-analysis cluster is filling out (Round-3 Group P/Q). Next bottleneck:
 unbounded-loop invariants (#61 BMC, #65 k-induction) and verification SPEED (#63 SMT portfolio), then SPEED
 big-multiplier broth families (segment tree / Dijkstra-heap / suffix structures).
+| SPEED | big-multiplier recognizer: Dijkstra naive O(V²) → heap O((V+E)·log V) | PROBABILISTIC | ~28×@V=1500 sparse; wrong (drops edge weight)→DECLINE | test_round1_big_recognizers | 158/158 |

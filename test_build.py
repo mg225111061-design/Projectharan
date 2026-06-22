@@ -5719,6 +5719,7 @@ def test_round1_big_recognizers():
         ("coin_change", R1.coins_naive, R1.coins_dp_wrong, lambda: R1._mk_coins(26), R1._coins_in_fixed, 26),
         ("fenwick", R1.fenwick_naive, R1.fenwick_wrong, lambda: R1._mk_fenwick(2000, 1500), R1._fen_in, 2000),
         ("rmq", R1.rmq_naive, R1.rmq_wrong, lambda: R1._mk_rmq(4000, 4000), R1._rmq_in, 4000),
+        ("dijkstra", R1.dijkstra_naive, R1.dijkstra_wrong, lambda: R1._mk_dij(1500, 2200), R1._dij_in, 1500),
     ]
     for nm, naive, wrong, mk, gen, n in wrongs:
         w = A.Recognizer(nm + "_W", "algo_replace", naive, wrong, mk, 0, gen, [], n, 1.2)
