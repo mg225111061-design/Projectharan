@@ -9,7 +9,7 @@ RESUME POINTER: building Group A/B new recognizers in pillar3/round1.py. Next: i
 Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsewhere, cite test) · ☐ pending · ⚠ UNVERIFIED[reason]
 
 ## Group A — ceiling-breakers
-1. ☐ verified lifting generalized to arbitrary affine loops (widen accepted shape; covers a no-detector hotspot)
+1. ☑ verified lifting generalized to arbitrary affine loops — family s+=A·a[i]+B·i+C, identity Z3-proven ONCE over symbolic A,B,C+array (len≤6) licenses all instances; index-only(A=0) O(n)→O(1) ~560× ceiling-breaker, array-affine ~9×, EXACT; triangular off-by-one→Z3-refuted DECLINE [test_round1_affine_lift_generalized_exact; pillar3/affine.py]
 2. ◩ egg equality saturation in Pillar 3 — fold_egraph.py + superopt.py [test_foldext3_stage2_superopt]; wire a P3 recognizer
 3. ☐ llvmlite/numba native compile of hot numeric region (llvmlite 0.47 + numba 0.65 present → buildable)
 4. ◩ STOKE-style stochastic superopt of small fragments — superopt.py [test_foldext3_stage2]; verify adversarial

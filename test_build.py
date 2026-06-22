@@ -5797,6 +5797,40 @@ def test_round1_partial_evaluation_exact():
           f"(mul→add / dropped live term) differential-caught AND Z3-refuted ⇒ DECLINE)")
 
 
+def test_round1_affine_lift_generalized_exact():
+    """ROUND 1 (Group A, item 1) — VERIFIED LIFTING GENERALIZED to the arbitrary affine-accumulation loop family
+    s += A·a[i] + B·i + C. The family identity (≡ A·Σa + B·n(n−1)/2 + C·n) is proven ONCE by bounded Z3 over
+    SYMBOLIC coefficients A,B,C and a symbolic array — licensing every concrete instance. Index-only (A=0) folds
+    to O(1) (a ceiling-breaker); array-affine folds the index arithmetic + one reduction. Each instance graded
+    EXACT, measured whole-program (ratio ≤ ceiling). A wrong lift (triangular off-by-one) ⇒ Z3-refuted ⇒ DECLINE."""
+    from pillar3 import affine as AF
+    from pillar3 import lifting as LF
+    import kernel_verdict as KV
+
+    proven, upto = AF.prove_affine_schema(6)
+    assert proven, "the affine family identity must be Z3-proven over symbolic A,B,C and arrays up to the bound"
+
+    rows = []
+    for L in AF.catalog():
+        v = LF.lift_and_grade(L, samples=7)
+        assert v.status == KV.EXACT, f"{L.name} should be EXACT (Z3 family identity), got {v.status}"
+        assert v.certificate.delta is None, "EXACT must NOT carry a probabilistic δ"
+        rep = v.report
+        assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, f"{L.name} ratio ≤ ceiling (Rule 2)"
+        rows.append((L.name, rep.whole_program_ratio))
+    # the index-only (A=0) instance is a genuine O(n)→O(1) ceiling-breaker — demand a large win
+    o1 = dict(rows)["affine_index_only_O1"]
+    assert o1 >= 50.0, f"index-only affine should collapse O(n)→O(1) (big win), got {o1:.1f}×"
+
+    for W in AF.wrong_variants():
+        assert LF.lift_and_grade(W, samples=3).status == KV.DECLINE, f"wrong affine lift {W.name} must DECLINE"
+
+    desc = "; ".join(f"{n.replace('affine_','')} {r:.0f}×" for n, r in rows)
+    print(f"PASS test_round1_affine_lift_generalized_exact (family identity Z3-proven over symbolic A,B,C "
+          f"(len ≤ {upto}); instances EXACT: {desc}; index-only O(n)→O(1) ceiling-breaker; ratio ≤ ceiling; "
+          f"triangular off-by-one ⇒ Z3-refuted ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
