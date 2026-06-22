@@ -6111,6 +6111,43 @@ def test_round3_termination_ranking():
           f"(increasing / steps over zero) ⇒ DECLINE+witness — sound, never assume termination)")
 
 
+def test_round3_interval_range_analysis():
+    """ROUND 3 (item 70) — interval/range analysis → EXACT machine-int fast path (SOUND abstract interpretation).
+    Generalises the NTT/matmul no-wraparound bound into one reusable analysis over the interval domain [lo,hi]
+    (a sound OVER-approximation). If the conservative output interval fits the machine width, the fixed-width
+    fast path is provably overflow-free ⇒ EXACT; if it can exceed the width ⇒ DECLINE (no wrapped answer).
+    Soundness guard: the abstraction must OVER-approximate the true reachable set (brute-force checked)."""
+    from pillar3 import interval as IV
+    import kernel_verdict as KV
+    import itertools
+
+    # ★ soundness ★ — the interval domain must contain EVERY concrete value (never under-approximate)
+    A, B, C = IV.Interval(-10, 10), IV.Interval(-7, 12), IV.Interval(-3, 9)
+    iv = A * B + C - A
+    lo = min(a * b + c - a for a, b, c in itertools.product(range(-10, 11), range(-7, 13), range(-3, 10)))
+    hi = max(a * b + c - a for a, b, c in itertools.product(range(-10, 11), range(-7, 13), range(-3, 10)))
+    assert iv.lo <= lo and hi <= iv.hi, f"interval [{iv.lo},{iv.hi}] must over-approximate concrete [{lo},{hi}]"
+
+    # fits the width ⇒ EXACT overflow-free fast path (the convolution/matmul accumulator conditions, unified)
+    ci = IV.conv_accumulator_interval(300, 2000)
+    r = IV.grade_no_overflow(ci, bits=64, op="conv accumulator")
+    assert r.verdict.status == KV.EXACT and r.fits and r.verdict.certificate.delta is None
+    mi = IV.matmul_accumulator_interval(1000, 160)
+    assert IV.grade_no_overflow(mi, bits=64).verdict.status == KV.EXACT
+
+    # exceeds the width ⇒ DECLINE the fixed-width fast path (never a wrap)
+    co = IV.conv_accumulator_interval(10 ** 9, 2048)
+    assert IV.grade_no_overflow(co, bits=64).verdict.status == KV.DECLINE
+    # a bound that fits int64 but NOT int32 ⇒ EXACT@64 yet DECLINE@32 (the width boundary is respected)
+    cb = IV.conv_accumulator_interval(2000, 2000)            # |v| ≤ 8e9: > 2^31, < 2^63
+    assert IV.grade_no_overflow(cb, bits=64).verdict.status == KV.EXACT
+    assert IV.grade_no_overflow(cb, bits=32).verdict.status == KV.DECLINE
+
+    print(f"PASS test_round3_interval_range_analysis (interval domain SOUND (over-approx brute-checked); conv "
+          f"accumulator |v|≤{ci.magnitude():.0e} ⊂ int64 ⇒ EXACT overflow-free; matmul EXACT; |v|≥2^63 OR "
+          f"int32 ⇒ DECLINE — unifies the NTT/matmul no-wrap bound as one reusable EXACT-enabling analysis)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
