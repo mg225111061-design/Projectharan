@@ -5948,6 +5948,34 @@ def test_round1_stoke_superopt_probabilistic():
           f"(7x) ⇒ Schwartz–Zippel refutes ⇒ DECLINE)")
 
 
+def test_round1_bounds_check_elim_exact():
+    """ROUND 1 (Group D, item 22) / Tier-2 EXACT-share — redundant guard / bounds-check elimination via a Z3
+    in-range proof. A loop re-checks a guard that is ALWAYS true (y=x·x ≥ 0); Z3 PROVES it (UNSAT of ¬guard) ⇒
+    the guard is dead ⇒ removing it is behavior-preserving ⇒ EXACT and faster. Soundness-critical: a guard that
+    can FAIL (x·x > 0, false at x=0) is NOT removed — Z3 returns a counterexample ⇒ KEEP the check ⇒ DECLINE
+    (a wrong 'safe' would be a correctness bug)."""
+    from pillar3 import boundscheck as BC
+    import kernel_verdict as KV
+
+    v, rep = BC.guard_grade(lambda: BC.make_guard_input(80000), BC.guarded_nonneg, BC.unguarded,
+                            lambda x: x * x >= 0, n=80000, samples=5)
+    assert v.status == KV.EXACT, f"a Z3-proven-redundant guard removal should be EXACT, got {v.status}"
+    assert v.certificate.kind == "z3_guard_redundant" and v.certificate.delta is None, "EXACT, no probabilistic δ"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 1.10, f"removing a per-element check should win, got {rep.whole_program_ratio:.2f}×"
+
+    # soundness: a guard that CAN fail (x·x > 0 at x=0) must NOT be removed ⇒ DECLINE (keep the check)
+    redundant, cex = BC.prove_guard_redundant(lambda x: x * x > 0)
+    assert redundant is False and cex is not None, "x·x>0 is not always true (x=0) — Z3 must give a counterexample"
+    vw, _ = BC.guard_grade(lambda: BC.make_guard_input(80000), BC.guarded_positive, BC.unguarded,
+                           lambda x: x * x > 0, n=80000, samples=2)
+    assert vw.status == KV.DECLINE, "a non-redundant (live) guard must be KEPT ⇒ DECLINE (sound)"
+
+    print(f"PASS test_round1_bounds_check_elim_exact (Z3-proven-redundant guard x·x≥0 removed, EXACT "
+          f"(δ=None), measured {rep.whole_program_ratio:.2f}× ≤ ceiling; a live guard x·x>0 (fails at x=0) is "
+          f"KEPT ⇒ DECLINE — sound, never an unsound removal)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).

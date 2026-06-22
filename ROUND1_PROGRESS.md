@@ -33,7 +33,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 20. ☐ dead-code + reachability elimination
 ## Group D — compiler transforms
 21. ◩ polyhedral optimization of affine loop nests — polyhedral_opt.py [exists]; wire/verify
-22. ☐ bounds-check elimination (Z3 in-range proof → EXACT)
+22. ☑ redundant guard / bounds-check elimination — Z3 proves guard always holds (UNSAT of ¬guard) → remove → EXACT ~1.5×; a live guard (x·x>0 fails at x=0) Z3 gives counterexample → KEEP → DECLINE (sound, never unsound removal) [test_round1_bounds_check_elim_exact; pillar3/boundscheck.py]
 23. ◩ strength reduction (deep) — equiv_transforms [test_phaseV]
 24. ◩ algebraic simplification + constant folding (e-graph) — fold_egraph [test_foldext3_stage2]
 25. ☐ function specialization + inlining of hot small calls
