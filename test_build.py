@@ -5721,6 +5721,7 @@ def test_round1_big_recognizers():
         ("rmq", R1.rmq_naive, R1.rmq_wrong, lambda: R1._mk_rmq(4000, 4000), R1._rmq_in, 4000),
         ("dijkstra", R1.dijkstra_naive, R1.dijkstra_wrong, lambda: R1._mk_dij(1500, 2200), R1._dij_in, 1500),
         ("lis", R1.lis_naive, R1.lis_wrong, lambda: R1._mk_lis(3000), R1._lis_in, 3000),
+        ("summed_area", R1.p2d_naive, R1.p2d_wrong, lambda: R1._mk_p2d(200, 200, 3000), R1._p2d_in, 200),
     ]
     for nm, naive, wrong, mk, gen, n in wrongs:
         w = A.Recognizer(nm + "_W", "algo_replace", naive, wrong, mk, 0, gen, [], n, 1.2)

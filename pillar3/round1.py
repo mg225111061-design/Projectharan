@@ -553,6 +553,66 @@ def _lis_in():
             ([2, 2, 3, 1, 4, 4, 5],), ([7],), ([],)]
 
 
+# ── item 13c — repeated rectangle-sum queries: naive O(Q·h·w) → summed-area table O(h·w + Q) ────────────
+def p2d_naive(grid, queries):
+    out = []
+    for r1, c1, r2, c2 in queries:                          # sum submatrix [r1,r2) × [c1,c2)
+        s = 0
+        for i in range(r1, r2):
+            row = grid[i]
+            for j in range(c1, c2):
+                s += row[j]
+        out.append(s)
+    return out
+
+
+def _p2d_build(grid):
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    P = [[0] * (w + 1) for _ in range(h + 1)]
+    for i in range(h):
+        for j in range(w):
+            P[i + 1][j + 1] = grid[i][j] + P[i][j + 1] + P[i + 1][j] - P[i][j]
+    return P
+
+
+def p2d_fast(grid, queries):
+    P = _p2d_build(grid)
+    return [P[r2][c2] - P[r1][c2] - P[r2][c1] + P[r1][c1] for r1, c1, r2, c2 in queries]   # O(1) inclusion-exclusion
+
+
+def p2d_wrong(grid, queries):                               # drops the +P[r1][c1] corner ⇒ wrong (double-subtract)
+    P = _p2d_build(grid)
+    return [P[r2][c2] - P[r1][c2] - P[r2][c1] for r1, c1, r2, c2 in queries]
+
+
+_P2D_CACHE: dict = {}
+
+
+def _mk_p2d(h=200, w=200, q=3000):
+    key = (h, w, q)
+    if key not in _P2D_CACHE:
+        rng = _rnd.Random(63)
+        grid = [[rng.randrange(-50, 50) for _ in range(w)] for _ in range(h)]
+        queries = []
+        for _ in range(q):
+            r1 = rng.randrange(h - 1)
+            r2 = rng.randrange(r1 + 1, h + 1)
+            c1 = rng.randrange(w - 1)
+            c2 = rng.randrange(c1 + 1, w + 1)
+            queries.append((r1, c1, r2, c2))
+        _P2D_CACHE[key] = (grid, queries)
+    return _P2D_CACHE[key]
+
+
+def _p2d_in():
+    g = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    g2 = [[2, 0], [0, 3]]
+    return [(g, [(0, 0, 2, 2), (1, 1, 3, 3), (0, 0, 3, 3), (0, 1, 2, 3)]),
+            (g2, [(0, 0, 1, 1), (0, 0, 2, 2), (1, 0, 2, 2)]),
+            ([[5]], [(0, 0, 1, 1)])]
+
+
 def catalog() -> List[Recognizer]:
     return [
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
@@ -571,4 +631,6 @@ def catalog() -> List[Recognizer]:
                    lambda: _mk_dij(1500, 2200), residual_iters=0, gen_inputs=_dij_in, relations=[], n=1500, floor=1.30),
         Recognizer("lis_patience", "algo_replace", lis_naive, lis_fast,
                    lambda: _mk_lis(3000), residual_iters=0, gen_inputs=_lis_in, relations=[], n=3000, floor=1.30),
+        Recognizer("summed_area_table", "algo_replace", p2d_naive, p2d_fast,
+                   lambda: _mk_p2d(200, 200, 3000), residual_iters=0, gen_inputs=_p2d_in, relations=[], n=200, floor=1.30),
     ]

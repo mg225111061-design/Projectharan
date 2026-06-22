@@ -23,3 +23,9 @@ big-multiplier broth families (segment tree / Dijkstra-heap / suffix structures)
 | ACC | #65 k-induction — closed form / invariant proven for UNBOUNDED n (bounded→all-n EXACT promotion) | EXACT | Σi, Faulhaber Σi², Σodd, x%2==0, x≥0 ∀n; non-inductive (n(n+1)/2,n²)→DECLINE | test_round3_kinduction_unbounded | 159/159 |
 | SPEED | big-multiplier recognizer: LIS naive O(n²) DP → patience/binary-search O(n log n) | PROBABILISTIC | ~430×@n=3000; wrong (bisect_right⇒non-strict)→DECLINE on duplicates | test_round1_big_recognizers | 159/159 |
 | ACC | #69 alias / loop-carried dependence analysis (Z3) → safe parallelize | EXACT | 3 loops proven independent (parallel-safe); 2 real dependences → DECLINE+witness | test_round3_aliasing_dependence | 160/160 |
+| SPEED | big-multiplier recognizer: rectangle-sum queries O(Q·h·w) → summed-area table O(h·w + Q) | PROBABILISTIC | ~42×@200×200,3000q; wrong (drops inclusion-exclusion corner)→DECLINE | test_round1_big_recognizers | 160/160 |
+
+Reflect: Round-3 Group P/Q verification cluster largely complete (#65,67,68,69,70,71,72); 9 big-multiplier
+recognizers (fib/KMP/union-find/coin/fenwick/RMQ/dijkstra/LIS/summed-area). Horner SUBSTITUTED (§A2: Z3 unknown
+on the nonlinear identity → couldn't earn EXACT; replaced with summed-area). Next: #61 BMC, #63 SMT portfolio,
+#73 effects, #74 interprocedural summaries; then SPEED broth families + Clock-A/B throughput.
