@@ -104,8 +104,8 @@ def _proposer_block(provider: Optional[str], model: Optional[str], key: Optional
     verifier-arbitrated structural fix. The key is header-only and never logged."""
     if not key or not provider or provider not in PRV.VALID_PROVIDERS:
         return {"used": False, "mode": "deterministic",
-                "note": "no LLM key — deterministic structural detectors (the measured, applied path). "
-                        "Pick a free Groq/Gemini key to have an LLM propose rewrites too."}
+                "note": "LLM 키 없음 — 결정론적 구조 디텍터(측정·적용 경로)로 실행합니다. "
+                        "무료 Groq/Gemini 키를 넣으면 LLM 재작성 제안도 받을 수 있습니다."}
     waste = detected[0]["waste_type"] if detected else "general hotspot"
     mdl = (model or "").strip() or PRV.default_model_for(provider)
     prompt = (f"Optimize this Python for the waste pattern `{waste}` while preserving behavior. "
@@ -117,13 +117,13 @@ def _proposer_block(provider: Optional[str], model: Optional[str], key: Optional
         return {"used": True, "live": True, "provider": provider, "model": mdl, "transport": kind,
                 "status": "llm-consulted", "applied": "verifier-arbitrated structural fix",
                 "rationale": snippet,
-                "note": ("the LLM proposed a rewrite; per Rule 6 LLM-emitted code is not auto-executed here, so the "
-                         "shipped rows below are the verifier-arbitrated structural fixes (proposer ≠ arbiter).")}
+                "note": ("LLM이 재작성을 제안했습니다. Rule 6에 따라 LLM이 내놓은 코드는 여기서 자동 실행되지 않으므로, "
+                         "아래 출하된 행은 검증기가 판정한 구조적 수정입니다 (제안자 ≠ 심판).")}
     cls = _classify(provider, kind, mdl, status, text)
-    reason = "egress-blocked in this sandbox" if cls.get("blocked") else "key rejected/unreachable"
+    reason = "이 샌드박스에서 송신(egress) 차단됨" if cls.get("blocked") else "키 거부됨/연결 불가"
     return {"used": False, "live": cls.get("live", False), "provider": provider, "model": mdl, "transport": kind,
             "status": "llm-unavailable", "detail": cls["detail"],
-            "note": f"LLM proposer {reason}; fell back to deterministic structural detectors (the measured path)."}
+            "note": f"LLM 제안자: {reason}; 결정론적 구조 디텍터(측정 경로)로 폴백했습니다."}
 
 
 def _extract_text(kind: str, text: str) -> str:
@@ -156,8 +156,8 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         return {
             "mode": m.value, "detected": detected, "shipped": [], "declined": [],
             "cumulative_ratio": 1.0, "z3_calls": 0, "ran_complexity_sweep": False, "proposer": proposer,
-            "note": ("no known waste pattern detected in the pasted code that this engine has a verified fix for — "
-                     "nothing safe to ship. (detection is real AST analysis of your source.)"),
+            "note": ("이 엔진이 검증된 수정을 가진 알려진 낭비 패턴을 붙여넣은 코드에서 찾지 못했습니다 — "
+                     "안전하게 출하할 게 없습니다. (탐지는 당신 소스에 대한 진짜 AST 분석입니다.)"),
             "policy": _mode_contract(m),
         }
     rep = E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
@@ -171,10 +171,9 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         "ran_complexity_sweep": rep.ran_complexity_sweep,
         "latency_ms": round(rep.latency_s * 1e3, 1),
         "proposer": proposer,
-        "note": ("measured whole-program under the {} contract; detection is real AST analysis of your code, "
-                 "the measured rows are the engine's verified result for each detected waste class on a "
-                 "representative workload. The LLM (if a key is set) only proposes; the verifier "
-                 "arbitrates.").format(m.value),
+        "note": ("{} 계약 아래 전체 프로그램을 실측했습니다. 탐지는 당신 코드에 대한 진짜 AST 분석이며, "
+                 "측정된 행은 탐지된 각 낭비 유형에 대해 대표 워크로드에서 엔진이 검증한 결과입니다. "
+                 "LLM은(키가 설정된 경우) 제안만 하고, 판정은 검증기가 합니다.").format(m.value),
         "policy": _mode_contract(m),
     }
 

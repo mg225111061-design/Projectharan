@@ -78,33 +78,45 @@ def post_validate(body: KeyBody):
     return B.validate_key(body.provider, body.key, body.model)
 
 
-# ── static front end ──────────────────────────────────────────────────────────────────────────────────
-# Prefer the built React app (web/dist); fall back to the self-contained HTML studio + landing.
+# ── front end ───────────────────────────────────────────────────────────────────────────────────────
+# THE LIVE UI is the single-file build mrjeffrey.html. It is served at the root (`/`), at `/app`, and at
+# `/onefile` — all the SAME new build. When served here (behind FastAPI) the page detects the live back end
+# via /api/health and upgrades to live mode (real /api/optimize, /api/key/validate on the user's exact code).
+# The older React build (web/dist), if present, is kept for reference at /legacy — it is NOT what the site
+# serves at the root. (Korean UI, lang="ko"; design unchanged.)
+_ONEFILE = os.path.join(_ROOT, "mrjeffrey.html")
 _DIST = os.path.join(_ROOT, "web", "dist")
 if os.path.isdir(_DIST):
-    app.mount("/app", StaticFiles(directory=_DIST, html=True), name="react")
+    app.mount("/legacy", StaticFiles(directory=_DIST, html=True), name="react_legacy")
+
+
+def _serve_ui():
+    if os.path.exists(_ONEFILE):
+        return FileResponse(_ONEFILE, media_type="text/html")
+    # honest fallbacks if the single-file build is missing
+    landing = os.path.join(_ROOT, "mrjeffrey_landing.html")
+    if os.path.exists(landing):
+        return FileResponse(landing, media_type="text/html")
+    return JSONResponse({"ok": True, "msg": "MR.JEFFREY API up; mrjeffrey.html not found. See /api/demo."})
 
 
 @app.get("/")
 def root():
-    dist_index = os.path.join(_DIST, "index.html")
-    if os.path.exists(dist_index):
-        return FileResponse(dist_index)
-    # fallback: the self-contained landing (works without the React build)
-    landing = os.path.join(_ROOT, "mrjeffrey_landing.html")
-    if os.path.exists(landing):
-        return FileResponse(landing)
-    return JSONResponse({"ok": True, "msg": "MR.JEFFREY API up; no front-end build found. See /api/demo."})
+    # the deployed site root IS the new single-file UI (Korean, live-mode when served here)
+    return _serve_ui()
+
+
+@app.get("/app")
+def app_route():
+    return _serve_ui()
+
+
+@app.get("/onefile")
+def onefile():
+    return _serve_ui()
 
 
 @app.get("/studio")
 def studio():
     p = os.path.join(_ROOT, "pillar3_studio.html")
     return FileResponse(p) if os.path.exists(p) else JSONResponse({"error": "studio not found"}, status_code=404)
-
-
-@app.get("/onefile")
-def onefile():
-    # the entire app in a single self-contained HTML (real embedded data; upgrades to live /api here)
-    p = os.path.join(_ROOT, "mrjeffrey.html")
-    return FileResponse(p) if os.path.exists(p) else JSONResponse({"error": "mrjeffrey.html not found"}, status_code=404)
