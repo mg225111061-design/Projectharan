@@ -5693,6 +5693,40 @@ def test_moat_battery():
           f"terms, same-index reuse, no-verify, negative-only bugs; ZERO false-accepts — the moat holds)")
 
 
+def test_round1_big_recognizers():
+    """ROUND 1 (Group B) — big-multiplier recognizers, each measured whole-program (ratio ≤ ceiling, n quoted),
+    graded PROBABILISTIC (control flow ⇒ Z3 bounded validation doesn't apply ⇒ never EXACT), adversarial wrong
+    → DECLINE: matrix-power recurrence O(n)→O(log n) [n=24000], KMP substring O(n·m)→O(n+m) [n=24000],
+    union-find connectivity O(q·(V+E))→~O(q·α) [n=600], coin-change exp→DP O(amount·|coins|) [amount=26]."""
+    from pillar3 import round1 as R1
+    from pillar3 import algorithms as A
+    import kernel_verdict as KV
+
+    rows = []
+    for R in R1.catalog():
+        v = A.recognize_and_grade(R, samples=5)
+        assert v.status == KV.PROBABILISTIC, f"{R.name} should be PROBABILISTIC, got {v.status}"
+        assert v.certificate.delta is not None, "PROBABILISTIC must state δ"
+        rep = v.report
+        assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, f"{R.name} ratio ≤ ceiling (Rule 2)"
+        assert rep.whole_program_ratio >= 2.0, f"{R.name} should win, got {rep.whole_program_ratio:.1f}×"
+        rows.append((R.name, rep.whole_program_ratio))
+
+    wrongs = [
+        ("matrix_power", R1.fib_iter, R1.fib_fd_wrong, R1._mk_fib, R1._fib_in, 24000),
+        ("kmp", R1.search_naive, R1.search_kmp_wrong, lambda: R1._mk_kmp(24000), R1._kmp_in, 24000),
+        ("union_find", R1.connectivity_naive, R1.connectivity_uf_wrong, lambda: R1._mk_uf(600, 1200, 600), R1._uf_in, 600),
+        ("coin_change", R1.coins_naive, R1.coins_dp_wrong, lambda: R1._mk_coins(26), R1._coins_in_fixed, 26),
+    ]
+    for nm, naive, wrong, mk, gen, n in wrongs:
+        w = A.Recognizer(nm + "_W", "algo_replace", naive, wrong, mk, 0, gen, [], n, 1.2)
+        assert A.recognize_and_grade(w, samples=3).status == KV.DECLINE, f"wrong {nm} must DECLINE"
+
+    desc = "; ".join(f"{n} {r:.0f}×" for n, r in rows)
+    print(f"PASS test_round1_big_recognizers ({desc}; all PROBABILISTIC (control flow, δ stated, never EXACT), "
+          f"ratio ≤ ceiling, n quoted; all 4 adversarial wrong variants caught ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
