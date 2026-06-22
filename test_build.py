@@ -5728,6 +5728,30 @@ def test_round1_big_recognizers():
           f"ratio ≤ ceiling, n quoted; all 4 adversarial wrong variants caught ⇒ DECLINE)")
 
 
+def test_round2_native_compile():
+    """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
+    arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
+    Graded PROBABILISTIC (float-tolerant differential — native FP may differ in the last ULPs), measured
+    whole-program, ratio ≤ ceiling. Wrong arithmetic ⇒ DECLINE. UNVERIFIED [no numba] if the toolchain is absent."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    if not R2._NUMBA:
+        print("UNVERIFIED test_round2_native_compile [no numba/llvmlite in sandbox] — transform built, excluded")
+        return
+    v, rep = R2.native_grade(lambda: R2.make_native_input(300000), n=300000, samples=5)
+    assert v.status == KV.PROBABILISTIC, f"native compile should be PROBABILISTIC, got {v.status}"
+    assert v.certificate.delta is not None and rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9
+    assert rep.whole_program_ratio >= 5.0, f"native compile should be a big win, got {rep.whole_program_ratio:.1f}×"
+
+    vw, _ = R2.native_grade(lambda: R2.make_native_input(300000), fast_fn=R2.native_wrong, n=300000, samples=3)
+    assert vw.status == KV.DECLINE, "wrong native arithmetic must DECLINE"
+
+    print(f"PASS test_round2_native_compile (numba native {rep.whole_program_ratio:.0f}× ≤ ceiling "
+          f"{rep.amdahl_ceiling:.0f}× @ n=300000, f={rep.hotspot_fraction:.3f} — interpreter overhead removed, "
+          f"PROBABILISTIC float-tolerant; wrong arithmetic ⇒ DECLINE)")
+
+
 def test_round2_bloom_membership():
     """ROUND 2 (Group J, item 49) — Bloom membership filter: exact O(n) list-membership pre-check → O(1) filter
     with false-positive ε and ZERO false negatives (the safety invariant). Graded PROBABILISTIC(ε); a broken

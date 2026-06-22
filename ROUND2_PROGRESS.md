@@ -12,7 +12,7 @@ Tooling probed: llvmlite 0.47 ✓, numba 0.65 ✓ (items 31,33 buildable native)
 Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 
 ## Group G — interpreter overhead & compilation
-31. ☐ whole-region native compile via llvmlite/numba (numba ✓ → buildable; larger regions)
+31. ☑ whole-region native compile via numba/llvmlite ~403×@n=300000 PROBABILISTIC float-tolerant (native FP last-ULP); wrong arithmetic→DECLINE; ratio≤ceiling [test_round2_native_compile; round2.py]
 32. ☐ type specialization of dynamic code
 33. ☐ JIT specialization — input-specific code (numba/closure ✓)
 34. ☐ devirtualization / dynamic-dispatch elimination

@@ -16,6 +16,13 @@ from typing import Any, Callable, Tuple
 import kernel_verdict as KV
 from pillar3 import lifting as LF
 
+try:
+    import numba as _numba
+    import numpy as _np
+    _NUMBA = True
+except Exception:                                           # numba/llvmlite absent ⇒ item 31/#3 UNVERIFIED
+    _NUMBA = False
+
 
 @dataclass
 class ApproxResult:
@@ -178,3 +185,83 @@ def make_bloom_input(npool=3000, nq=3000):
         _BLOOM_CACHE[key] = (pool, q)
     return _BLOOM_CACHE[key]
 
+
+
+# ── item 31/#3 — whole-region NATIVE COMPILATION via numba/llvmlite (remove interpreter overhead) ────────
+# The structure-free ~80% lever: the SAME arithmetic, compiled to native, removes per-element interpreter
+# overhead. Graded PROBABILISTIC (float-tolerant differential — native FP reassociation can differ in the last
+# ULPs); measured whole-program, Amdahl-gated. UNVERIFIED [no numba] if the toolchain is absent.
+if _NUMBA:
+    @_numba.njit(cache=True)
+    def _native_kernel(a):
+        s = 0.0
+        for i in range(a.shape[0]):
+            x = a[i]
+            s += x * x * x - 2.0 * x * x + 3.0 * x - 1.0
+        return s
+
+    @_numba.njit(cache=True)
+    def _native_kernel_wrong(a):
+        s = 0.0
+        for i in range(a.shape[0]):
+            x = a[i]
+            s += x * x * x - 2.0 * x * x + 3.0 * x + 1.0     # +1 instead of -1 ⇒ wrong
+        return s
+
+
+def native_naive(a):
+    s = 0.0
+    for i in range(a.shape[0]):
+        x = a[i]
+        s += x * x * x - 2.0 * x * x + 3.0 * x - 1.0
+    return s
+
+
+def native_fast(a):
+    return float(_native_kernel(a))
+
+
+def native_wrong(a):
+    return float(_native_kernel_wrong(a))
+
+
+_NAT_CACHE: dict = {}
+
+
+def make_native_input(n=300000):
+    if n not in _NAT_CACHE:
+        _NAT_CACHE[n] = _np.random.default_rng(13).standard_normal(n)
+    return (_NAT_CACHE[n],)
+
+
+def native_grade(make_input, fast_fn=None, residual_iters=0, *, n, samples=7, tol=1e-6):
+    """Differential FIRST (float-tolerant), then a coherent whole-program measurement; PROBABILISTIC (native FP
+    may differ in the last ULPs). Wrong arithmetic ⇒ DECLINE. UNVERIFIED [no numba] if the toolchain is absent."""
+    if not _NUMBA:
+        v = KV.decline("native compile UNVERIFIED [no numba/llvmlite in sandbox] — transform built, excluded", "native")
+        return v, None
+    fast_fn = fast_fn or native_fast
+    a0 = make_input()[0]
+    fast_fn(a0[:16])                                          # pre-warm (compile) — excluded from timing
+    diverged = False
+    for _ in range(8):
+        args = make_input()
+        e = native_naive(*args)
+        g = fast_fn(*args)
+        if abs(e - g) > tol * (1 + abs(e)):
+            diverged = True
+            break
+    rep = LF.measure_lift(native_naive, fast_fn, make_input, residual_iters, n=n, samples=samples)
+    if diverged:
+        v = KV.decline("native result diverges from the interpreted original ⇒ DECLINE", "native")
+        v.report = rep
+        return v, rep
+    if not rep.beats(1.10):
+        v = KV.decline(f"native but no whole-program win (×{rep.whole_program_ratio:.2f}) ⇒ DECLINE", "native")
+        v.report = rep
+        return v, rep
+    cert = KV.Cert(KV.PROBABILISTIC, "native_compile", passed=True, check_cost="8 float cases",
+                   delta=3.0 / 8, detail=f"numba/llvmlite native; float-tolerant differential (tol={tol}); ratio≤ceiling")
+    v = KV.probabilistic(fast_fn, "native", str(rep), cert)
+    v.report = rep
+    return v, rep
