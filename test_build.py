@@ -6033,6 +6033,37 @@ def test_round3_bitvector_translation_validation():
           f"contrast: (x+1)>x PROVEN over ℤ but REFUTED over bv32 @ INT_MAX — catches the miscompile)")
 
 
+def test_round3_purity_memoization_exact():
+    """ROUND 3 (item 68) / Tier-2 — purity analysis → EXACT memoization (SOUND). Memoization is behavior-
+    preserving ONLY for a pure function, so we memoize ONLY when a conservative AST analysis PROVES purity; pure
+    ⇒ memoize ⇒ EXACT, measured whole-program. Impure ⇒ DECLINE (memoizing it would be a correctness bug).
+    Soundness regression guards: a nondeterministic fn (random) AND a global-mutating side-effecting fn must
+    BOTH be classified impure (a wrong 'pure' is unsound — we never over-approximate purity)."""
+    from pillar3 import purity as PU
+    import kernel_verdict as KV
+
+    assert PU.is_pure(PU.pure_work)[0] is True, "an arithmetic-only function must be provable pure"
+    assert PU.is_pure(PU.impure_work)[0] is False, "a random() call must be impure (nondeterministic)"
+    # ★ the soundness guard ★ — global/external mutation MUST be detected impure
+    side_pure, side_reason = PU.is_pure(PU.impure_sideeffect)
+    assert side_pure is False and "external" in side_reason, \
+        f"global-mutation must be impure (soundness), got pure={side_pure} reason={side_reason!r}"
+
+    v, rep = PU.memoize_grade(PU.pure_work, lambda: PU.make_workload(60, 5000), n=5000, samples=5)
+    assert v.status == KV.EXACT, f"memoizing a proven-pure function should be EXACT, got {v.status}"
+    assert v.certificate.kind == "purity_proven_memoization" and v.certificate.delta is None, "EXACT, no δ"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 5.0, f"memoizing a hot pure fn over duplicate args should win, got {rep.whole_program_ratio:.1f}×"
+
+    for fn, why in ((PU.impure_work, "nondeterministic"), (PU.impure_sideeffect, "side-effecting")):
+        vi, _ = PU.memoize_grade(fn, lambda: PU.make_workload(60, 5000), n=5000, samples=2)
+        assert vi.status == KV.DECLINE, f"memoizing a {why} function must DECLINE (unsound)"
+
+    print(f"PASS test_round3_purity_memoization_exact (pure fn proven pure ⇒ memoized EXACT (δ=None) "
+          f"{rep.whole_program_ratio:.0f}× ≤ ceiling; nondeterministic (random) AND global-mutating fns both "
+          f"classified impure ⇒ DECLINE — sound, never an over-approximated 'pure')")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).

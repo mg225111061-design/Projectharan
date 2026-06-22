@@ -43,48 +43,28 @@ def interp(node, env):
     raise ValueError(f"bad node {node!r}")
 
 
-def specialize(node) -> Callable:
-    """Partial-evaluate interp w.r.t. a FIXED program: walk the AST ONCE (here), emit a residual closure that
-    computes directly with NO per-evaluation opcode dispatch. residual(env) ≡ interp(node, env) by construction
-    (proven by Z3 over symbolic env)."""
+def _emit(node, mul_op: str = "*") -> str:
+    """Emit a straight-line arithmetic expression string for the AST (the residual's body)."""
     t = node[0]
     if t == "const":
-        v = node[1]
-        return lambda env: v
+        return repr(node[1])
     if t == "var":
-        i = node[1]
-        return lambda env: env[i]
-    if t == "add":
-        l, r = specialize(node[1]), specialize(node[2])
-        return lambda env: l(env) + r(env)
-    if t == "sub":
-        l, r = specialize(node[1]), specialize(node[2])
-        return lambda env: l(env) - r(env)
-    if t == "mul":
-        l, r = specialize(node[1]), specialize(node[2])
-        return lambda env: l(env) * r(env)
-    raise ValueError(f"bad node {node!r}")
+        return f"env[{node[1]}]"
+    op = {"add": "+", "sub": "-", "mul": mul_op}[t]
+    return f"({_emit(node[1], mul_op)}{op}{_emit(node[2], mul_op)})"
+
+
+def specialize(node) -> Callable:
+    """Partial-evaluate interp w.r.t. a FIXED program (the 1st Futamura projection done as real CODEGEN): walk the
+    AST ONCE here and COMPILE a residual that is one straight-line expression — no per-evaluation opcode dispatch
+    AND no per-node call. residual(env) ≡ interp(node, env) by construction (proven by Z3 over symbolic env).
+    Compiled with empty builtins (arithmetic on `env` only)."""
+    return eval("lambda env: " + _emit(node), {"__builtins__": {}}, {})
 
 
 def specialize_wrong(node) -> Callable:
     """A BROKEN partial evaluator: mis-compiles 'mul' as 'add' (a wrong residual). Differential + Z3 catch it."""
-    t = node[0]
-    if t == "const":
-        v = node[1]
-        return lambda env: v
-    if t == "var":
-        i = node[1]
-        return lambda env: env[i]
-    if t == "add":
-        l, r = specialize_wrong(node[1]), specialize_wrong(node[2])
-        return lambda env: l(env) + r(env)
-    if t == "sub":
-        l, r = specialize_wrong(node[1]), specialize_wrong(node[2])
-        return lambda env: l(env) - r(env)
-    if t == "mul":
-        l, r = specialize_wrong(node[1]), specialize_wrong(node[2])
-        return lambda env: l(env) + r(env)                  # BUG: 'mul' compiled as 'add'
-    raise ValueError(f"bad node {node!r}")
+    return eval("lambda env: " + _emit(node, mul_op="+"), {"__builtins__": {}}, {})
 
 
 def _build_ast():
@@ -103,26 +83,37 @@ def _build_ast():
 _AST = _build_ast()
 
 
-def interp_fixed(env):
-    return interp(_AST, env)
+# The region is a BATCH over many envs (a real interpretation workload) so the measurement is robust; the Z3
+# proof runs on a tiny batch of SYMBOLIC envs (per-element equivalence). Both share the signature batch→list.
+_spec1 = specialize(_AST)                                    # single-env compiled residual
+_spec1_wrong = specialize_wrong(_AST)
 
 
-_specialized = specialize(_AST)
-_specialized_wrong = specialize_wrong(_AST)
+def interp_fixed(envs):
+    return [interp(_AST, e) for e in envs]                   # the generic interpreter, per env (dispatch each node)
 
 
-def _sym_env(n: int) -> tuple:
-    return ([z3.Int(f"v{i}") for i in range(n)],)
+def _specialized(envs):
+    return [_spec1(e) for e in envs]                         # the compiled residual, per env (no dispatch)
+
+
+def _specialized_wrong(envs):
+    return [_spec1_wrong(e) for e in envs]
+
+
+def _sym_env(batch: int) -> tuple:
+    # a small batch of symbolic 4-var envs — proving the output lists equal proves per-element residual≡interp
+    return ([[z3.Int(f"e{b}_{i}") for i in range(4)] for b in range(max(1, batch))],)
 
 
 _ENV_CACHE: dict = {}
 
 
-def _make_env(_size_ignored=4):
-    if "env" not in _ENV_CACHE:
+def _make_env(N: int = 3000):
+    if N not in _ENV_CACHE:
         rng = _rnd.Random(23)
-        _ENV_CACHE["env"] = [rng.randrange(-20, 20) for _ in range(4)]
-    return (_ENV_CACHE["env"],)
+        _ENV_CACHE[N] = [[rng.randrange(-20, 20) for _ in range(4)] for _ in range(N)]
+    return (_ENV_CACHE[N],)
 
 
 # ── 2) sparse linear-map specialization — dot(weights, x) with FIXED weights → only the surviving terms ─────
@@ -162,45 +153,51 @@ def specialize_dot_wrong(weights) -> Callable:
 
 # a sparse fixed weight vector (mostly zeros) — the generic loop wastes time on every zero, every call
 _WEIGHTS = [0, 3, 0, 0, 5, 0, 0, 0, 2, 0, 0, 7, 0, 0, 0, 0, 4, 0, 0, 6, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 8]
-_dot_specialized = specialize_dot(_WEIGHTS)
-_dot_specialized_wrong = specialize_dot_wrong(_WEIGHTS)
+_dot1 = specialize_dot(_WEIGHTS)
+_dot1_wrong = specialize_dot_wrong(_WEIGHTS)
+_W = len(_WEIGHTS)
 
 
-def dot_fixed(x):
-    return dot_generic(_WEIGHTS, x)
+def dot_fixed(xs):
+    return [dot_generic(_WEIGHTS, x) for x in xs]            # batch over many vectors (robust measurement)
 
 
-def _sym_x(n: int) -> tuple:
-    return ([z3.Int(f"x{i}") for i in range(n)],)
+def _dot_specialized(xs):
+    return [_dot1(x) for x in xs]
+
+
+def _dot_specialized_wrong(xs):
+    return [_dot1_wrong(x) for x in xs]
+
+
+def _sym_x(batch: int) -> tuple:
+    return ([[z3.Int(f"x{b}_{i}") for i in range(_W)] for b in range(max(1, batch))],)
 
 
 _X_CACHE: dict = {}
 
 
-def _make_x(_size_ignored=None):
-    if "x" not in _X_CACHE:
+def _make_x(M: int = 8000):
+    if M not in _X_CACHE:
         rng = _rnd.Random(29)
-        _X_CACHE["x"] = [rng.randrange(-50, 50) for _ in range(len(_WEIGHTS))]
-    return (_X_CACHE["x"],)
-
-
-_W = len(_WEIGHTS)
+        _X_CACHE[M] = [[rng.randrange(-50, 50) for _ in range(_W)] for _ in range(M)]
+    return (_X_CACHE[M],)
 
 
 # ── catalog: each partial-eval as an identity-lift (spec = original) ⇒ EXACT iff Z3 proves residual≡generic ─
 def catalog() -> List[LF.Lift]:
     return [
         LF.Lift("partial_eval_interpreter", "partial_eval", interp_fixed, interp_fixed, _specialized,
-                _sym_env, lambda: _make_env(4), residual_iters=0, sizes=(4, 5), n=0, floor=1.10),
+                _sym_env, lambda: _make_env(3000), residual_iters=0, sizes=(1, 2), n=3000, floor=1.20),
         LF.Lift("partial_eval_sparse_dot", "partial_eval", dot_fixed, dot_fixed, _dot_specialized,
-                _sym_x, lambda: _make_x(), residual_iters=0, sizes=(_W, _W), n=_W, floor=1.10),
+                _sym_x, lambda: _make_x(8000), residual_iters=0, sizes=(1, 2), n=8000, floor=1.20),
     ]
 
 
 def wrong_variants() -> List[LF.Lift]:
     return [
         LF.Lift("partial_eval_interpreter_WRONG", "partial_eval", interp_fixed, interp_fixed, _specialized_wrong,
-                _sym_env, lambda: _make_env(4), residual_iters=0, sizes=(4, 5), n=0),
+                _sym_env, lambda: _make_env(3000), residual_iters=0, sizes=(1, 2), n=3000),
         LF.Lift("partial_eval_sparse_dot_WRONG", "partial_eval", dot_fixed, dot_fixed, _dot_specialized_wrong,
-                _sym_x, lambda: _make_x(), residual_iters=0, sizes=(_W, _W), n=_W),
+                _sym_x, lambda: _make_x(8000), residual_iters=0, sizes=(1, 2), n=8000),
     ]

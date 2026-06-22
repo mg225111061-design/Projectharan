@@ -20,7 +20,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (cite test) · ☐ pending 
 66. ◩ refinement (output refines input wherever defined) — translation_validate [exists]
 67. ☑ translation validation under REAL machine semantics (bitvector/overflow-aware) — 5 sound peepholes EXACT (bv-proven), 3 overflow-unsafe REFUTED→DECLINE+cex; (x+1)>x PROVEN over ℤ but REFUTED over bv32 @ INT_MAX (catches the miscompile idealized reasoning misses) [test_round3_bitvector_translation_validation; pillar3/bv_validate.py]
 ## Group Q — sound static analyses (a wrong "safe" is a correctness bug)
-68. ☐ purity / determinism analysis → EXACT memoization enablement
+68. ☑ purity / determinism analysis → EXACT memoization — conservative AST proof (no impure calls/global·arg mutation/yield); pure→memoize EXACT ~74×@repeated args; nondeterministic (random) AND global-mutating fns both classified impure→DECLINE (soundness regression-guarded — caught+fixed a global-mutation false-pure) [test_round3_purity_memoization_exact; pillar3/purity.py]
 69. ☐ alias / non-aliasing proof → safe reordering/vectorization
 70. ☐ range / interval analysis (prove no overflow / in-range → EXACT fast path)
 71. ☐ termination (ranking function) → safe loop transforms
