@@ -6230,6 +6230,34 @@ def test_round3_interprocedural_purity():
           f"≤ ceiling; a caller reaching an I/O helper ⇒ DECLINE — sound interprocedural summary, extends #68)")
 
 
+def test_round3_bmc_bounded_equiv():
+    """ROUND 3 (item 61) — bounded model checking: unroll two stateful transitions k steps and Z3-check
+    equivalence over ALL input sequences of length ≤ k. UNSAT at every depth ⇒ EXACT on the bounded-depth domain
+    (∀ inputs). A divergence ⇒ DECLINE with the SHALLOWEST counterexample TRACE (BMC is the adversarial bug-
+    finder). The clamp bug surfaces only at depth 2 — BMC reports that exact shallowest depth + the breaking
+    input sequence (pairs with #65 k-induction: BMC the base window, induction the rest = EXACT for all n)."""
+    from pillar3 import bmc as B
+    import z3
+    import kernel_verdict as KV
+    z = z3.IntVal(0)
+
+    r1 = B.bmc_equiv("accum_ok", B.spec_accumulate, B.opt_accumulate_ok, z, 6)
+    assert r1.verdict.status == KV.EXACT and r1.safe_to_depth == 6, "an equivalent optimization is EXACT to depth k"
+    assert r1.verdict.certificate.kind == "bmc_bounded_equiv" and r1.verdict.certificate.delta is None
+
+    r2 = B.bmc_equiv("accum_bug", B.spec_accumulate, B.opt_accumulate_bug, z, 6)
+    assert r2.verdict.status == KV.DECLINE and r2.counterexample_depth == 1 and r2.trace["x0"] > 10, \
+        "the off-by-one (x>10) bug must be caught at depth 1 with the breaking input"
+
+    r3 = B.bmc_equiv("clamp_bug", B.spec_clamp, B.opt_clamp_bug, z, 6)
+    assert r3.verdict.status == KV.DECLINE and r3.counterexample_depth == 2, \
+        "the clamp bug surfaces only at depth 2 — BMC must report the SHALLOWEST depth, not a deeper one"
+
+    print(f"PASS test_round3_bmc_bounded_equiv (equivalent opt EXACT to depth 6 (∀ inputs); off-by-one bug caught "
+          f"at depth 1 (x0={r2.trace['x0']}); clamp bug found at the SHALLOWEST depth {r3.counterexample_depth} "
+          f"(trace {r3.trace}) ⇒ DECLINE — BMC is the adversarial bug-finder, pairs with #65 k-induction)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).

@@ -12,7 +12,7 @@ loops, #63 SMT portfolio (Clock-B speed).
 Legend: ☑ done(new, tested) · ◩ verify-existing (cite test) · ☐ pending · ⚠ UNVERIFIED[reason]
 
 ## Group P — equivalence & refinement
-61. ☐ bounded model checking (unroll k + Z3 equivalence on the bounded domain)
+61. ☑ bounded model checking — unroll two stateful transitions k steps, Z3-check equivalence over ALL input sequences ≤k; equivalent opt → EXACT bounded-depth (∀inputs); divergence → DECLINE with SHALLOWEST counterexample trace (off-by-one@depth1 x=11; clamp bug@depth2); pairs with #65 k-induction [test_round3_bmc_bounded_equiv; pillar3/bmc.py]
 62. ◩ symbolic execution oracle — symbolic_oracle.py [exists]; wire a P3 equivalence gate
 63. ☐ SMT portfolio (parallel tactics, first-to-close) — Clock-B verification speed
 64. ☐ CEGAR (counterexample-guided abstraction refinement) for loop invariants
