@@ -31,3 +31,8 @@ on the nonlinear identity → couldn't earn EXACT; replaced with summed-area). N
 #73 effects, #74 interprocedural summaries; then SPEED broth families + Clock-A/B throughput.
 | ACC | #74 interprocedural purity summaries (call-graph fixpoint) → EXACT memoization | EXACT | proves a top-level fn pure that single-fn #68 rejects (calls helpers) ⇒ memoize ~76×; impure-helper caller → DECLINE | test_round3_interprocedural_purity | 161/161 |
 | ACC | #61 BMC — bounded-depth equivalence (∀inputs ≤k) + shallowest counterexample | EXACT (bounded-depth) | equivalent opt EXACT to depth 6; off-by-one→DECLINE@depth1 (x=11); clamp bug→DECLINE@SHALLOWEST depth 2 (trace) | test_round3_bmc_bounded_equiv | 162/162 |
+| SPEED+ACC | #73 effects analysis → reorder/coalesce; idempotent reads N→1 round-trips | EXACT | reorderable proven; reads coalesced 4000→40 ~85×; intervening write/RAW/ordered-I/O → DECLINE | test_round3_effects_reorder_coalesce | 163/163 |
+
+Reflect: ROUND 3 Group P + Q essentially complete (#61,65,67 P-built + 62,66 verify-existing; #63 SMT-portfolio,
+#64 CEGAR remain in P; Q all done #68-74). EXACT-share keeps climbing via sound static analyses + bounded/
+unbounded proofs. Next: #63 SMT portfolio (Clock-B speed), #64 CEGAR, then SPEED broth families + Clock-A/B.

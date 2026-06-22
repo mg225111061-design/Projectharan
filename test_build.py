@@ -6258,6 +6258,31 @@ def test_round3_bmc_bounded_equiv():
           f"(trace {r3.trace}) ⇒ DECLINE — BMC is the adversarial bug-finder, pairs with #65 k-induction)")
 
 
+def test_round3_effects_reorder_coalesce():
+    """ROUND 3 (item 73) — effects analysis → safe reordering & batching/coalescing (SOUND). Two ops commute iff
+    no W-W / R-W / W-R conflict and not both ordered I/O. Independent ops reorder/parallelize; repeated idempotent
+    READS of a key with NO intervening WRITE coalesce to ONE round-trip (N→1) — graded EXACT, measured as the
+    round-trip reduction. A W-R/W-W/ordered-I/O conflict, or a write to a fetched key in the window ⇒ DECLINE
+    (keep the order — a stale/reordered result is a correctness bug)."""
+    from pillar3 import effects as EF
+    import kernel_verdict as KV
+
+    assert all(EF.reorderable(s) for s in EF.reorderable_seqs()), "independent op sequences must be reorderable"
+    assert not any(EF.reorderable(s) for s in EF.conflicting_seqs()), "RAW / ordered-I/O / W-W must block reordering"
+
+    v, rep = EF.coalesce_grade(lambda: EF.make_coalesce_ops(40, 4000, False), fetch_cost=400, n=4000, samples=5)
+    assert v.status == KV.EXACT and v.certificate.kind == "effects_coalesce" and v.certificate.delta is None
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9 and rep.whole_program_ratio >= 5.0, \
+        f"coalescing 4000 reads → 40 fetches should be a big round-trip win, got {rep.whole_program_ratio:.1f}×"
+
+    vw, _ = EF.coalesce_grade(lambda: EF.make_coalesce_ops(40, 4000, True), fetch_cost=400, n=4000, samples=2)
+    assert vw.status == KV.DECLINE, "an intervening write to a fetched key must block coalescing ⇒ DECLINE"
+
+    print(f"PASS test_round3_effects_reorder_coalesce (independent ops reorderable; RAW / ordered-I/O / W-W block "
+          f"it; idempotent reads coalesced 4000→40 round-trips EXACT {rep.whole_program_ratio:.0f}× ≤ ceiling; an "
+          f"intervening write to a fetched key ⇒ DECLINE — sound, never a stale/reordered result)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
