@@ -5728,6 +5728,31 @@ def test_round1_big_recognizers():
           f"ratio ≤ ceiling, n quoted; all 4 adversarial wrong variants caught ⇒ DECLINE)")
 
 
+def test_round2_sublinear_sampling():
+    """ROUND 2 (Group J, item 46) — the Ω(N) side-door: sublinear approximation by sampling. A mean over a huge
+    array O(N) is answered by sampling k≪N items O(k) (cost ⟂ N), graded PROBABILISTIC with REPORTED ε,δ (never
+    EXACT — approximation). The measured whole-program win has ratio ≤ ceiling. A biased estimator whose error
+    exceeds the ε target ⇒ DECLINE (you cannot ship an approximation that isn't within ε)."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    r = R2.approx_grade(R2.mean_exact, R2.mean_sampled, lambda: R2._make_big(500000), 0,
+                        eps_target=0.05, n=500000, samples=5)
+    assert r.verdict.status == KV.PROBABILISTIC, f"sampling should be PROBABILISTIC, got {r.verdict.status}"
+    assert r.verdict.certificate.delta is not None, "approximation must REPORT δ"
+    assert r.eps <= 0.05, f"ε must be within target, got {r.eps}"
+    assert r.ratio <= r.ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert r.ratio >= 1.3, f"sublinear sampling should win, got {r.ratio:.2f}×"
+
+    rb = R2.approx_grade(R2.mean_exact, R2.mean_biased, lambda: R2._make_big(500000), 0,
+                         eps_target=0.05, n=500000, samples=3)
+    assert rb.verdict.status == KV.DECLINE and rb.eps > 0.05, "a biased estimator must DECLINE (ε > target)"
+
+    print(f"PASS test_round2_sublinear_sampling (sampling mean O(N)→O(k=2000) cost⟂N: PROBABILISTIC ε={r.eps:.4f} "
+          f"δ={r.delta:.3f}, {r.ratio:.1f}× ≤ ceiling {r.ceiling:.0f}× @ N=500000 — approximation, never EXACT; "
+          f"biased estimator ε={rb.eps:.3f}>0.05 ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
