@@ -6064,6 +6064,32 @@ def test_round3_purity_memoization_exact():
           f"classified impure ⇒ DECLINE — sound, never an over-approximated 'pure')")
 
 
+def test_round3_complexity_certificate():
+    """ROUND 3 (item 72) — complexity certificate: prove the asymptotic CLASS improved, not just the constant.
+    Measures naive & fast at several sizes, fits the empirical growth exponent (log-log slope), and certifies the
+    fast version is a STRICTLY LOWER class. Empirical ⇒ PROBABILISTIC (reports fitted exponents + R²), never
+    EXACT. Honesty guard: a same-class pair (both O(n)) yields ≈equal exponents ⇒ DECLINE — we never claim an
+    asymptotic jump that isn't there (the verification behind every 'O(n²)→O(n log n)')."""
+    from pillar3 import complexity_cert as CC
+    import kernel_verdict as KV
+
+    # genuine asymptotic jump O(n²) → O(n)
+    c = CC.certify_complexity(CC.prefix_naive, CC.prefix_fast, CC.make_list_n, (200, 400, 800, 1600), repeats=5)
+    assert c.verdict.status == KV.PROBABILISTIC, f"a real O(n²)→O(n) jump should certify, got {c.verdict.status}"
+    assert c.verdict.certificate.delta is not None, "empirical complexity certificate states δ (1−R²)"
+    assert c.naive_exp > 1.7 and c.fast_exp < 1.3, f"exponents off: naive~{c.naive_exp:.2f} fast~{c.fast_exp:.2f}"
+    assert (c.naive_exp - c.fast_exp) >= 0.4, "the asymptotic gap must be real"
+
+    # constant-factor only (both O(n)) ⇒ NOT an asymptotic improvement ⇒ DECLINE
+    c2 = CC.certify_complexity(CC.linear_slow, CC.linear_fast, CC.make_list_n,
+                               (20000, 40000, 80000, 160000), repeats=5)
+    assert c2.verdict.status == KV.DECLINE, "a same-class (constant-factor) pair must DECLINE — no asymptotic jump"
+
+    print(f"PASS test_round3_complexity_certificate (asymptotic jump CERTIFIED: naive~O(n^{c.naive_exp:.2f}) → "
+          f"fast~O(n^{c.fast_exp:.2f}), Δexp={c.naive_exp - c.fast_exp:.2f}, PROBABILISTIC (empirical, R²-stated); "
+          f"a same-class O(n)/O(n) pair (Δexp={c2.naive_exp - c2.fast_exp:.2f}) ⇒ DECLINE — no false asymptotic claim)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).

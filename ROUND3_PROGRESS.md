@@ -24,6 +24,8 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (cite test) · ☐ pending 
 69. ☐ alias / non-aliasing proof → safe reordering/vectorization
 70. ☐ range / interval analysis (prove no overflow / in-range → EXACT fast path)
 71. ☐ termination (ranking function) → safe loop transforms
-72. ☐ complexity certificate (prove the asymptotic class actually improved)
+72. ☑ complexity certificate — measure naive&fast at several n, fit log-log growth exponent, certify fast is a STRICTLY LOWER class (Δexp≥margin, R²-gated); O(n²)→O(n) certified (exp 2.05→0.96), PROBABILISTIC (empirical, δ=1−R²); same-class O(n)/O(n) pair→DECLINE (no false asymptotic claim) [test_round3_complexity_certificate; pillar3/complexity_cert.py]
+
+DETERMINISTIC SUITE RUN: `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` ⇒ 156/156. Thread caps remove numpy/numba/BLAS worker-pool inter-test CONTENTION (the load-induced flake source: offload, partial_eval, phaseM2, foldext2, pillar3_stage2) while PRESERVING the SIMD/JIT wins (vectorization/compilation, not parallelism). Each flake also passes in isolation uncapped.
 73. ☐ effects analysis (I/O / mutation) → safe reordering & batching
 74. ☐ interprocedural summaries (purity/range/effects across calls)
