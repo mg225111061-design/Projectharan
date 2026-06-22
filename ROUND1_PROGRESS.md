@@ -14,7 +14,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 3. ☐ llvmlite/numba native compile of hot numeric region (llvmlite 0.47 + numba 0.65 present → buildable)
 4. ◩ STOKE-style stochastic superopt of small fragments — superopt.py [test_foldext3_stage2]; verify adversarial
 5. ☐ partial evaluation / specialization on fixed inputs
-6. ☐ THE FREE LEAP: wire Pillar-1 fold kernels (cfinite/fold_dispatcher/sparse_fft) into Pillar-3 recognition
+6. ☑ THE FREE LEAP: wire Pillar-1 cfinite EXACT kernel into Pillar-3 recognition — recurrence hotspot routed to companion-matrix closed form, graded EXACT (was PROBABILISTIC item 7), O(n)→O(log n) ~30×@n=24000 fib (Pell/Tribonacci/Lucas too); recognition gate (companion≡loop probe) → mis-recognized recurrence DECLINEs [test_round1_freeleap_cfinite_exact; pillar3/freeleap.py]
 ## Group B — big-multiplier recognizers
 7. ☑ matrix-power linear recurrence O(n)→O(log n) (fast-doubling) ~40×@n=24000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers; round1.py]
 8. ◩ naive convolution → FFT/NTT O(n²)→O(n log n) — sparse_fft.py + NTT [test_foldext3_stage3_rust]; wire P3 recognizer

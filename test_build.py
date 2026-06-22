@@ -5728,6 +5728,44 @@ def test_round1_big_recognizers():
           f"ratio ≤ ceiling, n quoted; all 4 adversarial wrong variants caught ⇒ DECLINE)")
 
 
+def test_round1_freeleap_cfinite_exact():
+    """ROUND 1 (Group A, item 6) — THE FREE LEAP: wire Pillar-1's PROVEN EXACT C-finite kernel into Pillar-3
+    recognition. A linear-recurrence hotspot the generic recognizer grades PROBABILISTIC (item 7, fast-doubling)
+    is instead routed to the companion-matrix closed form and graded EXACT — companion ≡ recurrence BY THEOREM,
+    exact integers, verify_cfinite probe; O(n)→O(log n), measured whole-program (ratio ≤ ceiling). This RAISES
+    the EXACT share (a ceiling-breaker) for the cost of a wire. A mis-recognized recurrence ⇒ DECLINE."""
+    from pillar3 import freeleap as FL
+    from pillar3 import round1 as R1
+    import cfinite
+    import kernel_verdict as KV
+
+    # the SAME Fibonacci hotspot that item 7 graded PROBABILISTIC — now EXACT via the companion form
+    v, rep = FL.cfinite_lift([1, 1], [0, 1], R1.fib_iter, n=24000, samples=5)
+    assert v.status == KV.EXACT, f"free-leap fib should be EXACT, got {v.status}"
+    assert v.certificate.delta is None, "EXACT must NOT carry a probabilistic δ (lossless closed form)"
+    assert v.result == R1.fib_iter(24000) == cfinite.naive_nth([1, 1], [0, 1], 24000), "bit-exact n-th term"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 5.0, f"O(n)→O(log n) should be a big win, got {rep.whole_program_ratio:.1f}×"
+
+    # the recognized-recurrence catalog (Pell/Tribonacci/Lucas) — all route to EXACT
+    for name, (c, init) in FL.RECURRENCES.items():
+        loop = (lambda c, init: (lambda k: cfinite.naive_nth(c, init, k)))(c, init)
+        vv, _ = FL.cfinite_lift(c, init, loop, n=8000, samples=3)
+        assert vv.status == KV.EXACT, f"free-leap {name} should be EXACT, got {vv.status}"
+
+    # adversarial 1 — a loop that computes fib(k)+1 declared as plain fib: recognition gate ⇒ DECLINE
+    vw, _ = FL.cfinite_lift([1, 1], [0, 1], lambda k: R1.fib_iter(k) + 1, n=24000, samples=3)
+    assert vw.status == KV.DECLINE, "mis-recognized recurrence (off-by-one loop) must DECLINE"
+    # adversarial 2 — a fib loop declared with the wrong (tribonacci) order: gate ⇒ DECLINE
+    vw2, _ = FL.cfinite_lift([1, 1, 1], [0, 1, 1], R1.fib_iter, n=8000, samples=3)
+    assert vw2.status == KV.DECLINE, "wrong-order recurrence for the loop must DECLINE"
+
+    print(f"PASS test_round1_freeleap_cfinite_exact (Pillar-1→3 wire: fib O(n)→O(log n) "
+          f"{rep.whole_program_ratio:.0f}× ≤ ceiling {rep.amdahl_ceiling:.0f}× @ n=24000, graded EXACT "
+          f"(companion ≡ recurrence by theorem, exact integers, δ=None) — was PROBABILISTIC, now EXACT; "
+          f"Pell/Tribonacci/Lucas EXACT; mis-recognized recurrence ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
