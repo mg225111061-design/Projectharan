@@ -6090,6 +6090,27 @@ def test_round3_complexity_certificate():
           f"a same-class O(n)/O(n) pair (Δexp={c2.naive_exp - c2.fast_exp:.2f}) ⇒ DECLINE — no false asymptotic claim)")
 
 
+def test_round3_termination_ranking():
+    """ROUND 3 (item 71) — termination via ranking functions (Z3, SOUND). A ranking r(x) witnesses termination
+    iff under the loop guard it is bounded below AND strictly decreases each step (no infinite descent over ℤ≥0);
+    Z3 discharges both. Proven ⇒ EXACT (machine-checked termination certificate). Cannot prove ⇒ DECLINE (never
+    ASSUME termination — a transform needing it stays unapplied; a wrong 'terminates' is unsound)."""
+    from pillar3 import termination as TM
+    import kernel_verdict as KV
+
+    for nm, c, s, r in TM.terminating():
+        res = TM.termination_grade(nm, c, s, r)
+        assert res.verdict.status == KV.EXACT and res.proved, f"{nm} should be proven terminating, cex={res.counterexample}"
+        assert res.verdict.certificate.kind == "ranking_function" and res.verdict.certificate.delta is None
+    for nm, c, s, r in TM.nonterminating():
+        res = TM.termination_grade(nm, c, s, r)
+        assert res.verdict.status == KV.DECLINE and res.counterexample, f"{nm} must DECLINE with a witness"
+
+    print(f"PASS test_round3_termination_ranking ({len(TM.terminating())} loops PROVEN terminating via ranking "
+          f"functions (EXACT, Z3 bounded-below + strictly-decreasing); {len(TM.nonterminating())} unprovable "
+          f"(increasing / steps over zero) ⇒ DECLINE+witness — sound, never assume termination)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
