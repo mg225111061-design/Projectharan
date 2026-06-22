@@ -17,7 +17,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 6. ☑ THE FREE LEAP: wire Pillar-1 cfinite EXACT kernel into Pillar-3 recognition — recurrence hotspot routed to companion-matrix closed form, graded EXACT (was PROBABILISTIC item 7), O(n)→O(log n) ~30×@n=24000 fib (Pell/Tribonacci/Lucas too); recognition gate (companion≡loop probe) → mis-recognized recurrence DECLINEs [test_round1_freeleap_cfinite_exact; pillar3/freeleap.py]
 ## Group B — big-multiplier recognizers
 7. ☑ matrix-power linear recurrence O(n)→O(log n) (fast-doubling) ~40×@n=24000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers; round1.py]
-8. ◩ naive convolution → FFT/NTT O(n²)→O(n log n) — sparse_fft.py + NTT [test_foldext3_stage3_rust]; wire P3 recognizer
+8. ☑ naive convolution → NTT O(n²)→O(n log n) wired into Pillar-3 — EXACT under PROVEN no-wraparound bound (|c[k]|<P/2 ⇒ exact integers), ~119×@n=2000 (rust NTT; pure-Python fallback ~10×), bit-exact vs naive δ=None; bound-exceeded→DECLINE (no wrap), corrupted NTT→DECLINE [test_round1_convolution_ntt_exact; pillar3/convolution.py]
 9. ☑ O(2ⁿ)→memoized DP — fib ~10000×@n=29 [test_phaseA] + coin-change ~15700×@amount=26 [test_round1_big_recognizers]
 10. ☑ nested-loop join → hash join ~28× [test_phaseA hash_join]
 11. ☑ naive substring search → KMP O(n·m)→O(n+m) ~32×@n=24000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers]

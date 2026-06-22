@@ -5831,6 +5831,34 @@ def test_round1_affine_lift_generalized_exact():
           f"triangular off-by-one ⇒ Z3-refuted ⇒ DECLINE)")
 
 
+def test_round1_convolution_ntt_exact():
+    """ROUND 1 (Group B, item 8) — naive convolution O(n²) → NTT O(n log n), graded EXACT under a PROVEN
+    no-wraparound bound (|c[k]| < P/2 ⇒ the signed mod-P value IS the true integer — exact integers, no float).
+    Wires the proven NTT (rust_accel; pure-Python NTT fallback) into a Pillar-3 recognizer; measured whole-
+    program (ratio ≤ ceiling). Magnitude bound exceeded ⇒ honest DECLINE (never a wrapped answer); a corrupted
+    NTT (no signed remap) ⇒ full-vector spot-check disagrees ⇒ DECLINE (the moat)."""
+    from pillar3 import convolution as CV
+    import kernel_verdict as KV
+
+    v, rep = CV.conv_grade(lambda: CV.make_conv_input(2000, 300), n=2000, samples=5)
+    assert v.status == KV.EXACT, f"convolution under the bound should be EXACT, got {v.status}"
+    assert v.certificate.kind == "ntt_bound+spotcheck" and v.certificate.delta is None, "EXACT, no probabilistic δ"
+    assert v.result == CV.conv_naive(*CV.make_conv_input(2000, 300)), "NTT result is bit-exact vs naive"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 5.0, f"O(n²)→O(n log n) should be a big win, got {rep.whole_program_ratio:.1f}×"
+
+    # magnitude bound exceeded ⇒ honest DECLINE (NTT could wrap; never a wrong answer)
+    vo, _ = CV.conv_grade(lambda: CV.make_conv_input_overflow(2048, 100000), n=2048, samples=2)
+    assert vo.status == KV.DECLINE, "magnitude bound ≥ P/2 must DECLINE the fast path (no wrapped answer)"
+    # corrupted NTT (skips signed remap) ⇒ spot-check disagrees ⇒ DECLINE
+    vw, _ = CV.conv_grade(lambda: CV.make_conv_input(2000, 300), fast_fn=CV.conv_ntt_wrong, n=2000, samples=2)
+    assert vw.status == KV.DECLINE, "a corrupted NTT must DECLINE"
+
+    print(f"PASS test_round1_convolution_ntt_exact (naive O(n²)→NTT O(n log n) {rep.whole_program_ratio:.0f}× "
+          f"≤ ceiling {rep.amdahl_ceiling:.0f}× @ n=2000, EXACT (proven |c[k]|<P/2 ⇒ exact integers, δ=None, "
+          f"bit-exact vs naive); bound-exceeded ⇒ DECLINE (no wrap); corrupted NTT ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
