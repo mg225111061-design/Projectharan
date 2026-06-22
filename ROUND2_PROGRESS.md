@@ -33,7 +33,7 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 46. ☑ sublinear sampling (mean) O(N)→O(k) cost⟂N PROBABILISTIC ε=0.0025 δ=0 ~4×@N=500000; biased→DECLINE [test_round2_sublinear_sampling; round2.py]
 47. ☐ cardinality sketch (HyperLogLog; ε)
 48. ☐ frequency sketch (Count-Min; ε)
-49. ☐ membership filter (Bloom; no false negatives; ε)
+49. ☑ Bloom membership O(n)→O(1)/query FP-ε=0.019 ZERO false-neg ~5.7×@n=3000 PROBABILISTIC; false-neg variant→DECLINE [test_round2_bloom_membership; round2.py]
 50. ☐ streaming/one-pass bounded memory (reservoir sampling)
 ## Group K — memory/allocation/GC
 51. ☐ allocation elimination / object pooling

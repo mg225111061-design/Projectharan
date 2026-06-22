@@ -5728,6 +5728,27 @@ def test_round1_big_recognizers():
           f"ratio ≤ ceiling, n quoted; all 4 adversarial wrong variants caught ⇒ DECLINE)")
 
 
+def test_round2_bloom_membership():
+    """ROUND 2 (Group J, item 49) — Bloom membership filter: exact O(n) list-membership pre-check → O(1) filter
+    with false-positive ε and ZERO false negatives (the safety invariant). Graded PROBABILISTIC(ε); a broken
+    filter that produces FALSE NEGATIVES ⇒ DECLINE (never ship a filter that says 'no' to a real member)."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    pool, q = R2.make_bloom_input(3000, 3000)
+    r = R2.bloom_grade(pool, q, 0, eps_target=0.08, n=3000, samples=5)
+    assert r.verdict.status == KV.PROBABILISTIC, f"Bloom should be PROBABILISTIC, got {r.verdict.status}"
+    assert r.verdict.certificate.delta is not None, "must REPORT false-positive ε"
+    assert r.eps <= 0.08 and r.ratio <= r.ceiling + 1e-9 and r.ratio >= 1.5
+
+    rb = R2.bloom_grade(pool, q, 0, approx_fn=R2.membership_bloom_broken, eps_target=0.08, n=3000, samples=3)
+    assert rb.verdict.status == KV.DECLINE, "a filter with false negatives must DECLINE"
+
+    print(f"PASS test_round2_bloom_membership (Bloom O(n)→O(1)/query, false-positive ε={r.eps:.4f}, ZERO false "
+          f"negatives verified, {r.ratio:.1f}× ≤ ceiling {r.ceiling:.0f}× @ n=3000 — PROBABILISTIC; a "
+          f"false-negative-producing filter ⇒ DECLINE)")
+
+
 def test_round2_sublinear_sampling():
     """ROUND 2 (Group J, item 46) — the Ω(N) side-door: sublinear approximation by sampling. A mean over a huge
     array O(N) is answered by sampling k≪N items O(k) (cost ⟂ N), graded PROBABILISTIC with REPORTED ε,δ (never
