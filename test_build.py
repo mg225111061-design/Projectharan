@@ -5915,6 +5915,39 @@ def test_round1_matmul_blocked_exact():
           f"bit-exact vs naive); bound-exceeded ⇒ DECLINE (no wrap); wrong-axis ⇒ DECLINE)")
 
 
+def test_round1_stoke_superopt_probabilistic():
+    """ROUND 1 (Group A, item 4) — STOKE-style stochastic superoptimization wired into Pillar-3. superopt
+    searches an e-graph for the lowest-COST equivalent of a wasteful ring expression (12→4 cost; 6x+8) and
+    VERIFIES it by Schwartz–Zippel before returning (an unverified rewrite is DEFERred). Because equivalence is
+    established by RANDOMIZED testing, the honest grade is PROBABILISTIC with the Schwartz–Zippel bound as δ —
+    never EXACT. Measured whole-program (ratio ≤ ceiling). STOKE's build-time-search→O(1)-runtime-lookup is
+    exercised. A wrong rewrite (7x ≠ 6x+8) ⇒ Schwartz–Zippel refutes ⇒ DECLINE (the moat)."""
+    from pillar3 import stoke as ST
+    import kernel_verdict as KV
+
+    v, rep = ST.stoke_grade(ST._W, lambda: ST.make_ring_input(80000), n=80000, samples=5)
+    assert v.status == KV.PROBABILISTIC, f"STOKE (randomized verification) should be PROBABILISTIC, got {v.status}"
+    assert v.certificate.kind == "stoke_schwartz_zippel" and v.certificate.delta is not None, "PROBABILISTIC states δ"
+    assert v.certificate.delta <= 1e-18, "Schwartz–Zippel over 24 points / 2^61-1 ⇒ δ far below 1e-18 (§0b)"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 1.5, f"a 12→4 cost reduction should win, got {rep.whole_program_ratio:.2f}×"
+    # the verified form really is equivalent (6x+8) on a probe
+    fn_n = ST.compile_term(ST._W)
+    import superopt as SO
+    fn_o = ST.compile_term(SO.superopt(ST._W, iters=10).optimized)
+    assert all(fn_n({"x": x}) == fn_o({"x": x}) for x in (-9, 0, 1, 7, 100)), "verified form agrees"
+    # STOKE deployment: the verified optimum is cached for O(1) runtime lookup (no runtime search)
+    assert ST.runtime_cache_hit() is True, "verified optimum must be O(1)-retrievable at runtime"
+
+    vw, _ = ST.stoke_grade(ST._W, lambda: ST.make_ring_input(80000), n=80000, samples=2, force_opt=ST._WRONG)
+    assert vw.status == KV.DECLINE, "a Schwartz–Zippel-refuted rewrite must DECLINE"
+
+    print(f"PASS test_round1_stoke_superopt_probabilistic (STOKE search 12→4 cost, Schwartz–Zippel-verified "
+          f"(randomized ⇒ PROBABILISTIC δ≤{v.certificate.delta:.0e}, never EXACT), measured "
+          f"{rep.whole_program_ratio:.1f}× ≤ ceiling; build-time search → O(1) runtime cache hit; wrong rewrite "
+          f"(7x) ⇒ Schwartz–Zippel refutes ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
