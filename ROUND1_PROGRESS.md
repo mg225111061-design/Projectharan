@@ -13,7 +13,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 2. ◩ egg equality saturation in Pillar 3 — fold_egraph.py + superopt.py [test_foldext3_stage2_superopt]; wire a P3 recognizer
 3. ☐ llvmlite/numba native compile of hot numeric region (llvmlite 0.47 + numba 0.65 present → buildable)
 4. ◩ STOKE-style stochastic superopt of small fragments — superopt.py [test_foldext3_stage2]; verify adversarial
-5. ☐ partial evaluation / specialization on fixed inputs
+5. ☑ partial evaluation / specialization on fixed inputs — EXACT (Z3 residual≡generic): 1st Futamura projection (interp specialized on a fixed program → straight-line, ~1.7×) + sparse linear-map (dot w/ fixed weights drops zeros+loop, ~2.2×); wrong residual (mul→add / dropped live term) differential-caught AND Z3-refuted→DECLINE [test_round1_partial_evaluation_exact; pillar3/parteval.py]
 6. ☑ THE FREE LEAP: wire Pillar-1 cfinite EXACT kernel into Pillar-3 recognition — recurrence hotspot routed to companion-matrix closed form, graded EXACT (was PROBABILISTIC item 7), O(n)→O(log n) ~30×@n=24000 fib (Pell/Tribonacci/Lucas too); recognition gate (companion≡loop probe) → mis-recognized recurrence DECLINEs [test_round1_freeleap_cfinite_exact; pillar3/freeleap.py]
 ## Group B — big-multiplier recognizers
 7. ☑ matrix-power linear recurrence O(n)→O(log n) (fast-doubling) ~40×@n=24000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers; round1.py]

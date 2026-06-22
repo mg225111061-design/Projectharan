@@ -5766,6 +5766,37 @@ def test_round1_freeleap_cfinite_exact():
           f"Pell/Tribonacci/Lucas EXACT; mis-recognized recurrence ⇒ DECLINE)")
 
 
+def test_round1_partial_evaluation_exact():
+    """ROUND 1 (Group A, item 5) — PARTIAL EVALUATION / specialization on fixed inputs, graded EXACT by bounded
+    Z3 translation validation (residual ≡ generic-with-inputs-fixed). (1) interpreter specialization = the FIRST
+    FUTAMURA PROJECTION: a generic AST interpreter specialized on a FIXED program → straight-line residual with
+    all opcode dispatch resolved at specialization time. (2) sparse linear-map: dot(weights,x) with FIXED weights
+    drops the zero terms and the loop. Both measured whole-program (ratio ≤ ceiling). A wrong residual (mul→add;
+    a dropped live term) is differential-caught AND Z3-refuted ⇒ DECLINE."""
+    from pillar3 import parteval as PE
+    from pillar3 import lifting as LF
+    import kernel_verdict as KV
+
+    rows = []
+    for L in PE.catalog():
+        v = LF.lift_and_grade(L, samples=7)
+        assert v.status == KV.EXACT, f"{L.name} should be EXACT (Z3-proven residual≡generic), got {v.status}"
+        assert v.certificate.kind == "z3_two_step_lift" and v.certificate.delta is None, "EXACT, no probabilistic δ"
+        rep = v.report
+        assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, f"{L.name} ratio ≤ ceiling (Rule 2)"
+        assert rep.whole_program_ratio >= 1.10, f"{L.name} must measure a real win, got {rep.whole_program_ratio:.2f}×"
+        rows.append((L.name, rep.whole_program_ratio))
+
+    for W in PE.wrong_variants():
+        vw = LF.lift_and_grade(W, samples=3)
+        assert vw.status == KV.DECLINE, f"wrong partial-eval {W.name} must DECLINE, got {vw.status}"
+
+    desc = "; ".join(f"{n.split('_')[-1]} {r:.2f}×" for n, r in rows)
+    print(f"PASS test_round1_partial_evaluation_exact (EXACT Z3-proven: {desc}; 1st Futamura projection "
+          f"(interp specialized on a fixed program) + sparse linear-map; ratio ≤ ceiling; wrong residual "
+          f"(mul→add / dropped live term) differential-caught AND Z3-refuted ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
