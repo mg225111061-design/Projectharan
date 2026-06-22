@@ -1,58 +1,62 @@
-# DEPLOY NOTES — MR.JEFFREY front end
+# DEPLOY NOTES — MR.JEFFREY (Docker / Render)
 
-## What serves the live UI
+## TL;DR for the Render dashboard
+The repo is a **Docker** deploy. The fix is in code (committed) — once Render rebuilds from this branch the site
+serves the new Korean single-file UI. Confirm these in **Render → Settings**, then **Manual Deploy → Deploy latest commit**:
 
-The deployed site's UI is the single self-contained build **`mrjeffrey.html`** (Korean, `lang="ko"`,
-design unchanged). It is served by the FastAPI app `webapi/app.py` at **three routes, all the same new build**:
+| Setting | Value |
+|---|---|
+| **Root Directory** | empty / `.` (the `Dockerfile` is at the repo root) |
+| **Dockerfile path** | `./Dockerfile` |
+| **Docker Command** | leave EMPTY (use the Dockerfile `CMD`). If forced, set: `python server.py` |
+| **Branch** | `claude/funny-maxwell-im9x07` |
+| Port | automatic — the app binds Render's injected `$PORT` (no value needed) |
 
-| Route       | Serves                          |
-|-------------|---------------------------------|
-| `/`         | `mrjeffrey.html` (site root)    |
-| `/app`      | `mrjeffrey.html`                |
-| `/onefile`  | `mrjeffrey.html`                |
-| `/legacy`   | old React build `web/dist/` (reference only — NOT the root) |
-| `/api/*`    | the real pillar3 engine (health, modes, providers, corpus, demo, optimize, key/validate) |
+Then: **Manual Deploy → Clear build cache & deploy** (clearing the cache avoids serving a stale old-UI layer).
 
-Previously `/` served `web/dist/index.html` (the **old** React UI) or `mrjeffrey_landing.html`, which is why
-the deployed site showed the old design. `webapi/app.py` now points `/`, `/app`, `/onefile` at the new
-single-file build via `_serve_ui()`, and mounts the legacy React build at `/legacy` for reference only.
+## What was actually wrong (the `/static/design.css` smoking gun)
+- The Render service runs **Docker**. The root `Dockerfile`'s last line is `CMD ["python", "server.py"]` — so the
+  production ASGI app is **`server:app`** (NOT `webapi.app:app`, which my earlier edit had touched — that app
+  was never the one Render boots).
+- Old `server.py`: `GET /` returned the **old React landing** (`pages/landing.html`) and `GET /app` the old
+  `haran.html`; `GET /static/{name}` served `static/design.css` + `static/site.js`. The new single-file UI inlines
+  everything and never requests `/static/...`, so those log lines proved the **old `server:app` root** was live.
+- The Dockerfile does **NOT** build the old React app (there is no `npm`/`web/dist` build step); the old UI came
+  purely from `server.py`'s `/` route. So the fix is in `server.py` + a Dockerfile clarification — no build step to remove.
 
-## Live mode
+## The fix (committed on this branch)
+1. **`server.py`** — the real production entrypoint (`server:app`, run by the Dockerfile CMD):
+   - `GET /`, `GET /app`, `GET /onefile` now return the **new Korean single-file `mrjeffrey.html`** (everything
+     inlined; NO `/static/design.css`, NO `/static/site.js`, NO `web/dist`). The old landing/`haran.html` routes are gone.
+   - Added the engine API the new UI calls for **live mode**: `GET /api/health|modes|providers|corpus|demo`,
+     `POST /api/optimize`, `POST /api/key/validate` — delegating to `webapi.engine_bridge` (the real pillar3 engine).
+     The submitted LLM key is body-only, never logged or stored; it only travels to the chosen provider.
+   - Binds `$PORT` (Render) → `HARAN_PORT` → `8000`, host `0.0.0.0`.
+   - `GET /static/{name}` is left as a harmless legacy asset route — the new `/` never references it.
+2. **`Dockerfile`** — leaves `HARAN_PORT` unset so the container binds Render's `$PORT`; `EXPOSE 8000 10000`;
+   `CMD ["python", "server.py"]` documented as serving the new single-file at `/`. `.dockerignore` does NOT
+   exclude `mrjeffrey.html`, so it is in the image (`COPY . .`).
 
-When served behind FastAPI, the page calls `GET /api/health` on load; on `{ok:true}` it flips to **live mode**
-and routes paste→run through the real engine: `POST /api/optimize`, `POST /api/key/validate`,
-`GET /api/modes|providers|corpus|demo`. Opened as a `file://` it stays in honest **static mode** (heuristic
-detection + the embedded real measured canonical run, clearly labelled).
+## End-to-end verification (local, the SAME app the Docker CMD runs)
+Ran `python server.py` exactly as the Docker `CMD` does, with `PORT=8091` (simulating Render's injection,
+`HARAN_PORT` unset):
+- App bound `$PORT=8091`; `GET /api/health` → `{ok:true, engine:"pillar3", real:true}`.
+- `GET /` → **200**, **1794 Hangul**, Korean H1 ("추측이 아니라, 증명된 속도."), single-file (`const DATA` + `#root`),
+  and **does NOT reference `/static/design.css`, `/static/site.js`, or `web/dist`** — the exact broken symptom is gone.
+- `GET /app`, `GET /onefile` → identical new UI.
+- `GET /api/modes|providers|corpus|demo` → 200, real shapes.
+- `POST /api/optimize` (N+1 sample), fast/normal/extend → 200, each ships a measured row, **ratio ≤ ceiling**,
+  cumulative ≈ 4×, with **Korean** notes; clean code → honest no-claim.
 
-## End-to-end verification (sandbox, `uvicorn webapi.app:app --port 8077`)
+Docker image build itself: **UNVERIFIED [no docker in sandbox]** — could not run `docker build`. The CMD's target
+app (`server:app` via `python server.py`) is verified directly, which is what the image runs.
 
-- `GET /api/health` → `{ok:true, engine:"pillar3", real:true}`.
-- `GET /` → **200**, `lang="ko"`, Korean H1 present ("추측이 아니라, 증명된 속도."), single-file (`const DATA` + `#root`),
-  **1794 Hangul codepoints** (was 71). `/app` and `/onefile` return the identical build.
-- `GET /api/modes|providers|corpus|demo` → **200**, real shapes.
-- `POST /api/optimize` (N+1-in-a-loop sample), fast/normal/extend → **200**, each ships a measured
-  `EXACT` row `S2_n_plus_1` (~3.9–4.1×), **ratio ≤ ceiling on every row**; cumulative ~4×.
-- Clean code (`def total(prices): return sum(prices)`), extend → **0 shipped, 0 false claims** (honest DECLINE/no-op).
-- Single-file harness: both `<script>` blocks parse; all 6 screens render without throwing; mode color switch
-  (fast=cyan / normal=amber / extend=violet) intact; no banned English UI strings remain.
-
-## Host deploy status
-
-`[deploy: pushed, awaiting host rebuild]` — the route wiring + localized build are committed and pushed to
-`claude/funny-maxwell-im9x07`. The actual Render/Netlify rebuild is triggered by the host on push and **could
-not be triggered or verified from this sandbox**. Render start command (dashboard-configured) should be:
-
-```
-uvicorn webapi.app:app --host 0.0.0.0 --port $PORT
-```
-
-Once the host rebuilds from this branch, the site root will serve the new Korean single-file UI in live mode.
-(No `render.yaml`/`Procfile` is present in the repo; the start command lives in the host dashboard.)
+## Deploy status
+`[deploy: pushed, awaiting Render rebuild]` — code is committed + pushed to `claude/funny-maxwell-im9x07`. The live
+site updates when the user **redeploys** (Manual Deploy → Clear build cache & deploy) after confirming Root
+Directory `.` + Dockerfile `./Dockerfile`. Not claimed live until the user redeploys — the route/CMD are verified
+locally; the Render rebuild is the user's action.
 
 ## Honesty / design
-
-- Visual design **unchanged** — only copy, Korean localization, and deployment wiring changed.
-- Korean fonts via the **system stack** (`Apple SD Gothic Neo`, `Malgun Gothic`, `Noto Sans KR`, `Pretendard`) —
-  **no webfont request** (phone-home = 0 except the chosen provider's API).
-- API key remains **session-only**: held in the tab for the request, never logged, stored, committed, or phoned home.
-- Grade tokens render in Korean for display (증명됨 / 확률적 / 보류) while the CSS class keeps the English token for colour.
+Design unchanged — only *which file is served at `/`* (+ the engine routes + port). Korean via system fonts (no
+webfont). Keys session-only, never logged/stored/committed.

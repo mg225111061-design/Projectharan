@@ -42,6 +42,7 @@ except Exception:   # noqa: BLE001
     Request = None
 
 HARAN_HTML = Path(__file__).with_name("haran.html")
+ONEFILE = Path(__file__).with_name("mrjeffrey.html")          # the NEW Korean single-file UI (everything inlined)
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
 PAGES = BASE / "pages"
@@ -295,14 +296,25 @@ def create_app():
         resp.set_cookie(SESSION_COOKIE, sess["cookie"], httponly=True, samesite="lax",
                         secure=(req.url.scheme == "https"), path="/", max_age=max_age)
 
+    def _onefile() -> "HTMLResponse":
+        # THE LIVE UI: the new Korean single-file (everything inlined — no /static/design.css, no /static/site.js)
+        if ONEFILE.is_file():
+            return HTMLResponse(ONEFILE.read_text(encoding="utf-8"))
+        return HTMLResponse(HARAN_HTML.read_text(encoding="utf-8")) if HARAN_HTML.is_file() else HTMLResponse("not found", 404)
+
     # ---- pages ----
+    # ★ ROOT serves the NEW single-file UI ★ (was: the old React landing + /static React build — that is GONE).
     @app.get("/", response_class=HTMLResponse)
     async def landing():                                       # noqa: ANN202
-        return _page("landing")
+        return _onefile()
 
     @app.get("/app", response_class=HTMLResponse)
     async def app_page():                                      # noqa: ANN202
-        return HTMLResponse(HARAN_HTML.read_text(encoding="utf-8"))   # the existing codegen/verify app
+        return _onefile()
+
+    @app.get("/onefile", response_class=HTMLResponse)
+    async def onefile_page():                                  # noqa: ANN202
+        return _onefile()
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page():                                    # noqa: ANN202
@@ -363,6 +375,49 @@ def create_app():
             return JSONResponse({"items": []}, status_code=401)
         return JSONResponse({"items": AU.list_work(s["user_id"])})
 
+    # ---- the SPEEDUP ENGINE API (what the new single-file UI calls for LIVE mode) ----
+    # Delegates to webapi.engine_bridge (the real pillar3 engine). The submitted LLM key is header/body-only and
+    # is NEVER logged or stored here — it only travels to the provider the user chose.
+    try:
+        from webapi import engine_bridge as _ENGINE            # noqa: PLC0415
+    except Exception:                                          # noqa: BLE001
+        _ENGINE = None
+
+    @app.get("/api/health")
+    async def api_health():                                    # noqa: ANN202
+        return JSONResponse({"ok": _ENGINE is not None, "engine": "pillar3", "real": _ENGINE is not None})
+
+    @app.get("/api/modes")
+    async def api_modes():                                     # noqa: ANN202
+        return JSONResponse({"modes": _ENGINE.modes()} if _ENGINE else {"modes": []})
+
+    @app.get("/api/providers")
+    async def api_providers():                                 # noqa: ANN202
+        return JSONResponse({"providers": _ENGINE.providers()} if _ENGINE else {"providers": []})
+
+    @app.get("/api/corpus")
+    async def api_corpus():                                    # noqa: ANN202
+        return JSONResponse(_ENGINE.corpus() if _ENGINE else {"rows": []})
+
+    @app.get("/api/demo")
+    async def api_demo():                                      # noqa: ANN202
+        return JSONResponse(_ENGINE.demo() if _ENGINE else {})
+
+    @app.post("/api/optimize")
+    async def api_optimize(req: Request):                      # noqa: ANN202
+        if _ENGINE is None:
+            return JSONResponse({"error": "engine unavailable"}, status_code=503)
+        p = await req.json()
+        return JSONResponse(_ENGINE.run_optimize(p.get("code", ""), p.get("mode", "normal"),
+                                                 p.get("provider"), p.get("model"), p.get("key")))
+
+    @app.post("/api/key/validate")
+    async def api_key_validate(req: Request):                  # noqa: ANN202
+        if _ENGINE is None:
+            return JSONResponse({"ok": False, "detail": "engine unavailable"}, status_code=503)
+        p = await req.json()
+        return JSONResponse(_ENGINE.validate_key(p.get("provider", ""), p.get("key", ""), p.get("model")))
+
     @app.get("/static/{name}")                                  # shared design system + site script
     async def static_file(name: str):                          # noqa: ANN202
         # allow-listed by suffix + name-only (no path traversal): only files directly under static/.
@@ -419,5 +474,6 @@ if __name__ == "__main__":   # pragma: no cover - manual local run
     if app is None:
         raise SystemExit("FastAPI not installed — `pip install -r requirements.txt` to run the server.")
     import uvicorn
-    uvicorn.run(app, host=os.environ.get("HARAN_HOST", "127.0.0.1"),
-                port=int(os.environ.get("HARAN_PORT", "8000")))
+    # Render/Cloud Run inject $PORT; honor it (then HARAN_PORT, then 8000) so the container binds the right port.
+    port = int(os.environ.get("HARAN_PORT") or os.environ.get("PORT") or "8000")
+    uvicorn.run(app, host=os.environ.get("HARAN_HOST", "0.0.0.0"), port=port)

@@ -21,9 +21,12 @@ COPY . .
 
 # Config via env (NOT hardcoded). ★ The Claude API key is NEVER an env var or baked into the image —
 #   it is entered per request in the browser, used once for the call, and dropped (level-1). ★
-ENV HARAN_HOST=0.0.0.0 \
-    HARAN_PORT=8000
-EXPOSE 8000
+# NOTE: HARAN_PORT is left UNSET so the app binds Render/Cloud-Run's injected $PORT (server.py honors
+#   HARAN_PORT → PORT → 8000). Set HARAN_PORT only for a fixed local port.
+ENV HARAN_HOST=0.0.0.0
+EXPOSE 8000 10000
 
-# server.py reads HARAN_HOST / HARAN_PORT from env and runs uvicorn.
+# server.py boots `server:app`, whose `/` and `/app` serve the NEW Korean single-file UI (mrjeffrey.html,
+# everything inlined — NO /static/design.css, NO old React web/dist) and whose /api/* is the real pillar3
+# engine (optimize/modes/providers/corpus/demo/key-validate). Binds $PORT (Render) automatically.
 CMD ["python", "server.py"]
