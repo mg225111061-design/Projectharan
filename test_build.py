@@ -5976,6 +5976,33 @@ def test_round1_bounds_check_elim_exact():
           f"KEPT ⇒ DECLINE — sound, never an unsound removal)")
 
 
+def test_tier2_exact_share_rising():
+    """Tier-2 (EXACT-share) — the honest ledger of Pillar-3 capabilities and their TEST-enforced grades, and the
+    rising machine-checked-EXACT share. Every grade in the inventory matches a test that enforces it; the EXACT
+    share is computed; and one EXACT + one PROBABILISTIC capability are re-graded LIVE so the ledger is grounded.
+    The EXACT classes rose sharply this session (Tier-1 ceiling-breakers + Tier-2 promotions)."""
+    from pillar3 import exact_share as ES
+    import kernel_verdict as KV
+
+    s = ES.compute_share()
+    assert s.exact >= 15 and s.probabilistic >= 10, f"inventory shape off: {s.exact} EXACT / {s.probabilistic} PROB"
+    assert s.exact_new >= 8, f"this session should have added many EXACT capabilities, got {s.exact_new}"
+    assert s.exact_baseline >= 1, "there must be a pre-session EXACT baseline to rise from"
+    assert s.exact_share > 0.5, f"EXACT should now be the majority grade, got {s.exact_share:.1%}"
+    # every inventory grade is one of the two real grades (no DECLINE-as-capability, no fabricated grade)
+    assert all(c.grade in (KV.EXACT, KV.PROBABILISTIC) for c in ES.INVENTORY), "ledger grades must be EXACT|PROBABILISTIC"
+    assert all(c.test and c.mechanism for c in ES.INVENTORY), "every capability cites a test + a mechanism"
+
+    # GROUNDING: re-grade one EXACT and one PROBABILISTIC capability live — the ledger is not just a table
+    cor = ES.corroborate()
+    assert cor["exact_is_EXACT"], "the live EXACT capability must re-grade EXACT with δ=None"
+    assert cor["prob_states_delta"] and cor["probabilistic_live"] == KV.PROBABILISTIC, "live PROBABILISTIC states δ"
+
+    print(f"PASS test_tier2_exact_share_rising (EXACT {s.exact} = {s.exact_baseline} pre-session + {s.exact_new} "
+          f"new; PROBABILISTIC {s.probabilistic}; EXACT share {s.exact_share:.0%} of {s.total}; live corroboration: "
+          f"EXACT→{cor['exact_live']} (δ=None), PROBABILISTIC→{cor['probabilistic_live']} (δ stated))")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
