@@ -21,3 +21,4 @@ unbounded-loop invariants (#61 BMC, #65 k-induction) and verification SPEED (#63
 big-multiplier broth families (segment tree / Dijkstra-heap / suffix structures).
 | SPEED | big-multiplier recognizer: Dijkstra naive O(V²) → heap O((V+E)·log V) | PROBABILISTIC | ~28×@V=1500 sparse; wrong (drops edge weight)→DECLINE | test_round1_big_recognizers | 158/158 |
 | ACC | #65 k-induction — closed form / invariant proven for UNBOUNDED n (bounded→all-n EXACT promotion) | EXACT | Σi, Faulhaber Σi², Σodd, x%2==0, x≥0 ∀n; non-inductive (n(n+1)/2,n²)→DECLINE | test_round3_kinduction_unbounded | 159/159 |
+| SPEED | big-multiplier recognizer: LIS naive O(n²) DP → patience/binary-search O(n log n) | PROBABILISTIC | ~430×@n=3000; wrong (bisect_right⇒non-strict)→DECLINE on duplicates | test_round1_big_recognizers | 159/159 |

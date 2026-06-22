@@ -499,6 +499,60 @@ def _dij_in():
             (4, [(0, 1, 2), (0, 2, 2), (1, 3, 3), (2, 3, 1)], 0)]
 
 
+# ── item 16b — longest increasing subsequence: naive O(n²) DP → patience/binary-search O(n log n) ────────
+import bisect as _bisect
+
+
+def lis_naive(a):
+    n = len(a)
+    if n == 0:
+        return 0
+    dp = [1] * n
+    for i in range(n):                                      # O(n²) nested scan (pure Python, no C shortcut)
+        for j in range(i):
+            if a[j] < a[i] and dp[j] + 1 > dp[i]:
+                dp[i] = dp[j] + 1
+    return max(dp)
+
+
+def lis_fast(a):
+    tails = []                                              # tails[k] = smallest tail of an increasing subseq of len k+1
+    for x in a:
+        i = _bisect.bisect_left(tails, x)                   # strict LIS ⇒ bisect_left
+        if i == len(tails):
+            tails.append(x)
+        else:
+            tails[i] = x
+    return len(tails)
+
+
+def lis_wrong(a):                                           # bisect_right ⇒ counts NON-decreasing ⇒ wrong on duplicates
+    tails = []
+    for x in a:
+        i = _bisect.bisect_right(tails, x)
+        if i == len(tails):
+            tails.append(x)
+        else:
+            tails[i] = x
+    return len(tails)
+
+
+_LIS_CACHE: dict = {}
+
+
+def _mk_lis(n=3000):
+    if n not in _LIS_CACHE:
+        rng = _rnd.Random(77)
+        _LIS_CACHE[n] = ([rng.randrange(0, 500) for _ in range(n)],)   # duplicates present ⇒ strict≠non-strict
+    return _LIS_CACHE[n]
+
+
+def _lis_in():
+    # [1,1,1,1] exposes strict-vs-non-strict (LIS=1, non-strict=4); mixed cases too
+    return [([3, 1, 2, 1, 8, 5, 6],), ([1, 1, 1, 1],), ([5, 4, 3, 2, 1],), ([1, 2, 3, 4],),
+            ([2, 2, 3, 1, 4, 4, 5],), ([7],), ([],)]
+
+
 def catalog() -> List[Recognizer]:
     return [
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
@@ -515,4 +569,6 @@ def catalog() -> List[Recognizer]:
                    lambda: _mk_rmq(4000, 4000), residual_iters=0, gen_inputs=_rmq_in, relations=[], n=4000, floor=1.30),
         Recognizer("dijkstra_heap", "algo_replace", dijkstra_naive, dijkstra_heap,
                    lambda: _mk_dij(1500, 2200), residual_iters=0, gen_inputs=_dij_in, relations=[], n=1500, floor=1.30),
+        Recognizer("lis_patience", "algo_replace", lis_naive, lis_fast,
+                   lambda: _mk_lis(3000), residual_iters=0, gen_inputs=_lis_in, relations=[], n=3000, floor=1.30),
     ]
