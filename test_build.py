@@ -6003,6 +6003,36 @@ def test_tier2_exact_share_rising():
           f"EXACT→{cor['exact_live']} (δ=None), PROBABILISTIC→{cor['probabilistic_live']} (δ stated))")
 
 
+def test_round3_bitvector_translation_validation():
+    """ROUND 3 (item 67) / Tier-2 — translation validation under REAL machine semantics. A peephole correct over
+    idealized ℤ can be WRONG on a fixed-width machine (overflow). This validator proves equivalence over Z3
+    BITVECTORS (two's-complement), so a rewrite is EXACT only if sound under overflow; an overflow-unsafe rewrite
+    is REFUTED with a concrete counterexample ⇒ DECLINE (keep the original — a wrong 'safe' is a correctness
+    bug). Headline: (x+1)>x is PROVABLE over ℤ but REFUTED over bv32 — the machine-faithful check catches the
+    miscompile idealized reasoning misses."""
+    from pillar3 import bv_validate as BV
+    import kernel_verdict as KV
+
+    for nm, o, p in BV.sound_peepholes():
+        r = BV.bv_grade(nm, o, p)
+        assert r.verdict.status == KV.EXACT and r.proved, f"sound peephole {nm} should be EXACT (bv-proven)"
+        assert r.verdict.certificate.kind == "bitvector_refinement" and r.verdict.certificate.delta is None
+    for nm, o, p in BV.unsafe_peepholes():
+        r = BV.bv_grade(nm, o, p)
+        assert r.verdict.status == KV.DECLINE, f"overflow-unsafe peephole {nm} must DECLINE"
+        assert r.counterexample is not None, f"{nm} must DECLINE WITH a concrete machine counterexample"
+
+    # the headline soundness contrast: idealized ℤ accepts, machine bitvectors REFUTE (with a witness)
+    c = BV.idealized_vs_machine_contrast()
+    assert c["idealized_Z"] == "PROVEN" and c["machine_bv32"] == "REFUTED" and c["machine_counterexample"], \
+        "(x+1)>x must be provable over ℤ but refuted over bv32 — the machine-faithful catch"
+    assert c["machine_counterexample"]["v0"] == 2147483647, "the counterexample is INT_MAX (overflow point)"
+
+    print(f"PASS test_round3_bitvector_translation_validation ({len(BV.sound_peepholes())} sound peepholes EXACT "
+          f"(bv-proven, overflow-faithful); {len(BV.unsafe_peepholes())} overflow-unsafe REFUTED ⇒ DECLINE+cex; "
+          f"contrast: (x+1)>x PROVEN over ℤ but REFUTED over bv32 @ INT_MAX — catches the miscompile)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
