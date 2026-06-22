@@ -21,7 +21,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 9. ☑ O(2ⁿ)→memoized DP — fib ~10000×@n=29 [test_phaseA] + coin-change ~15700×@amount=26 [test_round1_big_recognizers]
 10. ☑ nested-loop join → hash join ~28× [test_phaseA hash_join]
 11. ☑ naive substring search → KMP O(n·m)→O(n+m) ~32×@n=24000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers]
-12. ☐ segment tree / Fenwick (BIT) repeated range query/update O(n)→O(log n)
+12. ☑ Fenwick/BIT repeated point-update + range-query O((U+Q)·n)→O((U+Q)·log n) ~9×@n=2000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers; round1.py]
 13. ◩ sparse-table RMQ O(1)/query — [test_v40_phase4_succinct]
 14. ☑ union-find + path compression near-O(1) connectivity ~121×@n=600 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers]
 15. ◩ blocked/Strassen matmul large n — [test_v40_phase2_structured_matrices]; verify whole-program+wrong

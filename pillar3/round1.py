@@ -251,6 +251,93 @@ def _coins_in_fixed():
     return [([1, 2, 5], 11), ([2], 3), ([1], 0), ([1, 5, 10], 18), ([3, 7], 5), ([1, 3, 4], 13)]
 
 
+# ── item 12 — repeated point-update + range-sum: naive O((U+Q)·n) → Fenwick/BIT O((U+Q)·log n) ──────────
+def fenwick_naive(n, ops):
+    arr = [0] * n
+    out = []
+    for op in ops:
+        if op[0] == "u":
+            arr[op[1]] += op[2]
+        else:
+            s = 0
+            for i in range(op[1], op[2]):
+                s += arr[i]
+            out.append(s)
+    return out
+
+
+def fenwick_fast(n, ops):
+    tree = [0] * (n + 1)
+    def upd(i, v):
+        i += 1
+        while i <= n:
+            tree[i] += v
+            i += i & (-i)
+    def pre(i):
+        s = 0
+        while i > 0:
+            s += tree[i]
+            i -= i & (-i)
+        return s
+    out = []
+    for op in ops:
+        if op[0] == "u":
+            upd(op[1], op[2])
+        else:
+            out.append(pre(op[2]) - pre(op[1]))
+    return out
+
+
+def fenwick_wrong(n, ops):                                  # off-by-one query range (r inclusive) ⇒ wrong sums
+    tree = [0] * (n + 1)
+    def upd(i, v):
+        i += 1
+        while i <= n:
+            tree[i] += v
+            i += i & (-i)
+    def pre(i):
+        s = 0
+        while i > 0:
+            s += tree[i]
+            i -= i & (-i)
+        return s
+    out = []
+    for op in ops:
+        if op[0] == "u":
+            upd(op[1], op[2])
+        else:
+            out.append(pre(min(op[2] + 1, n)) - pre(op[1]))   # BUG: includes one extra element
+    return out
+
+
+_FEN_CACHE: dict = {}
+
+
+def _mk_fenwick(n=2000, k=1500):
+    key = (n, k)
+    if key not in _FEN_CACHE:
+        rng = _rnd.Random(71)
+        ops = []
+        for _ in range(k):
+            if rng.random() < 0.5:
+                ops.append(("u", rng.randrange(n), rng.randrange(-50, 50)))
+            else:
+                l = rng.randrange(n - 1)
+                ops.append(("q", l, rng.randrange(l + 1, n)))
+        _FEN_CACHE[key] = (n, ops)
+    return _FEN_CACHE[key]
+
+
+def _fen_in():
+    # the 1st case has a nonzero element JUST above a query's range (q 0..2 with arr[2]=9) — exposes an
+    # r-inclusive off-by-one (sum[l,r] vs sum[l,r))
+    return [(3, [("u", 2, 9), ("q", 0, 2), ("q", 0, 3)]),
+            (3, [("u", 0, 5), ("q", 0, 2), ("u", 1, 3), ("q", 0, 3)]),
+            (4, [("q", 0, 4), ("u", 2, 7), ("q", 1, 3)]),
+            (2, [("u", 0, 1), ("u", 1, 2), ("q", 0, 2)]),
+            (5, [("u", 4, 9), ("q", 0, 5), ("u", 0, 1), ("q", 0, 1), ("q", 1, 4)])]
+
+
 def catalog() -> List[Recognizer]:
     return [
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
@@ -261,4 +348,6 @@ def catalog() -> List[Recognizer]:
                    lambda: _mk_uf(600, 1200, 600), residual_iters=0, gen_inputs=_uf_in, relations=[], n=600, floor=1.20),
         Recognizer("coin_change_dp", "algo_replace", coins_naive, coins_dp,
                    lambda: _mk_coins(26), residual_iters=0, gen_inputs=_coins_in_fixed, relations=[], n=26, floor=1.30),
+        Recognizer("fenwick_range_query", "algo_replace", fenwick_naive, fenwick_fast,
+                   lambda: _mk_fenwick(2000, 1500), residual_iters=0, gen_inputs=_fen_in, relations=[], n=2000, floor=1.20),
     ]
