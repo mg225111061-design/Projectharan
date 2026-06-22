@@ -16,7 +16,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (cite test) · ☐ pending 
 62. ◩ symbolic execution oracle — symbolic_oracle.py [exists]; wire a P3 equivalence gate
 63. ☐ SMT portfolio (parallel tactics, first-to-close) — Clock-B verification speed
 64. ☐ CEGAR (counterexample-guided abstraction refinement) for loop invariants
-65. ☐ k-induction (prove a loop invariant for unbounded n)
+65. ☑ k-induction — prove closed form/loop invariant for UNBOUNDED n (Z3 base+step); promotes bounded-domain identity → EXACT for ALL n; Σi, Faulhaber Σi², Σodd, x%2==0, x≥0 proven; non-inductive (n(n+1)/2, n²) fail step → DECLINE [test_round3_kinduction_unbounded; pillar3/kinduction.py]
 66. ◩ refinement (output refines input wherever defined) — translation_validate [exists]
 67. ☑ translation validation under REAL machine semantics (bitvector/overflow-aware) — 5 sound peepholes EXACT (bv-proven), 3 overflow-unsafe REFUTED→DECLINE+cex; (x+1)>x PROVEN over ℤ but REFUTED over bv32 @ INT_MAX (catches the miscompile idealized reasoning misses) [test_round3_bitvector_translation_validation; pillar3/bv_validate.py]
 ## Group Q — sound static analyses (a wrong "safe" is a correctness bug)

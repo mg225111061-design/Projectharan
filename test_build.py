@@ -6149,6 +6149,30 @@ def test_round3_interval_range_analysis():
           f"int32 ⇒ DECLINE — unifies the NTT/matmul no-wrap bound as one reusable EXACT-enabling analysis)")
 
 
+def test_round3_kinduction_unbounded():
+    """ROUND 3 (item 65) — k-induction: prove a closed form / loop invariant for UNBOUNDED n (Z3 base + step).
+    This PROMOTES a bounded-domain identity to EXACT FOR ALL n (the moat widens). Σi=n(n-1)/2, Faulhaber
+    Σi²=n(n-1)(2n-1)/6, Σ(2i+1)=n² all proven for every n≥0; loop invariants (x%2==0, x≥0) proven for every
+    reachable state. A closed form that does NOT actually induct (n(n+1)/2 for Σi) fails the step ⇒ DECLINE
+    (never extrapolate an identity that isn't inductive)."""
+    from pillar3 import kinduction as KI
+    import kernel_verdict as KV
+
+    for nm, c, rs, iv in KI.closed_forms():
+        r = KI.prove_closed_form(nm, c, rs, iv)
+        assert r.verdict.status == KV.EXACT and r.base_ok and r.step_ok, f"{nm} should prove for all n"
+        assert r.verdict.certificate.kind == "k_induction" and r.verdict.certificate.delta is None
+    for nm, c, rs, iv in KI.wrong_closed_forms():
+        r = KI.prove_closed_form(nm, c, rs, iv)
+        assert r.verdict.status == KV.DECLINE and not r.step_ok, f"{nm} must fail the inductive step ⇒ DECLINE"
+    for nm, inv, init, tr in KI.invariants():
+        assert KI.prove_invariant(nm, inv, init, tr).verdict.status == KV.EXACT, f"{nm} should be an inductive invariant"
+
+    print(f"PASS test_round3_kinduction_unbounded ({len(KI.closed_forms())} closed forms PROVEN for ALL n by "
+          f"induction (Σi, Faulhaber Σi², Σodd — bounded→unbounded EXACT promotion); {len(KI.invariants())} loop "
+          f"invariants proven; non-inductive closed forms (n(n+1)/2, n²) fail the step ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
