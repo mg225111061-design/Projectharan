@@ -36,3 +36,4 @@ on the nonlinear identity → couldn't earn EXACT; replaced with summed-area). N
 Reflect: ROUND 3 Group P + Q essentially complete (#61,65,67 P-built + 62,66 verify-existing; #63 SMT-portfolio,
 #64 CEGAR remain in P; Q all done #68-74). EXACT-share keeps climbing via sound static analyses + bounded/
 unbounded proofs. Next: #63 SMT portfolio (Clock-B speed), #64 CEGAR, then SPEED broth families + Clock-A/B.
+| SPEED | #63 cheap-first verification tiering (Clock-B) — syntactic→interval→Z3 | EXACT (sound fast path) | Z3 calls 9→2 (4.5× fewer); cheap tiers cross-checked sound vs Z3; disagreeing tier→DECLINE | test_round3_verification_tiering | 164/164 |

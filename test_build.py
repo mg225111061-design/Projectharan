@@ -6283,6 +6283,31 @@ def test_round3_effects_reorder_coalesce():
           f"intervening write to a fetched key ⇒ DECLINE — sound, never a stale/reordered result)")
 
 
+def test_round3_verification_tiering():
+    """ROUND 3 (item 63) — cheap-first verification tiering (Clock-B: decide more WITHOUT the SMT solver).
+    Syntactic identities and interval-provable bounds are decided far cheaper than Z3; the solver is called only
+    when the cheap tiers can't decide. Reports the Z3-call REDUCTION. Soundness is cross-checked: every cheap-tier
+    decision must AGREE with Z3 on the whole battery; a disagreeing fast path ⇒ DECLINE (an unsound verifier)."""
+    from pillar3 import verify_tiering as VT
+    import z3
+    import kernel_verdict as KV
+
+    rep = VT.grade_tiering(VT.battery())
+    assert rep.verdict.status == KV.EXACT and rep.verdict.certificate.kind == "cheap_first_tiering"
+    assert rep.z3_calls_tiered < rep.z3_calls_baseline, "the cheap tiers must reduce Z3 calls"
+    assert rep.by_tier["syntactic"] + rep.by_tier["interval"] == rep.z3_calls_baseline - rep.z3_calls_tiered, \
+        "every non-SMT-tier obligation is one avoided Z3 call"
+
+    # ★ soundness moat ★ — a cheap tier that claims 'proven' where Z3 disagrees ⇒ DECLINE (unsound fast path)
+    liar = [VT.Obligation("liar", (lambda: z3.Int("x") > 0), "syntactic", cheap=lambda: True)]  # x>0 is NOT valid
+    assert VT.grade_tiering(liar).verdict.status == KV.DECLINE, "a cheap tier disagreeing with Z3 must DECLINE"
+
+    print(f"PASS test_round3_verification_tiering ({rep.n} obligations decided, Z3 calls "
+          f"{rep.z3_calls_baseline}→{rep.z3_calls_tiered} ({rep.z3_calls_baseline / max(1, rep.z3_calls_tiered):.1f}× "
+          f"fewer expensive calls; tier0 {rep.by_tier['syntactic']} / tier1 {rep.by_tier['interval']} / smt "
+          f"{rep.by_tier['smt']}), cheap tiers cross-checked SOUND vs Z3; a disagreeing fast path ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).

@@ -14,7 +14,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (cite test) · ☐ pending 
 ## Group P — equivalence & refinement
 61. ☑ bounded model checking — unroll two stateful transitions k steps, Z3-check equivalence over ALL input sequences ≤k; equivalent opt → EXACT bounded-depth (∀inputs); divergence → DECLINE with SHALLOWEST counterexample trace (off-by-one@depth1 x=11; clamp bug@depth2); pairs with #65 k-induction [test_round3_bmc_bounded_equiv; pillar3/bmc.py]
 62. ◩ symbolic execution oracle — symbolic_oracle.py [exists]; wire a P3 equivalence gate
-63. ☐ SMT portfolio (parallel tactics, first-to-close) — Clock-B verification speed
+63. ☑ cheap-first verification tiering (Clock-B: decide more WITHOUT the solver) — syntactic→interval→Z3; Z3 calls 9→2 (4.5× fewer) on the battery, every cheap-tier decision cross-checked SOUND vs Z3; a disagreeing fast path → DECLINE. (SMT-tactic portfolio substituted §A2: Z3 decides even nonlinear via preprocessing, so "fewer-unknown" didn't demo; tiering is the robust Clock-B win) [test_round3_verification_tiering; pillar3/verify_tiering.py]
 64. ☐ CEGAR (counterexample-guided abstraction refinement) for loop invariants
 65. ☑ k-induction — prove closed form/loop invariant for UNBOUNDED n (Z3 base+step); promotes bounded-domain identity → EXACT for ALL n; Σi, Faulhaber Σi², Σodd, x%2==0, x≥0 proven; non-inductive (n(n+1)/2, n²) fail step → DECLINE [test_round3_kinduction_unbounded; pillar3/kinduction.py]
 66. ◩ refinement (output refines input wherever defined) — translation_validate [exists]
