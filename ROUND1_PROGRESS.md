@@ -10,7 +10,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 
 ## Group A — ceiling-breakers
 1. ☑ verified lifting generalized to arbitrary affine loops — family s+=A·a[i]+B·i+C, identity Z3-proven ONCE over symbolic A,B,C+array (len≤6) licenses all instances; index-only(A=0) O(n)→O(1) ~560× ceiling-breaker, array-affine ~9×, EXACT; triangular off-by-one→Z3-refuted DECLINE [test_round1_affine_lift_generalized_exact; pillar3/affine.py]
-2. ◩ egg equality saturation in Pillar 3 — fold_egraph.py + superopt.py [test_foldext3_stage2_superopt]; wire a P3 recognizer
+2. ☑ egg equality saturation wired into Pillar-3 — wasteful expr (27 nodes) saturated→cheapest equiv (x·K, 3 nodes) Z3-certified (∀vars term≡rewrite), compiled+measured ~10×@n=40000, EXACT δ=None; non-Z3-equivalent rewrite (x·999)→DECLINE; bounded iters (correctness independent of saturation depth) [test_round1_egraph_simplify_exact; pillar3/egraph_simplify.py]
 3. ☐ llvmlite/numba native compile of hot numeric region (llvmlite 0.47 + numba 0.65 present → buildable)
 4. ◩ STOKE-style stochastic superopt of small fragments — superopt.py [test_foldext3_stage2]; verify adversarial
 5. ☑ partial evaluation / specialization on fixed inputs — EXACT (Z3 residual≡generic): 1st Futamura projection (interp specialized on a fixed program → straight-line, ~1.7×) + sparse linear-map (dot w/ fixed weights drops zeros+loop, ~2.2×); wrong residual (mul→add / dropped live term) differential-caught AND Z3-refuted→DECLINE [test_round1_partial_evaluation_exact; pillar3/parteval.py]

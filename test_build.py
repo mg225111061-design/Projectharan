@@ -5859,6 +5859,33 @@ def test_round1_convolution_ntt_exact():
           f"bit-exact vs naive); bound-exceeded ⇒ DECLINE (no wrap); corrupted NTT ⇒ DECLINE)")
 
 
+def test_round1_egraph_simplify_exact():
+    """ROUND 1 (Group A, item 2) — egg-style EQUALITY SATURATION wired into Pillar-3. A wasteful per-element
+    expression (Σ x·i + identity noise, 27 nodes) is saturated in an e-graph, the cheapest equivalent extracted
+    (x·K, 3 nodes), and CERTIFIED by Z3 (∀ vars: term ≡ rewrite) — then compiled and measured whole-program
+    (ratio ≤ ceiling). Graded EXACT (Z3-proven algebraic equivalence). A proposed rewrite that is NOT Z3-
+    equivalent (x·999) ⇒ DECLINE (the e-graph's own kernel check, as the moat)."""
+    from pillar3 import egraph_simplify as EG
+    import equality_saturation as ES
+    import kernel_verdict as KV
+
+    v, rep = EG.egraph_grade(EG._W, lambda: EG.make_expr_input(40000), n=40000, samples=5)
+    assert v.status == KV.EXACT, f"e-graph simplification should be EXACT, got {v.status}"
+    assert v.certificate.kind == "egraph_z3_equiv" and v.certificate.delta is None, "EXACT, no probabilistic δ"
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+    assert rep.whole_program_ratio >= 2.0, f"a 27→3 node collapse should win, got {rep.whole_program_ratio:.2f}×"
+    # the extracted form really is equivalent (collapses to x·16) on a probe
+    fn_n, fn_o = EG.compile_term(EG._W), EG.compile_term(ES.optimize(EG._W, 8).optimized)
+    assert all(fn_n({"x": x}) == fn_o({"x": x}) for x in (-9, 0, 1, 7, 100)), "compiled forms agree"
+
+    vw, _ = EG.egraph_grade(EG._W, lambda: EG.make_expr_input(40000), n=40000, samples=2, force_opt=EG._WRONG)
+    assert vw.status == KV.DECLINE, "a non-Z3-equivalent proposed rewrite must DECLINE"
+
+    print(f"PASS test_round1_egraph_simplify_exact (equality saturation: 27→3 nodes, Z3-proven equivalent, "
+          f"compiled & measured {rep.whole_program_ratio:.1f}× ≤ ceiling {rep.amdahl_ceiling:.0f}×, EXACT "
+          f"(δ=None); a non-equivalent rewrite (x·999) ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
