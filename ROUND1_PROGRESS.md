@@ -22,7 +22,7 @@ Legend: ☑ done(new, tested) · ◩ verify-existing (already built+tested elsew
 10. ☑ nested-loop join → hash join ~28× [test_phaseA hash_join]
 11. ☑ naive substring search → KMP O(n·m)→O(n+m) ~32×@n=24000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers]
 12. ☑ Fenwick/BIT repeated point-update + range-query O((U+Q)·n)→O((U+Q)·log n) ~9×@n=2000 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers; round1.py]
-13. ◩ sparse-table RMQ O(1)/query — [test_v40_phase4_succinct]
+13. ☑ sparse-table RMQ O(q·n)→O(n log n build + O(1)/query) ~10×@n=4000 PROBABILISTIC; inclusive-split off-by-one wrong→DECLINE [test_round1_big_recognizers; round1.py]
 14. ☑ union-find + path compression near-O(1) connectivity ~121×@n=600 PROBABILISTIC; wrong→DECLINE [test_round1_big_recognizers]
 15. ◩ blocked/Strassen matmul large n — [test_v40_phase2_structured_matrices]; verify whole-program+wrong
 ## Group C — redundancy elimination

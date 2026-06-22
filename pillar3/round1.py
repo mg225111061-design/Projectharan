@@ -338,6 +338,75 @@ def _fen_in():
             (5, [("u", 4, 9), ("q", 0, 5), ("u", 0, 1), ("q", 0, 1), ("q", 1, 4)])]
 
 
+# ── item 13 — repeated range-minimum: naive O(q·n) per-query scan → sparse-table O(n log n) build + O(1)/query ─
+def rmq_naive(arr, queries):
+    return [min(arr[l:r]) for (l, r) in queries]             # O(n) per query
+
+
+def rmq_sparse(arr, queries):
+    n = len(arr)
+    if n == 0:
+        return [min(arr[l:r]) for (l, r) in queries]
+    import math
+    K = max(1, n.bit_length())
+    sp = [arr[:]]                                            # sp[k][i] = min over [i, i+2^k)
+    k = 1
+    while (1 << k) <= n:
+        prev = sp[k - 1]
+        half = 1 << (k - 1)
+        row = [min(prev[i], prev[i + half]) for i in range(n - (1 << k) + 1)]
+        sp.append(row)
+        k += 1
+    out = []
+    for (l, r) in queries:                                   # half-open [l, r), r > l
+        j = (r - l).bit_length() - 1                         # floor(log2(len))
+        out.append(min(sp[j][l], sp[j][r - (1 << j)]))       # O(1): two overlapping blocks cover [l,r)
+    return out
+
+
+def rmq_wrong(arr, queries):                                 # off-by-one: uses an inclusive log split ⇒ wrong min
+    n = len(arr)
+    if n == 0:
+        return [min(arr[l:r]) for (l, r) in queries]
+    sp = [arr[:]]
+    k = 1
+    while (1 << k) <= n:
+        prev = sp[k - 1]
+        half = 1 << (k - 1)
+        sp.append([min(prev[i], prev[i + half]) for i in range(n - (1 << k) + 1)])
+        k += 1
+    out = []
+    for (l, r) in queries:
+        j = (r - l).bit_length() - 1
+        out.append(min(sp[j][l], sp[j][min(r - (1 << j) + 1, n - 1)]))   # BUG: +1 shifts the second block
+    return out
+
+
+_RMQ_CACHE: dict = {}
+
+
+def _mk_rmq(n=4000, q=4000):
+    key = (n, q)
+    if key not in _RMQ_CACHE:
+        rng = _rnd.Random(73)
+        arr = [rng.randrange(-10**6, 10**6) for _ in range(n)]
+        queries = []
+        for _ in range(q):
+            a = rng.randrange(n - 1)
+            b = rng.randrange(a + 1, n)
+            queries.append((a, b))
+        _RMQ_CACHE[key] = (arr, queries)
+    return _RMQ_CACHE[key]
+
+
+def _rmq_in():
+    # mixed lengths incl. a window whose min sits just outside an inclusive-split bug's reach
+    return [([5, 2, 8, 1, 9, 3], [(0, 3), (1, 5), (0, 6), (2, 4), (3, 6)]),
+            ([4, 4, 4, 4], [(0, 2), (1, 4)]), ([9, 1], [(0, 2), (0, 1)]),
+            ([7, 6, 5, 4, 3, 2, 1], [(0, 7), (2, 5), (4, 7)]),
+            ([1, 100, 100, 100, 100], [(1, 5), (0, 5)])]
+
+
 def catalog() -> List[Recognizer]:
     return [
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
@@ -350,4 +419,6 @@ def catalog() -> List[Recognizer]:
                    lambda: _mk_coins(26), residual_iters=0, gen_inputs=_coins_in_fixed, relations=[], n=26, floor=1.30),
         Recognizer("fenwick_range_query", "algo_replace", fenwick_naive, fenwick_fast,
                    lambda: _mk_fenwick(2000, 1500), residual_iters=0, gen_inputs=_fen_in, relations=[], n=2000, floor=1.20),
+        Recognizer("sparse_table_rmq", "algo_replace", rmq_naive, rmq_sparse,
+                   lambda: _mk_rmq(4000, 4000), residual_iters=0, gen_inputs=_rmq_in, relations=[], n=4000, floor=1.30),
     ]
