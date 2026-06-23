@@ -8697,6 +8697,34 @@ def test_arsenal_p4_cartan_karlhede():
           "separated from flat-in-Cartesian; SPIs necessary-not-sufficient, full CK frame algorithm flagged)")
 
 
+def test_arsenal_t_symdyn():
+    """UNIFIED ARSENAL §4 — T-symbolic-dynamics: chaos → subshift of finite type → INTEGER MATRIX → exact
+    invariants. topological entropy h=log λ_max, #period-n N_n=tr(Aⁿ), Artin–Mazur ζ(t)=1/det(I−tA). Certificate:
+    tr(Aⁿ) by matrix power + the zeta series identity −log det(I−tA)=Σtr(Aⁿ)tⁿ/n + Perron-root check. The golden-
+    mean shift folds to entropy=log φ, ζ=1/(1−t−t²), N_n=Lucas — what looked like a chaotic orbit is exact."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import transforms_symdyn as SD
+    t = sp.Symbol("t")
+
+    g = SD.subshift([[1, 1], [1, 0]])                        # golden-mean shift
+    assert g.status == KV.EXACT and g.certificate.kind == "symdyn_integer_matrix"
+    assert sp.simplify(g.result["lambda_max"] - (1 + sp.sqrt(5)) / 2) == 0          # Perron root = golden ratio
+    assert sp.simplify(g.result["entropy"] - sp.log((1 + sp.sqrt(5)) / 2)) == 0     # h = log φ
+    assert sp.expand(g.result["zeta_denominator"] - (1 - t - t ** 2)) == 0          # ζ = 1/(1−t−t²)
+    assert [g.result["period_counts"][k] for k in range(1, 7)] == [1, 3, 4, 7, 11, 18]   # Lucas numbers
+
+    full = SD.subshift([[1, 1], [1, 1]])                    # full 2-shift
+    assert sp.simplify(full.result["entropy"] - sp.log(2)) == 0
+    assert [full.result["period_counts"][k] for k in range(1, 7)] == [2, 4, 8, 16, 32, 64]   # 2ⁿ
+
+    assert SD.subshift([[2, 1], [1, 0]]).status == KV.DECLINE      # non-0/1 ⇒ not a subshift transition matrix
+
+    print("PASS test_arsenal_t_symdyn (chaos→subshift→integer matrix: golden-mean shift h=log φ, ζ=1/(1−t−t²), "
+          "N_n=Lucas[1,3,4,7,11,18]; full 2-shift h=log 2, N_n=2ⁿ — exact via tr(Aⁿ)+zeta-identity+Perron-root; "
+          "non-0/1 matrix DECLINEd)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.

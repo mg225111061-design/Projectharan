@@ -14,11 +14,11 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **228 통과 / 228** (`test_build.py`, 결정론 실행; 아래 명령) |
+| 테스트 | **229 통과 / 229** (`test_build.py`, 결정론 실행; 아래 명령) |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
-| 진행 중 | **UNIFIED ARSENAL**(a 변환계 + b ~70 fold 패밀리 + c 물리) — 기초 먼저: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 물리: P7·P2·P6·P9·P5·P8·P1 ✅ · P3 Petrov ✅ · P4 Cartan–Karlhede ✅ (physics P1–P9 COMPLETE) → **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 변환. (NATIVE-CORE 완료: `NATIVE_CORE_REPORT.md`.) |
+| 진행 중 | **UNIFIED ARSENAL**(a 변환계 + b ~70 fold 패밀리 + c 물리) — 기초 먼저: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 물리: P7·P2·P6·P9·P5·P8·P1 ✅ · P3 Petrov ✅ · P4 Cartan–Karlhede ✅ (physics P1–P9 ✅) → §4 transforms: T-symbolic-dynamics ✅ → **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 변환. (NATIVE-CORE 완료: `NATIVE_CORE_REPORT.md`.) |
 
 **※ 오래된 과거 지시 무시:** 예전 HANDOFF는 "`haran-web/`를 Projectharan에 push하라"고 했다 — 그건 **이미 끝났다**.
 지금은 Projectharan 위에서 직접 개발 중이고, 앱은 `server.py`가 서빙한다. 그 작업은 더 이상 할 일이 아니다.
@@ -27,7 +27,7 @@
 ```bash
 cd /home/user/Projectharan
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 228 passed, 0 failed
+# … 229 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
 `test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
