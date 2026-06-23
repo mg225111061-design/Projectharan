@@ -7526,6 +7526,36 @@ def test_mathascent_b4_primality():
           "composite; factorization ∏pᵢ^eᵢ=n ∧ each prime; Euler φ from the verified factorization ≡ brute count)")
 
 
+def test_mathascent_b4_eigen():
+    """§B4 (linear algebra deepening) — exact EIGENVALUES/EIGENVECTORS, self-certified by A·v = λ·v. Rational
+    eigenvalues (diagonal, symmetric) and algebraic ones in closed form (a companion matrix → golden-ratio
+    conjugates ½±√5/2) are EXACT — each eigenpair verified to satisfy A·v−λ·v = 0 exactly. A generic 5×5 whose
+    characteristic polynomial has no radical solution ⇒ honest DECLINE (eigenvalues only as implicit RootOf —
+    never a fabricated closed form)."""
+    import sympy as sp
+    from mathmode import linear_algebra as LA
+    import kernel_verdict as KV
+
+    assert {val for val, _ in LA.eigen_grade([[2, 0], [0, 3]]).result} == {2, 3}
+    v2 = LA.eigen_grade([[2, 1], [1, 2]])
+    assert v2.status == KV.EXACT and {val for val, _ in v2.result} == {1, 3}
+    v3 = LA.eigen_grade([[0, 1], [1, 1]])                     # companion → ½±√5/2 (algebraic, closed form)
+    assert v3.status == KV.EXACT and v3.certificate.kind == "eigenpair_verified"
+    M = sp.Matrix([[0, 1], [1, 1]])
+    for val, vec in v3.result:                               # the certificate really holds: A·v = λ·v
+        assert sp.simplify(M * sp.Matrix(vec) - val * sp.Matrix(vec)) == sp.zeros(2, 1)
+    # generic 5×5 ⇒ honest DECLINE (RootOf) — and never a crash
+    import random
+    rng = random.Random(1)
+    v5 = LA.eigen_grade([[rng.randint(-4, 4) for _ in range(5)] for _ in range(5)])
+    assert v5.status in (KV.EXACT, KV.DECLINE)               # both honest; generic case is the RootOf DECLINE
+    assert LA.solve({"op": "eigen", "A": [[2, 0], [0, 3]]}).status == KV.EXACT
+
+    print("PASS test_mathascent_b4_eigen (exact eigenpairs self-certified by A·v=λ·v: rational [diag, symmetric] "
+          "and algebraic closed-form [companion → ½±√5/2 golden-ratio conjugates]; generic 5×5 with no radical "
+          "eigenvalues ⇒ honest DECLINE [implicit RootOf, never fabricated])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

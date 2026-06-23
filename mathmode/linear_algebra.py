@@ -152,8 +152,35 @@ def det_grade(A) -> KV.Verdict:
     return KV.exact(d, "linear_algebra.det", "O(n³) fraction-free", cert)
 
 
+# ── exact eigenpairs, self-certified by A·v = λ·v ───────────────────────────────────────────────────────
+def eigen_grade(A) -> KV.Verdict:
+    """Exact eigenvalues/eigenvectors. Certificate: A·v − λ·v = 0 for every returned pair (verified symbolically).
+    Eigenvalues with no closed form (an unsolvable characteristic polynomial, degree ≥ 5) ⇒ honest DECLINE."""
+    import sympy as sp
+    if not _is_square(A):
+        return KV.decline("eigen: A must be square ⇒ DECLINE", "linear_algebra.eigen")
+    M = sp.Matrix([[sp.nsimplify(x) for x in row] for row in A])
+    try:
+        eigs = M.eigenvects()
+    except Exception as e:                                    # noqa: BLE001
+        return KV.decline(f"eigen: eigen-decomposition failed ({type(e).__name__}) ⇒ DECLINE", "linear_algebra.eigen")
+    pairs = []
+    for val, mult, vecs in eigs:
+        if val.has(sp.CRootOf) or val.has(sp.RootOf):        # no explicit closed form ⇒ honest DECLINE
+            return KV.decline("eigen: eigenvalues only as implicit RootOf (degree ≥5) ⇒ DECLINE",
+                              "linear_algebra.eigen")
+        for v in vecs:
+            if sp.simplify(M * v - val * v) != sp.zeros(M.rows, 1):   # ★ A·v = λ·v, exact ★
+                return KV.decline(f"eigen: A·v ≠ λ·v for λ={sp.sstr(val)} ⇒ DECLINE", "linear_algebra.eigen")
+            pairs.append((val, list(v)))
+    cert = KV.Cert(KV.EXACT, "eigenpair_verified", passed=True, check_cost=f"{len(pairs)} exact A·v−λ·v checks",
+                   detail=f"{len(pairs)} eigenpair(s); each satisfies A·v = λ·v exactly (eigenvalues: "
+                          f"{', '.join(sp.sstr(val) for val, _ in pairs)})")
+    return KV.exact(pairs, "linear_algebra.eigen", "exact eigenpairs (sympy + verified)", cert)
+
+
 def solve(problem: dict) -> KV.Verdict:
-    """problem = {"op": "solve"|"inverse"|"det", ...}. Unknown op ⇒ honest DECLINE."""
+    """problem = {"op": "solve"|"inverse"|"det"|"eigen", ...}. Unknown op ⇒ honest DECLINE."""
     op = problem.get("op")
     if op == "solve":
         return solve_grade(problem["A"], problem["b"])
@@ -161,4 +188,6 @@ def solve(problem: dict) -> KV.Verdict:
         return inverse_grade(problem["A"])
     if op == "det":
         return det_grade(problem["A"])
+    if op == "eigen":
+        return eigen_grade(problem["A"])
     return KV.decline(f"linear_algebra: unknown op {op!r} ⇒ DECLINE", "linear_algebra")

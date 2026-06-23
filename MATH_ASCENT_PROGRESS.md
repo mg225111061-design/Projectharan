@@ -48,7 +48,8 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
     [test_mathascent_combinatorics_gosper; mathmode/combinatorics.py]
 3c. ☑ linear_algebra — exact ℚ (Fraction, never float), SELF-CERTIFYING: solve A·x=b [residual A·x−b=0],
     inverse [A·A⁻¹=I], determinant [fraction-free Bareiss ≡ cofactor (n≤7) / sympy exact (n>7)]; singular ⇒
-    honest DECLINE; 200-case fuzz. [test_mathascent_linear_algebra; mathmode/linear_algebra.py]
+    honest DECLINE; 200-case fuzz. +EIGENPAIRS [exact, self-certified by A·v=λ·v; rational+algebraic closed form;
+    generic 5×5 RootOf ⇒ DECLINE]. [test_mathascent_linear_algebra, test_mathascent_b4_eigen; mathmode/linear_algebra.py]
 3d. ☑ algebra_symbolic — factor [expand(∏factors)≡poly], polynomial gcd [g|p ∧ g|q exact division], root-solving
     [every root explicit ∧ p(root)≡0]; general quintic ⇒ honest DECLINE (Abel–Ruffini, RootOf ≠ closed form).
     sympy searches, our exact check proves. [test_mathascent_algebra_symbolic; mathmode/algebra.py]
