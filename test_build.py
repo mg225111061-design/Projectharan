@@ -8725,6 +8725,40 @@ def test_arsenal_t_symdyn():
           "non-0/1 matrix DECLINEd)")
 
 
+def test_arsenal_t_number():
+    """UNIFIED ARSENAL §4 — T-number-system: number → exact reconstruction. modular→rational (p≡q·r mod m, EXACT);
+    series→rational generating function via Berlekamp–Massey (EXACT for the terms); real→algebraic via PSLQ —
+    EXACT only when the integer relation is symbolically verified (p(value)≡0), PROBABILISTIC for a bare float
+    (an unverified numeric relation is NOT a certificate, §X)."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import transforms_number as TN
+    t = sp.Symbol("t")
+
+    # modular → rational
+    m = 10 ** 9 + 7
+    v = TN.modular_to_rational((3 * pow(7, -1, m)) % m, m)
+    assert v.status == KV.EXACT and v.result == sp.Rational(3, 7) and v.certificate.kind == "rational_reconstruction"
+
+    # series → rational GF: Fibonacci ⇒ 1/(1−t−t²); powers of 2 ⇒ 1/(1−2t)
+    fib = TN.series_to_rational([1, 1, 2, 3, 5, 8, 13, 21])
+    assert fib.status == KV.EXACT and fib.result["recurrence"] == [1, 1]
+    assert sp.simplify(fib.result["generating_function"] - 1 / (1 - t - t ** 2)) == 0
+    assert TN.series_to_rational([1, 2, 4, 8, 16, 32]).result["recurrence"] == [2]
+
+    # real → algebraic: EXACT (symbolically verified) for exact constants; PROBABILISTIC for a bare float
+    phi = TN.recognize_algebraic((1 + sp.sqrt(5)) / 2)
+    assert phi.status == KV.EXACT and phi.certificate.kind == "pslq_verified"
+    assert sp.simplify(phi.result["minimal_polynomial"].subs(sp.Symbol("x"), (1 + sp.sqrt(5)) / 2)) == 0
+    assert TN.recognize_algebraic(sp.sqrt(2)).status == KV.EXACT
+    fl = TN.recognize_algebraic(sp.Float("1.4142135623730951", 30))
+    assert fl.status == KV.PROBABILISTIC and fl.certificate.delta is not None   # never EXACT on a bare float
+
+    print("PASS test_arsenal_t_number (modular→rational 3/7 EXACT; Berlekamp–Massey Fibonacci→1/(1−t−t²) & 2ⁿ→1/(1−2t); "
+          "PSLQ φ→x²−x−1 & √2→x²−2 EXACT [symbolically verified], bare float→PROBABILISTIC [unverified relation ≠ "
+          "certificate, §X])")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
