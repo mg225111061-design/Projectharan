@@ -8852,6 +8852,46 @@ def test_arsenal_transform_router():
           f"2 honest DECLINEs [∫e^{{x²}} non-elementary, unrecognized object]; deterministic routing)")
 
 
+def test_arsenal_phase3_cegar_gate():
+    """PHASE 3 (CODE correctness) — CEGAR / spurious-counterexample gating + differential soundness. The verify
+    loop's dominant failure is acting on an abstraction-artifact counterexample, or trusting an unsound proof. Two
+    sound gates via CONCRETE machine execution (smallest TCB): (1) a solver counterexample is confirmed REAL only
+    if orig(cex)≠opt(cex) concretely (else SPURIOUS, rejected); (2) a 'proven equivalent' transform is
+    differential-spot-checked on random concrete inputs (a mismatch surfaces an unsound proof)."""
+    import kernel_verdict as KV
+    import bitblast_smt as S
+    import cegar_gate as CG
+
+    # SOUND transforms ⇒ in-house SMT VALID + concrete spot-check agree ⇒ ACCEPTED
+    v = CG.gate_with_solver(lambda bb, vs: bb.mul_const(vs["x"], 2), lambda bb, vs: bb.shl(vs["x"], 1),
+                            lambda x: x * 2, lambda x: x << 1, 6, ["x"])
+    assert v.status == KV.EXACT and v.result["equivalent"] is True and v.certificate.kind == "cegar_verified"
+    assert CG.gate_with_solver(lambda bb, vs: bb.sub(bb.add(vs["x"], vs["y"]), vs["y"]), lambda bb, vs: vs["x"],
+                               lambda x, y: (x + y) - y, lambda x, y: x, 5, ["x", "y"]).status == KV.EXACT
+
+    # UNSOUND transform ((x+1) >ₛ x ≡ 1) ⇒ solver finds a counterexample, the concrete gate confirms it REAL ⇒ DECLINE
+    def orig_bv(bb, vs):
+        return S.BV([bb.sgt_lit(bb.add(vs["x"], bb.const(1)), vs["x"])] + [bb._false] * (bb.w - 1))
+
+    def orig_fn(x, bits=6):
+        def sgn(v):
+            v &= (1 << bits) - 1
+            return v - (1 << bits) if v >> (bits - 1) else v
+        return 1 if sgn((x + 1) & ((1 << bits) - 1)) > sgn(x) else 0
+    bad = CG.gate_with_solver(orig_bv, lambda bb, vs: bb.const(1), orig_fn, lambda x: 1, 6, ["x"])
+    assert bad.status == KV.DECLINE and "concrete counterexample" in bad.reason   # refuted by the machine itself
+
+    # the spurious gate: a counterexample where orig==opt concretely is REJECTED (not acted on)
+    assert CG.gate_counterexample(lambda x: x * 2, lambda x: x << 1, {"x": 3}, 6, ["x"]).spurious is True
+    # differential soundness surfaces an UNSOUND "proof" (x*2 vs x*3 differ concretely)
+    assert CG.differential_soundness(lambda x: x * 2, lambda x: x * 3, 6, 1).status == KV.DECLINE
+    assert CG.differential_soundness(lambda x: x * 2, lambda x: x << 1, 6, 1).status == KV.EXACT
+
+    print("PASS test_arsenal_phase3_cegar_gate (CEGAR gate: x·2≡x<<1 & (x+y)−y≡x ACCEPTED [in-house SMT VALID + "
+          "concrete spot-check]; (x+1)>ₛx≡1 REFUTED by a concrete counterexample at INT_MAX; spurious cex rejected; "
+          "differential soundness catches an unsound x·2 vs x·3 'proof' — the machine adjudicates, smallest TCB)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
