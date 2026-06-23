@@ -8391,6 +8391,40 @@ def test_arsenal_p7_buckingham():
           "mass-exponent 0 (period independent of mass); #Π = n−rank by rank–nullity)")
 
 
+def test_arsenal_p2_curvature():
+    """UNIFIED ARSENAL §3·P2 — curvature from a metric + Einstein checker (EXACT, re-substitution certified).
+    Γ→Riemann→Ricci→scalar→Einstein→Kretschmann in closed form. Certificate: R_μν≡0 for vacuum, R=expected for
+    known spaces, and the Kretschmann INVARIANT. Schwarzschild: Ricci-flat AND K=48M²/r⁶ (finite at the horizon
+    r=2M, diverges only at r=0 — the invariant the engine SEES that a coordinate check would miss)."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import curvature as CV
+
+    # Schwarzschild — vacuum (R_μν≡0) + Kretschmann K = 48M²/r⁶
+    v = CV.schwarzschild_grade()
+    M, r = sp.symbols("M r", positive=True)
+    assert v.status == KV.EXACT and v.certificate.kind == "ricci_flat_kretschmann"
+    assert sp.simplify(v.result["kretschmann"] - 48 * M ** 2 / r ** 6) == 0
+    # K is finite at the horizon r=2M but singular at r=0 (a real invariant, not a coordinate artefact)
+    assert v.result["kretschmann"].subs(r, 2 * M) == sp.Rational(3, 4) / M ** 4
+    assert sp.limit(v.result["kretschmann"], r, 0, "+") == sp.oo
+
+    # 2-sphere of radius a: constant positive curvature R = 2/a²
+    a, th, ph = sp.symbols("a theta phi", positive=True)
+    v2 = CV.metric_grade(sp.diag(a ** 2, a ** 2 * sp.sin(th) ** 2), [th, ph], expect_scalar=2 / a ** 2)
+    assert v2.status == KV.EXACT and sp.simplify(v2.result["ricci_scalar"] - 2 / a ** 2) == 0
+
+    # Minkowski: flat (Kretschmann 0, scalar 0) — and a WRONG expected scalar is rejected
+    tt, x, y, z = sp.symbols("t x y z")
+    v3 = CV.metric_grade(sp.diag(-1, 1, 1, 1), [tt, x, y, z], expect_scalar=0)
+    assert v3.status == KV.EXACT and sp.simplify(v3.result["kretschmann"]) == 0
+    assert CV.metric_grade(sp.diag(-1, 1, 1, 1), [tt, x, y, z], expect_scalar=5).status == KV.DECLINE
+
+    print("PASS test_arsenal_p2_curvature (Schwarzschild RICCI-FLAT + Kretschmann K=48M²/r⁶ [finite at horizon "
+          "r=2M, ∞ only at r=0 — invariant], 2-sphere R=2/a², Minkowski flat K=0; wrong scalar rejected — "
+          "Γ→Riemann→Ricci→K re-substitution certified)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
