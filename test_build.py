@@ -8615,6 +8615,38 @@ def test_arsenal_phase1_recognition():
           "10!, det/eigen/lcm/catalan; THREE-WAY DECLINE parse-fail / LL(10^17)-infeasible / no-closed-form distinct)")
 
 
+def test_arsenal_phase1_nl():
+    """PHASE 1 — natural-language MATH pipeline (honest): SYMBOLIC-FIRST (no key, EXACT) → LLM fallback only for
+    prose it can't parse, with the interpretation echoed UNVERIFIED (the LLM may misread; the COMPUTATION is
+    exact) → OFFLINE honest [BLOCKED] when no sender. §X: NL is UNVERIFIED, computation is EXACT; symbolic needs
+    no key, only NL needs the LLM; MR.JEFFREY wraps the LLM (checker arbitrates)."""
+    import kernel_verdict as KV
+    import llm_router as R
+    from mathmode import nl_solve as NL
+
+    # 1) symbolic-first — no LLM, EXACT
+    s1 = NL.solve_nl("fibonacci(100) mod 1000000007")
+    assert s1.verdict.status == KV.EXACT and "SYMBOLICALLY" in s1.reasoning[0].detail
+
+    # 2) NL fallback via an injected sender (a test DOUBLE — real egress UNVERIFIED): prose → structured → EXACT,
+    #    interpretation echoed UNVERIFIED
+    def fake_llm(req, key):
+        return R.mock_response(req, '{"kernel": "modexp", "a": 7, "b": 100, "m": 13}')
+    s2 = NL.solve_nl("seven to the hundredth power modulo thirteen", llm_sender=fake_llm)
+    assert s2.verdict.status == KV.EXACT and s2.verdict.result == pow(7, 100, 13)
+    assert "UNVERIFIED" in s2.reasoning[0].detail            # the LLM interpretation is echoed, not trusted
+
+    # 3) offline (no sender) — symbolic fails ⇒ honest [BLOCKED], never a fabricated answer
+    s3 = NL.solve_nl("please find me a lucky-feeling number today")
+    assert s3.verdict.status == KV.DECLINE and "BLOCKED" in s3.verdict.reason
+
+    assert NL.live_status()["symbolic"].startswith("WORKS") and "UNVERIFIED" in NL.live_status()["natural_language"]
+
+    print("PASS test_arsenal_phase1_nl (symbolic-first key-free EXACT [fib(100) mod p]; LLM fallback prose→"
+          "structured→EXACT with interpretation echoed UNVERIFIED [7^100 mod 13=9]; offline prose ⇒ honest "
+          "[BLOCKED] DECLINE — NL UNVERIFIED, computation EXACT, checker arbitrates)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
