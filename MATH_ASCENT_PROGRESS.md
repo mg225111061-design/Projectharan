@@ -69,7 +69,10 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
    [test_mathascent_broth_proving; mathmode/broth.py]
 
 ## §5 — visible grade-tagged reasoning in both modes
-   ☐ surface fold's recognized-structure + certificate kind + grade in the UI reasoning trace (CODE and MATH).
+5. ☑ unified MATH-mode solver (mathmode/solver.py): one entry point following the §1 route (MATH ⇒ first move =
+   fold), broth-accelerated (O(1)) before paying for a fold, arsenal for the rest — RECORDING every step with its
+   grade. `MathSolution.trace()` renders the visible reasoning: route → recognize → broth/fold/arsenal → grade.
+   Honest DECLINE shows exactly where structure ran out. [test_mathascent_solver_reasoning; mathmode/solver.py]
 
 ## §6 — universal file ingestion + fold-accelerated analysis
    ☐ PDF/DOCX/PPTX/XLSX/images (incl. photos of equations → symbolic); honest DECLINE on unstructured/OCR limits.

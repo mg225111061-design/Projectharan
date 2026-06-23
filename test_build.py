@@ -7059,6 +7059,55 @@ def test_mathascent_broth_proving():
           f"via cheap PRA/companion recheck; Gosper closed forms ≡ brute force; miss ⇒ honest DECLINE)")
 
 
+def test_mathascent_solver_reasoning():
+    """MATH-ASCENT §5 — the unified MATH-mode solver with VISIBLE, grade-tagged reasoning. One entry point that
+    follows the §1 route (MATH ⇒ first move = fold), accelerates with the §4 broth (O(1) lookup) before paying
+    for a fold, and routes everything else to the §3 arsenal — RECORDING every step with its grade
+    (EXACT/PROBABILISTIC/DECLINE). The reasoning is the product: a broth HIT, a broth-MISS→Gosper-fold, an honest
+    no-closed-form DECLINE, structured folds, and arsenal calls are each readable end-to-end, never a black box."""
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    # broth HIT (O(1)) — trace shows the broth step tagged EXACT
+    sol = S.solve({"sum": "k**2"})
+    assert sol.verdict.status == KV.EXACT and sol.top_mode == "MATH"
+    assert any(s.stage == "broth" and s.grade == KV.EXACT for s in sol.reasoning)
+    assert "[MATH mode]" in sol.trace() and "EXACT" in sol.trace()
+
+    # broth MISS → Gosper fold (k⁴·2ᵏ is outside both the base broth and the brewed family) → EXACT
+    sol = S.solve({"sum": "k**4*2**k"})
+    assert sol.verdict.status == KV.EXACT
+    assert any(s.stage == "broth" and "MISS" in s.detail for s in sol.reasoning), "must show the broth miss"
+    assert any(s.stage == "fold" and s.grade == KV.EXACT for s in sol.reasoning), "then the Gosper fold (EXACT)"
+
+    # honest DECLINE — Σ1/k has no hypergeometric closed form; the trace shows exactly where structure ran out
+    sol = S.solve({"sum": "1/k"})
+    assert sol.verdict.status == KV.DECLINE
+    assert any(s.stage == "fold" and s.grade == KV.DECLINE for s in sol.reasoning)
+
+    # structured fold (the §2 universal fold) routed through the solver
+    sol = S.solve({"fold": {"kind": "power_sum", "p": 3}})
+    assert sol.verdict.status == KV.EXACT and sol.verdict.certificate.kind == "faulhaber_kinduction"
+
+    # arsenal: exact domains tag EXACT
+    assert S.solve({"domain": "number_theory", "op": "modexp", "a": 7, "b": 1000, "m": 13}).verdict.status == KV.EXACT
+    sol = S.solve({"domain": "linear_algebra", "op": "solve", "A": [[2, 1], [1, 3]], "b": [3, 5]})
+    assert sol.verdict.status == KV.EXACT and any(s.stage == "arsenal" and s.grade == KV.EXACT for s in sol.reasoning)
+
+    # arsenal: a PROBABILISTIC result is tagged PROBABILISTIC in the trace (grade discipline carries into MATH)
+    sol = S.solve({"domain": "certified_numeric", "op": "montecarlo_pi", "samples": 50000, "delta": 1e-2})
+    assert sol.verdict.status == KV.PROBABILISTIC
+    assert any(s.grade == KV.PROBABILISTIC for s in sol.reasoning)
+
+    # unrecognized ⇒ DECLINE (no fabricated answer)
+    assert S.solve({"foo": "bar"}).verdict.status == KV.DECLINE
+
+    print("PASS test_mathascent_solver_reasoning (one MATH entry point, fold-first + broth-accelerated + arsenal; "
+          "VISIBLE grade-tagged trace: broth HIT «EXACT», broth-MISS→Gosper-fold «EXACT», Σ1/k «DECLINE» showing "
+          "where structure ran out, structured folds, exact arsenal «EXACT», Monte-Carlo «PROBABILISTIC»; "
+          "unrecognized ⇒ honest DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
