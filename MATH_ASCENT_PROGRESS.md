@@ -121,5 +121,7 @@ B4. ◩ in progress (both stronger). MATH arsenal broadened to 12 families: +opt
     +science_engineering (dimensional analysis), +probability (exact distributions + PROVEN Markov/Chebyshev
     bounds), +inequalities (polynomial nonnegativity, certified or counterexample). §7 benchmark grown to 30
     problems / 11 domains (EXACT=22, PROBABILISTIC=1, DECLINE=7, all matching expected; 17 cross-checked). Broth
-    3,735 (Gosper-grown). [test_mathascent_b4_probability_inequalities; mathmode/{optimization,science_engineering,
-    probability,inequalities}.py]. CONTINUE: more families (ODE/tensor/graph), grow broth, code-side EXACT levers.
+    3,735 (Gosper-grown). +differential (closed-form ODEs verified by back-substitution; no closed form ⇒ DECLINE)
+    ⇒ arsenal = **13 families**. [test_mathascent_b4_probability_inequalities, test_mathascent_b4_differential;
+    mathmode/{optimization,science_engineering,probability,inequalities,differential}.py]. CONTINUE: tensor/graph/
+    special functions, grow broth, code-side EXACT levers, richer reasoning.

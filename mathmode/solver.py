@@ -29,6 +29,7 @@ from mathmode import optimization as OPT
 from mathmode import science_engineering as SE
 from mathmode import probability as PR
 from mathmode import inequalities as IQ
+from mathmode import differential as DE
 
 
 @dataclass
@@ -93,7 +94,7 @@ _ARSENAL = {
     "number_theory": NT.solve, "linear_algebra": LA.solve, "algebra": AL.solve,
     "geometry": GE.solve, "certified_numeric": CN.solve, "combinatorics": CB.summation,
     "optimization": OPT.solve, "science_engineering": SE.solve,
-    "probability": PR.solve, "inequalities": IQ.solve,
+    "probability": PR.solve, "inequalities": IQ.solve, "differential": DE.solve,
 }
 
 

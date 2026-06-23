@@ -7424,6 +7424,34 @@ def test_mathascent_b4_probability_inequalities():
           "∧ lead>0 ⇒ EXACT, else exact counterexample witness ⇒ DECLINE]; SOS by exact expansion; solver = 12 families)")
 
 
+def test_mathascent_b4_differential():
+    """§B4 (arsenal deepening) — DIFFERENTIAL EQUATIONS: closed-form ODE solving, EXACT only when the solution
+    BACK-SUBSTITUTES into the ODE with residual 0 (checkodesol + an independent numeric spot-check). sympy
+    searches; the substitution is the proof. Linear (y″+y=0 → sin/cos; y′−y=0 → eˣ), separable (y′=x; logistic)
+    are verified EXACT; a generic nonlinear ODE with no closed form ⇒ honest DECLINE — never a fabricated solution.
+    Routed through the unified solver (arsenal = 13 families)."""
+    import sympy as sp
+    from mathmode import differential as DE
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    x = sp.Symbol("x")
+    y = sp.Function("y")
+    v = DE.solve_ode_grade(sp.Eq(y(x).diff(x, 2) + y(x), 0), y, x)
+    assert v.status == KV.EXACT and v.certificate.kind == "ode_backsubstitution"
+    assert DE.solve_ode_grade(sp.Eq(y(x).diff(x) - y(x), 0), y, x).status == KV.EXACT, "y′−y=0 → C·eˣ"
+    assert DE.solve_ode_grade(sp.Eq(y(x).diff(x), x), y, x).status == KV.EXACT, "y′=x → x²/2+C"
+    assert DE.solve_ode_grade(sp.Eq(y(x).diff(x), y(x) * (1 - y(x))), y, x).status == KV.EXACT, "logistic (separable)"
+    # a generic nonlinear ODE with no closed form ⇒ honest DECLINE
+    assert DE.solve_ode_grade(sp.Eq(y(x).diff(x), sp.sin(y(x) * x) + x ** 2), y, x).status == KV.DECLINE
+    # routed through the solver
+    assert S.solve({"domain": "differential", "op": "ode", "ode": sp.Eq(y(x).diff(x, 2) + y(x), 0)}).verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_b4_differential (closed-form ODE solving verified by BACK-SUBSTITUTION [checkodesol "
+          "+ numeric spot-check]: y″+y=0→sin/cos, y′−y=0→eˣ, y′=x, logistic — all EXACT; generic nonlinear ODE ⇒ "
+          "honest DECLINE; solver = 13 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
