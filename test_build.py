@@ -7482,6 +7482,50 @@ def test_mathascent_b4_graph():
           "YES, odd cycle proves NO]; solver = 14 families)")
 
 
+def test_mathascent_b4_primality():
+    """§B4 (number theory deepening) — PRIMALITY + FACTORIZATION, with the constitution's EXACT/PROBABILISTIC
+    split made literal. Below the proven bound (n < 3.317×10²⁴) the 12 fixed Miller–Rabin bases are a
+    DETERMINISTIC witness set ⇒ EXACT proof of primality/compositeness. Above it, random bases give
+    PROBABILISTIC(δ=4⁻ᵏ) for 'prime' (a sample is not a proof — never EXACT), but a single witness still proves
+    COMPOSITE EXACT (one-sided). Factorization is certified by ∏pᵢ^eᵢ=n (exact) ∧ every factor prime; Euler φ is
+    derived from that verified factorization and cross-checks against the brute-force count."""
+    import math
+    from mathmode import number_theory as NT
+    import kernel_verdict as KV
+
+    # deterministic (EXACT) primality below the bound — incl. a Carmichael number and a Mersenne prime
+    for n, exp in [(2, True), (97, True), (561, False), (7919, True), (1000003, True), (2 ** 31 - 1, True)]:
+        v = NT.is_prime_grade(n)
+        assert v.status == KV.EXACT and v.result == exp and v.certificate.kind == "deterministic_miller_rabin"
+    # above the bound: a (Mersenne) prime ⇒ PROBABILISTIC(δ=4⁻⁴⁰); a composite ⇒ EXACT (witness, one-sided)
+    vb = NT.is_prime_grade(2 ** 127 - 1, rounds=40)
+    assert vb.status == KV.PROBABILISTIC and vb.result is True and vb.certificate.delta == 4.0 ** -40
+    vc = NT.is_prime_grade((2 ** 127 - 1) * (2 ** 89 - 1), rounds=40)
+    assert vc.status == KV.EXACT and vc.result is False, "a witness proves composite EXACT (one-sided)"
+
+    # factorization: ∏ = n exactly, every factor prime
+    for n in [360, 1, 97, 1000000, 2 ** 20 * 3 ** 5 * 7, 999983 * 999979]:
+        v = NT.factorize_grade(n)
+        prod = 1
+        for p, e in v.result.items():
+            prod *= p ** e
+        assert v.status == KV.EXACT and prod == n, (n, v.result)
+    assert NT.factorize_grade(360).result == {2: 3, 3: 2, 5: 1}
+
+    # Euler totient from the verified factorization, cross-checked vs the brute count
+    def phi_brute(n):
+        return sum(1 for k in range(1, n + 1) if math.gcd(k, n) == 1)
+    for n in [1, 2, 9, 10, 36, 100, 997]:
+        assert NT.euler_phi_grade(n).result == phi_brute(n)
+    # routed through the number_theory domain
+    assert NT.solve({"op": "is_prime", "n": 97}).result is True
+    assert NT.solve({"op": "factorize", "n": 84}).result == {2: 2, 3: 1, 7: 1}
+
+    print("PASS test_mathascent_b4_primality (deterministic Miller–Rabin below 3.317e24 ⇒ EXACT proof [Mersenne "
+          "2³¹−1 prime, Carmichael 561 composite]; above ⇒ PROBABILISTIC(δ=4⁻⁴⁰) for prime, EXACT witness for "
+          "composite; factorization ∏pᵢ^eᵢ=n ∧ each prime; Euler φ from the verified factorization ≡ brute count)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

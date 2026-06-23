@@ -120,9 +120,150 @@ def diophantine_grade(a: int, b: int, c: int) -> KV.Verdict:
     return KV.exact((x, y), "number_theory.diophantine", "O(log min(a,b))", cert)
 
 
+# ── primality (Miller–Rabin) — EXACT below the proven deterministic-witness bound, else PROBABILISTIC(δ) ──
+# For n < 3.317×10²⁴ the first 12 primes as MR bases are a DETERMINISTIC witness set (a proof). Above it, k
+# random bases give a one-sided PROBABILISTIC test (a composite passes with prob ≤ 4⁻ᵏ — never a false "prime").
+_DET_BOUND = 3317044064679887385961981
+_DET_BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
+_SMALL = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
+
+
+def _mr_composite(n: int, a: int) -> bool:
+    """True iff base a is a Miller–Rabin WITNESS that n is composite (one-sided: a true prime is never a witness)."""
+    if a % n == 0:
+        return False
+    d, r = n - 1, 0
+    while d % 2 == 0:
+        d //= 2
+        r += 1
+    x = pow(a, d, n)
+    if x == 1 or x == n - 1:
+        return False
+    for _ in range(r - 1):
+        x = x * x % n
+        if x == n - 1:
+            return False
+    return True
+
+
+def _is_prime_det(n: int) -> bool:
+    if n < 2:
+        return False
+    for p in _SMALL:
+        if n % p == 0:
+            return n == p
+    return not any(_mr_composite(n, a) for a in _DET_BASES)
+
+
+def is_prime_grade(n: int, rounds: int = 40) -> KV.Verdict:
+    """EXACT below the deterministic-witness bound (a proof of primality/compositeness); PROBABILISTIC(δ=4⁻ᵏ)
+    above it (random bases — a composite is caught w.p. ≥ 1−4⁻ᵏ; never a false 'prime')."""
+    import random
+    if n < 2:
+        return KV.decline(f"is_prime: n={n} < 2 ⇒ DECLINE (not defined)", "number_theory.is_prime")
+    if n < _DET_BOUND:
+        res = _is_prime_det(n)
+        cert = KV.Cert(KV.EXACT, "deterministic_miller_rabin", passed=True, check_cost="12 fixed MR bases",
+                       detail=f"n < 3.317e24 ⇒ bases {_DET_BASES} are a DETERMINISTIC witness set; n is "
+                              f"{'PRIME' if res else 'COMPOSITE'} (proven)")
+        return KV.exact(res, "number_theory.is_prime", "O(k log³ n) exact", cert)
+    rng = random.Random(0xC0FFEE ^ n)
+    witnessed = any(_mr_composite(n, rng.randrange(2, n - 1)) for _ in range(rounds))
+    if witnessed:                                            # a witness PROVES composite (one-sided) ⇒ EXACT
+        cert = KV.Cert(KV.EXACT, "mr_composite_witness", passed=True, check_cost="one MR base",
+                       detail="a Miller–Rabin witness proves n COMPOSITE (one-sided, exact)")
+        return KV.exact(False, "number_theory.is_prime", "exact (witness)", cert)
+    delta = 4.0 ** (-rounds)                                 # no witness in k rounds ⇒ probably prime
+    cert = KV.Cert(KV.PROBABILISTIC, "miller_rabin", passed=True, check_cost=f"{rounds} random MR bases",
+                   delta=delta, detail=f"no witness in {rounds} rounds ⇒ PRIME w.p. ≥ 1−4^-{rounds} (never EXACT — "
+                                       f"a sample is not a proof above the deterministic bound)")
+    return KV.probabilistic(True, "number_theory.is_prime", "O(k log³ n) randomized", cert)
+
+
+def _pollard_rho(n: int) -> int:
+    import random
+    if n % 2 == 0:
+        return 2
+    rng = random.Random(0xBEEF ^ n)
+    while True:
+        c = rng.randrange(1, n)
+        x = y = rng.randrange(2, n)
+        d = 1
+        while d == 1:
+            x = (x * x + c) % n
+            y = (y * y + c) % n
+            y = (y * y + c) % n
+            d = _gcd_int(abs(x - y), n)
+        if d != n:
+            return d
+
+
+def _gcd_int(a: int, b: int) -> int:
+    while b:
+        a, b = b, a % b
+    return a
+
+
+def factorize_grade(n: int) -> KV.Verdict:
+    """Prime factorization (trial division + Pollard's rho). Certificate: ∏ pᵢ^eᵢ = n (exact) AND every pᵢ is
+    prime (verified). EXACT when all factors are below the deterministic primality bound."""
+    if n < 1:
+        return KV.decline(f"factorize: n={n} < 1 ⇒ DECLINE", "number_theory.factorize")
+    if n == 1:
+        cert = KV.Cert(KV.EXACT, "factorization", passed=True, check_cost="O(1)", detail="1 = empty product")
+        return KV.exact({}, "number_theory.factorize", "O(1)", cert)
+    rem, factors = n, {}
+    for p in _SMALL:                                         # peel small primes first
+        while rem % p == 0:
+            factors[p] = factors.get(p, 0) + 1
+            rem //= p
+    stack = [rem] if rem > 1 else []
+    while stack:                                            # split the rest with rho until prime
+        m = stack.pop()
+        if m == 1:
+            continue
+        if _is_prime_det(m) if m < _DET_BOUND else not any(_mr_composite(m, a) for a in _DET_BASES):
+            factors[m] = factors.get(m, 0) + 1
+            continue
+        d = _pollard_rho(m)
+        stack += [d, m // d]
+    # ★ certificate: the product reconstructs n, and every factor is prime ★
+    prod = 1
+    for p, e in factors.items():
+        prod *= p ** e
+    all_prime = all((_is_prime_det(p) if p < _DET_BOUND else True) for p in factors)
+    exact_primality = all(p < _DET_BOUND for p in factors)
+    if prod != n or not all_prime:
+        return KV.decline("factorize: product ≠ n or a factor is not prime ⇒ DECLINE", "number_theory.factorize")
+    if not exact_primality:
+        cert = KV.Cert(KV.PROBABILISTIC, "factorization_big_prime", passed=True, check_cost="∏=n exact + MR",
+                       delta=4.0 ** -40, detail=f"∏ pᵢ^eᵢ = {n} (exact); a factor exceeds the deterministic "
+                                                f"primality bound ⇒ its primality is PROBABILISTIC")
+        return KV.probabilistic(factors, "number_theory.factorize", "trial + Pollard rho", cert)
+    cert = KV.Cert(KV.EXACT, "factorization", passed=True, check_cost="∏=n exact + deterministic primality",
+                   detail=f"∏ pᵢ^eᵢ = {n} (exact) ∧ every factor proven prime: {factors}")
+    return KV.exact(factors, "number_theory.factorize", "trial + Pollard rho", cert)
+
+
+def euler_phi_grade(n: int) -> KV.Verdict:
+    """Euler's totient φ(n) from the prime factorization (φ = n·∏(1−1/p)), certified by the exact factorization."""
+    if n < 1:
+        return KV.decline(f"euler_phi: n={n} < 1 ⇒ DECLINE", "number_theory.euler_phi")
+    fv = factorize_grade(n)
+    if fv.status == KV.DECLINE:
+        return fv
+    factors = fv.result
+    phi = 1
+    for p, e in factors.items():
+        phi *= (p - 1) * p ** (e - 1)
+    cert = KV.Cert(KV.EXACT, "totient_from_factorization", passed=True, check_cost="O(#factors)",
+                   detail=f"φ({n}) = {phi} = ∏ (p−1)·p^(e−1) over the verified factorization {factors}")
+    return KV.exact(phi, "number_theory.euler_phi", "via factorization", cert)
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
-    """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine", ...args}. Unknown op ⇒ honest DECLINE."""
+    """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
     op = problem.get("op")
     if op == "egcd":
         return egcd_grade(problem["a"], problem["b"])
@@ -134,4 +275,10 @@ def solve(problem: dict) -> KV.Verdict:
         return modexp_grade(problem["a"], problem["b"], problem["m"])
     if op == "diophantine":
         return diophantine_grade(problem["a"], problem["b"], problem["c"])
+    if op == "is_prime":
+        return is_prime_grade(problem["n"], problem.get("rounds", 40))
+    if op == "factorize":
+        return factorize_grade(problem["n"])
+    if op == "euler_phi":
+        return euler_phi_grade(problem["n"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")
