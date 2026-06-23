@@ -98,6 +98,16 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
 8. ☑ Layer-3 broth grown +28 Gosper hypergeometric entries (§4, the family the base could not brew without
    ore_algebra). Layer-2 report: MATH_ASCENT_REPORT.md (the comprehensive measured account of the ascent).
 
-STATUS: §1–§8 all landed and tested (deterministic suite 187/187). MATH-Ascent core complete. Endless-deepening
-continues per directive: broaden the arsenal (Zeilberger definite sums, optimization/OR, science/engineering),
-grow the broth further, deepen ingestion — each measured/proven/graded/adversarial-wrong→DECLINE/committed.
+STATUS: §1–§8 all landed and tested. MATH-Ascent core complete; arsenal = 10 families. Now in §B (UI + power).
+
+## §B — the four additions (UI toggle, file attach, archives, both-stronger)
+B1. ☑ CODE ⇄ MATH mode toggle (UI). Prominent OUTER segmented control (코드/수학) in the top bar; re-themes
+    (data-top="math", green accent) AND re-routes (MATH screen map: mathLanding→mathMode→mathProblem→mathResult).
+    INNER fast/normal/extend preserved inside MATH (scrMathMode binds S.mathMode; extend EXACT-or-DECLINE via the
+    §B grade floor in solver.solve_in_mode). Wired to the real engine: MATH → POST /api/math/solve (mathmode.solver),
+    CODE → /api/optimize. Reasoning visible in both (the grade-tagged trace + expandable certificate). Korean,
+    design unchanged. Node DOM-stub smoke renders both surfaces; invariant test asserts toggle + routing + floor.
+    [test_mathascent_b1_mode_toggle; mrjeffrey.html, server.py /api/math/solve, mathmode/solver.solve_in_mode]
+B2. ☐ universal file attachment (drag-drop + picker, accept nearly every type, fold-accelerated, honest unsupported).
+B3. ☐ archive extraction (zip/tar/gz/7z → unpack → enumerate+type+extract; zip-bomb + zip-slip safety; security test).
+B4. ☐ make BOTH CODE and MATH far stronger (more arsenal, deeper fold, grow broths, Clock-A/B, richer reasoning).

@@ -9,10 +9,14 @@ serves the new Korean single-file UI. Confirm these in **Render → Settings**, 
 | **Root Directory** | empty / `.` (the `Dockerfile` is at the repo root) |
 | **Dockerfile path** | `./Dockerfile` |
 | **Docker Command** | leave EMPTY (use the Dockerfile `CMD`). If forced, set: `python server.py` |
-| **Branch** | `claude/funny-maxwell-im9x07` |
+| **Branch** | `claude/charming-brahmagupta-q4wwgh` ← **point Render here** (the confirmed superset of all prior work; carries the new CODE⇄MATH toggle + MATH engine) |
 | Port | automatic — the app binds Render's injected `$PORT` (no value needed) |
 
 Then: **Manual Deploy → Clear build cache & deploy** (clearing the cache avoids serving a stale old-UI layer).
+
+> **Branch change:** earlier notes pointed at `claude/funny-maxwell-im9x07`. Development now lives on
+> `claude/charming-brahmagupta-q4wwgh` (a superset of that branch + the MATH ascent and the new UI). Repoint
+> Render's **Branch** setting to `claude/charming-brahmagupta-q4wwgh` so the mode toggle / MATH surface go live.
 
 ## What was actually wrong (the `/static/design.css` smoking gun)
 - The Render service runs **Docker**. The root `Dockerfile`'s last line is `CMD ["python", "server.py"]` — so the
@@ -51,11 +55,28 @@ Ran `python server.py` exactly as the Docker `CMD` does, with `PORT=8091` (simul
 Docker image build itself: **UNVERIFIED [no docker in sandbox]** — could not run `docker build`. The CMD's target
 app (`server:app` via `python server.py`) is verified directly, which is what the image runs.
 
+## NEW (MATH ascent + §B UI): the CODE ⇄ MATH mode toggle
+The single-file UI now has a **second top-level mode**. A prominent segmented toggle (`코드` ⇄ `수학`) in the
+top bar re-themes (a green MATH accent via `data-top="math"`) and re-routes the whole app:
+- **CODE** → the existing wizard (paste code → `/api/optimize` → graded verified speedup).
+- **MATH** → a fold-first solving surface (enter a problem / pick a sample → **`POST /api/math/solve`** → the
+  visible, grade-tagged certified derivation). Backed by `mathmode.solver` (fold → broth → the 10-family arsenal).
+- The **fast/normal/extend** sub-selector is preserved INSIDE each mode (OMEGA §B): MATH `extend` is
+  EXACT-or-DECLINE; `fast`/`normal` accept PROBABILISTIC.
+- New endpoint added to `server:app`: `POST /api/math/solve` `{text|problem, mode}` → `{status, grade_ko,
+  answer, certificate, reasoning[]}`. (File attachment `/api/math/ingest` lands next — B2.)
+
+Local verification (the SAME `server:app` the Docker CMD runs): `POST /api/math/solve {"text":"sum: k**2"}` →
+`200 EXACT`, closed form `n(2n²+3n+1)/6`, certificate `broth_lookup_pra_recheck`; a Monte-Carlo problem in
+`extend` → `DECLINE` (the §B floor). The served `/` HTML carries the toggle markup (node DOM-stub smoke test
+renders both surfaces without error). Suite green 189/189.
+
 ## Deploy status
-`[deploy: pushed, awaiting Render rebuild]` — code is committed + pushed to `claude/funny-maxwell-im9x07`. The live
-site updates when the user **redeploys** (Manual Deploy → Clear build cache & deploy) after confirming Root
-Directory `.` + Dockerfile `./Dockerfile`. Not claimed live until the user redeploys — the route/CMD are verified
-locally; the Render rebuild is the user's action.
+`[deploy: pushed, awaiting host rebuild]` — code is committed + pushed to `claude/charming-brahmagupta-q4wwgh`.
+The live site updates when the user **redeploys** (Manual Deploy → Clear build cache & deploy) AFTER repointing
+the Render **Branch** to `claude/charming-brahmagupta-q4wwgh` and confirming Root Directory `.` + Dockerfile
+`./Dockerfile`. Not claimed live until the user redeploys — the route/CMD + the new `/api/math/solve` are verified
+locally; the Render rebuild (and the branch repoint) is the user's dashboard action.
 
 ## Honesty / design
 Design unchanged — only *which file is served at `/`* (+ the engine routes + port). Korean via system fonts (no

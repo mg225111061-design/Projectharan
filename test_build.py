@@ -7072,7 +7072,7 @@ def test_mathascent_solver_reasoning():
     sol = S.solve({"sum": "k**2"})
     assert sol.verdict.status == KV.EXACT and sol.top_mode == "MATH"
     assert any(s.stage == "broth" and s.grade == KV.EXACT for s in sol.reasoning)
-    assert "[MATH mode]" in sol.trace() and "EXACT" in sol.trace()
+    assert "[MATH mode" in sol.trace() and "EXACT" in sol.trace()
 
     # broth MISS → Gosper fold (k⁴·2ᵏ is outside both the base broth and the brewed family) → EXACT
     sol = S.solve({"sum": "k**4*2**k"})
@@ -7239,6 +7239,46 @@ def test_mathascent_optimization_and_science():
     print("PASS test_mathascent_optimization_and_science (exact LP via strong-duality certificate [primal+dual "
           "feasible, zero gap ⇒ optimal; unbounded ⇒ DECLINE]; dimensional analysis over 7 SI base dims [E=½mv² ✓, "
           "F=ma ✓, E=mv ✗→DECLINE, length+time ✗→DECLINE]; both routed through the solver — arsenal now 10 families)")
+
+
+def test_mathascent_b1_mode_toggle():
+    """§B1 — the CODE ⇄ MATH mode toggle. An invariant test: (1) the served UI carries the OUTER toggle (코드/수학)
+    that re-themes (data-top) and re-routes (MATH screen map) while the INNER fast/normal/extend selector is
+    preserved; (2) the backend routes CODE and MATH measurably differently (topmode invariant); (3) the MATH §B
+    grade floor is real — extend is EXACT-or-DECLINE (a PROBABILISTIC answer is rejected), fast/normal accept it.
+    Switching the toggle actually changes which engine handles the input (CODE→optimize, MATH→solver)."""
+    from pathlib import Path
+    from mathmode import solver as MS
+    from mathmode import topmode as TM
+    import kernel_verdict as KV
+
+    # (1) the UI wiring is present in the served single-file app
+    html = Path(__file__).with_name("mrjeffrey.html").read_text(encoding="utf-8")
+    for marker in ('topseg', "switchTop", '"코드"', '"수학"', '"data-top"', 'scrMathProblem',
+                   "/api/math/solve", '[data-top="math"]'):
+        assert marker in html, f"B1 UI marker missing: {marker}"
+    # the INNER fast/normal/extend selector is preserved inside MATH (scrMathMode binds S.mathMode)
+    assert "scrMathMode" in html and "S.mathMode" in html, "MATH must keep the inner fast/normal/extend selector"
+
+    # (2) CODE and MATH route measurably differently (the per-commit topmode invariant)
+    assert TM.routes_differ(), "CODE and MATH must route differently"
+
+    # (3) the MATH §B grade floor is enforced (extend EXACT-or-DECLINE; fast/normal accept PROBABILISTIC)
+    prob = {"domain": "certified_numeric", "op": "montecarlo_pi", "samples": 8000, "delta": 1e-2}
+    assert MS.solve_in_mode(prob, "fast").verdict.status == KV.PROBABILISTIC
+    assert MS.solve_in_mode(prob, "normal").verdict.status == KV.PROBABILISTIC
+    ext = MS.solve_in_mode(prob, "extend")
+    assert ext.verdict.status == KV.DECLINE and any(s.stage == "mode-floor" for s in ext.reasoning)
+    # an EXACT problem stays EXACT in all three inner modes; the result is JSON-serializable for the API
+    import json
+    for m in ("fast", "normal", "extend"):
+        sol = MS.solve_in_mode("sum: k**2", m)
+        assert sol.verdict.status == KV.EXACT
+        json.dumps(sol.to_dict())
+
+    print("PASS test_mathascent_b1_mode_toggle (served UI carries the OUTER 코드⇄수학 toggle [re-themes via data-top, "
+          "re-routes via MATH screen map] with the INNER fast/normal/extend preserved; CODE/MATH route differently; "
+          "MATH §B floor enforced [extend EXACT-or-DECLINE, fast/normal accept PROBABILISTIC]; to_dict JSON-safe)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

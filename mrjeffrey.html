@@ -18,6 +18,7 @@
   --extend:#534ab7;--extend-deep:#26215c;--extend-tint:#eeedfe;
   --exact:#3b6d11;--exact-bg:#eaf3de;--prob:#444441;--prob-bg:#f1efe8;--decline:#5f5e5a;--decline-bg:#f1efe8;
   --free:#0f766e;--free-bg:#e6f3f1;--pick:#44423c;--wall:rgba(0,0,0,.52);--track:#efeee9;
+  --math:#1f8a5b;--math-deep:#0e4a31;--math-tint:#e4f4ec;
   --r:8px;--r-lg:12px;--focus:#534ab7;--persp:1100px;
   --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR","Pretendard",Helvetica,Arial,sans-serif;
   --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",monospace;
@@ -27,7 +28,7 @@
 :root[data-theme="dark"]{
   --page:#0e0e10;--card:#171719;--ink:#eceae3;--ink-2:#b7b4ac;--muted:#8c897f;
   --line:rgba(255,255,255,.15);--line-soft:rgba(255,255,255,.08);
-  --fast-tint:#0b5566;--normal-tint:#633806;--extend-tint:#26215c;
+  --fast-tint:#0b5566;--normal-tint:#633806;--extend-tint:#26215c;--math-tint:#0e4a31;
   --exact:#9ad16a;--exact-bg:#19260f;--prob:#c8c5bc;--prob-bg:#201f1b;--decline:#a8a49b;--decline-bg:#201f1b;
   --free:#5ec0b4;--free-bg:#13302c;--pick:#c8c5bc;--wall:rgba(255,255,255,.55);--track:#26262a;--focus:#a79ef5;
   --slab:0 2px 4px rgba(0,0,0,.4),0 8px 16px rgba(0,0,0,.45),0 18px 36px rgba(0,0,0,.5),0 40px 80px rgba(0,0,0,.55),0 80px 130px rgba(0,0,0,.5);
@@ -42,6 +43,29 @@ p{margin:0 0 12px;color:var(--ink-2)}a{color:var(--accent-deep)}
 [data-mode="fast"]{--accent:var(--fast);--accent-deep:var(--fast-deep);--accent-tint:var(--fast-tint)}
 [data-mode="normal"]{--accent:var(--normal);--accent-deep:var(--normal-deep);--accent-tint:var(--normal-tint)}
 [data-mode="extend"]{--accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint)}
+/* the MATH top-level mode re-themes the whole surface (green family); the inner fast/normal/extend cards keep
+   their own per-mode accent via their own [data-mode]. data-top is placed AFTER data-mode so it wins app-wide. */
+[data-top="math"]{--accent:var(--math);--accent-deep:var(--math-deep);--accent-tint:var(--math-tint)}
+/* ── B1: the OUTER CODE ⇄ MATH segmented toggle (a primary control, not buried) ── */
+.topseg{display:inline-flex;background:var(--track);border:1px solid var(--line-soft);border-radius:9px;padding:3px;gap:2px}
+.topseg-btn{font:inherit;font-size:13px;font-weight:500;letter-spacing:.01em;color:var(--muted);background:none;border:0;padding:6px 14px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.18s}
+.topseg-btn:hover{color:var(--ink)}
+.topseg-btn[aria-selected="true"]{color:#fff;background:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.topseg-btn .tg{width:8px;height:8px;border-radius:2px;background:currentColor;opacity:.8}
+/* ── B1/§5: the visible grade-tagged reasoning trace ── */
+.mtrace{display:flex;flex-direction:column;gap:0;margin:6px 0 0;border-left:2px solid var(--line);padding-left:0}
+.mstep{display:flex;gap:10px;align-items:baseline;padding:7px 0 7px 14px;border-left:2px solid transparent;margin-left:-2px}
+.mstep .mst-stage{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);min-width:96px}
+.mstep .mst-detail{flex:1;font-size:13.5px;color:var(--ink-2)}
+.gchip{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.gchip.EXACT{color:var(--exact);background:var(--exact-bg)}.gchip.PROBABILISTIC{color:var(--prob);background:var(--prob-bg)}.gchip.DECLINE{color:var(--decline);background:var(--decline-bg)}
+.mcert{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
+.mcert summary{cursor:pointer;padding:12px 16px;font-size:13px;font-weight:500;color:var(--ink);background:var(--card);list-style:none;display:flex;align-items:center;gap:10px}
+.mcert summary::-webkit-details-marker{display:none}
+.mcert[open] summary{border-bottom:1px solid var(--line-soft)}
+.mcert .mcert-body{padding:14px 16px;font-size:13px;color:var(--ink-2);font-family:var(--mono);line-height:1.6;word-break:break-word}
+.mathfield{width:100%;min-height:88px;font-family:var(--mono);font-size:14px;line-height:1.5;padding:14px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);color:var(--ink);resize:vertical}
+.mathfield:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .app{min-height:100%;display:flex;flex-direction:column}
 .topbar{display:flex;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--line-soft);background:color-mix(in srgb,var(--page) 82%,transparent);backdrop-filter:saturate(1.2) blur(8px);position:sticky;top:0;z-index:10}
 .brand{display:flex;align-items:center;gap:9px;font-weight:500;letter-spacing:.02em}
@@ -174,9 +198,22 @@ const SAMPLES = [
   ["리스트에 스칼라 수학 연산","import math\n\ndef features(samples):\n    out = []\n    for x in samples:\n        out.append(math.sqrt(x) * 2 + math.sin(x))\n    energy = sum(v ** 2 for v in out)\n    return out, energy"],
   ["깔끔한 코드 (보류 예상)","def total(prices):\n    return sum(prices)"],
 ];
-const S = { screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null, live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
+const S = { topMode:"code", screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null,
+  mathMode:"normal", mathInput:"", mathResult:null, mathBusy:false,
+  live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
 let TOAST_T = null;
 const activeMode = () => S.mode || "extend";
+// MATH-surface inputs (parallel to the CODE SAMPLES) — each sets a structured problem the certified solver folds.
+const MATH_SAMPLES = [
+  ["거듭제곱 합 Σk²","sum: k**2"],
+  ["하이퍼기하 합 Σk·k!","sum: k*factorial(k)"],
+  ["모듈러 거듭제곱 7^1234567 mod 1e9+7",'{"domain":"number_theory","op":"modexp","a":7,"b":1234567,"m":1000000007}'],
+  ["선형계 풀이 (정확)",'{"domain":"linear_algebra","op":"solve","A":[[2,1,-1],[-3,-1,2],[-2,1,2]],"b":[8,-11,-3]}'],
+  ["차원 검사 E=½mv²",'{"domain":"science_engineering","op":"dimension_check","equation":"E = m*v**2","binding":{"E":"energy","m":"mass","v":"velocity"}}'],
+  ["조화급수 Σ1/k (닫힌 형식 없음 → 보류)","sum: 1/k"],
+];
+const MATH_STEPS = [["mathLanding","0","개요"],["mathMode","1","모드"],["mathProblem","2","문제"],["mathResult","3","검증"]];
+function switchTop(t){ if(S.topMode===t) return; S.topMode=t; S.screen=(t==="math"?"mathLanding":"landing"); render(); }
 
 // heuristic, regex-based waste detection on the pasted code (STATIC mode). The SERVER does true AST analysis.
 function detect(code){
@@ -216,6 +253,23 @@ async function runOptimize(){
     ran_complexity_sweep:run.ran_complexity_sweep, latency_ms:run.latency_ms, policy,
     proposer:{used:false,mode:"deterministic",note:"정적 빌드(서버 없음): 탐지는 당신 코드에 대한 휴리스틱이며, 각 행은 "+mode+" 계약 아래 탐지된 낭비 유형에 대한 엔진의 실제 측정 표준 결과입니다. 당신 코드에 대한 라이브 AST 실행(과 키를 통한 LLM 제안)은 FastAPI 서버로 여세요."},
     note:"정적 빌드 — 내장 엔진 실행의 대표 측정 결과입니다. 코드별 라이브 실행은 webapi.app으로 서빙하세요." };
+}
+
+// ── MATH mode: send the problem to the certified solver (fold → broth → arsenal) and get the graded trace ──
+async function runMath(){
+  const text=S.mathInput.trim(); const mode=S.mathMode;
+  if(S.live){
+    try{
+      let body={mode};
+      if(text[0]==="{"){ try{ body.problem=JSON.parse(text); }catch(_){ body.text=text; } } else { body.text=text; }
+      const r=await fetch("/api/math/solve",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+      return await r.json();
+    }catch(e){ /* fall through to the honest static notice */ }
+  }
+  return { status:"DECLINE", grade_ko:"보류", top_mode:"math", inner_mode:mode, certificate:null, answer:"",
+    reason:"정적 빌드 — MATH 검증 솔버(fold·아스널·broth)는 파이썬 엔진이 필요합니다. server:app으로 서빙하면 실제로 증명·계산합니다.",
+    reasoning:[{stage:"route",detail:"top_mode=MATH · 첫 수: fold (구조 우선)",grade:null},
+               {stage:"engine",detail:"라이브 엔진 없음 — 정적 빌드에서는 정직하게 보류",grade:"DECLINE"}] };
 }
 
 async function validateKey(){
@@ -453,22 +507,140 @@ function scrCorpus(){
   return wrap;
 }
 
+// ── MATH screens (B1) — the second top-level surface; fast/normal/extend preserved INSIDE this mode ────────
+function gradeChip(g){ return g?$("span",{class:"gchip "+g},gradeLabel(g.toLowerCase())):null; }
+
+function scrMathLanding(){
+  return $("div",{},[
+    $("section",{class:"hero"},[
+      $("div",{},[
+        $("div",{class:"eyebrow"},"수학 모드 · fold 우선 · 증명서 동반"),
+        $("h1",{},"추측이 아니라, 증명된 수학."),
+        $("p",{class:"lead mt",html:"문제를 입력하거나 파일을 첨부하세요. MR.JEFFREY가 먼저 <strong>구조를 인식(fold)</strong>하고, 검증된 아스널(정수론·조합론/Gosper·선형대수·대수·기하·인증수치·최적화·과학공학)로 풀고, <strong>기계로 점검된 증명서</strong>를 함께 냅니다. 닫힌 형식이 없으면 — 꾸며내지 않고 정직하게 보류합니다. 모든 답은 등급이 달립니다: <span class='grade exact'><span class='gd'></span>증명됨</span> · <span class='grade probabilistic'><span class='gd'></span>확률적</span> · <span class='grade decline'><span class='gd'></span>보류</span>."}),
+        $("div",{class:"row mt"},[$("button",{class:"btn lg",onclick:()=>setScreen("mathMode")},"문제 풀기 →"),$("span",{class:"pill"},"아스널 10종 · broth 3,735"),S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"정적 — 라이브 엔진 필요")]),
+      ]),
+      $("div",{},[ $("div",{class:"slab speed-slab","data-mode":S.mathMode,style:"padding:22px"},[
+        $("div",{class:"plane ss-head",style:"--z:22px"},[$("span",{class:"ss-waste"},"Σ_{k=1}^{n} k²"),gradeChip("EXACT")]),
+        $("div",{class:"plane ss-read",style:"--z:18px;margin-top:10px"},[
+          $("div",{},[$("span",{class:"ss-k"},"닫힌 형식"),$("span",{class:"ss-v"},"n(n+1)(2n+1)/6")]),
+          $("div",{},[$("span",{class:"ss-k"},"증명"),$("span",{class:"ss-v"},"Faulhaber · k-귀납")]),
+          $("div",{},[$("span",{class:"ss-k"},"평가"),$("span",{class:"ss-v"},"O(1)")]),
+        ]),
+      ])]),
+    ]),
+    $("div",{class:"grid cols-3 tenets"},[
+      $("div",{class:"feat"},[$("h3",{},"fold이 중심"),$("p",{},"수학에는 늘 구조가 있습니다. MATH의 첫 수는 항상 fold — 구조를 인식하고, 닫힌 형식으로 접고, 그 접기가 곧 증명입니다.")]),
+      $("div",{class:"feat"},[$("h3",{},"계산은 도구가, 전략은 모델이"),$("p",{html:"LLM은 전략을 짜고, 실제 계산·증명은 검증된 도구가 합니다. 모델의 산술·검증 오류가 0으로 — broth는 3,735개의 사전 증명을 O(1)에 조회합니다."})]),
+      $("div",{class:"feat"},[$("h3",{},"보류는 정직함"),$("p",{html:"조화급수, 일반 5차 방정식, 특이행렬 — 닫힌 형식/해가 없으면 <span class='grade decline'><span class='gd'></span>보류</span>합니다. 꾸며낸 공식은 절대 없습니다."})]),
+    ]),
+  ]);
+}
+
+function scrMathMode(){
+  const wrap=$("div",{},[$("div",{class:"eyebrow"},"1단계 · 계약 고르기 (MATH 안의 fast/normal/extend)"),$("h2",{},"증명기를 얼마나 깐깐하게?"),
+    $("p",{class:"lead"},"모드 토글이 바깥 제어(CODE ⇄ MATH)라면, fast/normal/extend는 안쪽 제어입니다 — MATH 안에서도 그대로 유지됩니다. extend는 EXACT 아니면 보류(증명된 것만 출하).")]);
+  const grid=$("div",{class:"grid cols-3 mt"});
+  const icon={fast:"⚡",normal:"⚖",extend:"⛨"};
+  const desc={fast:"가장 싼 증명서 한 장, 즉시. (확률적도 허용)",normal:"검증된 결과를 복리로. (EXACT+확률적)",extend:"닿는 모든 것을 증명 — EXACT 아니면 보류."};
+  DATA.modes.forEach(m=>{
+    const card=$("button",{class:`mode-card depth-${m.mode}`,"data-mode":m.mode,"aria-pressed":String(S.mathMode===m.mode),onclick:()=>{S.mathMode=m.mode;render();}},[
+      $("div",{class:"mc-head"},[$("span",{class:"glyph"},icon[m.mode]||""),$("div",{},[$("div",{class:"mc-name"},m.mode),$("div",{class:"mc-clock"},"수학 계약")])]),
+      $("dl",{},[
+        $("dt",{},"증명기"),$("dd",{},m.verifier_tier),$("dt",{},"출하 등급"),$("dd",{},m.acceptable_grades.join(" · ")),
+        $("dt",{},"z3"),$("dd",{},m.verifier_tier==="MICRO"?"안 함":m.verifier_tier==="FULL_CERT"?"전체":"작은 영역"),
+      ]),
+      $("div",{class:"v-sub",style:"margin-top:2px"},desc[m.mode]),
+    ]);
+    setTimeout(()=>attachTilt(card,{fast:5,normal:7,extend:10}[m.mode]||7),0);
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"btn",onclick:()=>setScreen("mathProblem")},"문제 입력 →"),$("span",{class:"muted"},`${S.mathMode} 선택됨`)]));
+  return wrap;
+}
+
+function scrMathProblem(){
+  const ta=$("textarea",{class:"mathfield",spellcheck:"false",placeholder:"예) sum: k**2   ·   또는 JSON 문제 객체"},S.mathInput);
+  ta.value=S.mathInput; ta.addEventListener("input",e=>{S.mathInput=e.target.value;});
+  const samples=$("div",{class:"samples"},[$("span",{class:"muted",style:"align-self:center;font-size:12px"},"예시:")]);
+  MATH_SAMPLES.forEach(([label,prob])=>samples.appendChild($("button",{onclick:()=>{S.mathInput=prob;render();}},label)));
+  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.mathInput.trim())return; S.mathBusy=true; runBtn.disabled=true; runBtn.textContent="증명 중…"; S.mathResult=await runMath(); S.mathBusy=false; setScreen("mathResult"); const st=S.mathResult.status; showToast(st==="EXACT"?"증명 완료 — 기계로 점검된 증명서 동반":st==="PROBABILISTIC"?"근사 완료 — ε,δ 보고 (확률적)":"보류 — 정직한 무주장"); }},`${S.mathMode} 모드로 증명 실행 →`);
+  return $("div",{"data-mode":S.mathMode},[
+    $("div",{class:"eyebrow"},"2단계 · 당신의 문제"),$("h2",{},"문제를 입력하세요. 도구가 풀고, 증명기가 점검합니다."),
+    $("p",{class:"lead"},"합(Σ), 점화식, 정수론, 선형대수, 대수, 기하, 인증수치, 최적화(LP), 차원해석을 받습니다. 텍스트 규칙 `sum: <k 식>` 또는 JSON 문제 객체. 첨부 파일(엑셀·문서)도 fold-가속 분석으로 처리합니다."),
+    samples, ta,
+    $("div",{class:"row mt"},[runBtn, $("span",{class:"pill"},"계산 offload · 모델 산술오류 0"), S.attachments&&S.attachments.length?$("span",{class:"pill"},`첨부 ${S.attachments.length}`):null]),
+    (typeof attachZone==="function"?attachZone("math"):null),
+  ]);
+}
+
+function scrMathResult(){
+  const r=S.mathResult; if(!r) return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("mathProblem")},"문제로 가기")]);
+  const st=r.status||"DECLINE";
+  const wrap=$("div",{"data-mode":r.inner_mode||S.mathMode},[
+    $("div",{class:"eyebrow"},"3단계 · 검증 · MATH "+(r.inner_mode||S.mathMode)+" 계약"),
+    $("div",{class:"row",style:"justify-content:space-between;align-items:flex-start"},[
+      $("h2",{},st==="EXACT"?"증명됨.":st==="PROBABILISTIC"?"근사 — ε,δ 보고.":"보류 — 정직한 무주장."),
+      $("span",{class:"grade "+st.toLowerCase()},[$("span",{class:"gd"}),gradeLabel(st.toLowerCase())]),
+    ]),
+  ]);
+  if(r.answer) wrap.appendChild($("div",{class:"card mt"},[$("div",{class:"eyebrow"},"답 / 닫힌 형식"),$("div",{class:"mono",style:"font-size:16px;color:var(--ink);word-break:break-word"},r.answer)]));
+  // the visible grade-tagged reasoning trace (§5)
+  if(r.reasoning&&r.reasoning.length){
+    const tr=$("div",{class:"mtrace"});
+    r.reasoning.forEach(s=>tr.appendChild($("div",{class:"mstep"},[$("span",{class:"mst-stage"},s.stage),$("span",{class:"mst-detail"},s.detail),gradeChip(s.grade)])));
+    wrap.appendChild($("div",{class:"mt"},[$("div",{class:"eyebrow"},"추론 (단계별 · 등급 표시)"),tr]));
+  }
+  // the machine-checked certificate (expandable)
+  if(r.certificate){
+    const c=r.certificate;
+    wrap.appendChild($("details",{class:"mcert",open:"" },[
+      $("summary",{},[$("span",{class:"gd"}),"증명서 · "+c.kind,$("span",{class:"spacer"}),$("span",{class:"muted",style:"font-size:11.5px;font-weight:400"},c.check_cost||"")]),
+      $("div",{class:"mcert-body"},[c.detail||"",(c.epsilon!=null?` · ε=${fmt(c.epsilon,5)}`:""),(c.delta!=null?` · δ=${c.delta}`:"")].join("")),
+    ]));
+  } else if(r.reason){
+    wrap.appendChild($("div",{class:"honesty mt"},[$("span",{},"◈"),$("span",{},r.reason)]));
+  }
+  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>setScreen("mathProblem")},"← 다른 문제"),$("button",{class:"btn",onclick:()=>setScreen("mathMode")},"모드 바꾸기")]));
+  return wrap;
+}
+
+// the two top-level surfaces: CODE (wizard) and MATH (solver). The toggle is the OUTER control; fast/normal/
+// extend stays the INNER control inside each. Switching re-themes (data-top) AND re-routes (screen map + engine).
+const CODE_SCREENS={landing:scrLanding,mode:scrMode,provider:scrProvider,code:scrCode,verify:scrVerify,corpus:scrCorpus};
+const MATH_SCREENS={mathLanding:scrMathLanding,mathMode:scrMathMode,mathProblem:scrMathProblem,mathResult:scrMathResult};
+
 function render(){
   document.documentElement.setAttribute("data-theme",S.theme);
-  const reached={landing:1,mode:1,provider:!!S.mode,code:!!S.mode,verify:!!S.result,corpus:1};
+  const isMath=S.topMode==="math";
   const root=document.getElementById("root"); root.innerHTML="";
-  const app=$("div",{class:"app","data-mode":activeMode()});
+  const app=$("div",{class:"app","data-mode":isMath?S.mathMode:activeMode(),"data-top":S.topMode});
+  // OUTER toggle — the primary CODE ⇄ MATH control, visually distinct active state, Korean labels
+  const toggle=$("div",{class:"topseg",role:"tablist","aria-label":"최상위 모드"},[
+    $("button",{class:"topseg-btn",role:"tab","aria-selected":String(!isMath),onclick:()=>switchTop("code")},[$("span",{class:"tg"}),"코드"]),
+    $("button",{class:"topseg-btn",role:"tab","aria-selected":String(isMath),onclick:()=>switchTop("math")},[$("span",{class:"tg"}),"수학"]),
+  ]);
+  // per-mode step nav
   const steps=$("nav",{class:"steps","aria-label":"progress"});
-  STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
+  if(isMath){
+    const reachedM={mathLanding:1,mathMode:1,mathProblem:!!S.mathMode,mathResult:!!S.mathResult};
+    MATH_STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reachedM[id]?null:"",onclick:()=>reachedM[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
+  } else {
+    const reached={landing:1,mode:1,provider:!!S.mode,code:!!S.mode,verify:!!S.result,corpus:1};
+    STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
+  }
   app.appendChild($("header",{class:"topbar"},[
-    $("div",{class:"brand"},[$("span",{class:"dot"}),"MR.JEFFREY",$("small",{},"전체 프로그램 검증 가속")]),
-    steps,$("div",{class:"spacer"}),
+    $("div",{class:"brand"},[$("span",{class:"dot"}),"MR.JEFFREY",$("small",{},isMath?"증명된 수학 엔진":"전체 프로그램 검증 가속")]),
+    toggle, steps, $("div",{class:"spacer"}),
     $("button",{class:"ghost",onclick:()=>{S.theme=S.theme==="light"?"dark":"light";render();}},S.theme==="light"?"다크":"라이트"),
   ]));
-  const main=$("main",{class:(S.screen==="corpus"||S.screen==="verify")?"wide":""});
-  main.appendChild({landing:scrLanding,mode:scrMode,provider:scrProvider,code:scrCode,verify:scrVerify,corpus:scrCorpus}[S.screen]());
+  const screens=isMath?MATH_SCREENS:CODE_SCREENS;
+  const cur=screens[S.screen]||(isMath?scrMathLanding:scrLanding);
+  const wideScreen=(S.screen==="corpus"||S.screen==="verify"||S.screen==="mathResult");
+  const main=$("main",{class:wideScreen?"wide":""});
+  main.appendChild(cur());
   app.appendChild(main);
-  app.appendChild($("footer",{class:"footer"},"전체 프로그램 실측 · Amdahl 정직 · 등급 강제 · 제안자 ≠ 심판 · 키는 탭에만 보관"));
+  app.appendChild($("footer",{class:"footer"},isMath?"fold 우선 · 증명서 동반 · 등급 강제 · 닫힌 형식 없으면 보류 · 계산은 도구가":"전체 프로그램 실측 · Amdahl 정직 · 등급 강제 · 제안자 ≠ 심판 · 키는 탭에만 보관"));
   if(S.toast) app.appendChild($("div",{class:"toast",role:"status"},["✓ ",S.toast]));
   root.appendChild(app);
 }

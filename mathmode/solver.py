@@ -10,11 +10,13 @@ DECLINE shows precisely where the structure ran out, never a fabricated formula.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 import kernel_verdict as KV
 from mathmode import topmode as TM
+from pillar3 import mode as PM
 from mathmode import fold as FOLD
 from mathmode import broth as BROTH
 from mathmode import combinatorics as CB
@@ -34,15 +36,34 @@ class Step:
     grade: Optional[str] = None     # EXACT / PROBABILISTIC / DECLINE if this step produced a graded result
 
 
+_GRADE_KO = {KV.EXACT: "증명됨", KV.PROBABILISTIC: "확률적", KV.DECLINE: "보류"}
+
+
+def _safe_repr(x) -> str:
+    """A short, JSON-safe rendering of a verdict result (closed-form callable, Fraction, sympy expr, tuple…)."""
+    if x is None:
+        return ""
+    if callable(x):
+        try:
+            return "closed form: n↦ " + ", ".join(f"f({n})={x(n)}" for n in (1, 2, 3, 10))
+        except Exception:                                # noqa: BLE001
+            return "(closed-form function)"
+    try:
+        return str(x)
+    except Exception:                                    # noqa: BLE001
+        return repr(type(x))
+
+
 @dataclass
 class MathSolution:
     verdict: "KV.Verdict"
     reasoning: List[Step] = field(default_factory=list)
     top_mode: str = "MATH"
+    inner_mode: str = "normal"
 
     def trace(self) -> str:
         """The visible, grade-tagged reasoning trace (§5)."""
-        lines = [f"[MATH mode]"]
+        lines = [f"[MATH mode · {self.inner_mode}]"]
         for s in self.reasoning:
             tag = f" «{s.grade}»" if s.grade else ""
             lines.append(f"  → {s.stage}: {s.detail}{tag}")
@@ -50,6 +71,20 @@ class MathSolution:
                      + (f": {self.verdict.certificate.kind}" if self.verdict.certificate else
                         f" ({self.verdict.reason})"))
         return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        """JSON-safe payload for /api/math/solve — the grade-tagged reasoning + certificate, visible in the UI."""
+        v, c = self.verdict, self.verdict.certificate
+        return {
+            "top_mode": "math", "inner_mode": self.inner_mode,
+            "status": v.status, "grade_ko": _GRADE_KO.get(v.status, v.status),
+            "reason": v.reason, "answer": _safe_repr(v.result),
+            "certificate": (None if c is None else {
+                "kind": c.kind, "detail": c.detail, "check_cost": c.check_cost,
+                "epsilon": (None if c.epsilon is None else float(c.epsilon)),
+                "delta": (None if c.delta is None else float(c.delta))}),
+            "reasoning": [{"stage": s.stage, "detail": s.detail, "grade": s.grade} for s in self.reasoning],
+        }
 
 
 _ARSENAL = {
@@ -106,3 +141,55 @@ def solve(problem: dict) -> MathSolution:
                    "mathmode.solve")
     steps.append(Step("recognize", "no recognized structure or domain", KV.DECLINE))
     return MathSolution(v, steps)
+
+
+def parse_problem(text) -> dict:
+    """Lenient text → problem dict for the MATH surface. Accepts:
+       • a JSON object (used directly),               • 'sum: <expr in k>' / 'Σ <expr>'  → {"sum": …},
+       • 'fold: <json>'                               → {"fold": …},
+       • a bare summand mentioning k                  → {"sum": …}.
+    Anything else returns {} (⇒ the solver DECLINEs honestly)."""
+    if isinstance(text, dict):
+        return text
+    s = (text or "").strip()
+    if not s:
+        return {}
+    if s[0] == "{":
+        try:
+            return json.loads(s)
+        except Exception:                                # noqa: BLE001
+            pass
+    import re
+    m = re.match(r"\s*(?:sum\s*[:=]\s*|Σ\s*)(.+)$", s, re.IGNORECASE)
+    if m:
+        return {"sum": m.group(1).strip().rstrip(".").replace("^", "**")}
+    m2 = re.match(r"\s*fold\s*[:=]\s*(.+)$", s, re.IGNORECASE)
+    if m2:
+        try:
+            return {"fold": json.loads(m2.group(1))}
+        except Exception:                                # noqa: BLE001
+            return {}
+    if "k" in s and not any(ch.isalpha() for ch in s.replace("k", "").replace("factorial", "")):
+        return {"sum": s.replace("^", "**")}
+    return {}
+
+
+# ── the OMEGA §B fast/normal/extend grade floor, preserved INSIDE MATH ────────────────────────────────────
+def solve_in_mode(problem_or_text, inner_mode: str = "normal") -> MathSolution:
+    """Solve, then apply the MATH inner-mode contract (the §B separation, identical to CODE):
+       fast / normal accept {EXACT, PROBABILISTIC}; extend is EXACT-or-DECLINE (a PROBABILISTIC answer is
+       REJECTED below the extend floor — MATH ships nothing it cannot prove in extend)."""
+    problem = problem_or_text if isinstance(problem_or_text, dict) else parse_problem(problem_or_text)
+    sol = solve(problem)
+    sol.inner_mode = inner_mode
+    try:
+        policy = PM.ModePolicy.for_mode(PM.Mode(inner_mode))
+    except Exception:                                    # noqa: BLE001
+        return sol
+    g = sol.verdict.status
+    if g != KV.DECLINE and not policy.grade_acceptable(g):
+        # extend floor bites: a non-EXACT answer is DECLINEd (EXACT-or-DECLINE), with a visible reasoning step
+        sol.reasoning.append(Step("mode-floor", f"{inner_mode} contract accepts {sorted(policy.acceptable_grades)}; "
+                                                 f"{g} is below the floor ⇒ DECLINE (ship nothing unproven)", KV.DECLINE))
+        sol.verdict = KV.decline(f"MATH {inner_mode}: {g} below the extend floor [EXACT] ⇒ DECLINE", "mathmode.mode")
+    return sol

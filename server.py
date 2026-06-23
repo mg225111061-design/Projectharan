@@ -418,6 +418,22 @@ def create_app():
         p = await req.json()
         return JSONResponse(_ENGINE.validate_key(p.get("provider", ""), p.get("key", ""), p.get("model")))
 
+    # ── MATH mode (the second top-level mode): fold-first solving + the verified arsenal + visible reasoning ──
+    @app.post("/api/math/solve")
+    async def api_math_solve(req: Request):                    # noqa: ANN202
+        from mathmode import solver as _MS                     # noqa: PLC0415 (lazy: keeps server import light)
+        p = await req.json()
+        problem = p.get("problem")
+        text = p.get("text", "")
+        mode = p.get("mode", "normal")
+        try:
+            sol = _MS.solve_in_mode(problem if problem is not None else text, mode)
+            return JSONResponse(sol.to_dict())
+        except Exception as e:                                 # noqa: BLE001
+            return JSONResponse({"status": "DECLINE", "grade_ko": "보류",
+                                 "reason": f"math solve failed ({type(e).__name__})", "reasoning": [],
+                                 "certificate": None, "answer": ""}, status_code=200)
+
     @app.get("/static/{name}")                                  # shared design system + site script
     async def static_file(name: str):                          # noqa: ANN202
         # allow-listed by suffix + name-only (no path traversal): only files directly under static/.
