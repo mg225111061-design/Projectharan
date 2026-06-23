@@ -14,7 +14,7 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **204 통과 / 204** (`test_build.py`, 결정론 실행; 아래 명령) |
+| 테스트 | **205 통과 / 205** (`test_build.py`, 결정론 실행; 아래 명령) |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
@@ -27,7 +27,7 @@
 ```bash
 cd /home/user/Projectharan
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 204 passed, 0 failed
+# … 205 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
 `test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
@@ -55,7 +55,7 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 p
 - `server.py` — 운영 진입점(Docker CMD `python server.py` → `server:app`). `/` = `mrjeffrey.html`. `/api/*`.
 - `mrjeffrey.html` — 단일파일 한국어 UI(CODE⇄MATH 토글, 파일 드래그첨부, 등급 추론 뷰).
 - `mathmode/` — MATH 엔진(22 모듈). `pillar3/` — CODE 엔진. `webapi/` — FastAPI/engine_bridge.
-- `test_build.py` — 단일 결정론 스위트(204). `kernel_verdict.py` — 등급 ADT(EXACT/PROBABILISTIC/DECLINE 강제).
+- `test_build.py` — 단일 결정론 스위트(205). `kernel_verdict.py` — 등급 ADT(EXACT/PROBABILISTIC/DECLINE 강제).
 - `STATUS.md` — **단일 진실원천**(현재 상태/테스트수/등급분포/done·진행·declined). 과거 캠페인 리포트는 `reports/archive/`.
 
 ## 4. 배포 (사용자 액션 1건)
