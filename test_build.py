@@ -7170,6 +7170,37 @@ def test_mathascent_file_ingestion():
           "DECLINE; DOCX 'Σ …' → broth/Gosper fold «EXACT»; PDF & images ⇒ honest UNVERIFIED [no reader/OCR])")
 
 
+def test_mathascent_benchmark():
+    """MATH-ASCENT §7 — the MATH capability benchmark: MEASURED deltas only. A representative problem set across
+    the whole arsenal is run through the §5 solver and graded; the deliverable is a measured capability inventory.
+    Every problem must produce its EXPECTED grade (the DECLINEs — harmonic Σ1/k, a singular system, the
+    Abel–Ruffini quintic, parallel segments, no modular inverse — are CORRECT behaviour, not failures), every
+    EXACT must carry a passed certificate, and every cross-checked EXACT answer must match ground truth (an EXACT
+    here is a verified answer, not a claim). HLE itself is [UNVERIFIED] here (no dataset/harness) — we report the
+    measured coverage, never a fabricated score."""
+    from mathmode import benchmark as BM
+    import kernel_verdict as KV
+
+    r = BM.run()
+    assert r.total >= 20, "a representative benchmark spans ≥20 problems"
+    assert r.matched_expect == r.total, "every problem must produce its expected grade (DECLINEs are expected)"
+    # every EXACT carries a passed certificate; every cross-checked EXACT answer matches ground truth
+    for name, cat, g, expect, ok_expect, ok_check, cert_ok in r.rows:
+        assert cert_ok, f"{name}: EXACT/PROBABILISTIC must carry a passed certificate"
+        if g == KV.EXACT:
+            assert ok_check, f"{name}: EXACT answer failed its ground-truth cross-check"
+    assert r.cross_checked >= 10, "≥10 EXACT answers independently cross-checked vs ground truth"
+    # the measured delta: a healthy EXACT share among the solvable, and ≥6 domains covered
+    solvable = r.total - r.by_grade[KV.DECLINE]
+    assert r.by_grade[KV.EXACT] >= solvable - 1, "EXACT share among solvable is high (only approximation is PROBABILISTIC)"
+    assert len(r.by_category) >= 6, "coverage spans ≥6 mathematical domains"
+
+    print(f"PASS test_mathascent_benchmark (MEASURED coverage of {r.total} problems across {len(r.by_category)} "
+          f"domains: EXACT={r.by_grade[KV.EXACT]} PROBABILISTIC={r.by_grade[KV.PROBABILISTIC]} DECLINE="
+          f"{r.by_grade[KV.DECLINE]} [all expected]; {r.matched_expect}/{r.total} matched expected grade; "
+          f"{r.cross_checked} EXACT answers cross-checked vs ground truth; HLE itself UNVERIFIED — no fabricated score)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

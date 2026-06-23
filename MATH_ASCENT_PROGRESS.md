@@ -82,11 +82,16 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
    fabricated transcription. [test_mathascent_file_ingestion; mathmode/ingest.py]
 
 ## §7 — MATH deliverables + honest HLE push (measured deltas only)
-   ☐ MATH demo set; measured-only deltas; never an unmeasured score claim.
+7. ☑ capability benchmark (mathmode/benchmark.py): 24 problems across 7 domains run through the solver and graded;
+   measured inventory EXACT=18 / PROBABILISTIC=1 / DECLINE=5 (all 24 matching expected grade — the DECLINEs are
+   CORRECT: harmonic, singular, Abel–Ruffini quintic, parallel segments, no modular inverse); every EXACT
+   certificated; 15 answers cross-checked vs ground truth. HLE itself UNVERIFIED (no dataset/harness) — measured
+   coverage reported, never a fabricated score. [test_mathascent_benchmark; mathmode/benchmark.py]
 
 ## §8 — grow Layer-2 LEAP reports + Layer-3 mathematical broth
-   ☐ LEAP{1..5} math reports; Layer-3 mathematical broth entries.
+8. ☑ Layer-3 broth grown +28 Gosper hypergeometric entries (§4, the family the base could not brew without
+   ore_algebra). Layer-2 report: MATH_ASCENT_REPORT.md (the comprehensive measured account of the ascent).
 
-RESUME POINTER: §1 + §2 landed (the split + the central fold, both tested). Next: §3 arsenal — start with
-combinatorics_sums (Gosper/Zeilberger creative-telescoping for hypergeometric sums) and number_theory, each
-fold-routed, certificate co-generated, adversarial-wrong ⇒ DECLINE. Then §4 O(1) certificate index over the broth.
+STATUS: §1–§8 all landed and tested (deterministic suite 187/187). MATH-Ascent core complete. Endless-deepening
+continues per directive: broaden the arsenal (Zeilberger definite sums, optimization/OR, science/engineering),
+grow the broth further, deepen ingestion — each measured/proven/graded/adversarial-wrong→DECLINE/committed.
