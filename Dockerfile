@@ -26,7 +26,12 @@ COPY . .
 ENV HARAN_HOST=0.0.0.0
 EXPOSE 8000 10000
 
-# server.py boots `server:app`, whose `/` and `/app` serve the NEW Korean single-file UI (mrjeffrey.html,
-# everything inlined — NO /static/design.css, NO old React web/dist) and whose /api/* is the real pillar3
-# engine (optimize/modes/providers/corpus/demo/key-validate). Binds $PORT (Render) automatically.
-CMD ["python", "server.py"]
+# Launch the REAL backend: uvicorn serving `server:app` — the ONE process that serves BOTH the Korean
+# single-file UI at `/` (mrjeffrey.html, everything inlined) AND the live engine at `/api/*`
+# (math/solve · math/ingest · optimize · key/validate · health). The frontend's fetch('/api/math/solve')
+# reaches THIS process, so MATH actually proves/computes (fold · arsenal · broth) instead of the static
+# fallback. Binds Render's injected $PORT (defaults to 10000 locally). This is equivalent to `python server.py`
+# (which calls uvicorn.run with host 0.0.0.0, port $PORT) but states the entrypoint explicitly.
+# ── IMPORTANT: this image is a WEB SERVICE (it runs Python). A Render *Static Site* CANNOT run it and will
+#    serve only files — then /api/* is unreachable and MATH shows "정적 빌드 / 라이브 엔진 없음". See DEPLOY_NOTES.md. ──
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-10000}"]

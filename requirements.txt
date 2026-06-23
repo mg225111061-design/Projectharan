@@ -3,6 +3,11 @@
 # it is entered per request in the UI (level-1).
 fastapi>=0.110
 uvicorn[standard]>=0.27
+pydantic>=2.0         # FastAPI's model layer — listed explicitly so the image always has it
+numpy>=1.24          # REQUIRED at runtime by the CODE engine + several MATH numeric kernels (pillar3 /
+                     # linear_algebra / certified_numeric / probability). The grade ADT + NATIVE-CORE are
+                     # stdlib-only (§5 audit), but the SERVED engine paths import numpy — the backend must have
+                     # it to compute rather than error. Without it, /api/optimize and numeric MATH would break.
 anthropic>=0.40
 openai>=1.40          # only used when HARAN_PROVIDER=openai_compat (OpenRouter/TokenMix-style gateways)
 sympy>=1.12

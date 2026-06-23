@@ -8,11 +8,40 @@ serves the new Korean single-file UI. Confirm these in **Render → Settings**, 
 |---|---|
 | **Root Directory** | empty / `.` (the `Dockerfile` is at the repo root) |
 | **Dockerfile path** | `./Dockerfile` |
-| **Docker Command** | leave EMPTY (use the Dockerfile `CMD`). If forced, set: `python server.py` |
+| **Service type** | **Web Service → Docker** (NOT a Static Site — a Static Site cannot run Python; see ⚠️ below) |
+| **Docker Command** | leave EMPTY (use the Dockerfile `CMD = uvicorn server:app --host 0.0.0.0 --port $PORT`). If forced, set exactly that, or `python server.py` (equivalent). |
 | **Branch** | `claude/charming-brahmagupta-q4wwgh` ← **point Render here** (the confirmed superset of all prior work; carries the new CODE⇄MATH toggle + MATH engine) |
 | Port | automatic — the app binds Render's injected `$PORT` (no value needed) |
 
 Then: **Manual Deploy → Clear build cache & deploy** (clearing the cache avoids serving a stale old-UI layer).
+
+## ⚠️ If MATH shows 「보류 — 정적 빌드 / 라이브 엔진 없음」 — the Python backend is NOT running
+**Symptom (live site):** switch to MATH, enter a problem → "보류 — 정직한 무주장", ENGINE: "라이브 엔진 없음 — 정적
+빌드에서는 정직하게 보류", note: "정적 빌드 — … server:app으로 서빙하면 실제로 증명·계산합니다." Routing works
+(`top_mode=MATH · 첫 수: fold`), but `fetch('/api/math/solve')` can't reach a live engine, so the UI **honestly**
+falls back to DECLINE instead of fabricating an answer. **The fallback is correct — the fix is to make the backend
+reachable, NOT to change MATH.** Root cause = the served process is not the uvicorn backend. Almost always one of:
+1. **Render service type is a *Static Site*.** It serves files only and **CANNOT run Python**, so `server:app`
+   (fold/arsenal/broth) never boots and every `/api/*` 404s. ➜ The service **MUST be a *Web Service* (Docker)**:
+   Root `.`, Dockerfile `./Dockerfile`, Branch `claude/charming-brahmagupta-q4wwgh`. There is no other way to run
+   the engine — a Static Site is the one configuration that produces exactly this symptom.
+2. **A missing runtime dep crashed the backend.** The image now installs **numpy** (and pydantic explicitly) in
+   `requirements.txt`; the CODE engine + several MATH numeric kernels import numpy at runtime. Full served runtime
+   set: `fastapi, uvicorn, pydantic, numpy, sympy, z3-solver` (the grade ADT + NATIVE-CORE are stdlib-only per the
+   §5 audit, but the *served* engine paths need these).
+3. **A separate static build shadowing uvicorn.** There is NO static build in this repo (no npm/web/dist); the
+   single-file UI is served by `server:app` itself, which serves BOTH `/` and `/api/*` from one process. Remove any
+   static publish dir you added.
+
+### Verified locally (the SAME command the image runs)
+`uvicorn server:app --host 0.0.0.0 --port 10000` (≡ `python server.py`):
+- `GET /health` → **200**; `GET /` → the Korean UI (`MR.JEFFREY`).
+- `POST /api/math/solve {"problem":{"sum":"k**3"},"mode":"extend"}` → **EXACT**, `answer = n²(n+1)²/4` (=(Σk)²) with
+  a certificate — the LIVE engine; the response contains **no** "정적 빌드" / "라이브 엔진 없음" string.
+- `POST /api/math/solve {"problem":{"sum":"k**10"},"mode":"extend"}` → **EXACT** Faulhaber closed form (instant).
+- `POST /api/optimize` (CODE) → **200**; unstructured input → honest **live** DECLINE (not the static fallback).
+- Docker image build itself: **UNVERIFIED [no docker in sandbox]** — the CMD target (`server:app`) is verified
+  directly, which is exactly what the image runs.
 
 > **Branch change:** earlier notes pointed at `claude/funny-maxwell-im9x07`. Development now lives on
 > `claude/charming-brahmagupta-q4wwgh` (a superset of that branch + the MATH ascent and the new UI). Repoint
