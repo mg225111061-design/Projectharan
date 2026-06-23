@@ -6367,6 +6367,28 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_jump_threading():
+    """ROUND 2 (Group L, item 59) — jump threading / branch simplification (Z3, SOUND) — a VERIFIED transform.
+    A nested branch is redundant when the outer guard determines the inner test: Z3 proves outer⇒inner (always
+    True) or outer⇒¬inner (always False) ⇒ the inner branch threads to its constant outcome (behavior-preserving)
+    ⇒ EXACT. If the inner test is LIVE under the outer guard (Z3 counterexample) ⇒ DECLINE. Honest: graded as a
+    verified simplification (Clock-B) — pure-Python timing barely moves; the win is at the compiled/IR level."""
+    from pillar3 import jumpthread as JT
+    import kernel_verdict as KV
+
+    for nm, o, i in JT.redundant_branches():
+        r = JT.analyze_branch(nm, o, i)
+        assert r.verdict.status == KV.EXACT and r.redundant, f"{nm} should be a proven-redundant (threadable) branch"
+        assert r.verdict.certificate.kind == "branch_redundancy_proof" and r.verdict.certificate.delta is None
+    for nm, o, i in JT.live_branches():
+        r = JT.analyze_branch(nm, o, i)
+        assert r.verdict.status == KV.DECLINE and r.counterexample, f"{nm} is a LIVE branch ⇒ DECLINE+witness"
+
+    print(f"PASS test_round2_jump_threading ({len(JT.redundant_branches())} redundant nested branches PROVEN "
+          f"threadable (outer⇒inner constant) ⇒ EXACT verified simplification; {len(JT.live_branches())} live "
+          f"branches ⇒ Z3 counterexample ⇒ DECLINE — threading them would change behavior)")
+
+
 def test_round2_type_specialization():
     """ROUND 2 (Group G, items 32/34) — type specialization / devirtualization. A polymorphic per-element
     isinstance-dispatch site, when the input is PROVEN monomorphic (all the same concrete type), is specialized
