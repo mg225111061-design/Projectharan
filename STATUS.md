@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **206 passed / 206** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **207 passed / 207** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | NATIVE-CORE directive (§0.5 cleanup → §1 Rust core → §2 zero-dep SMT → §3 triage → §4 routing → §5 deps→0) |
+| Now building | NATIVE-CORE: §0.5 cleanup ✅ · §3 triage ✅ · §2 zero-dep SMT ✅ → next §1 Rust core · §4 routing · §5 deps→0 |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).
@@ -55,15 +55,24 @@ literal copies** — so a behaviour-preserving merge is a real refactor, not a d
   **tested** (not dead). Kept; the layering is intentional and documented.
 - **frontends (6):** distinct LANGUAGES (c/go/java/js/native…), not copies. tree-sitter convergence deferred
   (availability + a large rewrite); honest UNVERIFIED, not faked.
-Conclusion: no risky merge performed (the suite stays 205-green); the real e-graph unification is sequenced into
+Conclusion: no risky merge performed (the suite stays green); the real e-graph unification is sequenced into
 §1, the spec_* layering is kept, frontend→tree-sitter is deferred. Entropy reduced by MAPPING + the C1/C2 doc fixes.
 
 ## In progress / planned (NATIVE-CORE directive)
 - §0.5 cleanup: **C1 HANDOFF ✅ · C2 STATUS.md (this) + archive ✅ · C3 key wording ✅ · C4 mapped (e-graph→§1) ✅ · C5 versioning ✅ · C6 perf↔correctness gates ✅ · C-process stale-doc test ✅**.
-- §3 AST-depth fast-triage before the proof cache · §1 Rust core (arena AST, deterministic fixed-precision ring,
-  deterministic SIMD) · §2 zero-dependency bit-blasting SMT (CDCL SAT + certificate checker) · §4 multi-LLM
-  abstraction + mock · §5 dependency elimination. Native build / live egress marked **UNVERIFIED** where the
-  sandbox blocks, with the Python path as the verified fallback — never faked.
+- **§3 ✅** AST-depth fast-triage before the proof cache (`proof_triage.py`; deterministic route, lossless verdict;
+  regression demonstrated + fixed in `proof_cache.measure_triage`; `test_native_s3_triage_layer`).
+- **§2 ✅** ZERO-DEPENDENCY bit-blasting SMT (`bitblast_smt.py`: in-house DPLL SAT + bit-blaster + independent
+  certificate checker — no coqc/cvc5/Bitwuzla/Lean/Z3). Decides QF-bitvector (add/sub/mul-by-const/and/or/xor/not/
+  shift/eq/ult), EXACT *within the stated width* (bound = 2^w), deterministic (same result **and** certificate),
+  every SAT model re-checked by a tiny TCB. Wired into `pillar3/bv_validate.bv_equiv_inhouse` and cross-checked
+  against Z3 on the sound peepholes (`cross_check_inhouse_vs_z3` → all agree); `test_native_s2_bitblast_smt`.
+  **Honest scope (§X):** NOT cvc5/Z3 parity — no signed `>`, no division, no ite-mux, no arrays/reals/unbounded
+  ints; the overflow-unsafe peepholes (signed/division/ite) stay on Z3. Small TCB, zero deps — that's the point.
+- Next: **§1** Rust core (arena AST, deterministic fixed-precision CRT ring, deterministic SIMD, exhaustive/formal
+  equivalence) · **§4** multi-LLM routing abstraction + high-fidelity offline mock · **§5** dependency elimination.
+  Native build / live egress stay **UNVERIFIED** where the sandbox blocks, with the Python path as the verified
+  fallback — never faked.
 
 ## Known flakes (load-induced, NOT regressions — pass in isolation)
 `test_round2_sublinear_sketches` (HLL ε near boundary), `test_pillar3_stage2_compounding_loop` (timing),

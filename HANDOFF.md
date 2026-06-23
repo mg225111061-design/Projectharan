@@ -14,11 +14,11 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **206 통과 / 206** (`test_build.py`, 결정론 실행; 아래 명령) |
+| 테스트 | **207 통과 / 207** (`test_build.py`, 결정론 실행; 아래 명령) |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
-| 진행 중 | NATIVE-CORE 지시(§0.5 엔트로피 정리 → §1 Rust 코어 → §2 무의존 SMT → §4 멀티-LLM → §5 의존성 0) |
+| 진행 중 | NATIVE-CORE: §0.5 정리 ✅ · §3 triage ✅ · §2 무의존 SMT ✅ → 다음 §1 Rust 코어 · §4 멀티-LLM · §5 의존성 0 |
 
 **※ 오래된 과거 지시 무시:** 예전 HANDOFF는 "`haran-web/`를 Projectharan에 push하라"고 했다 — 그건 **이미 끝났다**.
 지금은 Projectharan 위에서 직접 개발 중이고, 앱은 `server.py`가 서빙한다. 그 작업은 더 이상 할 일이 아니다.
@@ -27,7 +27,7 @@
 ```bash
 cd /home/user/Projectharan
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 206 passed, 0 failed
+# … 207 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
 `test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
@@ -64,10 +64,10 @@ Render(Docker)에서 **Branch를 `claude/charming-brahmagupta-q4wwgh`로 지정*
 자세한 건 `DEPLOY_NOTES.md`.
 
 ## 5. 지금 할 일 (NATIVE-CORE 지시, 진행 중)
-순서: **§0.5 엔트로피 정리 먼저** (C1 이 HANDOFF 정정 ✅ → C2 STATUS.md 단일화+리포트 아카이브 → C3 키-보안 문구 정밀화 →
-C4 모듈 중복제거(e-graph/spec_*/frontend) → C5 버전체계 통일 → C6 perf↔correctness 게이트 분리) →
-§3 AST-깊이 fast-triage(캐시 앞단) → §1 Rust 코어(arena AST, 결정론 고정정밀 ring(CRT), 결정론 SIMD, 등가성 증명) →
-§2 무의존 bit-blasting SMT(자체 CDCL SAT + 인증서 체커) → §4 멀티-LLM 추상화+고충실 mock → §5 의존성 ~0.
+- **§0.5 엔트로피 정리 ✅** (C1 HANDOFF 정정 · C2 STATUS.md 단일화+리포트 아카이브 · C3 키-보안 문구 · C4 모듈 매핑(e-graph→§1) · C5 버전체계 · C6 perf↔correctness 분리 · C-process stale-doc 테스트).
+- **§3 ✅** AST-깊이 fast-triage(캐시 앞단, `proof_triage.py`) — 결정론 라우팅·무손실 판정·회귀 시연+수정(`proof_cache.measure_triage`).
+- **§2 ✅** 무의존 bit-blasting SMT(`bitblast_smt.py`: 자체 DPLL SAT + bit-blaster + 독립 인증서 체커, coqc/cvc5/Bitwuzla/Lean/Z3 전부 불필요). 고정폭 QF-비트벡터(add/sub/상수곱/and/or/xor/not/shift/eq/ult)를 **폭 내에서 EXACT**(경계 2^w)·결정론(결과+인증서 동일)·SAT 모델은 작은 TCB가 재검증. `pillar3/bv_validate.bv_equiv_inhouse`에 배선하고 sound peephole에서 Z3와 교차검증(`cross_check_inhouse_vs_z3` → 전부 일치). **정직한 범위(§X): cvc5/Z3 동급 아님** — 부호비교 `>`·나눗셈·ite-mux·배열/실수/무한정수 없음; overflow-unsafe peephole(부호/나눗셈/ite)은 Z3에 남김.
+- **다음**: §1 Rust 코어(arena AST, 결정론 고정정밀 ring(CRT), 결정론 SIMD, 유계-전수/형식 등가성) → §4 멀티-LLM 추상화+고충실 mock → §5 의존성 ~0.
 각 항목: 측정/증명, 등급, adversarial-wrong→DECLINE, 결정론 테스트, 커밋. §A2 대체(가짜 금지). 막히면 정직한 `UNVERIFIED[이유]`.
 완료 후 `STATUS.md` + `NATIVE_CORE_REPORT.md` 갱신. 멈추지 마라.
 

@@ -7811,6 +7811,64 @@ def test_mathascent_b4_solve_system():
           "{x+y=3,x−y=1}⇒(2,1); {x²+y²=1,y=x}⇒2 sols; {xy=6,x+y=5}⇒(2,3),(3,2); inconsistent ⇒ honest DECLINE)")
 
 
+def test_native_s2_bitblast_smt():
+    """§2 — ZERO-DEPENDENCY bit-blasting SMT (in-house DPLL SAT + bit-blaster + independent certificate checker;
+    no coqc/cvc5/Bitwuzla/Lean/Z3). It DECIDES fixed-width QF-bitvector obligations the CODE engine actually
+    generates (add/sub/mul-by-const/and/or/xor/not/shift/eq/ult) so those proofs need no external solver. Honest
+    scope (§X): a validity result is EXACT *within the stated width* (bound = 2^width), DETERMINISTIC (same input ⇒
+    same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT model is re-checked by a tiny
+    independent checker; ∀-validity is UNSAT of the negation over the whole w-bit domain). It is NOT cvc5/Z3
+    parity — no signed comparison, no division, no ite-mux, no arrays/reals/unbounded ints — and we never imply it."""
+    import bitblast_smt as S
+    from pillar3 import bv_validate as BV
+
+    # (a) FAITHFUL ZERO-DEP REPLACEMENT on its decidable subset: every sound machine-int peephole the engine proves
+    # with Z3 over bitvectors is decided VALID in-house too, and the two AGREE at the same width.
+    cc = BV.cross_check_inhouse_vs_z3()
+    assert cc["all_agree"], f"in-house must agree with Z3 (PROVEN) on every sound peephole: {cc['rows']}"
+    for row in cc["rows"]:
+        assert row["inhouse"] == "PROVEN" == row["z3"], row
+    # (b) HONEST SCOPE: the overflow-unsafe peepholes (signed `>` / division / ite-mux) are NOT claimed by the
+    # in-house solver — they stay on Z3. The list is non-empty and names exactly those three (no parity pretence).
+    assert cc["out_of_scope_for_inhouse"] == [n for n, *_ in BV.unsafe_peepholes()] and cc["out_of_scope_for_inhouse"], \
+        "must honestly declare the signed/division/ite peepholes OUT of the in-house theory"
+    # the VALID certificate states its bound (EXACT only within that width — never an unbounded claim)
+    res = S.prove_sound_peepholes()
+    for name, r in res.items():
+        assert r.status == "VALID" and (f"2^{r.width}" in r.certificate or f"width {r.width}" in r.certificate), \
+            f"{name}: VALID result must state its width bound 2^{r.width}"
+
+    # (c) a FALSE identity ⇒ INVALID with a counterexample that genuinely falsifies it (verified in Python mod 2^w)
+    def bad_succ(bb):
+        x = bb.var("x"); return (bb.add(x, bb.const(1)), x)            # x+1 == x is false on every machine int
+    inv = S.prove_bv_identity(bad_succ, 6)
+    assert inv.status == "INVALID" and inv.model is not None
+    xc = inv.model["x"]; assert (xc + 1) % (2 ** 6) != xc, "the counterexample must actually break x+1==x"
+
+    # (d) satisfiability: SAT returns a witness the checker verifies; UNSAT is a real proof of unsatisfiability
+    sat = S.solve_bv(lambda bb: bb.eq_lit(bb.mul_const(bb.var("x"), 3), bb.const(9)), 5)   # ∃x. 3x ≡ 9
+    assert sat.status == "SAT" and (sat.model["x"] * 3) % 32 == 9, sat
+    uns = S.solve_bv(lambda bb: bb.eq_lit(bb.mul_const(bb.var("x"), 2), bb.const(1)), 5)   # 2x ≡ 1 impossible (even≠odd)
+    assert uns.status == "UNSAT", uns
+
+    # (e) DETERMINISM: identical status, model AND certificate across independent runs (no wall-clock heuristics)
+    assert S.prove_bv_identity(bad_succ, 6).model == inv.model
+    s2 = S.solve_bv(lambda bb: bb.eq_lit(bb.mul_const(bb.var("x"), 3), bb.const(9)), 5)
+    assert (s2.status, s2.model, s2.certificate) == (sat.status, sat.model, sat.certificate)
+
+    # (f) the certificate checker is a REAL (tiny) TCB: it accepts the true model and REJECTS a 1-bit-corrupted one
+    bb = S.BitBlaster(4); x = bb.var("x"); bb.cnf.add(-bb.eq_lit(bb.add(x, bb.const(1)), x))
+    model = S._solve(bb.cnf.nvars, bb.cnf.clauses)
+    assert S._check_model(bb.cnf.clauses, model) is True
+    tampered = dict(model); k = next(iter(tampered)); tampered[k] = not tampered[k]
+    assert S._check_model(bb.cnf.clauses, tampered) is False, "checker must reject a corrupted model"
+
+    print(f"PASS test_native_s2_bitblast_smt (ZERO-DEP in-house SMT: {len(cc['rows'])} sound peepholes decided VALID "
+          f"and AGREEING with Z3 at matched width; INVALID x+1==x with checked cex x={xc}; SAT 3x≡9→x={sat.model['x']} "
+          f"+ UNSAT 2x≡1; deterministic result+certificate; tamper-rejecting checker; "
+          f"out-of-scope (stay on Z3): {cc['out_of_scope_for_inhouse']} — not Z3 parity, by design)")
+
+
 def test_native_s3_triage_layer():
     """§3 — AST-depth/complexity FAST-TRIAGE before the structural proof cache. The cache regresses on
     large-but-simple goals because canonical_key (α-rename + structural walk + sort) costs more than solving;

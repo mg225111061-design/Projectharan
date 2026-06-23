@@ -41,6 +41,44 @@ def bv_equiv(orig: Callable, opt: Callable, bits: int = 32, nvars: int = 2) -> T
     return "UNKNOWN", None
 
 
+def bv_equiv_inhouse(build: Callable, bits: int = 8) -> Tuple[str, Optional[dict]]:
+    """ZERO-DEPENDENCY counterpart of bv_equiv: decide ∀(bits-bit vars). lhs == rhs with the in-house bit-blasting
+    SMT (no Z3). `build(bb)` returns (lhs_BV, rhs_BV) over a `bitblast_smt.BitBlaster`. Same contract as bv_equiv —
+    PROVEN (UNSAT of ≠) / REFUTED (a checked counterexample) — but EXACT only WITHIN `bits` (the bound is stated by
+    the certificate) and only for this solver's QF-BV theory. Used to discharge in-scope obligations with no
+    external solver, and to cross-check Z3 where both apply. NOT Z3 parity (no signed `>`, division, or ite-mux)."""
+    import os
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root → bitblast_smt
+    import bitblast_smt as BB
+    r = BB.prove_bv_identity(build, bits)
+    if r.status == "VALID":
+        return "PROVEN", None
+    if r.status == "INVALID":
+        return "REFUTED", r.model
+    return "UNKNOWN", None
+
+
+def cross_check_inhouse_vs_z3() -> dict:
+    """Demonstrate the in-house solver is a FAITHFUL zero-dependency replacement for Z3 on its decidable subset:
+    prove every sound peephole BOTH ways at the SAME small width and assert agreement. The unsafe peepholes are
+    NOT cross-checked here — they need signed/division/ite, outside the in-house theory (honest scope, stays on Z3)."""
+    import os
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    import bitblast_smt as BB
+    z3_by_name = {name: (o, p) for name, o, p in sound_peepholes()}
+    rows = []
+    for name, build, width in BB.inhouse_sound_peepholes():
+        inhouse, _ = bv_equiv_inhouse(build, width)
+        orig, opt = z3_by_name[name]
+        z3v, _ = bv_equiv(orig, opt, bits=width, nvars=2)          # Z3 at the SAME width for a fair comparison
+        rows.append({"name": name, "width": width, "inhouse": inhouse, "z3": z3v, "agree": inhouse == z3v == "PROVEN"})
+    return {"rows": rows, "all_agree": all(r["agree"] for r in rows),
+            "covered": [r["name"] for r in rows],
+            "out_of_scope_for_inhouse": [n for n, *_ in unsafe_peepholes()]}  # honest: these stay on Z3
+
+
 def bv_grade(name: str, orig: Callable, opt: Callable, *, bits: int = 32, nvars: int = 2) -> BVResult:
     """EXACT iff the rewrite is PROVEN equivalent under machine (bitvector) semantics; REFUTED/UNKNOWN ⇒ DECLINE
     (keep the original — never an unsound 'safe'). A Clock-B verification verdict (machine-faithful refinement)."""
