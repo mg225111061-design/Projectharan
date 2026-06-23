@@ -8784,6 +8784,39 @@ def test_arsenal_t_structure_randomness():
           "Berlekamp–Massey, invents nothing])")
 
 
+def test_arsenal_transform_router():
+    """UNIFIED ARSENAL §4 — the transform-system ROUTER: classify an object → choose a transform that re-expresses
+    it into a §1–§3-closable form → dispatch → check the certificate → EXACT, else a PROVEN DECLINE naming the
+    obstruction. Deterministic (changes the PATH, never a grade). MEASURED coverage on a structured corpus —
+    HONEST: this is a CURATED capability corpus (one structured object per transform category), NOT a claim of
+    universal coverage; coverage is domain-conditional and objects outside the implemented transforms get an
+    honest DECLINE/weaker verdict (the moat). No fake universal 100% (§X)."""
+    import kernel_verdict as KV
+    from mathmode import transforms as TF
+
+    cov = TF.measure_coverage()
+    # every curated item routes to the right transform and yields its expected outcome (13 close EXACT, 2 DECLINE)
+    assert cov["as_expected"] == cov["n"], [r for r in cov["rows"] if not r["as_expected"]]
+    assert cov["exact"] >= 13 and cov["decline"] >= 2
+    # the two honest DECLINEs: a proven non-elementary integral and an unrecognized object (no fabricated route)
+    by_name = {r["name"]: r for r in cov["rows"]}
+    assert by_name["∫e^{x²} (non-elementary)"]["status"] == KV.DECLINE
+    assert by_name["unrecognized object"]["status"] == KV.DECLINE and by_name["unrecognized object"]["transform"] == "none"
+    # the router is deterministic (same object → same transform + status)
+    n1, v1 = TF.route({"type": "subshift", "A": [[1, 1], [1, 0]]})
+    n2, v2 = TF.route({"type": "subshift", "A": [[1, 1], [1, 0]]})
+    assert (n1, v1.status) == (n2, v2.status) == ("T-symbolic-dynamics", KV.EXACT)
+    # each transform category is exercised (the capability spread, not one path)
+    transforms_used = {r["transform"] for r in cov["rows"] if r["status"] != KV.DECLINE or r["transform"] != "none"}
+    assert {"T-symbolic-dynamics", "T-number-system", "T-structure+randomness", "T-algebraic-differential",
+            "T-physics"} <= {r["transform"] for r in cov["rows"]}
+
+    print(f"PASS test_arsenal_transform_router (router fires across all 5 transform categories; "
+          f"{cov['structured_closed']}/{cov['structured_corpus']} curated structured items closed "
+          f"({cov['structured_coverage_pct']}% on the CURATED capability corpus — NOT universal; domain-conditional), "
+          f"2 honest DECLINEs [∫e^{{x²}} non-elementary, unrecognized object]; deterministic routing)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.

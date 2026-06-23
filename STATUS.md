@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **231 passed / 231** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **232 passed / 232** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | **UNIFIED ARSENAL** (a transform system + b ~70 fold families + c physics) — foundational-first: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 physics: P7·P2·P6·P9·P5·P8·P1 ✅ · P3 Petrov ✅ · P4 Cartan–Karlhede ✅ (physics P1–P9 ✅) → §4 transforms: T-symbolic-dynamics·T-number-system·T-structure+randomness ✅ → **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 transforms. (NATIVE-CORE done: `NATIVE_CORE_REPORT.md`.) |
+| Now building | **UNIFIED ARSENAL** (a transform system + b ~70 fold families + c physics) — foundational-first: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 physics: P7·P2·P6·P9·P5·P8·P1 ✅ · P3 Petrov ✅ · P4 Cartan–Karlhede ✅ (physics P1–P9 ✅) → §4 transforms: T-symbolic-dynamics·T-number-system·T-structure+randomness ✅ · ROUTER ✅ (5 categories, curated coverage) → **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 transforms. (NATIVE-CORE done: `NATIVE_CORE_REPORT.md`.) |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).
@@ -102,7 +102,7 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
 ## Known flakes (load-induced, NOT regressions — pass in isolation)
 `test_round2_sublinear_sketches` (HLL ε near boundary), `test_pillar3_stage2_compounding_loop` (timing),
 absolute-threshold perf gates (`test_v40_phase2_structured_matrices`, `test_foldext2_stage*`),
-`test_native_s3_triage_layer` (asserts a measured cache-regression margin ~0.1s, noisy under load), and
+`test_native_s3_triage_layer` (cache-regression margin ~0.1s), `test_s12_structure_offload` (JOIN hash-rewrite timing), noisy under load, and
 `test_phaseV_equivalence_coverage` (couples a measured win-floor to the EXACT grade ⇒ noisy under parallel load;
 PROVEN-equivalence itself is stable — pass in isolation). C6 splits perf assertions out of the correctness suite so
 "0 regression" holds on any hardware; these remaining win-floor/threshold couplings are the next C6 candidates.
