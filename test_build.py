@@ -7811,6 +7811,38 @@ def test_mathascent_b4_solve_system():
           "{x+y=3,x−y=1}⇒(2,1); {x²+y²=1,y=x}⇒2 sols; {xy=6,x+y=5}⇒(2,3),(3,2); inconsistent ⇒ honest DECLINE)")
 
 
+def test_native_s3_triage_layer():
+    """§3 — AST-depth/complexity FAST-TRIAGE before the structural proof cache. The cache regresses on
+    large-but-simple goals because canonical_key (α-rename + structural walk + sort) costs more than solving;
+    a cheap O(size) meter (nodes/depth/hardness, no renaming) routes such goals straight to the solver. DETERMINISTIC
+    (same goal → same route ⇒ never affects a grade, only the path) and LOSSLESS (the solver still decides; the
+    triage-direct verdict equals a fresh solve). Measured: without triage the cache LOSES vs uncached; with triage
+    the overhead is removed — and a 'hard' goal (var·var / quantified) still routes to the cache."""
+    import proof_triage as PT
+    import z3_adapter as Z
+    import proof_cache as PC
+
+    # the meter is a deterministic function of the AST
+    big = Z.parse_predicate(" + ".join(f"x{i}" for i in range(120)) + " >= 0",
+                            {f"x{i}": "Int" for i in range(120)})
+    n1, d1, h1 = PT.complexity(big, [])
+    assert (n1, d1, h1) == PT.complexity(big, []), "complexity must be deterministic"
+    assert n1 >= PT.BIG_NODES and h1 == 0 and PT.route(n1, d1, h1) == "solver_direct", "large-simple ⇒ solver_direct"
+    # a structurally-rich / nonlinear goal stays on the cache path (canonicalization pays off there)
+    hard = Z.parse_predicate("a*b >= a + b", {"a": "Int", "b": "Int"})
+    nh, dh, hh = PT.complexity(hard, [])
+    assert hh >= 1 and PT.route(nh, dh, hh) == "cache", "nonlinear var·var ⇒ keep the cache"
+
+    # the regression vanishes, deterministically and losslessly
+    m = PC.measure_triage(k_terms=120, n_goals=24)
+    assert m["all_routed_direct"] and m["deterministic"] and m["lossless_mismatches"] == 0
+    assert m["regressed_without_triage"] and m["fixed_with_triage"], "cache regresses w/o triage; triage fixes it"
+
+    print(f"PASS test_native_s3_triage_layer (large-simple goal [{n1} nodes, hardness 0] → solver_direct, "
+          f"nonlinear a·b → cache; DETERMINISTIC + LOSSLESS [0 mismatches]; cache regressed w/o triage "
+          f"({m['triage_off_s']}s > {m['uncached_s']}s uncached), triage removed {m['overhead_removed_pct']}% overhead)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.

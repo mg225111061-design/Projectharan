@@ -59,6 +59,7 @@ def canonical_key(goal, var_types: Dict[str, str], assumptions: List = ()) -> Tu
 class _Stats:
     hits: int = 0
     misses: int = 0
+    triaged_direct: int = 0          # §3: large-but-simple goals routed straight to the solver (cache skipped)
 
     def rate(self) -> float:
         tot = self.hits + self.misses
@@ -76,12 +77,24 @@ SEMANTIC_ENABLED = False
 
 def reset():
     _CACHE.clear()
-    STATS.hits = STATS.misses = 0
+    STATS.hits = STATS.misses = STATS.triaged_direct = 0
+
+
+# §3 toggle (default ON): the fast-triage layer before the cache. OFF ⇒ byte-identical to the pre-§3 path.
+TRIAGE_ENABLED = True
 
 
 def prove_forall_cached(goal, var_types: Dict[str, str], assumptions: List = ()):
-    """prove_forall with a structural cache. Cache hits skip the solver entirely. When SEMANTIC_ENABLED, a
-    structural MISS falls through to a lossless semantic 2nd level before the solver (A3, break-even gated)."""
+    """prove_forall with a structural cache. Cache hits skip the solver entirely. §3: a cheap O(size) triage runs
+    FIRST — a large-but-simple goal (many nodes, solver-easy) is routed straight to the solver, skipping the
+    canonical_key α-rename whose cost would exceed the solve. The verdict is identical either way (lossless —
+    the solver still decides); triage only changes the PATH. When SEMANTIC_ENABLED, a structural MISS falls
+    through to a lossless semantic 2nd level before the solver (A3, break-even gated)."""
+    if TRIAGE_ENABLED:
+        import proof_triage as PT
+        if PT.route(*PT.complexity(goal, assumptions)) == "solver_direct":
+            STATS.triaged_direct += 1
+            return Z.prove_forall(goal, var_types, list(assumptions))   # skip canonicalization (it'd cost more)
     key = canonical_key(goal, var_types, assumptions)
     if key in _CACHE:
         STATS.hits += 1
@@ -136,3 +149,53 @@ def measure_cache(workload) -> dict:
             "hit_rate": STATS.rate(), "lossless_mismatches": mismatches,
             "cached_s": round(cached_s, 4), "uncached_s": round(uncached_s, 4),
             "speedup": round(uncached_s / cached_s, 1) if cached_s else 0.0}
+
+
+def measure_triage(k_terms: int = 120, n_goals: int = 24) -> dict:
+    """§3 regression demo + fix. Build n DISTINCT large-but-simple linear goals (no cache hits ⇒ canonical_key is
+    pure overhead). Without triage the structural cache LOSES (canonicalization > solve); WITH triage the goals
+    route straight to the solver and the overhead vanishes. Verdicts are identical (lossless); routes deterministic."""
+    import time
+    import z3_adapter as Z
+    import proof_triage as PT
+    global TRIAGE_ENABLED
+
+    goals = []
+    for g in range(n_goals):
+        terms = " + ".join(f"x{i}" for i in range(k_terms))
+        pred = f"{terms} >= {terms} - {g + 1}"               # distinct per g, still linear & true (hardness 0)
+        vt = {f"x{i}": "Int" for i in range(k_terms)}
+        goals.append((Z.parse_predicate(pred, vt), vt))
+
+    routes = [PT.route(*PT.complexity(go, [])) for go, _ in goals]
+    routes2 = [PT.route(*PT.complexity(go, [])) for go, _ in goals]   # determinism: same route every time
+    nodes0, depth0, hard0 = PT.complexity(goals[0][0], [])
+
+    def run() -> float:
+        reset()
+        t = time.perf_counter()
+        for go, vt in goals:
+            prove_forall_cached(go, vt)
+        return time.perf_counter() - t
+
+    saved = TRIAGE_ENABLED
+    TRIAGE_ENABLED = False
+    off_s = run()                                            # cache pays canonical_key on every distinct goal
+    TRIAGE_ENABLED = True
+    on_s = run()
+    direct = STATS.triaged_direct
+    t = time.perf_counter()
+    for go, vt in goals:                                     # uncached baseline (no cache, no canonicalization)
+        Z.prove_forall(go, vt, [])
+    uncached_s = time.perf_counter() - t
+    mism = 0
+    for go, vt in goals:                                     # lossless: triage-direct verdict == fresh solve
+        if prove_forall_cached(go, vt).verdict != Z.prove_forall(go, vt, []).verdict:
+            mism += 1
+    TRIAGE_ENABLED = saved
+    return {"k_terms": k_terms, "n_goals": n_goals, "nodes_per_goal": nodes0, "depth": depth0, "hardness": hard0,
+            "all_routed_direct": direct == n_goals, "deterministic": routes == routes2,
+            "triage_off_s": round(off_s, 4), "triage_on_s": round(on_s, 4), "uncached_s": round(uncached_s, 4),
+            "regressed_without_triage": off_s > uncached_s, "fixed_with_triage": on_s <= off_s,
+            "overhead_removed_pct": round((off_s - on_s) / off_s * 100, 1) if off_s else 0.0,
+            "lossless_mismatches": mism}
