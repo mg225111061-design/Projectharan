@@ -8543,6 +8543,34 @@ def test_arsenal_p8_lagrangian():
           "(y∂_y sym of y′=y, ∂_y not, ∂_x sym of autonomous) — re-substitution certified)")
 
 
+def test_arsenal_p1_tensor_canon():
+    """UNIFIED ARSENAL §3·P1 — Butler–Portugal tensor canonicalization (mono-term DECISION). Slot symmetries form
+    a signed permutation group; the canonical form is the orbit-minimal signed image, so tensor EQUALITY and the
+    ZERO tensor are decidable. Schreier–Sims supplies the BSGS backbone (group order verified). Certificate:
+    orbit-invariance of the canonical form. Honest scope (§X): mono-term only — multi-term (Bianchi) needs Young
+    projectors, flagged."""
+    import kernel_verdict as KV
+    from mathmode import tensor_canon as TC
+
+    # symmetric vs antisymmetric rank-2
+    assert TC.decide_equal(["b", "a"], ["a", "b"], TC.symmetric_pair()).result == "equal"        # g_ba = g_ab
+    assert TC.decide_equal(["b", "a"], ["a", "b"], TC.antisymmetric_pair()).result == "negatives"  # F_ba = −F_ab
+    assert TC.canonicalize(["a", "a"], TC.antisymmetric_pair()).result["zero"] is True            # F_aa = 0
+    assert TC.canonicalize(["a", "a"], TC.symmetric_pair()).result["zero"] is False               # T_aa ≠ 0
+
+    # Riemann mono-term symmetries: R_cdab=R_abcd, R_bacd=−R_abcd, R_acbd independent
+    assert TC.decide_equal(["c", "d", "a", "b"], ["a", "b", "c", "d"], TC.riemann()).result == "equal"
+    assert TC.decide_equal(["b", "a", "c", "d"], ["a", "b", "c", "d"], TC.riemann()).result == "negatives"
+    assert TC.decide_equal(["a", "b", "c", "d"], ["a", "c", "b", "d"], TC.riemann()).result == "independent"
+    vc = TC.canonicalize(["d", "c", "b", "a"], TC.riemann())
+    assert vc.status == KV.EXACT and vc.result["canonical"] == ("a", "b", "c", "d") and vc.result["sign"] == 1
+    assert "group order 8" in vc.certificate.detail and vc.certificate.kind == "butler_portugal_orbit"
+
+    print("PASS test_arsenal_p1_tensor_canon (Butler–Portugal mono-term: g_ba=g_ab, F_ba=−F_ab, F_aa=0, Riemann "
+          "R_cdab=R_abcd & R_bacd=−R_abcd & R_acbd independent, R_dcba→canonical (Schreier–Sims group order 8); "
+          "orbit-invariance certified; multi-term/Bianchi flagged future)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
