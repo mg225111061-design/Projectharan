@@ -7648,7 +7648,8 @@ def test_mathascent_b4_natural_input():
         "pell 61": ("number_theory", "pell"), "zeta(2)": ("special_functions", "zeta_even"),
         "gamma(5)": ("special_functions", "gamma"), "gamma(5/2)": ("special_functions", "gamma"),
         "solve x^2-5*x+6": ("algebra", "solve_poly"), "roots of x^2-5*x+6=0": ("algebra", "solve_poly"),
-        "x^2+1 >= 0": ("inequalities", "nonneg"),
+        "x^2+1 >= 0": ("inequalities", "nonneg"), "integrate x^2": ("calculus", "integrate"),
+        "∫ sin(x) dx": ("calculus", "integrate"),
     }
     for text, (dom, op) in routed.items():
         p = S.parse_problem(text)

@@ -214,6 +214,9 @@ def _parse_natural(s: str) -> dict:
     msv = re.fullmatch(r"(?:solve|roots?(?:\s+of)?)\s+(.+?)(?:\s*=\s*0)?", t, re.IGNORECASE)
     if msv and "x" in msv.group(1):
         return {"domain": "algebra", "op": "solve_poly", "poly": msv.group(1).strip().replace("^", "**")}
+    mi = re.fullmatch(r"(?:integrate|∫)\s+(.+?)(?:\s*d\s*x)?", t, re.IGNORECASE)
+    if mi and "x" in mi.group(1):
+        return {"domain": "calculus", "op": "integrate", "f": mi.group(1).strip().replace("^", "**")}
     mnn = re.fullmatch(r"(.+?)\s*(?:>=|≥)\s*0", t)
     if mnn and "x" in mnn.group(1):
         return {"domain": "inequalities", "op": "nonneg", "poly": mnn.group(1).strip().replace("^", "**")}

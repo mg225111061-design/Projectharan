@@ -131,6 +131,14 @@ def _suite() -> List[Problem]:
         Problem("Pell x²−61y²=1", "number_theory",
                 {"domain": "number_theory", "op": "pell", "N": 61}, KV.EXACT,
                 lambda v: v.result[0] ** 2 - 61 * v.result[1] ** 2 == 1),
+        Problem("∫ x² dx (diff-verified)", "calculus",
+                {"domain": "calculus", "op": "integrate", "f": sp.Symbol("x") ** 2}, KV.EXACT,
+                lambda v: sp.simplify(v.result - sp.Symbol("x") ** 3 / 3) == 0),
+        Problem("∫ x^x dx (no closed form)", "calculus",
+                {"domain": "calculus", "op": "integrate", "f": sp.Symbol("x") ** sp.Symbol("x")}, KV.DECLINE, None),
+        Problem("interpolate (0,0)(1,1)(2,4)", "algebra",
+                {"domain": "algebra", "op": "interpolate", "points": [(0, 0), (1, 1), (2, 4)]}, KV.EXACT,
+                lambda v: sp.simplify(v.result - sp.Symbol("x") ** 2) == 0),
     ]
 
 
