@@ -8296,6 +8296,39 @@ def test_arsenal_s2_summation_decisions():
           "rationally summable; wrong solution 3ⁿ rejected — closed-form-or-proven-none, each a DECISION)")
 
 
+def test_arsenal_s2_integration_decisions():
+    """UNIFIED ARSENAL §2 (integration) — DECISION PROCEDURES: Risch (elementary integration) + Kovacic
+    (Liouvillian 2nd-order ODE solutions). "Closed form OR proof of non-existence", each with OUR certificate:
+    Risch's EXACT antiderivative is differentiate-and-checked (F′=f); the non-elementary integrals ∫e^{x²}, ∫e^x/x
+    are the PROVEN DECLINE (Liouville). Kovacic's Liouvillian solution is ODE-substitution-checked; the Airy
+    equation (non-Liouvillian) is the honest DECLINE. sympy SEARCHES, our checks PROVE — a wrong result is rejected."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import decision_integration as DI
+    x = DI._x
+
+    # RISCH — elementary side (F′=f certified) vs non-elementary side (Liouville DECLINE)
+    v1 = DI.risch_elementary(2 * x * sp.exp(x ** 2))
+    assert v1.status == KV.EXACT and sp.simplify(sp.diff(v1.result, x) - 2 * x * sp.exp(x ** 2)) == 0
+    assert v1.certificate.kind == "risch_differentiate"
+    assert DI.risch_elementary(1 / x).status == KV.EXACT
+    assert DI.risch_elementary(sp.exp(x ** 2)).status == KV.DECLINE         # ∫e^{x²} non-elementary (Liouville)
+    assert DI.risch_elementary(sp.exp(x) / x).status == KV.DECLINE          # ∫e^x/x = Ei, non-elementary
+
+    # KOVACIC — Liouvillian (substitution-certified) vs non-Liouvillian Airy (honest DECLINE)
+    k1 = DI.kovacic_liouvillian([-1, 0, 1])                                 # y″−y=0 ⇒ e^{±x}
+    assert k1.status == KV.EXACT and sp.simplify(k1.result.diff(x, 2) - k1.result) == 0
+    assert k1.certificate.kind == "kovacic_substitution"
+    k2 = DI.kovacic_liouvillian([-1, x, x ** 2])                            # Euler x²y″+xy′−y=0 ⇒ x, 1/x
+    assert k2.status == KV.EXACT
+    assert sp.simplify(x ** 2 * k2.result.diff(x, 2) + x * k2.result.diff(x) - k2.result) == 0
+    assert DI.kovacic_liouvillian([-x, 0, 1]).status == KV.DECLINE          # Airy y″−xy=0 ⇒ non-Liouvillian
+
+    print("PASS test_arsenal_s2_integration_decisions (Risch: ∫2x·e^{x²}=e^{x²} [F′=f certified], ∫e^{x²} & ∫e^x/x "
+          "PROVEN non-elementary (Liouville); Kovacic: y″−y=0→e^{±x} & Euler→{x,1/x} [ODE-substitution certified], "
+          "Airy y″−xy=0 → non-Liouvillian DECLINE — closed-form-or-proven-none)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
