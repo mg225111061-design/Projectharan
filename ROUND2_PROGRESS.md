@@ -22,7 +22,7 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 37. ☐ request batching/coalescing (N calls→1)
 38. ☐ auto-parallelize independent loops (ProcessPool; Amdahl-gated)
 39. ☑ map-reduce / monoid recognition (Z3) — operator associativity PROVEN ⇒ tree/parallel reduction ≡ sequential fold EXACT (data-parallel-safe; add/mul/max/min/or); non-associative (subtract/average)→DECLINE+counterexample [test_round2_monoid_mapreduce; pillar3/monoid.py]
-40. ☐ serialization swap (marshal real; orjson/msgpack ⚠[lib])
+40. ☑ serialization swap json→marshal — lossless round-trip (verified) ~3.3× PROBABILISTIC; lossy serializer→DECLINE; orjson/msgpack ⚠[lib absent] [test_round2_serialization_swap; round2.py]
 ## Group I — waiting-elimination (bet on the future, NOT caching)
 41. ☐ speculative execution + rollback (report misspeculation δ)
 42. ☐ speculative parallel branches (compute both, select)

@@ -6367,6 +6367,23 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_serialization_swap():
+    """ROUND 2 (Group H, item 40) — serialization swap json→marshal: a lossless representation swap, measured.
+    The fast round-trip must reproduce the object EXACTLY (differential) AND measure a whole-program win;
+    PROBABILISTIC (round-trip verified on the workload, never EXACT). A lossy serializer (drops a record) ⇒
+    differential catches ⇒ DECLINE."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    v = R2.serialization_grade(lambda: R2._make_serial_obj(4000), n=4000, samples=5)
+    assert v.status == KV.PROBABILISTIC and v.certificate.kind == "lossless_serialization_swap"
+    assert v.report.whole_program_ratio <= v.report.amdahl_ceiling + 1e-9 and v.report.whole_program_ratio >= 1.5
+    vw = R2.serialization_grade(lambda: R2._make_serial_obj(4000), fast_fn=R2.marshal_roundtrip_lossy, n=4000, samples=2)
+    assert vw.status == KV.DECLINE, "a lossy serializer must DECLINE"
+    print(f"PASS test_round2_serialization_swap (json→marshal round-trip lossless (verified) ×{v.report.whole_program_ratio:.1f} "
+          f"≤ ceiling, PROBABILISTIC; a lossy serializer ⇒ differential ⇒ DECLINE)")
+
+
 def test_round2_monoid_mapreduce():
     """ROUND 2 (Group H, item 39) — map-reduce / monoid recognition (Z3, SOUND). A reduction can be re-associated
     into a parallel/tree reduction ONLY if the operator is ASSOCIATIVE; we prove it with Z3. Associative ⇒ the

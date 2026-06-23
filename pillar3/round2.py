@@ -362,3 +362,46 @@ def _make_card_stream(n: int = 200000):
 def _make_freq_stream(n: int = 80000, keys: int = 800):
     rng = _rnd.Random(_rnd.Random().random())
     return [rng.randrange(keys) for _ in range(n)]
+
+
+# ── item 40 — serialization swap: json round-trip → marshal round-trip (lossless, measured) ──────────────
+import json as _json
+import marshal as _marshal
+
+
+def json_roundtrip(o):
+    return _json.loads(_json.dumps(o))
+
+
+def marshal_roundtrip(o):
+    return _marshal.loads(_marshal.dumps(o))
+
+
+def marshal_roundtrip_lossy(o):                            # adversarial: drops the last record ⇒ differential catches
+    data = _marshal.dumps(o)
+    out = _marshal.loads(data)
+    return out[:-1] if isinstance(out, list) and out else out
+
+
+def _make_serial_obj(n: int = 4000):
+    return [{"id": i, "name": f"row-{i}", "vals": [i, i * 2, i * 3], "ok": i % 2 == 0} for i in range(n)]
+
+
+def serialization_grade(make_obj, fast_fn=None, *, n: int, samples: int = 5, residual_iters: int = 0, floor: float = 1.20):
+    """A serialization round-trip swap (json→marshal): the fast round-trip must reproduce the object EXACTLY
+    (differential) AND measure a whole-program win. Lossless+win ⇒ PROBABILISTIC (round-trip verified on the
+    workload, not proven for all objects ⇒ never EXACT); a lossy serializer ⇒ DECLINE."""
+    fast_fn = fast_fn or marshal_roundtrip
+    o = make_obj()
+    if json_roundtrip(o) != o or fast_fn(o) != o:
+        return KV.decline("serialization round-trip is LOSSY (≠ original) ⇒ DECLINE", "serialize")
+    rep = LF.measure_lift(lambda x: json_roundtrip(x), lambda x: fast_fn(x), lambda: (o,), residual_iters, n=n, samples=samples)
+    if not rep.beats(floor):
+        v = KV.decline(f"serialization swap but no whole-program win (×{rep.whole_program_ratio:.2f}) ⇒ DECLINE", "serialize")
+        v.report = rep
+        return v
+    cert = KV.Cert(KV.PROBABILISTIC, "lossless_serialization_swap", passed=True, check_cost="round-trip==original",
+                   delta=1e-6, detail=f"marshal round-trip lossless on the workload (verified), ×{rep.whole_program_ratio:.2f}")
+    v = KV.probabilistic(fast_fn, "serialize", str(rep), cert)
+    v.report = rep
+    return v
