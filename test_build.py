@@ -7741,6 +7741,34 @@ def test_mathascent_b4_diff_taylor():
           "d/dx(x·sin x)=sin x+x·cos x]; Taylor self-certified by T⁽ᵏ⁾(a)=f⁽ᵏ⁾(a) [eˣ, cos, log]; 1/x@0 ⇒ DECLINE)")
 
 
+def test_mathascent_b4_logic():
+    """§B4 (arsenal deepening) — LOGIC / VERIFICATION decided by Z3, with machine-checked certificates. A
+    TAUTOLOGY is ¬φ UNSAT (a-priori proof); a non-tautology yields a concrete counterexample; SAT yields a model
+    VERIFIED by substitution; UNSAT is a Z3 proof; equivalence is the tautology of (f↔g). Excluded middle &
+    De Morgan are tautologies; a&¬a is UNSAT; (a→b)≡(¬a|b); (a&b)≢(a|b) with a witness. Routed (17 families)."""
+    import sympy as sp
+    from mathmode import logic as L
+    import kernel_verdict as KV
+
+    a, b = sp.symbols("a b")
+    assert L.tautology_grade(a | ~a).result is True
+    assert L.tautology_grade(sp.Equivalent(~(a & b), ~a | ~b)).result is True, "De Morgan"
+    nt = L.tautology_grade(a | b)
+    assert nt.status == KV.EXACT and nt.result["tautology"] is False and "counterexample" in nt.result
+    sat = L.satisfiable_grade((a | b) & ~a)
+    assert sat.status == KV.EXACT and sat.result["satisfiable"] is True
+    assert L.satisfiable_grade(a & ~a).result["satisfiable"] is False, "a∧¬a UNSAT (Z3 proof)"
+    assert L.equivalent_grade(sp.Implies(a, b), ~a | b).result["equivalent"] is True
+    ne = L.equivalent_grade(a & b, a | b)
+    assert ne.result["equivalent"] is False and "counterexample" in ne.result
+    from mathmode import solver as S
+    assert S.solve({"domain": "logic", "op": "tautology", "formula": a | ~a}).verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_b4_logic (Z3-decided: excluded-middle & De Morgan tautologies [¬φ UNSAT proof], "
+          "non-tautology ⇒ counterexample, SAT ⇒ verified model, a∧¬a ⇒ UNSAT proof, (a→b)≡(¬a∨b), (a∧b)≢(a∨b) "
+          "with a witness; solver = 17 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

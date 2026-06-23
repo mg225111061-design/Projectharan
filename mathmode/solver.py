@@ -33,6 +33,7 @@ from mathmode import differential as DE
 from mathmode import graph as GR
 from mathmode import special_functions as SF2
 from mathmode import calculus as CAL
+from mathmode import logic as LG
 
 
 @dataclass
@@ -98,7 +99,7 @@ _ARSENAL = {
     "geometry": GE.solve, "certified_numeric": CN.solve, "combinatorics": CB.summation,
     "optimization": OPT.solve, "science_engineering": SE.solve,
     "probability": PR.solve, "inequalities": IQ.solve, "differential": DE.solve, "graph": GR.solve,
-    "special_functions": SF2.solve, "calculus": CAL.solve,
+    "special_functions": SF2.solve, "calculus": CAL.solve, "logic": LG.solve,
 }
 
 
