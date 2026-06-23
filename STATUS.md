@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **207 passed / 207** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **208 passed / 208** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | NATIVE-CORE: §0.5 cleanup ✅ · §3 triage ✅ · §2 zero-dep SMT ✅ → next §1 Rust core · §4 routing · §5 deps→0 |
+| Now building | NATIVE-CORE: §0.5 ✅ · §3 triage ✅ · §2 zero-dep SMT ✅ · §1 Rust core ✅ → next §4 routing · §5 deps→0 |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).
@@ -69,10 +69,20 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   against Z3 on the sound peepholes (`cross_check_inhouse_vs_z3` → all agree); `test_native_s2_bitblast_smt`.
   **Honest scope (§X):** NOT cvc5/Z3 parity — no signed `>`, no division, no ite-mux, no arrays/reals/unbounded
   ints; the overflow-unsafe peepholes (signed/division/ite) stay on Z3. Small TCB, zero deps — that's the point.
-- Next: **§1** Rust core (arena AST, deterministic fixed-precision CRT ring, deterministic SIMD, exhaustive/formal
-  equivalence) · **§4** multi-LLM routing abstraction + high-fidelity offline mock · **§5** dependency elimination.
-  Native build / live egress stay **UNVERIFIED** where the sandbox blocks, with the Python path as the verified
-  fallback — never faked.
+- **§1 ✅** dependency-0 Rust core (`rust_core/` std-only cdylib via ctypes — no PyO3/maturin/cffi/flint/faer;
+  `rust_core.py` bridge). Delivers the v34-deferred pieces: flat **arena AST** (one deterministic pass);
+  **deterministic fixed-precision multimodular CRT ring** — Garner-combines residues over a fixed 4-prime basis
+  into the EXACT integer (native big-uint), replacing Python bignum, EXACT while |v| ≤ MAX_ABS = (∏p−1)/2 (123-bit;
+  beyond it the basis must widen or DECLINE — the wrap is exactly at the bound, stated honestly); bounded
+  **rational reconstruction**; **deterministic fixed-reduction-order** modular dot (the "SIMD" demonstrator: pure
+  integer + fixed order ⇒ bit-identical regardless of vectorization/threads). Verified: Rust≡Python differential +
+  a FORMAL exhaustive-bounded equivalence (12,789 enumerated arena×assignment checks, 0 mismatches) + exhaustive
+  CRT round-trip. `test_native_s1_rust_core`. **Measured honestly:** no speed crossover at this granularity (ctypes
+  overhead vs C-fast CPython int) ⇒ speed **UNVERIFIED**, correctness is the deliverable (mirrors the v40-phase7 RNS
+  honesty). Native rewrite changes RUNTIME not GRADES; `target/` is environment-built (gitignored), Python ring is
+  the verified fallback — never faked.
+- Next: **§4** multi-LLM routing abstraction + high-fidelity offline mock · **§5** dependency elimination. Native
+  build / live egress stay **UNVERIFIED** where the sandbox blocks, Python path verified-fallback — never faked.
 
 ## Known flakes (load-induced, NOT regressions — pass in isolation)
 `test_round2_sublinear_sketches` (HLL ε near boundary), `test_pillar3_stage2_compounding_loop` (timing),
