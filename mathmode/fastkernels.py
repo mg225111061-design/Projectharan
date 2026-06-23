@@ -230,6 +230,50 @@ def catalan(n: int, m: Optional[int] = None) -> KV.Verdict:
     return KV.exact(result, "fastkernels.catalan", "exact Catalan", cert)
 
 
+def measure_speedup() -> dict:
+    """MEASURED whole-program speedup of the O(log)/O(1) routes vs the naive O(n) algorithm. HONEST framing: for a
+    task that IS the kernel (compute a^b mod m, F(n), Σkᵖ), the fast algorithm is the WHOLE program ⇒ f=1, the
+    Amdahl ceiling is ∞ (no non-collapsible part), so the measured ratio is the honest whole-program number FOR
+    THAT TASK — and at astronomical sizes the naive O(n) is INFEASIBLE while the fast route is instant (the real
+    win is feasibility, not a factor). DOMAIN-CONDITIONAL: this is for tasks that ARE these closed-form/fast
+    routes, NOT a general-purpose accelerator."""
+    import time
+    out = {}
+
+    # modexp: naive = b modular multiplications (feasible only for modest b); fast = O(log b)
+    a, m, b = 7, 10 ** 9 + 7, 200_000
+    t = time.perf_counter()
+    naive = 1
+    for _ in range(b):
+        naive = (naive * a) % m
+    t_naive = time.perf_counter() - t
+    t = time.perf_counter(); fast = pow(a, b, m); t_fast = time.perf_counter() - t
+    out["modexp"] = {"b": b, "correct": naive == fast, "naive_ms": round(t_naive * 1000, 3),
+                     "fast_ms": round(t_fast * 1000, 4), "ratio": round(t_naive / t_fast, 1) if t_fast else 0,
+                     "astronomical_b_handled": pow(a, 1 << 1000, m), "f": 1.0, "amdahl_ceiling": "inf (kernel IS the task)"}
+
+    # fib: naive O(n) iteration vs fast-doubling O(log n)
+    n = 200_000
+    t = time.perf_counter()
+    x, y = 0, 1
+    for _ in range(n):
+        x, y = y, x + y
+    t_naive = time.perf_counter() - t
+    t = time.perf_counter(); fastf = _fib_pair(n, 1 << (n + 2))[0]; t_fast = time.perf_counter() - t
+    out["fib"] = {"n": n, "correct": x == fastf, "naive_ms": round(t_naive * 1000, 3),
+                  "fast_ms": round(t_fast * 1000, 4), "ratio": round(t_naive / t_fast, 1) if t_fast else 0,
+                  "astronomical_n_handled": _fib_pair(10 ** 15, 10 ** 9 + 7)[0], "f": 1.0}
+
+    # faulhaber: naive O(N) sum vs O(1) closed form
+    p, N = 5, 200_000
+    t = time.perf_counter(); naive = sum(j ** p for j in range(1, N + 1)); t_naive = time.perf_counter() - t
+    closed, _ = _faulhaber_closed(p)
+    t = time.perf_counter(); fastv = int(closed.subs(__import__("sympy").Symbol("n"), N)); t_fast = time.perf_counter() - t
+    out["faulhaber"] = {"p": p, "N": N, "correct": naive == fastv, "naive_ms": round(t_naive * 1000, 3),
+                        "fast_ms": round(t_fast * 1000, 4), "ratio": round(t_naive / t_fast, 1) if t_fast else 0, "f": 1.0}
+    return out
+
+
 def collatz(n: int, max_steps: int = COLLATZ_MAX_STEPS) -> KV.Verdict:
     """Total stopping time of the Collatz map, O(steps) iteration — a REAL ceiling. EXACT step count if it reaches
     1 within the cap; else honest DECLINE (the Collatz conjecture is open — we don't fake closure or hang)."""

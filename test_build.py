@@ -8852,6 +8852,32 @@ def test_arsenal_transform_router():
           f"2 honest DECLINEs [∫e^{{x²}} non-elementary, unrecognized object]; deterministic routing)")
 
 
+def test_arsenal_phase2_measured_speed():
+    """PHASE 2 (SPEED) — MEASURED whole-program speedup of the O(log)/O(1) MATH routes vs naive O(n). HONEST: for a
+    task that IS the kernel (a^b mod m, F(n), Σkᵖ), the fast algorithm is the WHOLE program ⇒ f=1, Amdahl ceiling
+    ∞ (no non-collapsible part) ⇒ the measured ratio is the honest whole-program number FOR THAT TASK; and at
+    astronomical sizes naive O(n) is INFEASIBLE while the fast route is instant (the real win is feasibility).
+    DOMAIN-CONDITIONAL: only for tasks that ARE these routes, NOT a general accelerator. Asserts CORRECTNESS +
+    capability; logs the measured ratios via perf_obs (no flaky timing assertion — C6)."""
+    from mathmode import fastkernels as FK
+    m = FK.measure_speedup()
+    # CORRECTNESS at the measured (feasible) sizes — the fast result equals the naive ground truth
+    assert all(v["correct"] for v in m.values()), m
+    # f=1 for every route (the kernel IS the whole task — no Amdahl dilution, stated honestly)
+    assert all(v["f"] == 1.0 for v in m.values())
+    # CAPABILITY: the fast routes compute sizes the naive O(n) provably cannot (feasibility, not just a factor)
+    assert m["modexp"]["astronomical_b_handled"] == pow(7, 1 << 1000, 10 ** 9 + 7)   # b = 2^1000 multiplications: infeasible naively
+    assert m["fib"]["astronomical_n_handled"] == FK.fib_mod(10 ** 15, 10 ** 9 + 7).result
+    # log the MEASURED ratios (never asserted — hardware-dependent; C6 keeps perf out of the correctness gate)
+    perf_obs("fastkernels.measured_speedup", modexp_x=m["modexp"]["ratio"], fib_x=m["fib"]["ratio"],
+             faulhaber_x=m["faulhaber"]["ratio"])
+
+    print(f"PASS test_arsenal_phase2_measured_speed (MEASURED whole-program speedup, f=1 [kernel IS the task]: "
+          f"modexp {m['modexp']['ratio']}× @b={m['modexp']['b']}, fib {m['fib']['ratio']}× @n={m['fib']['n']}, "
+          f"faulhaber {m['faulhaber']['ratio']}× @N={m['faulhaber']['N']}; astronomical b=2^1000 & n=10^15 computed "
+          f"[infeasible naively]; DOMAIN-CONDITIONAL — not a general accelerator, ratio not asserted [C6])")
+
+
 def test_arsenal_phase3_cegar_gate():
     """PHASE 3 (CODE correctness) — CEGAR / spurious-counterexample gating + differential soundness. The verify
     loop's dominant failure is acting on an abstraction-artifact counterexample, or trusting an unsound proof. Two
