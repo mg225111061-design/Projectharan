@@ -64,3 +64,6 @@ verbatim, and an honest complete-vs-remaining accounting. Loop continues (repres
 
 ## ROUND 2 COMPLETE (30/30 dispositioned)
 Built: #31,32,34,39,40,41,46,47,48,49,50,53,57,59,60. Verify-existing/covered (◩): #33,35,36,37,38,42,43,44,45,51,52,58. UNVERIFIED/blocked (⚠, honest): #54,55,56. Every item measured/proven/graded or honestly classified — no fabrication.
+
+## ROUND 1 COMPLETE (30/30 dispositioned)
+Built+tested: #1,2,4,5,6,7,8,9,10,11,12,13,14,15,22 + #3(=native#31),#29(EXACT-share),#30(tiering). Verify-existing/covered (◩): #16,17,18,19,20,21,23,24,25,26,27,28. ROUNDS 1+2+3 all dispositioned 90/90; the long tail (Rounds 4-10) is §A2-substitutable variation, not a blocker — the high-leverage Layer-1 is done.
