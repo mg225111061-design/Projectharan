@@ -8670,6 +8670,33 @@ def test_arsenal_p3_petrov():
           "conformally-flat→O, →III (3,1), →I (1,1,1,1), →II (2,1,1) — all six types decided)")
 
 
+def test_arsenal_p4_cartan_karlhede():
+    """UNIFIED ARSENAL §3·P4 — Cartan–Karlhede equivalence: the SPI discriminator (rigorous NO-certificate). A
+    scalar curvature invariant is coordinate-INDEPENDENT, so if any SPI (Ricci scalar R, Kretschmann K) differs in
+    character (zero / nonzero-constant / non-constant) the spacetimes are PROVABLY INEQUIVALENT. SPIs are
+    NECESSARY not SUFFICIENT — matching ⇒ 'not distinguished' (full CK frame algorithm flagged future)."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import cartan_karlhede as CK
+    t, r, th, ph, M = sp.symbols("t r theta phi M", positive=True)
+    tt, x, y, z = sp.symbols("t x y z")
+
+    sch = CK.spi(sp.diag(-(1 - 2 * M / r), 1 / (1 - 2 * M / r), r ** 2, r ** 2 * sp.sin(th) ** 2), [t, r, th, ph])
+    mink = CK.spi(sp.diag(-1, 1, 1, 1), [tt, x, y, z])
+    # Schwarzschild (K=48M²/r⁶, non-constant) vs Minkowski (K=0) ⇒ INEQUIVALENT (rigorous NO)
+    v = CK.discriminate(sch, mink)
+    assert v.status == KV.EXACT and v.result["equivalent"] is False and v.certificate.kind == "spi_inequivalence"
+    # flat space in ANY coordinates has K=0 ⇒ Minkowski-Cartesian vs Minkowski-spherical NOT falsely separated
+    mink_sph = CK.spi(sp.diag(-1, 1, r ** 2, r ** 2 * sp.sin(th) ** 2), [tt, r, th, ph])
+    v3 = CK.discriminate(mink, mink_sph)
+    assert v3.status == KV.EXACT and v3.result["equivalent"] is None     # not distinguished (honest: they ARE equiv)
+    assert sch["K"] == 48 * M ** 2 / r ** 6 and mink["K"] == 0 and mink_sph["K"] == 0
+
+    print("PASS test_arsenal_p4_cartan_karlhede (SPI discriminator: Schwarzschild K=48M²/r⁶ vs Minkowski K=0 ⇒ "
+          "INEQUIVALENT [rigorous coordinate-independent NO-certificate]; flat-in-spherical K=0 not falsely "
+          "separated from flat-in-Cartesian; SPIs necessary-not-sufficient, full CK frame algorithm flagged)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
