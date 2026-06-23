@@ -106,8 +106,35 @@ def partial_fractions_grade(expr, x=None) -> KV.Verdict:
     return KV.exact(ap, "algebra.apart", "exact partial fractions", cert)
 
 
+def solve_system_grade(equations, variables) -> KV.Verdict:
+    """Solve a system of (polynomial) equations. EXACT only if EVERY returned solution is EXPLICIT and substitutes
+    into ALL equations exactly (self-certifying). No closed-form / only-implicit RootOf solutions ⇒ honest DECLINE."""
+    syms = [sp.Symbol(v) if isinstance(v, str) else v for v in variables]
+    loc = {s.name: s for s in syms}
+    eqs = []
+    for e in equations:
+        e = sp.sympify(e, locals=loc) if isinstance(e, str) else e
+        eqs.append(e if isinstance(e, sp.Equality) else sp.Eq(e, 0))
+    try:
+        sols = sp.solve(eqs, syms, dict=True)
+    except Exception as ex:                                  # noqa: BLE001
+        return KV.decline(f"solve_system: not solvable in closed form ({type(ex).__name__}) ⇒ DECLINE", "algebra.system")
+    if not sols:
+        return KV.decline("solve_system: no solution (or none in closed form) ⇒ DECLINE", "algebra.system")
+    for sol in sols:
+        if any(val.has(sp.RootOf) for val in sol.values()):
+            return KV.decline("solve_system: solutions only as implicit RootOf ⇒ DECLINE", "algebra.system")
+        for e in eqs:                                        # ★ each solution satisfies every equation, exactly ★
+            if sp.simplify(e.lhs.subs(sol) - e.rhs.subs(sol)) != 0:
+                return KV.decline("solve_system: a solution fails an equation ⇒ DECLINE", "algebra.system")
+    cert = KV.Cert(KV.EXACT, "system_solutions_substitute", passed=True,
+                   check_cost=f"{len(sols)}×{len(eqs)} exact substitutions",
+                   detail=f"{len(sols)} solution(s); each satisfies all {len(eqs)} equations exactly")
+    return KV.exact(sols, "algebra.system", "exact (verified by substitution)", cert)
+
+
 def solve(problem: dict) -> KV.Verdict:
-    """problem = {"op": "factor"|"poly_gcd"|"solve_poly"|"interpolate"|"partial_fractions", ...}."""
+    """problem = {"op": "factor"|"poly_gcd"|"solve_poly"|"interpolate"|"partial_fractions"|"solve_system", ...}."""
     op = problem.get("op")
     x = sp.Symbol(problem.get("var", "x"))
     if op == "factor":
@@ -120,4 +147,6 @@ def solve(problem: dict) -> KV.Verdict:
         return interpolate_grade(problem["points"], x)
     if op == "partial_fractions":
         return partial_fractions_grade(problem["expr"], x)
+    if op == "solve_system":
+        return solve_system_grade(problem["equations"], problem["variables"])
     return KV.decline(f"algebra: unknown op {op!r} ⇒ DECLINE", "algebra")

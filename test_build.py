@@ -7769,6 +7769,29 @@ def test_mathascent_b4_logic():
           "with a witness; solver = 17 families)")
 
 
+def test_mathascent_b4_solve_system():
+    """§B4 (algebra deepening) — SYSTEMS of (polynomial) equations, self-certified: EXACT only when every returned
+    solution is explicit and SUBSTITUTES into ALL equations exactly. Linear {x+y=3, x−y=1}⇒(2,1); circle∩line
+    {x²+y²=1, y=x}⇒2 solutions; {xy=6, x+y=5}⇒(2,3),(3,2). An inconsistent system {x+y=1, x+y=2}⇒honest DECLINE."""
+    import sympy as sp
+    from mathmode import algebra as AL
+    import kernel_verdict as KV
+
+    x, y = sp.symbols("x y")
+    assert AL.solve_system_grade([sp.Eq(x + y, 3), sp.Eq(x - y, 1)], [x, y]).result == [{x: 2, y: 1}]
+    cl = AL.solve_system_grade([sp.Eq(x ** 2 + y ** 2, 1), sp.Eq(y, x)], [x, y])
+    assert cl.status == KV.EXACT and len(cl.result) == 2
+    for sol in cl.result:
+        assert sp.simplify((x ** 2 + y ** 2 - 1).subs(sol)) == 0 and sp.simplify((y - x).subs(sol)) == 0
+    assert AL.solve_system_grade([sp.Eq(x + y, 1), sp.Eq(x + y, 2)], [x, y]).status == KV.DECLINE, "inconsistent"
+    assert len(AL.solve_system_grade([sp.Eq(x * y, 6), sp.Eq(x + y, 5)], [x, y]).result) == 2
+    assert AL.solve({"op": "solve_system", "equations": [sp.Eq(x + y, 3), sp.Eq(x - y, 1)],
+                     "variables": [x, y]}).status == KV.EXACT
+
+    print("PASS test_mathascent_b4_solve_system (systems self-certified by substitution into EVERY equation: "
+          "{x+y=3,x−y=1}⇒(2,1); {x²+y²=1,y=x}⇒2 sols; {xy=6,x+y=5}⇒(2,3),(3,2); inconsistent ⇒ honest DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
