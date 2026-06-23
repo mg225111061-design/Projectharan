@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **213 passed / 213** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **214 passed / 214** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | **UNIFIED ARSENAL** (a transform system + b ~70 fold families + c physics) — foundational-first: §1·G1 Ore ✅ · G2 holonomic ✅ · G3 telescoping ✅ → G4 → §2 decision procedures → §3 physics → §4 transforms. (NATIVE-CORE done: `NATIVE_CORE_REPORT.md`.) |
+| Now building | **UNIFIED ARSENAL** (a transform system + b ~70 fold families + c physics) — foundational-first: §1 foundations ✅ (G1 Ore · G2 holonomic · G3 telescoping · G4 ΠΣ*) → §2 decision procedures → §3 physics → §4 transforms. (NATIVE-CORE done: `NATIVE_CORE_REPORT.md`.) |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).

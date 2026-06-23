@@ -8217,6 +8217,50 @@ def test_arsenal_g3_telescoping():
           "Apéry summand → honest DECLINE by this method, not a non-existence claim)")
 
 
+def test_arsenal_g4_pisigma():
+    """UNIFIED ARSENAL §1·G4 — Schneider ΠΣ* difference-ring layer: nested sums that are NOT holonomic
+    (harmonic numbers). Works in the difference ring ℚ(n)[H], σ(n)=n+1, σ(H)=H+1/(n+1) (H ≙ H_n). DECIDES
+    telescoping (∃ g: σ(g)−g=f) by a direct linear ansatz over ℚ, then CERTIFIES via the automorphism identity
+    σ(g)−g−f ≡ 0 PLUS a numeric telescoping cross-check on the real harmonic values. This closes Σ H_k, Σ H_k²,
+    Σ k·H_k — which Gosper/Zeilberger/holonomic cannot — and gives the honest ΠΣ* boundary DECLINE for Σ 1/k
+    (which DEFINES the Σ-extension H, not rationally summable)."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import pisigma as PS
+    n, H = PS._n, PS._H
+
+    def Hm(m):
+        return sum(sp.Rational(1, j) for j in range(1, m + 1))
+
+    # Σ_{k=1}^n H_k = (n+1)H_n − n
+    v1 = PS.definite_sum(H)
+    assert v1.status == KV.EXACT and sp.simplify(v1.result - ((n + 1) * H - n)) == 0
+    assert v1.certificate.kind == "pisigma_definite"
+    # Σ_{k=1}^n H_k² — the case needing the per-layer constant coupling (resolved by the linear ansatz)
+    v2 = PS.telescope(H ** 2)
+    assert v2.status == KV.EXACT
+    v2d = PS.definite_sum(H ** 2)
+    assert v2d.status == KV.EXACT
+    for m in (1, 3, 6, 9):                                     # independent numeric verification
+        assert sp.nsimplify(sum(Hm(kk) ** 2 for kk in range(1, m + 1)) - v2d.result.subs({n: m, H: Hm(m)})) == 0
+    # Σ_{k=1}^n k·H_k
+    v3 = PS.definite_sum(n * H)
+    assert v3.status == KV.EXACT
+    for m in (1, 4, 7):
+        assert sp.nsimplify(sum(kk * Hm(kk) for kk in range(1, m + 1)) - v3.result.subs({n: m, H: Hm(m)})) == 0
+
+    # honest ΠΣ* boundary DECLINE: Σ 1/k is not rationally summable — it DEFINES H (not a fabricated closed form)
+    assert PS.telescope(sp.Rational(1, 1) / n).status == KV.DECLINE
+
+    # the σ-automorphism certificate has TEETH: a wrong g (n·H) gives σ(nH)−nH = H+1 ≠ H
+    assert sp.simplify(PS._sigma(n * H) - n * H - H) != 0
+    assert sp.simplify(PS._sigma(n * H - n) - (n * H - n) - H) == 0               # the TRUE telescoper of H: g=nH−n
+
+    print("PASS test_arsenal_g4_pisigma (ΠΣ* telescoping in ℚ(n)[H]: Σ H_k=(n+1)H_n−n, Σ H_k²=(n+1)H²−(2n+1)H+2n, "
+          "Σ k·H_k — non-holonomic, beyond Gosper/Zeilberger; σ-automorphism + numeric certificate; Σ 1/k → honest "
+          "ΠΣ* boundary DECLINE [defines H]; σ-cert rejects a wrong g)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
