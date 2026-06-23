@@ -8852,6 +8852,47 @@ def test_arsenal_transform_router():
           f"2 honest DECLINEs [∫e^{{x²}} non-elementary, unrecognized object]; deterministic routing)")
 
 
+def test_arsenal_unified_dispatch():
+    """PHASE 2 (ACCURACY/integration) — the WHOLE unified arsenal (G1–G4 foundations · §2 decision procedures ·
+    §3 physics · §4 transforms) is reachable through the ONE solver/API by {"domain": <name>, "op": ...}, lazily
+    imported so the server boot stays light. This widens what earns EXACT through the unified entry point — every
+    new capability is dispatchable, not just standalone."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import solver as S
+
+    cases = [
+        {"domain": "telescoping", "op": "zeilberger", "F": "binomial(n,k)"},
+        {"domain": "pisigma", "op": "definite_sum", "f": "H"},
+        {"domain": "decision_summation", "op": "petkovsek", "coeffs": [-2, 1]},
+        {"domain": "decision_integration", "op": "kovacic", "coeffs": [-1, 0, 1]},
+        {"domain": "real_qe", "op": "decide", "quantifier": "exists", "formula": "x**2 - 2 < 0"},
+        {"domain": "buckingham", "op": "buckingham", "quantities": {"a": {"L": 1}, "b": {"T": 1}, "c": {"L": 1, "T": -1}}},
+        {"domain": "curvature", "op": "schwarzschild"},
+        {"domain": "wigner", "op": "3j", "j1": 1, "j2": 1, "j3": 2, "m1": 0, "m2": 0, "m3": 0},
+        {"domain": "petrov", "op": "petrov", "psi": [0, 0, sp.Symbol("p"), 0, 0]},
+        {"domain": "operator_algebra", "op": "xp"},
+        {"domain": "tensor_canon", "op": "equal", "symmetry": "antisymmetric", "idx1": ["b", "a"], "idx2": ["a", "b"]},
+        {"domain": "transforms_symdyn", "op": "subshift", "A": [[1, 1], [1, 1]]},
+        {"domain": "transforms_spectral", "op": "transfer_operator",
+         "M": [[sp.Rational(1, 2)] * 2, [sp.Rational(1, 2)] * 2]},
+        {"domain": "transforms", "type": "constant", "value": sp.sqrt(2)},
+    ]
+    for prob in cases:
+        v = S.solve_in_mode(prob, "extend").verdict
+        assert v.status in (KV.EXACT, KV.PROBABILISTIC), (prob["domain"], prob.get("op"), v.status, v.reason[:50])
+    # the dispatch is wired for the full set (count the new domains present in _ARSENAL)
+    new_domains = {"ore", "holonomic", "telescoping", "pisigma", "decision_summation", "decision_integration",
+                   "real_qe", "buckingham", "curvature", "wigner", "special_holonomic", "operator_algebra",
+                   "lagrangian", "tensor_canon", "petrov", "cartan_karlhede", "transforms", "transforms_symdyn",
+                   "transforms_number", "transforms_random", "transforms_spectral"}
+    assert new_domains <= set(S._ARSENAL), new_domains - set(S._ARSENAL)
+
+    print(f"PASS test_arsenal_unified_dispatch ({len(cases)} sampled domains + all {len(new_domains)} new arsenal "
+          f"modules reachable through the ONE solver/API via {{domain,op}} [G1–G4 · §2 decisions · §3 physics · §4 "
+          f"transforms] — lazily imported, the whole arsenal is dispatchable not just standalone)")
+
+
 def test_arsenal_phase2_measured_speed():
     """PHASE 2 (SPEED) — MEASURED whole-program speedup of the O(log)/O(1) MATH routes vs naive O(n). HONEST: for a
     task that IS the kernel (a^b mod m, F(n), Σkᵖ), the fast algorithm is the WHOLE program ⇒ f=1, Amdahl ceiling

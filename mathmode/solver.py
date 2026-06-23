@@ -103,6 +103,26 @@ _ARSENAL = {
 }
 
 
+def _lazy(modname):
+    """Lazy domain dispatcher — imports the arsenal module on first use (keeps `import solver` light)."""
+    def _call(problem):
+        mod = __import__(f"mathmode.{modname}", fromlist=["solve"])
+        return mod.solve(problem)
+    return _call
+
+
+# the UNIFIED ARSENAL: G1–G4 foundations · §2 decision procedures · §3 physics · §4 transforms — all reachable
+# through the one solver/API by {"domain": <name>, "op": ...} (lazy-imported so the server boot stays light).
+_ARSENAL.update({d: _lazy(d) for d in (
+    "ore", "holonomic", "telescoping", "pisigma",                                    # §1 G1–G4
+    "decision_summation", "decision_integration", "real_qe",                         # §2 decision procedures
+    "buckingham", "curvature", "wigner", "special_holonomic", "operator_algebra",    # §3 physics
+    "lagrangian", "tensor_canon", "petrov", "cartan_karlhede",                       # §3 physics
+    "transforms", "transforms_symdyn", "transforms_number", "transforms_random",     # §4 transforms
+    "transforms_spectral",
+)})
+
+
 def solve(problem: dict) -> MathSolution:
     """Solve a MATH problem, structure-first, broth-accelerated, with a visible grade-tagged trace.
     Shapes:
