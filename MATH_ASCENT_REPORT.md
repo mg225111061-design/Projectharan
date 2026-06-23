@@ -10,7 +10,7 @@ EXACT / PROBABILISTIC(ε,δ) / DECLINE. MATH-Ascent adds the second top-level mo
 mathematics, fold-first, with the same grade discipline and the same refusal to fabricate. The split is
 enforced in code and re-asserted on every commit.
 
-**19 new modules, ~2,240 lines, 19 new tests, deterministic suite 194/194 green.** The arsenal spans **14
+**19 new modules, ~2,460 lines, 21 new tests, deterministic suite 196/196 green.** The arsenal spans **14
 verified families**; the served app gained a **CODE ⇄ MATH toggle**, **universal file attachment**, and **safe
 archive extraction** (§B). (Two more families beyond the table below: `differential.py` — closed-form ODEs
 verified by back-substitution; `graph.py` — shortest paths with an LP-duality optimality certificate +
@@ -30,7 +30,7 @@ bipartiteness witnesses.)
 | 3 | science / engineering | `science_engineering.py` | dimensional analysis over 7 SI base dims (catches `E=mv`) |
 | B4 | probability / statistics | `probability.py` | exact distributions + **proven** Markov/Chebyshev bounds (EXACT, not δ) |
 | B4 | inequalities | `inequalities.py` | polynomial nonnegativity — certified, or an exact counterexample |
-| 4 | O(1) broth proving | `broth.py` | lookup + cheap recheck over 3,735 entries |
+| 4 | O(1) broth proving | `broth.py` | lookup + cheap recheck over 3,772 entries |
 | 5 | visible grade-tagged reasoning | `solver.py` | one MATH entry point; `trace()` shows route→recognize→fold/broth/arsenal→grade |
 | 6 | universal file ingestion | `ingest.py` | XLSX/DOCX/PPTX via stdlib; fold-accelerated sequence analysis |
 | B3 | safe archive extraction | `archive.py` | zip/tar/gz → enumerate; zip-slip + bomb defenses (in-memory) |
@@ -61,7 +61,7 @@ lookup + a cheap recheck** (PRA finite-base for sums, companion-equality for C-f
   **Gosper** (sympy, dependency-light) brews it anyway: we generate a hypergeometric summand family, Gosper-sum
   each, and keep only the closed forms that pass the same cheap recheck — and cross-check each against the exact
   brute-force partial sum.
-- **Broth grown 3,707 → 3,735** (+28 genuinely-new hypergeometric entries). The recheck — not sympy's word —
+- **Broth grown 3,707 → 3,772** (+65 genuinely-new hypergeometric entries). The recheck — not sympy's word —
   licenses EXACT.
 
 ## Visible reasoning (§5)
@@ -137,7 +137,7 @@ tools + more broth*, each measured the same way.
 
 ```
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 194 passed, 0 failed
+# … 196 passed, 0 failed
 ```
 
-The 19 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.
+The 21 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.

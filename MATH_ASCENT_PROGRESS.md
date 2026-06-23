@@ -69,11 +69,11 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
     recurrences [BLOCKED: ore_algebra absent — not faked] · ☐ ODE/PDE · ☐ tensor · ☐ probability · ☐ inequalities/SOS.
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
-4. ☑ broth proving — prove() does O(1) dict lookup over 3735 entries + a CHEAP recheck (PRA finite-base for sums,
+4. ☑ broth proving — prove() does O(1) dict lookup over 3,772 entries + a CHEAP recheck (PRA finite-base for sums,
    companion-equality for C-finite) ⇒ EXACT, never a re-search; miss ⇒ honest DECLINE (fall back to fold). §8
    GROWTH: the base library could NOT brew the hypergeometric family ([BLOCKED: ore_algebra]); GOSPER (sympy,
-   dependency-light) brews it — +28 NEW hypergeometric entries kept (only those passing the cheap recheck),
-   closed forms cross-checked vs brute force. Lookup ~0.08µs CONSTANT (offline brew paid once: ~2.4s).
+   dependency-light) brews it — +65 NEW hypergeometric entries kept (only those passing the cheap recheck),
+   closed forms cross-checked vs brute force. Lookup ~0.08µs CONSTANT (offline brew paid once: ~6.6s).
    [test_mathascent_broth_proving; mathmode/broth.py]
 
 ## §5 — visible grade-tagged reasoning in both modes
@@ -97,7 +97,7 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
    coverage reported, never a fabricated score. [test_mathascent_benchmark; mathmode/benchmark.py]
 
 ## §8 — grow Layer-2 LEAP reports + Layer-3 mathematical broth
-8. ☑ Layer-3 broth grown +28 Gosper hypergeometric entries (§4, the family the base could not brew without
+8. ☑ Layer-3 broth grown +65 Gosper hypergeometric entries (§4, the family the base could not brew without
    ore_algebra). Layer-2 report: MATH_ASCENT_REPORT.md (the comprehensive measured account of the ascent).
 
 STATUS: §1–§8 all landed and tested. MATH-Ascent core complete; arsenal = 10 families. Now in §B (UI + power).
@@ -123,7 +123,7 @@ B4. ◩ in progress (both stronger). MATH arsenal broadened to 12 families: +opt
     +science_engineering (dimensional analysis), +probability (exact distributions + PROVEN Markov/Chebyshev
     bounds), +inequalities (polynomial nonnegativity, certified or counterexample). §7 benchmark grown to 30
     problems / 11 domains (EXACT=22, PROBABILISTIC=1, DECLINE=7, all matching expected; 17 cross-checked). Broth
-    3,735 (Gosper-grown). +differential (closed-form ODEs verified by back-substitution; no closed form ⇒ DECLINE)
+    3,772 (Gosper-grown). +differential (closed-form ODEs verified by back-substitution; no closed form ⇒ DECLINE)
     +graph (shortest paths with the LP-duality optimality certificate; bipartiteness via 2-coloring / odd-cycle
     witness — both EXACT) ⇒ arsenal = **14 families**. [test_mathascent_b4_probability_inequalities,
     test_mathascent_b4_differential, test_mathascent_b4_graph; mathmode/{optimization,science_engineering,

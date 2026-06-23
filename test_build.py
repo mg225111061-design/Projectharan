@@ -7027,7 +7027,7 @@ def test_mathascent_broth_proving():
 
     st = B.stats()
     assert st["base_total"] >= 3000, f"the broth should be 3000+ (got {st['base_total']})"
-    assert st["gosper_new"] >= 20, f"Gosper should grow the broth by ≥20 new hypergeometric entries (got {st['gosper_new']})"
+    assert st["gosper_new"] >= 40, f"Gosper should grow the broth by ≥40 new hypergeometric entries (got {st['gosper_new']})"
     assert st["total"] == st["base_total"] + st["gosper_new"]
 
     # O(1) proving of known sums (lookup + cheap recheck ⇒ EXACT)
@@ -7074,8 +7074,8 @@ def test_mathascent_solver_reasoning():
     assert any(s.stage == "broth" and s.grade == KV.EXACT for s in sol.reasoning)
     assert "[MATH mode" in sol.trace() and "EXACT" in sol.trace()
 
-    # broth MISS → Gosper fold (k⁴·2ᵏ is outside both the base broth and the brewed family) → EXACT
-    sol = S.solve({"sum": "k**4*2**k"})
+    # broth MISS → Gosper fold (k⁶·2ᵏ is outside the brewed family k^a·b^k with a ≤ 5) → EXACT
+    sol = S.solve({"sum": "k**6*2**k"})
     assert sol.verdict.status == KV.EXACT
     assert any(s.stage == "broth" and "MISS" in s.detail for s in sol.reasoning), "must show the broth miss"
     assert any(s.stage == "fold" and s.grade == KV.EXACT for s in sol.reasoning), "then the Gosper fold (EXACT)"

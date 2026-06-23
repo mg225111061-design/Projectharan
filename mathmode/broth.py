@@ -28,16 +28,21 @@ import kernel_verdict as KV
 
 # ── the Gosper hypergeometric family (what the broth could not brew without ore_algebra) ─────────────────
 def _gosper_family():
+    """The hypergeometric summand family to brew (the class `ore_algebra` would have searched, done via Gosper).
+    Broadened: geometric/exp-polynomial b^k·k^a, factorials, partial fractions, and affine-times-geometric."""
     fam = []
-    for b in range(2, 10):                                   # geometric b^k, b = 2..9
+    for b in range(2, 15):                                   # geometric b^k, b = 2..14
         fam.append(sp.Integer(b) ** _k)
-        for a in range(1, 4):                                # exp-polynomial k^a · b^k
+        for a in range(1, 4):                                # exp-polynomial k^a · b^k  (a = 1..3, the cheap range)
             fam.append(_k ** a * sp.Integer(b) ** _k)
     fam.append(_k * sp.factorial(_k))                        # factorial: Σ k·k! = (n+1)!−1
-    for c in range(1, 6):                                    # partial fractions 1/(k(k+c))
+    fam.append((_k ** 2 + 1) * sp.factorial(_k))
+    for c in range(1, 13):                                   # partial fractions 1/(k(k+c)), c = 1..12
         fam.append(sp.Rational(1) / (_k * (_k + c)))
-    for d in range(1, 4):                                    # (d·k+1)·2^k
-        fam.append((d * _k + 1) * 2 ** _k)
+    for b in (2, 3, 4, 5):                                   # affine × geometric (a·k+e)·b^k
+        for a in range(1, 3):
+            for e in range(0, 2):
+                fam.append((a * _k + e) * sp.Integer(b) ** _k)
     return fam
 
 
