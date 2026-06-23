@@ -7718,6 +7718,29 @@ def test_mathascent_b4_interp_apart():
           "duplicate x ⇒ DECLINE]; partial fractions [recombine≡original: 1/(x²−1)→1/(2(x−1))−1/(2(x+1))])")
 
 
+def test_mathascent_b4_diff_taylor():
+    """§B4 (calculus deepening) — DIFFERENTIATION (EXACT, finite-difference-confirmed) and TAYLOR series. The
+    Taylor certificate is self-checking: T⁽ᵏ⁾(a)=f⁽ᵏ⁾(a) for k=0..n (the polynomial matches f to order n, verified
+    by differentiation). eˣ@0 ⇒ 1+x+x²/2+x³/6+x⁴/24; cos@0 ⇒ 1−x²/2+x⁴/24; a singularity (1/x at 0) ⇒ DECLINE."""
+    import sympy as sp
+    from mathmode import calculus as C
+    import kernel_verdict as KV
+
+    x = sp.Symbol("x")
+    assert sp.simplify(C.differentiate_grade(x ** 3, x).result - 3 * x ** 2) == 0
+    assert sp.simplify(C.differentiate_grade(sp.sin(x) * x, x).result - (sp.sin(x) + x * sp.cos(x))) == 0
+    te = C.taylor_grade(sp.exp(x), 0, 4, x)
+    assert te.status == KV.EXACT and sp.simplify(te.result - (1 + x + x ** 2 / 2 + x ** 3 / 6 + x ** 4 / 24)) == 0
+    assert sp.simplify(C.taylor_grade(sp.cos(x), 0, 4, x).result - (1 - x ** 2 / 2 + x ** 4 / 24)) == 0
+    assert C.taylor_grade(sp.log(x), 1, 3, x).status == KV.EXACT
+    assert C.taylor_grade(1 / x, 0, 3, x).status == KV.DECLINE, "singularity at 0 ⇒ DECLINE"
+    assert C.solve({"op": "differentiate", "f": x ** 3}).status == KV.EXACT
+    assert C.solve({"op": "taylor", "f": sp.exp(x), "a": 0, "n": 3}).status == KV.EXACT
+
+    print("PASS test_mathascent_b4_diff_taylor (d/dx EXACT [finite-difference-confirmed: d/dx x³=3x², "
+          "d/dx(x·sin x)=sin x+x·cos x]; Taylor self-certified by T⁽ᵏ⁾(a)=f⁽ᵏ⁾(a) [eˣ, cos, log]; 1/x@0 ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

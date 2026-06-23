@@ -77,6 +77,56 @@ def definite_integral_grade(f, x, a, b) -> KV.Verdict:
     return KV.exact(val, "calculus.definite", "FTC on verified antiderivative", cert)
 
 
+def differentiate_grade(f, x=None) -> KV.Verdict:
+    """d/dx f (EXACT — differentiation is algorithmic). Certificate: a finite-difference numeric cross-check at
+    several points confirms the symbolic derivative (guards a wrong result)."""
+    x = x or sp.Symbol("x")
+    fe = _expr(f, x)
+    d = sp.diff(fe, x)
+    # cross-check: (f(p+h)−f(p−h))/2h ≈ d(p) at several points
+    h = sp.Rational(1, 10 ** 6)
+    pts = [sp.Rational(1, 3), sp.Rational(7, 5), sp.Integer(2), sp.Rational(11, 4)]
+    ok = tot = 0
+    for p in pts:
+        try:
+            fd = (fe.subs(x, p + h) - fe.subs(x, p - h)) / (2 * h)
+            tgt = d.subs(x, p)
+            if not (fd.is_finite is False or tgt.is_finite is False):
+                tot += 1
+                ok += int(abs(complex(sp.N(fd - tgt))) < 1e-3)
+        except Exception:                                    # noqa: BLE001
+            continue
+    if tot < 2 or ok != tot:
+        return KV.decline("differentiate: finite-difference cross-check failed ⇒ DECLINE", "calculus.diff")
+    cert = KV.Cert(KV.EXACT, "derivative_fd_check", passed=True, check_cost="symbolic diff + finite-difference",
+                   detail=f"d/dx f = {sp.sstr(d)} (finite-difference-confirmed)")
+    return KV.exact(d, "calculus.diff", "exact derivative", cert)
+
+
+def taylor_grade(f, a, n: int, x=None) -> KV.Verdict:
+    """Order-n Taylor polynomial of f around x=a. Certificate: T⁽ᵏ⁾(a) = f⁽ᵏ⁾(a) for k=0..n (verified by
+    differentiation — the polynomial matches f to order n). A singularity at a (a derivative blows up) ⇒ DECLINE."""
+    x = x or sp.Symbol("x")
+    fe = _expr(f, x)
+    a = sp.nsimplify(a)
+    try:
+        T = sp.series(fe, x, a, n + 1).removeO()
+    except Exception as e:                                   # noqa: BLE001
+        return KV.decline(f"taylor: series failed ({type(e).__name__}) ⇒ DECLINE", "calculus.taylor")
+    if T.has(sp.S.Infinity, sp.S.NegativeInfinity, sp.zoo, sp.nan):
+        return KV.decline(f"taylor: singularity at x={a} ⇒ DECLINE", "calculus.taylor")
+    fd = Td = fe, T
+    for k in range(n + 1):                                    # ★ T⁽ᵏ⁾(a) = f⁽ᵏ⁾(a), k=0..n (matches to order n) ★
+        try:
+            if sp.simplify(sp.diff(fe, x, k).subs(x, a) - sp.diff(T, x, k).subs(x, a)) != 0:
+                return KV.decline(f"taylor: order-{k} coefficient mismatch ⇒ DECLINE", "calculus.taylor")
+        except Exception:                                    # noqa: BLE001
+            return KV.decline(f"taylor: f is not {k}-times differentiable at {a} ⇒ DECLINE", "calculus.taylor")
+    cert = KV.Cert(KV.EXACT, "taylor_derivative_match", passed=True, check_cost=f"{n+1} derivative matches at a",
+                   detail=f"order-{n} Taylor of f at x={a}: {sp.sstr(T)}; T⁽ᵏ⁾({a})=f⁽ᵏ⁾({a}) ∀k≤{n}")
+    return KV.exact(T, "calculus.taylor", "exact Taylor polynomial", cert)
+
+
 def solve(problem: dict) -> KV.Verdict:
     op = problem.get("op")
     x = sp.Symbol(problem.get("var", "x"))
@@ -84,4 +134,8 @@ def solve(problem: dict) -> KV.Verdict:
         return integrate_grade(problem["f"], x)
     if op == "definite_integral":
         return definite_integral_grade(problem["f"], x, problem["a"], problem["b"])
+    if op == "differentiate":
+        return differentiate_grade(problem["f"], x)
+    if op == "taylor":
+        return taylor_grade(problem["f"], problem.get("a", 0), problem.get("n", 5), x)
     return KV.decline(f"calculus: unknown op {op!r} ⇒ DECLINE", "calculus")
