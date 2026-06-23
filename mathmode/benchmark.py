@@ -113,6 +113,16 @@ def _suite() -> List[Problem]:
                 {"domain": "inequalities", "op": "nonneg", "poly": sp.Symbol("x") ** 2 + 1}, KV.EXACT, None),
         Problem("x²−1 ≥ 0 ? (counterexample)", "inequalities",
                 {"domain": "inequalities", "op": "nonneg", "poly": sp.Symbol("x") ** 2 - 1}, KV.DECLINE, None),
+        Problem("ODE y″+y=0 (back-subst)", "differential",
+                {"domain": "differential", "op": "ode",
+                 "ode": sp.Eq(sp.Function("y")(sp.Symbol("x")).diff(sp.Symbol("x"), 2)
+                              + sp.Function("y")(sp.Symbol("x")), 0)}, KV.EXACT, None),
+        Problem("shortest path (optimality cert)", "graph",
+                {"domain": "graph", "op": "shortest_path", "n": 3, "edges": [[0, 1, 2], [1, 2, 3], [0, 2, 10]],
+                 "source": 0}, KV.EXACT, lambda v: v.result == [0, 2, 5]),
+        Problem("bipartite? triangle (odd cycle)", "graph",
+                {"domain": "graph", "op": "bipartite", "n": 3, "edges": [[0, 1], [1, 2], [2, 0]]}, KV.EXACT,
+                lambda v: v.result["bipartite"] is False),
     ]
 
 

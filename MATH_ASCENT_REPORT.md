@@ -10,9 +10,11 @@ EXACT / PROBABILISTIC(ε,δ) / DECLINE. MATH-Ascent adds the second top-level mo
 mathematics, fold-first, with the same grade discipline and the same refusal to fabricate. The split is
 enforced in code and re-asserted on every commit.
 
-**17 new modules, ~2,060 lines, 17 new tests, deterministic suite 192/192 green.** The arsenal spans **12
+**19 new modules, ~2,240 lines, 19 new tests, deterministic suite 194/194 green.** The arsenal spans **14
 verified families**; the served app gained a **CODE ⇄ MATH toggle**, **universal file attachment**, and **safe
-archive extraction** (§B).
+archive extraction** (§B). (Two more families beyond the table below: `differential.py` — closed-form ODEs
+verified by back-substitution; `graph.py` — shortest paths with an LP-duality optimality certificate +
+bipartiteness witnesses.)
 
 | § | capability | module | grade story |
 |---|------------|--------|-------------|
@@ -89,13 +91,13 @@ EXACT. The grade discipline carries verbatim from CODE into MATH.
 
 ## Measured capability (§7) — and the honest HLE position
 
-A representative benchmark of **30 problems across 11 domains**, run through the solver and graded:
+A representative benchmark of **33 problems across 13 domains**, run through the solver and graded:
 
-- **EXACT = 22, PROBABILISTIC = 1, DECLINE = 7** — and all **30/30 match their expected grade**. The seven DECLINEs
+- **EXACT = 25, PROBABILISTIC = 1, DECLINE = 7** — and all **33/33 match their expected grade**. The seven DECLINEs
   are *correct behaviour*: the harmonic sum `Σ1/k`, a singular linear system, the Abel–Ruffini quintic `x⁵−x+1`,
   parallel segments, a non-existent modular inverse, a dimensionally-wrong formula (`E=mv`), and `x²−1` (which is
   *not* globally nonnegative — the certifier returns the exact counterexample `x=0`).
-- **17** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
+- **19** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
   answer, not a claim); every EXACT carries a passed certificate (the ADT enforces it, the bench re-asserts it).
 
 **On HLE:** Humanity's Last Exam is **UNVERIFIED** in this environment — there is no HLE dataset and no scoring
@@ -135,7 +137,7 @@ tools + more broth*, each measured the same way.
 
 ```
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 192 passed, 0 failed
+# … 194 passed, 0 failed
 ```
 
-The 17 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.
+The 19 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.
