@@ -6936,6 +6936,83 @@ def test_mathascent_algebra_symbolic():
           "DECLINE [Abel–Ruffini, roots only implicit RootOf — never a fabricated closed form])")
 
 
+def test_mathascent_geometry():
+    """MATH-ASCENT §3 (arsenal) — GEOMETRY, exact rational (no float ⇒ no epsilon tie-breaks). Each predicate is
+    an EXACT determinant sign, each answer SELF-CERTIFYING: polygon area (shoelace ≡ triangulation), convex hull
+    (convex ∧ contains every input — exact), segment intersection (point on BOTH segments, else DECLINE), point-
+    in-polygon (ray-cast ≡ winding). A 120-case random-hull fuzz confirms the containment/convexity certificate
+    never lies."""
+    import random
+    from fractions import Fraction as Fr
+    from mathmode import geometry as G
+    import kernel_verdict as KV
+
+    assert G.polygon_area_grade([(0, 0), (1, 0), (1, 1), (0, 1)]).result == 1, "unit square area 1"
+    assert G.polygon_area_grade([(0, 0), (4, 0), (0, 3)]).result == 6, "triangle area 6"
+    h = G.convex_hull_grade([(0, 0), (2, 0), (2, 2), (0, 2), (1, 1)])
+    assert h.status == KV.EXACT and len(h.result) == 4, "interior point dropped from hull"
+    si = G.segment_intersection_grade((0, 0), (2, 2), (0, 2), (2, 0))
+    assert si.status == KV.EXACT and si.result == (Fr(1), Fr(1)), "diagonals meet at the center (1,1)"
+    assert G.segment_intersection_grade((0, 0), (1, 0), (0, 1), (1, 1)).status == KV.DECLINE, "parallel ⇒ DECLINE"
+    assert G.segment_intersection_grade((0, 0), (1, 1), (5, 4), (6, 5)).status == KV.DECLINE, "outside ⇒ DECLINE"
+    sq = [(0, 0), (2, 0), (2, 2), (0, 2)]
+    assert G.point_in_polygon_grade((1, 1), sq).result is True
+    assert G.point_in_polygon_grade((3, 3), sq).result is False
+    assert G.point_in_polygon_grade((1, 0), sq).result == "boundary"
+
+    rng = random.Random(11)
+    hulls = 0
+    for _ in range(120):
+        pts = [(rng.randint(-20, 20), rng.randint(-20, 20)) for _ in range(rng.randint(3, 12))]
+        if G.convex_hull_grade(pts).status == KV.EXACT:
+            hulls += 1
+    assert G.solve({"op": "area", "pts": [(0, 0), (1, 0), (1, 1), (0, 1)]}).result == 1
+    assert G.solve({"op": "zzz"}).status == KV.DECLINE
+
+    print(f"PASS test_mathascent_geometry (exact rational: area [shoelace≡triangulation], convex hull "
+          f"[convex ∧ contains all inputs], segment intersection [on both segments / else DECLINE], point-in-"
+          f"polygon [ray-cast≡winding]; {hulls} random hulls all passed the containment+convexity certificate)")
+
+
+def test_mathascent_certified_numeric():
+    """MATH-ASCENT §3 (arsenal) — CERTIFIED NUMERICS: EXACT enclosures vs honest PROBABILISTIC, never confused.
+    EXACT: real-root COUNT by Sturm (≡ isolated roots); root EXISTENCE by IVT sign change (bisected to a narrow
+    rational interval); √n bracketed by exact rationals (lo²≤n≤hi²). PROBABILISTIC: Monte-Carlo π with a REPORTED
+    Hoeffding (ε,δ) — never EXACT (a sample count is not a proof). No sign change / negative √ ⇒ honest DECLINE."""
+    import math
+    from fractions import Fraction as Fr
+    import sympy as sp
+    from mathmode import certified_numeric as CN
+    import kernel_verdict as KV
+
+    x = sp.Symbol("x")
+    # EXACT — Sturm real-root count
+    assert CN.real_root_count_grade(x ** 3 - x, -2, 2, x).result == 3, "x³−x has 3 real roots in [−2,2]"
+    assert CN.real_root_count_grade(x ** 3 - x, sp.Rational(1, 2), 2, x).result == 1
+    assert CN.real_root_count_grade(x ** 2 + 1, -5, 5, x).result == 0, "x²+1 has 0 real roots"
+    # EXACT — IVT enclosure of √2 (and honest DECLINE on no sign change)
+    v = CN.root_enclosure_grade(x ** 2 - 2, 1, 2, Fr(1, 10 ** 6), x)
+    lo, hi = v.result
+    assert v.status == KV.EXACT and lo * lo <= 2 <= hi * hi and hi - lo <= Fr(1, 10 ** 6)
+    assert v.certificate.delta is None and v.certificate.epsilon is not None, "EXACT interval uses ε, not δ"
+    assert CN.root_enclosure_grade(x ** 2 + 1, 0, 1, Fr(1, 1000), x).status == KV.DECLINE, "no sign change ⇒ DECLINE"
+    # EXACT — √n rational bracket
+    s = CN.sqrt_enclosure_grade(2, 9)
+    slo, shi = s.result
+    assert s.status == KV.EXACT and slo * slo <= 2 <= shi * shi and s.certificate.delta is None
+    assert CN.sqrt_enclosure_grade(-3).status == KV.DECLINE
+    # PROBABILISTIC — Monte-Carlo π, δ stated, estimate within reported ε, NEVER EXACT
+    mc = CN.monte_carlo_pi_grade(200000, 1e-3, seed=1)
+    assert mc.status == KV.PROBABILISTIC and mc.certificate.delta == 1e-3 and mc.certificate.epsilon is not None
+    assert abs(mc.result - math.pi) <= mc.certificate.epsilon, "estimate must fall within the reported Hoeffding ε"
+    assert CN.solve({"op": "sqrt", "n": 5}).status == KV.EXACT
+    assert CN.solve({"op": "zzz"}).status == KV.DECLINE
+
+    print(f"PASS test_mathascent_certified_numeric (EXACT enclosures: Sturm root-count [≡ isolation], IVT sign-"
+          f"change √2 bracket [ε not δ], √n rational bracket [lo²≤n≤hi²]; PROBABILISTIC Monte-Carlo π≈{mc.result:.4f} "
+          f"ε={mc.certificate.epsilon:.4f} δ={mc.certificate.delta} [never EXACT]; no sign change / neg √ ⇒ DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

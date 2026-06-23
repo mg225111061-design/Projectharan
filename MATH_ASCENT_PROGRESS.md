@@ -51,8 +51,14 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
 3d. ☑ algebra_symbolic — factor [expand(∏factors)≡poly], polynomial gcd [g|p ∧ g|q exact division], root-solving
     [every root explicit ∧ p(root)≡0]; general quintic ⇒ honest DECLINE (Abel–Ruffini, RootOf ≠ closed form).
     sympy searches, our exact check proves. [test_mathascent_algebra_symbolic; mathmode/algebra.py]
-    Remaining: ☐ geometry · ◩ logic_verification (Z3 wired) · ◩ certified_numeric (Freivalds/interval exist) ·
-    ☐ optimization_or · ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
+3e. ☑ geometry — exact rational (no float): polygon area [shoelace≡triangulation], convex hull [convex ∧
+    contains every input], segment intersection [point on both segments / else DECLINE], point-in-polygon
+    [ray-cast≡winding]; 120-case random-hull fuzz. [test_mathascent_geometry; mathmode/geometry.py]
+3f. ☑ certified_numeric — EXACT enclosures (Sturm real-root count ≡ isolation; IVT sign-change root bracket;
+    √n rational bracket lo²≤n≤hi²; ε=width not δ) vs honest PROBABILISTIC Monte-Carlo (Hoeffding ε,δ — never
+    EXACT); no sign change / neg √ ⇒ DECLINE. [test_mathascent_certified_numeric; mathmode/certified_numeric.py]
+    Remaining: ◩ logic_verification (Z3 wired — wire a MATH-facing prove/refute) · ☐ optimization_or ·
+    ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
    ☐ index the proven-closed-form broth; O(1) certificate retrieval on a recognized structure.
