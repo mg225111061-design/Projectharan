@@ -6367,6 +6367,28 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_type_specialization():
+    """ROUND 2 (Group G, items 32/34) — type specialization / devirtualization. A polymorphic per-element
+    isinstance-dispatch site, when the input is PROVEN monomorphic (all the same concrete type), is specialized
+    to a direct op (dispatch removed). Sound guard: monomorphism is checked AND the specialized result must match
+    the polymorphic one (differential). Monomorphic+match+win ⇒ PROBABILISTIC; a polymorphic (mixed-type) site OR
+    a wrong specialization ⇒ DECLINE."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    v = R2.typespec_grade(lambda: R2._make_mono_int(200000), n=200000, samples=5)
+    assert v.status == KV.PROBABILISTIC and v.certificate.kind == "type_specialization"
+    assert v.report.whole_program_ratio <= v.report.amdahl_ceiling + 1e-9 and v.report.whole_program_ratio >= 1.2
+    assert R2.typespec_grade(lambda: R2._make_polymorphic(200000), n=200000, samples=2).status == KV.DECLINE, \
+        "a mixed-type (non-monomorphic) site cannot be devirtualized ⇒ DECLINE"
+    assert R2.typespec_grade(lambda: R2._make_mono_int(200000), fast_fn=R2.process_int_wrong, n=200000, samples=2).status == KV.DECLINE, \
+        "a wrong specialization ⇒ differential ⇒ DECLINE"
+
+    print(f"PASS test_round2_type_specialization (monomorphic (all int) dispatch site devirtualized to a direct op "
+          f"×{v.report.whole_program_ratio:.1f} ≤ ceiling, PROBABILISTIC; a polymorphic (mixed-type) site ⇒ DECLINE "
+          f"(soundness guard); a wrong specialization ⇒ DECLINE)")
+
+
 def test_round2_speculative_execution():
     """ROUND 2 (Group I, item 41) — speculative execution + rollback (waiting-elimination, NOT caching). During
     idle time it precomputes the PREDICTED next query so its latency is hidden on a HIT; on a MISS it rolls back

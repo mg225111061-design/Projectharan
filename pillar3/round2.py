@@ -405,3 +405,63 @@ def serialization_grade(make_obj, fast_fn=None, *, n: int, samples: int = 5, res
     v = KV.probabilistic(fast_fn, "serialize", str(rep), cert)
     v.report = rep
     return v
+
+
+# ── items 32/34 — type specialization / devirtualization: monomorphic dispatch → direct op ──────────────
+def process_poly(items):
+    """Polymorphic per-element dispatch (an isinstance chain — the dynamic-dispatch overhead)."""
+    out = []
+    for x in items:
+        if isinstance(x, bool):
+            out.append(2 if x else 0)
+        elif isinstance(x, int):
+            out.append(x * x)
+        elif isinstance(x, float):
+            out.append(x * 2.0)
+        elif isinstance(x, str):
+            out.append(len(x))
+        else:
+            out.append(None)
+    return out
+
+
+def process_int_specialized(items):
+    return [x * x for x in items]                          # devirtualized: type proven int ⇒ direct op
+
+
+def process_int_wrong(items):
+    return [x * x + 1 for x in items]                      # wrong specialization ⇒ differential catches
+
+
+def _is_monomorphic(items, ty=int):
+    return bool(items) and all(type(x) is ty for x in items)
+
+
+def typespec_grade(make_input, fast_fn=None, *, n: int, samples: int = 5, residual_iters: int = 0, floor: float = 1.20):
+    """Specialize a polymorphic dispatch to a monomorphic direct op. Sound guard: the input must be PROVEN
+    monomorphic (all the same concrete type) AND the specialized result must match the polymorphic one
+    (differential). Monomorphic+match+win ⇒ PROBABILISTIC; non-monomorphic OR mismatch ⇒ DECLINE."""
+    fast_fn = fast_fn or process_int_specialized
+    items = make_input()[0]
+    if not _is_monomorphic(items, int):                    # the soundness guard — can't devirtualize a polymorphic site
+        return KV.decline("call site is NOT monomorphic (mixed types) ⇒ cannot specialize ⇒ DECLINE", "typespec")
+    if process_poly(items) != fast_fn(items):
+        return KV.decline("specialized result ≠ polymorphic result ⇒ DECLINE", "typespec")
+    rep = LF.measure_lift(lambda x: process_poly(x), lambda x: fast_fn(x), make_input, residual_iters, n=n, samples=samples)
+    if not rep.beats(floor):
+        v = KV.decline(f"specialized but no whole-program win (×{rep.whole_program_ratio:.2f}) ⇒ DECLINE", "typespec")
+        v.report = rep
+        return v
+    cert = KV.Cert(KV.PROBABILISTIC, "type_specialization", passed=True, check_cost="monomorphism guard + differential",
+                   delta=1e-6, detail=f"monomorphic (all int) ⇒ devirtualized direct op, ×{rep.whole_program_ratio:.2f}; dispatch removed")
+    v = KV.probabilistic(fast_fn, "typespec", str(rep), cert)
+    v.report = rep
+    return v
+
+
+def _make_mono_int(n: int = 200000):
+    return ([i for i in range(n)],)
+
+
+def _make_polymorphic(n: int = 200000):
+    return ([(i if i % 3 else float(i)) for i in range(n)],)   # mixed int/float ⇒ NOT monomorphic

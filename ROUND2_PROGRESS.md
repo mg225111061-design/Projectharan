@@ -13,9 +13,9 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 
 ## Group G — interpreter overhead & compilation
 31. ☑ whole-region native compile via numba/llvmlite ~403×@n=300000 PROBABILISTIC float-tolerant (native FP last-ULP); wrong arithmetic→DECLINE; ratio≤ceiling [test_round2_native_compile; round2.py]
-32. ☐ type specialization of dynamic code
+32. ☑ type specialization of dynamic code — monomorphic dispatch site → direct op ~1.8× PROBABILISTIC (monomorphism guard + differential); polymorphic site or wrong spec→DECLINE [test_round2_type_specialization; round2.py]
 33. ☐ JIT specialization — input-specific code (numba/closure ✓)
-34. ☐ devirtualization / dynamic-dispatch elimination
+34. ☑ devirtualization / dynamic-dispatch elimination — covered by type-specialization (isinstance-chain removed when monomorphic) [test_round2_type_specialization; round2.py]
 35. ☐ staged/compile-time computation (partial-eval deepen)
 ## Group H — latency hiding & parallelism
 36. ☐ async/concurrency to hide I/O latency (simulated I/O; concurrent.futures)
