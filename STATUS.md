@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **208 passed / 208** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **209 passed / 209** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | NATIVE-CORE: §0.5 ✅ · §3 triage ✅ · §2 zero-dep SMT ✅ · §1 Rust core ✅ → next §4 routing · §5 deps→0 |
+| Now building | NATIVE-CORE: §0.5 ✅ · §3 ✅ · §2 ✅ · §1 ✅ · §4 routing ✅ → next §5 deps→0, then report |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).
@@ -81,8 +81,17 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   overhead vs C-fast CPython int) ⇒ speed **UNVERIFIED**, correctness is the deliverable (mirrors the v40-phase7 RNS
   honesty). Native rewrite changes RUNTIME not GRADES; `target/` is environment-built (gitignored), Python ring is
   the verified fallback — never faked.
-- Next: **§4** multi-LLM routing abstraction + high-fidelity offline mock · **§5** dependency elimination. Native
-  build / live egress stay **UNVERIFIED** where the sandbox blocks, Python path verified-fallback — never faked.
+- **§4 ✅** multi-LLM routing abstraction + high-fidelity OFFLINE mock (`llm_router.py` over `provider.py` /
+  `claude_agent.py`). One router selects the wire transport (Anthropic Messages / OpenAI chat.completions / Gemini
+  generateContent), shapes the request EXACTLY as the live path, runs a mock returning PROVIDER-SHAPED raw
+  responses, and parses back — so routing+serialization+parsing for every gateway (anthropic, openai-compat incl.
+  OpenRouter / Z.ai / DeepSeek, gemini, groq) runs with ZERO network, deterministically. `test_native_s4_llm_routing`.
+  **Honest (§X):** a mock is always `live=False` / `source=mock-sim:*` (never dressed as live); the real-egress LIVE
+  path is **UNVERIFIED** [egress-blocked] and NEVER fabricates a response; keys are per-call args, redacted, never
+  logged. LLM proposes, the verifier grades.
+- Next: **§5** dependency elimination (big solvers→0, numpy optional-not-required, document the final dep set),
+  then write `NATIVE_CORE_REPORT.md`. Native build / live egress stay **UNVERIFIED** where the sandbox blocks,
+  Python path verified-fallback — never faked.
 
 ## Known flakes (load-induced, NOT regressions — pass in isolation)
 `test_round2_sublinear_sketches` (HLL ε near boundary), `test_pillar3_stage2_compounding_loop` (timing),

@@ -7967,6 +7967,70 @@ def test_native_s3_triage_layer():
           f"({m['triage_off_s']}s > {m['uncached_s']}s uncached), triage removed {m['overhead_removed_pct']}% overhead)")
 
 
+def test_native_s4_llm_routing():
+    """§4 — multi-LLM routing abstraction + HIGH-FIDELITY OFFLINE mock. One router (`llm_router`) over the
+    provider config selects the wire TRANSPORT (Anthropic Messages / OpenAI chat.completions / Gemini
+    generateContent), shapes the request EXACTLY as the live path (in lockstep with claude_agent), runs a mock
+    that returns PROVIDER-SHAPED raw responses, and parses the reply back — so routing+serialization+parsing for
+    EVERY provider (anthropic, openai-compat incl. OpenRouter / Z.ai / DeepSeek, gemini, groq) is exercised with
+    ZERO network. HONESTY (§X): a mock is ALWAYS live=False / source='mock-sim:*' (never dressed as live); the
+    real-egress LIVE path is UNVERIFIED here and NEVER fabricates a response; keys are per-call args, redacted,
+    never logged. The LLM only PROPOSES — the verifier still grades."""
+    import llm_router as R
+    import provider as P
+
+    # every configured gateway routes to a known transport (multi-provider coverage is inspectable)
+    ov = {o["label"]: o for o in R.providers_overview()}
+    assert {"Claude (official)", "OpenRouter", "GLM (Z.ai)", "Gemini (Google)", "Groq", "DeepSeek"} <= set(ov)
+    assert ov["Claude (official)"]["transport"] == "anthropic_sdk"
+    assert ov["OpenRouter"]["transport"] == ov["GLM (Z.ai)"]["transport"] == "openai_chat"
+    assert ov["Gemini (Google)"]["transport"] == "gemini_generate"
+
+    # HIGH-FIDELITY round-trip for ALL three transports: request shaped → provider-shaped mock raw → parsed back
+    canned = "def f(n):\n    return n * (n + 1) // 2\n"
+    seen = set()
+    for prov, mdl in [("anthropic", "claude-opus-4-8"), ("openai_compat", "glm-4.6"), ("gemini", "gemini-3.5-flash")]:
+        cfg = P.Config(provider=prov, model=mdl, base_url=None, has_env_key=False)
+        res = R.route(cfg, "Sum 0..n", mode="mock", reply_text=canned)
+        assert res.text == canned.strip(), f"{prov}: mock round-trip must parse back the exact reply"
+        assert res.live is False and res.source.startswith("mock-sim:") and res.status == "OK", res
+        seen.add(res.transport)
+    assert seen == set(R.TRANSPORTS), f"all three transports exercised offline: {seen}"
+
+    # request shapes match the live builders (anthropic cache_control + adaptive thinking; openai floors to 8192)
+    acfg = P.Config("anthropic", "claude-opus-4-8", None, False)
+    areq = R.build_request(acfg, "hello", max_tokens=4096)
+    assert areq.payload["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert areq.payload["thinking"] == {"type": "adaptive"} and areq.payload["messages"][0]["role"] == "user"
+    ocfg = P.Config("openai_compat", "glm-4.6", None, False)
+    assert R.build_request(ocfg, "x", max_tokens=4096).payload["max_tokens"] == 8192   # reasoning headroom floor
+    greq = R.build_request(P.Config("gemini", "gemini-3.5-flash", None, False), "x")
+    assert greq.endpoint.endswith(":generateContent") and greq.payload["contents"][0]["role"] == "user"
+
+    # DETERMINISM: identical request fingerprint + parsed text across runs (no wall-clock, no randomness)
+    a = R.route(acfg, "p", mode="mock"); b = R.route(acfg, "p", mode="mock")
+    assert (a.request_fingerprint, a.text) == (b.request_fingerprint, b.text) and len(a.request_fingerprint) == 16
+
+    # LIVE is honestly UNVERIFIED with no sender — and NEVER fabricates a response (empty text, explicit reason)
+    lr = R.route(acfg, "p", mode="live", sender=None)
+    assert lr.status == "UNVERIFIED" and lr.live is False and lr.text == "" and "UNVERIFIED" in lr.reason
+    assert R.live_status()["live"] == "UNVERIFIED" and "EGRESS" in R.live_status()["reason"]
+
+    # PLUMBING: an injected sender (a test DOUBLE, not a real provider) is routed + parsed faithfully; the key is
+    # passed to the sender only (never logged). This proves the live wiring mechanically — real egress stays UNVERIFIED.
+    def fake_sender(req, key):
+        assert key == "sk-test", "router must hand the per-call key to the sender (and nowhere else)"
+        return R.mock_response(req, "WIRED")
+    pr = R.route(acfg, "p", mode="live", sender=fake_sender, api_key="sk-test")
+    assert pr.live is True and pr.text == "WIRED" and pr.source == "live:anthropic"
+    assert R.redact("sk-secret-123") == "<redacted:13chars>" and R.redact(None) == "∅"   # keys never echoed
+
+    print(f"PASS test_native_s4_llm_routing ({len(ov)} gateways → 3 transports; HIGH-FIDELITY offline mock "
+          f"round-trips all of {sorted(seen)} (live=False, source=mock-sim:*); request shapes match claude_agent; "
+          f"deterministic fingerprints; LIVE path honestly UNVERIFIED [egress-blocked], never fabricated; "
+          f"keys redacted/per-call-only — LLM proposes, verifier decides)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.

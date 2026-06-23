@@ -14,11 +14,11 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **208 통과 / 208** (`test_build.py`, 결정론 실행; 아래 명령) |
+| 테스트 | **209 통과 / 209** (`test_build.py`, 결정론 실행; 아래 명령) |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
-| 진행 중 | NATIVE-CORE: §0.5 ✅ · §3 triage ✅ · §2 무의존 SMT ✅ · §1 Rust 코어 ✅ → 다음 §4 멀티-LLM · §5 의존성 0 |
+| 진행 중 | NATIVE-CORE: §0.5 ✅ · §3 ✅ · §2 ✅ · §1 ✅ · §4 라우팅 ✅ → 다음 §5 의존성 0, 그 후 리포트 |
 
 **※ 오래된 과거 지시 무시:** 예전 HANDOFF는 "`haran-web/`를 Projectharan에 push하라"고 했다 — 그건 **이미 끝났다**.
 지금은 Projectharan 위에서 직접 개발 중이고, 앱은 `server.py`가 서빙한다. 그 작업은 더 이상 할 일이 아니다.
@@ -27,7 +27,7 @@
 ```bash
 cd /home/user/Projectharan
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 208 passed, 0 failed
+# … 209 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
 `test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
@@ -68,7 +68,8 @@ Render(Docker)에서 **Branch를 `claude/charming-brahmagupta-q4wwgh`로 지정*
 - **§3 ✅** AST-깊이 fast-triage(캐시 앞단, `proof_triage.py`) — 결정론 라우팅·무손실 판정·회귀 시연+수정(`proof_cache.measure_triage`).
 - **§2 ✅** 무의존 bit-blasting SMT(`bitblast_smt.py`: 자체 DPLL SAT + bit-blaster + 독립 인증서 체커, coqc/cvc5/Bitwuzla/Lean/Z3 전부 불필요). 고정폭 QF-비트벡터(add/sub/상수곱/and/or/xor/not/shift/eq/ult)를 **폭 내에서 EXACT**(경계 2^w)·결정론(결과+인증서 동일)·SAT 모델은 작은 TCB가 재검증. `pillar3/bv_validate.bv_equiv_inhouse`에 배선하고 sound peephole에서 Z3와 교차검증(`cross_check_inhouse_vs_z3` → 전부 일치). **정직한 범위(§X): cvc5/Z3 동급 아님** — 부호비교 `>`·나눗셈·ite-mux·배열/실수/무한정수 없음; overflow-unsafe peephole(부호/나눗셈/ite)은 Z3에 남김.
 - **§1 ✅** 무의존 Rust 코어(`rust_core/` std-only cdylib + ctypes, PyO3/maturin/cffi/flint/faer 전부 불필요; `rust_core.py` 브리지). v34가 미룬 것 구현: 평면 **arena AST**(결정론 1패스), **결정론 고정정밀 다중모듈러 CRT ring**(고정 4-소수 기저 Garner 결합 → 정확 정수, Python bignum 대체; |v| ≤ MAX_ABS=(∏p−1)/2(123비트) 내에서 EXACT, 경계 초과는 기저 확장 또는 DECLINE — 랩이 정확히 경계에서 일어남을 정직히 명시), 유계 **유리수 복원**, **결정론 고정순서 모듈러 dot**("SIMD" 데모: 정수+고정순서 ⇒ 벡터화/스레드 무관 비트동일). 검증: Rust≡Python differential + **형식적 유계-전수 등가성**(arena×대입 12,789 케이스 전수, 불일치 0) + CRT 왕복 전수. `test_native_s1_rust_core`. **정직한 측정:** 이 단위에서 속도 교차 없음(ctypes 오버헤드 vs C-빠른 CPython int) ⇒ 속도 **UNVERIFIED**, 정확성이 산출물(v40-phase7 RNS 정직성과 동일). 네이티브는 런타임만 바꾸고 등급 불변; `target/`는 환경 빌드(gitignore), Python ring이 검증된 폴백.
-- **다음**: §4 멀티-LLM 추상화+고충실 mock → §5 의존성 ~0.
+- **§4 ✅** 멀티-LLM 라우팅 추상화 + 고충실 오프라인 mock(`llm_router.py`, `provider.py`/`claude_agent.py` 위). 라우터가 와이어 트랜스포트(Anthropic Messages / OpenAI chat.completions / Gemini generateContent)를 고르고 라이브와 동일하게 요청을 빚어, 제공자-모양 raw를 돌려주는 mock을 통과시켜 다시 파싱 — 모든 게이트웨이(anthropic, openai-compat 포함 OpenRouter/Z.ai/DeepSeek, gemini, groq)의 라우팅+직렬화+파싱이 네트워크 0으로 결정론 실행. `test_native_s4_llm_routing`. **정직(§X):** mock은 항상 live=False/source=mock-sim:*(라이브로 위장 금지), 실제 egress 라이브 경로는 **UNVERIFIED**[egress 차단]이며 응답을 절대 날조하지 않음; 키는 호출당 인자·마스킹·미기록. LLM은 제안, 검증기가 채점.
+- **다음**: §5 의존성 제거(대형 솔버→0, numpy 선택적, 최종 의존성 집합 문서화) → `NATIVE_CORE_REPORT.md` 작성.
 각 항목: 측정/증명, 등급, adversarial-wrong→DECLINE, 결정론 테스트, 커밋. §A2 대체(가짜 금지). 막히면 정직한 `UNVERIFIED[이유]`.
 완료 후 `STATUS.md` + `NATIVE_CORE_REPORT.md` 갱신. 멈추지 마라.
 
