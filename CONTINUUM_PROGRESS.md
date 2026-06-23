@@ -49,3 +49,6 @@ EXACT-share majority. Next per CONTINUUM: SPEED broth families + Clock-A/B throu
 MILESTONE: CONTINUUM_MASTER_REPORT.md written — measured flagships, EXACT-share trajectory (2→28, 68%), honest-
 DECLINE catalogue, §A2 substitution ledger, soundness-events-caught, Layer-2 leap status, deploy status, §X
 verbatim, and an honest complete-vs-remaining accounting. Loop continues (representative, not exhaustive).
+
+## §B — mode-separation invariant (enforced every commit)
+| GUARD | §B mode-separation invariant test | — | fast=MICRO/never-Z3; extend=EXACT-or-DECLINE; 12 fast gates ⊆ 18 extend gates; all 41 capabilities mode-tagged by grade (28 EXACT extend-eligible / 13 PROBABILISTIC fast-normal-only, ZERO leak) | test_mode_separation_invariant | 167/167 |

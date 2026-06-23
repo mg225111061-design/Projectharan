@@ -6338,6 +6338,46 @@ def test_round3_cegar_refinement():
           f"bounded-reachability witness ⇒ REFUTED/DECLINE — never a false 'safe')")
 
 
+def test_mode_separation_invariant():
+    """§B MODE-SEPARATION INVARIANT (must hold on EVERY commit) — the three modes are distinct CONTRACTS, not a
+    quality dial: (1) fast NEVER invokes Z3 (MICRO tier); (2) extend ships ONLY EXACT (EXACT-or-DECLINE —
+    PROBABILISTIC rejected); (3) fast/normal accept a well-tested PROBABILISTIC win; (4) the expensive techniques
+    (Z3/octagon/Gosper-FFT/Coq/race-free/deep-SIMD) are extended-only and the technique sets are monotone
+    (extend ⊇ fast); (5) EVERY graded capability is mode-tagged BY ITS GRADE — extend accepts it iff EXACT, so a
+    PROBABILISTIC capability can never leak into extend. Blurring any boundary fails this test (the build)."""
+    from pillar3 import mode as M
+    import kernel_verdict as KV
+    import mode_policy as MP
+
+    fast = M.ModePolicy.for_mode(M.Mode.FAST)
+    normal = M.ModePolicy.for_mode(M.Mode.NORMAL)
+    extend = M.ModePolicy.for_mode(M.Mode.EXTEND)
+
+    assert fast.verifier_tier == M.VerifierTier.MICRO, "fast must be the MICRO tier (no Z3)"
+    assert MP.should_run("z3_smt", "fast") is False and MP.should_run("z3_smt", "normal") is False, "fast/normal never Z3"
+    assert MP.should_run("z3_smt", "extended") is True, "only extend calls Z3"
+    assert extend.acceptable_grades == frozenset({KV.EXACT}), "extend ships only EXACT"
+    assert extend.grade_acceptable(KV.EXACT) and not extend.grade_acceptable(KV.PROBABILISTIC), "extend rejects PROBABILISTIC"
+    assert fast.grade_acceptable(KV.PROBABILISTIC) and normal.grade_acceptable(KV.PROBABILISTIC)
+    for tech in ("octagon_polyhedra", "gosper_toeplitz_fft", "coq_forall", "racefree_parallel", "layout_simd_deep"):
+        assert MP.should_run(tech, "extended") and not MP.should_run(tech, "fast"), f"{tech} must be extended-only"
+    assert set(MP.gates_for("fast")) <= set(MP.gates_for("extended")), "extend ⊇ fast (monotone separation)"
+
+    from pillar3 import exact_share as ES
+    for cap in ES.INVENTORY:
+        assert extend.grade_acceptable(cap.grade) == (cap.grade == KV.EXACT), \
+            f"capability '{cap.name}' ({cap.grade}): extend-eligibility must equal (grade==EXACT)"
+        assert fast.grade_acceptable(cap.grade) and normal.grade_acceptable(cap.grade), \
+            f"capability '{cap.name}': fast/normal accept both grades"
+
+    n_exact = sum(1 for c in ES.INVENTORY if c.grade == KV.EXACT)
+    n_prob = sum(1 for c in ES.INVENTORY if c.grade == KV.PROBABILISTIC)
+    print(f"PASS test_mode_separation_invariant (fast=MICRO/no-Z3; extend=EXACT-or-DECLINE; fast/normal accept "
+          f"PROBABILISTIC; {len(MP.gates_for('fast'))} fast gates ⊆ {len(MP.gates_for('extended'))} extend gates; "
+          f"all {len(ES.INVENTORY)} capabilities mode-tagged by grade — {n_exact} EXACT extend-eligible, {n_prob} "
+          f"PROBABILISTIC fast/normal-only, ZERO leak into extend)")
+
+
 def test_continuum_polysum_kinduction_exact():
     """CONTINUUM — polynomial degree-≤2 loop-sum Σ(a·i²+b·i+c) → Faulhaber closed form, EXACT FOR ALL n. Unlike
     the bounded-Z3 lifts, k-induction (#65) proves the closed form ≡ the loop for the WHOLE unbounded domain
