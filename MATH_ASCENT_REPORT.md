@@ -10,7 +10,7 @@ EXACT / PROBABILISTIC(ε,δ) / DECLINE. MATH-Ascent adds the second top-level mo
 mathematics, fold-first, with the same grade discipline and the same refusal to fabricate. The split is
 enforced in code and re-asserted on every commit.
 
-**22 new modules, ~2,860 lines, 26 new tests, deterministic suite 201/201 green.** The arsenal spans **16
+**22 new modules, ~2,860 lines, 26 new tests, deterministic suite 201/201 green.** The arsenal spans **17
 verified families**; the served app gained a **CODE ⇄ MATH toggle**, **universal file attachment**, and **safe
 archive extraction** (§B). (Three more families beyond the table below: `differential.py` — closed-form ODEs
 verified by back-substitution; `graph.py` — shortest paths with an LP-duality optimality certificate +
@@ -34,7 +34,7 @@ bipartiteness witnesses; `special_functions.py` — exact Γ and ζ; `calculus.p
 | 5 | visible grade-tagged reasoning | `solver.py` | one MATH entry point; `trace()` shows route→recognize→fold/broth/arsenal→grade |
 | 6 | universal file ingestion | `ingest.py` | XLSX/DOCX/PPTX via stdlib; fold-accelerated sequence analysis |
 | B3 | safe archive extraction | `archive.py` | zip/tar/gz → enumerate; zip-slip + bomb defenses (in-memory) |
-| 7 | measured capability benchmark | `benchmark.py` | 39 problems / 15 domains, measured deltas only |
+| 7 | measured capability benchmark | `benchmark.py` | 41 problems / 16 domains, measured deltas only |
 
 ## The center: fold (§2)
 
@@ -91,14 +91,14 @@ EXACT. The grade discipline carries verbatim from CODE into MATH.
 
 ## Measured capability (§7) — and the honest HLE position
 
-A representative benchmark of **39 problems across 15 domains**, run through the solver and graded:
+A representative benchmark of **41 problems across 16 domains**, run through the solver and graded:
 
-- **EXACT = 30, PROBABILISTIC = 1, DECLINE = 8** — and all **39/39 match their expected grade**. The eight DECLINEs
+- **EXACT = 32, PROBABILISTIC = 1, DECLINE = 8** — and all **41/41 match their expected grade**. The eight DECLINEs
   are *correct behaviour*: the harmonic sum `Σ1/k`, a singular linear system, the Abel–Ruffini quintic `x⁵−x+1`,
   parallel segments, a non-existent modular inverse, a dimensionally-wrong formula (`E=mv`), `x²−1` (which is
   *not* globally nonnegative — the certifier returns the exact counterexample `x=0`), and `∫x^x dx` (no
   closed-form antiderivative — never a fabricated one).
-- **24** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
+- **26** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
   answer, not a claim); every EXACT carries a passed certificate (the ADT enforces it, the bench re-asserts it).
 
 **On HLE:** Humanity's Last Exam is **UNVERIFIED** in this environment — there is no HLE dataset and no scoring

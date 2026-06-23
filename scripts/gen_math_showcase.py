@@ -61,6 +61,12 @@ SHOWCASE = [
                                          "edges": [[0, 1], [1, 2], [2, 0]]}),
     ("ζ(2) = π²/6 (Euler)", "zeta(2)"),
     ("Γ(5/2) = 3√π/4", "gamma(5/2)"),
+    ("Taylor of eˣ (order 5)", {"domain": "calculus", "op": "taylor", "f": sp.exp(x), "a": 0, "n": 5}),
+    ("De Morgan tautology (Z3)", {"domain": "logic", "op": "tautology",
+                                  "formula": sp.Equivalent(~(sp.Symbol("a") & sp.Symbol("b")),
+                                                           ~sp.Symbol("a") | ~sp.Symbol("b"))}),
+    ("a∧¬a unsatisfiable (Z3 proof)", {"domain": "logic", "op": "satisfiable",
+                                       "formula": sp.Symbol("a") & ~sp.Symbol("a")}),
 ]
 
 _KO = {KV.EXACT: "EXACT", KV.PROBABILISTIC: "PROBABILISTIC", KV.DECLINE: "DECLINE"}

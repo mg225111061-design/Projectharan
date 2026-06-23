@@ -139,6 +139,13 @@ def _suite() -> List[Problem]:
         Problem("interpolate (0,0)(1,1)(2,4)", "algebra",
                 {"domain": "algebra", "op": "interpolate", "points": [(0, 0), (1, 1), (2, 4)]}, KV.EXACT,
                 lambda v: sp.simplify(v.result - sp.Symbol("x") ** 2) == 0),
+        Problem("De Morgan tautology", "logic",
+                {"domain": "logic", "op": "tautology",
+                 "formula": sp.Equivalent(~(sp.Symbol("a") & sp.Symbol("b")), ~sp.Symbol("a") | ~sp.Symbol("b"))},
+                KV.EXACT, lambda v: v.result is True),
+        Problem("a∧¬a unsatisfiable", "logic",
+                {"domain": "logic", "op": "satisfiable", "formula": sp.Symbol("a") & ~sp.Symbol("a")}, KV.EXACT,
+                lambda v: v.result["satisfiable"] is False),
     ]
 
 
