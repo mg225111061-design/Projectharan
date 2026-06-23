@@ -122,6 +122,8 @@ B4. ◩ in progress (both stronger). MATH arsenal broadened to 12 families: +opt
     bounds), +inequalities (polynomial nonnegativity, certified or counterexample). §7 benchmark grown to 30
     problems / 11 domains (EXACT=22, PROBABILISTIC=1, DECLINE=7, all matching expected; 17 cross-checked). Broth
     3,735 (Gosper-grown). +differential (closed-form ODEs verified by back-substitution; no closed form ⇒ DECLINE)
-    ⇒ arsenal = **13 families**. [test_mathascent_b4_probability_inequalities, test_mathascent_b4_differential;
-    mathmode/{optimization,science_engineering,probability,inequalities,differential}.py]. CONTINUE: tensor/graph/
-    special functions, grow broth, code-side EXACT levers, richer reasoning.
+    +graph (shortest paths with the LP-duality optimality certificate; bipartiteness via 2-coloring / odd-cycle
+    witness — both EXACT) ⇒ arsenal = **14 families**. [test_mathascent_b4_probability_inequalities,
+    test_mathascent_b4_differential, test_mathascent_b4_graph; mathmode/{optimization,science_engineering,
+    probability,inequalities,differential,graph}.py]. CONTINUE: tensor/special functions, grow broth, code-side
+    EXACT levers, richer reasoning.

@@ -7452,6 +7452,36 @@ def test_mathascent_b4_differential():
           "honest DECLINE; solver = 13 families)")
 
 
+def test_mathascent_b4_graph():
+    """§B4 (arsenal deepening) — GRAPH / DISCRETE MATH with constructive certificates. Shortest paths
+    (Bellman–Ford, exact ints) carry the LP-duality optimality certificate: d[source]=0 ∧ ∀edge d[v]≤d[u]+w (dual
+    feasible) ∧ every reachable v tight d[v]=d[u]+w; a reachable negative cycle ⇒ honest DECLINE (no finite
+    shortest path). Bipartiteness is EXACT either way — a valid 2-coloring proves YES, an odd cycle proves NO,
+    both exhibited and re-checked. Routed through the solver (arsenal = 14 families)."""
+    from mathmode import graph as G
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    # shortest paths + optimality certificate
+    v = G.shortest_path_grade(3, [(0, 1, 2), (1, 2, 3), (0, 2, 10)], 0)
+    assert v.status == KV.EXACT and v.result == [0, 2, 5] and v.certificate.kind == "shortest_path_optimality"
+    assert G.shortest_path_grade(3, [(0, 1, 2), (1, 2, 3), (0, 2, 4)], 0).result == [0, 2, 4], "shortcut taken"
+    assert G.shortest_path_grade(3, [(0, 1, 4), (0, 2, 5), (2, 1, -3)], 0).result == [0, 2, 5], "negative edge OK"
+    assert G.shortest_path_grade(2, [(0, 1, 1), (1, 0, -3)], 0).status == KV.DECLINE, "negative cycle ⇒ DECLINE"
+    # bipartiteness — both directions EXACT with a witness
+    vb = G.bipartite_grade(4, [(0, 1), (1, 2), (2, 3), (3, 0)])
+    assert vb.status == KV.EXACT and vb.result["bipartite"] is True, "even cycle is bipartite (2-coloring)"
+    vt = G.bipartite_grade(3, [(0, 1), (1, 2), (2, 0)])
+    assert vt.status == KV.EXACT and vt.result["bipartite"] is False and len(vt.result["odd_cycle"]) % 2 == 1
+    # routed through the solver
+    assert S.solve({"domain": "graph", "op": "shortest_path", "n": 3,
+                    "edges": [[0, 1, 2], [1, 2, 3]], "source": 0}).verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_b4_graph (shortest paths with the LP-duality optimality certificate [feasibility "
+          "d[v]≤d[u]+w ∧ tightness], negative cycle ⇒ DECLINE; bipartiteness EXACT both ways [2-coloring proves "
+          "YES, odd cycle proves NO]; solver = 14 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
