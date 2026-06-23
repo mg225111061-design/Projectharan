@@ -6367,6 +6367,31 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_dce_and_unswitching():
+    """ROUND 2 (Group L, items 57/60) — dead-code elimination + loop unswitching (verified transforms).
+    #57: Z3 proves a branch guard UNSATISFIABLE ⇒ the block is unreachable (dead) ⇒ removing it is behavior-
+    preserving ⇒ EXACT; a satisfiable guard ⇒ the block is LIVE ⇒ DECLINE. #60: a loop-invariant branch hoisted
+    out of the loop (tested once) — the flag domain {True,False} is EXHAUSTIVELY checked and the op is identical
+    ⇒ EXACT (modest pure-Python speed, the real win is at the compiled level); an inverted hoist ⇒ DECLINE."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    for nm, g in R2.dead_guards():
+        v = R2.dead_branch_grade(nm, g)
+        assert v.status == KV.EXACT and v.certificate.kind == "unreachable_proof", f"{nm} guard is dead ⇒ EXACT DCE"
+    for nm, g in R2.live_guards():
+        assert R2.dead_branch_grade(nm, g).status == KV.DECLINE, f"{nm} guard is live ⇒ DECLINE"
+
+    v = R2.unswitch_grade(lambda: R2._make_unswitch_input(300000), n=300000, samples=5)
+    assert v.status == KV.EXACT and v.certificate.kind == "loop_unswitching_verified" and v.certificate.delta is None
+    assert v.report.whole_program_ratio <= v.report.amdahl_ceiling + 1e-9
+    assert R2.unswitch_grade(lambda: R2._make_unswitch_input(300000), fast_fn=R2.loop_unswitched_wrong, n=300000, samples=2).status == KV.DECLINE
+
+    print(f"PASS test_round2_dce_and_unswitching ({len(R2.dead_guards())} unsatisfiable guards ⇒ EXACT dead-code "
+          f"elimination; {len(R2.live_guards())} live guards ⇒ DECLINE; loop-invariant branch hoisted (exhaustive "
+          f"flag domain) ⇒ EXACT verified (×{v.report.whole_program_ratio:.2f} pure-Python, modest); inverted hoist ⇒ DECLINE)")
+
+
 def test_round2_jump_threading():
     """ROUND 2 (Group L, item 59) — jump threading / branch simplification (Z3, SOUND) — a VERIFIED transform.
     A nested branch is redundant when the outer guard determines the inner test: Z3 proves outer⇒inner (always

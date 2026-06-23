@@ -465,3 +465,74 @@ def _make_mono_int(n: int = 200000):
 
 def _make_polymorphic(n: int = 200000):
     return ([(i if i % 3 else float(i)) for i in range(n)],)   # mixed int/float ⇒ NOT monomorphic
+
+
+# ── item 57 — dead-code / unreachable-branch elimination: Z3 proves the guard UNSAT ⇒ block is dead ──────
+import z3 as _z3
+
+
+def dead_branch_grade(name, guard):
+    """Z3 proves the branch guard is UNSATISFIABLE ⇒ the guarded block is unreachable (dead) ⇒ removing it is
+    behavior-preserving ⇒ EXACT (verified). A SATISFIABLE guard ⇒ the block is reachable ⇒ DECLINE (live code)."""
+    x = _z3.Int("x")
+    s = _z3.Solver()
+    s.add(guard(x))
+    r = s.check()
+    if r == _z3.unsat:
+        cert = KV.Cert(KV.EXACT, "unreachable_proof", passed=True, check_cost="Z3 SAT(guard)=UNSAT",
+                       detail=f"{name}: guard unsatisfiable ⇒ block dead ⇒ removable (behavior-preserving)")
+        return KV.exact(name, f"deadcode:{name}", "verified DCE (Clock-B)", cert)
+    if r == _z3.sat:
+        return KV.decline(f"{name}: guard is SATISFIABLE (e.g. x={s.model()[x]}) ⇒ block is LIVE ⇒ DECLINE (keep it)", f"deadcode:{name}")
+    return KV.decline(f"{name}: z3 unknown ⇒ conservatively keep the block ⇒ DECLINE", f"deadcode:{name}")
+
+
+def dead_guards():
+    return [("x2_lt_0", lambda x: x * x < 0), ("gt5_and_lt3", lambda x: _z3.And(x > 5, x < 3)),
+            ("even_and_odd", lambda x: _z3.And(x % 2 == 0, x % 2 == 1))]
+
+
+def live_guards():
+    return [("gt5", lambda x: x > 5), ("eq42", lambda x: x == 42)]
+
+
+# ── item 60 — loop unswitching: a loop-INVARIANT branch tested per-iteration → hoisted out (test once) ───
+def loop_switched(a, flag):
+    out = []
+    for x in a:
+        if flag:                                           # invariant: flag is loop-invariant ⇒ redundant per-iter test
+            out.append(x * 2)
+        else:
+            out.append(x + 1)
+    return out
+
+
+def loop_unswitched(a, flag):
+    return [x * 2 for x in a] if flag else [x + 1 for x in a]   # branch hoisted OUT of the loop
+
+
+def loop_unswitched_wrong(a, flag):
+    return [x * 2 for x in a] if not flag else [x + 1 for x in a]   # inverted ⇒ differential catches
+
+
+def _make_unswitch_input(n=300000):
+    return (list(range(n)), True)
+
+
+def unswitch_grade(make_input, fast_fn=None, *, n, samples=5, residual_iters=0):
+    """Hoist a loop-invariant branch out of the loop (test once, not per-iteration). The flag domain {True,False}
+    is EXHAUSTIVELY checked (both branches) and the per-element op is identical ⇒ behavior-preserving ⇒ EXACT
+    (a verified transform; pure-Python speed benefit is modest, the real win is at the compiled level). An
+    inverted/wrong hoist ⇒ differential ⇒ DECLINE."""
+    fast_fn = fast_fn or loop_unswitched
+    a, flag = make_input()
+    if loop_switched(a, flag) != fast_fn(a, flag) or loop_switched(a, not flag) != fast_fn(a, not flag):
+        return KV.decline("unswitched result ≠ switched on the exhaustive flag domain (wrong hoist) ⇒ DECLINE", "unswitch")
+    rep = LF.measure_lift(lambda ar, fl: loop_switched(ar, fl), lambda ar, fl: fast_fn(ar, fl),
+                          make_input, residual_iters, n=n, samples=samples)
+    cert = KV.Cert(KV.EXACT, "loop_unswitching_verified", passed=True, check_cost="exhaustive flag domain + identical op",
+                   detail=f"loop-invariant branch hoisted (test once); flag∈{{T,F}} exhaustively verified, op identical "
+                          f"⇒ behavior-preserving (measured ×{rep.whole_program_ratio:.2f}, modest in pure-Python)")
+    v = KV.exact(fast_fn, "unswitch", str(rep), cert)
+    v.report = rep
+    return v

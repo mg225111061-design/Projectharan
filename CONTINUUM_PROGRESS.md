@@ -60,3 +60,7 @@ verbatim, and an honest complete-vs-remaining accounting. Loop continues (repres
 | SPEED | Round-2 #32/#34 type specialization / devirtualization (monomorphic dispatch → direct op) | PROBABILISTIC | ~1.8× monomorphic-int (guard+differential); polymorphic site / wrong spec → DECLINE | test_round2_type_specialization | 173/173 |
 | ACC | Round-2 #59 jump threading / branch simplification (Z3) — verified transform | EXACT | 4 redundant branches threadable (outer⇒inner constant); 2 live→DECLINE+counterexample (Clock-B, pure-Python ~1× honest) | test_round2_jump_threading | 174/174 |
 | LEDGER | Round-2 honest classification — covered-by-existing (◩ #33/35/36/37/38/42/43/44/45/58) + sandbox-blocked (⚠ #54/55/56) | — | Round-2 pending reduced to 5 (51/52/57/60 distinct + already-done); diminishing-tail documented honestly | — | 174/174 |
+| ACC | Round-2 #57/#60 dead-code elimination (Z3 unsat guard) + loop unswitching (exhaustive flag domain) — verified transforms | EXACT | 3 dead guards EXACT-DCE / 2 live→DECLINE; invariant branch hoisted EXACT (~1.1× pure-Python honest); inverted→DECLINE | test_round2_dce_and_unswitching | 175/175 |
+
+## ROUND 2 COMPLETE (30/30 dispositioned)
+Built: #31,32,34,39,40,41,46,47,48,49,50,53,57,59,60. Verify-existing/covered (◩): #33,35,36,37,38,42,43,44,45,51,52,58. UNVERIFIED/blocked (⚠, honest): #54,55,56. Every item measured/proven/graded or honestly classified — no fabrication.

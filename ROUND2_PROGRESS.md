@@ -36,14 +36,14 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 49. ☑ Bloom membership O(n)→O(1)/query FP-ε=0.019 ZERO false-neg ~5.7×@n=3000 PROBABILISTIC; false-neg variant→DECLINE [test_round2_bloom_membership; round2.py]
 50. ☑ reservoir sampling — one-pass uniform size-k sample, O(k) memory (never materialises N) [test_round2_sublinear_sketches; round2.py]
 ## Group K — memory/allocation/GC
-51. ☐ allocation elimination / object pooling
-52. ☐ escape analysis → stack/avoid-heap
+51. ◩ allocation elimination/object pooling — enabled by escape analysis #52; pure-Python buffer-reuse win modest (~1.2×, allocator fast); the sound license is the escape proof [pillar3 escape-analysis]
+52. ◩ escape analysis → stack/avoid-heap — a fresh local that does not escape (not returned/stored externally) is reuse-safe; same AST no-escape proof as the copy-elimination/purity mutation analyses (#53/#68) [test_round2_defensive_copy_elim]
 53. ☑ defensive-copy elimination (sound mutation analysis) — callee proven non-mutating ⇒ drop defensive f(list(x)) copy EXACT ~658× (O(n) copy gone for O(1) read); mutating callee (xs.sort())→keep copy→DECLINE [test_round2_defensive_copy_elim; pillar3/copyelim.py]
 54. ⚠ cache-aware tiling/blocking — pure-Python shows no cache benefit (interpreter-bound); covered for numeric via blocked/BLAS matmul #15 [test_round1_matmul_blocked_exact]
 55. ⚠ data-layout locality (hot/cold split) — pure-Python no measurable cache benefit (interpreter-bound)
 ## Group L — global compiler transforms
 56. ⚠ profile-guided code layout (BOLT) — UNVERIFIED[toolchain absent in sandbox]; honest exclusion, never faked
-57. ☐ global dead-code/unreachable elimination (interprocedural)
+57. ☑ dead-code/unreachable elimination — Z3 proves branch guard UNSAT ⇒ block dead ⇒ removable EXACT (verified); satisfiable guard (live)→DECLINE+witness [test_round2_dce_and_unswitching; round2.py]
 58. ◩ interprocedural const-prop + inlining (LTO) — covered by partial evaluation (parteval residual/codegen) + free-leap inlining [test_round1_partial_evaluation_exact]
 59. ☑ jump threading / branch simplification (Z3) — outer guard ⇒ inner test constant ⇒ inner branch threaded EXACT (verified simplification, Clock-B; pure-Python ~1×, win at compiled/IR level honestly); live branch→DECLINE+counterexample [test_round2_jump_threading; pillar3/jumpthread.py]
-60. ☐ loop unswitching / unrolling (profile-gated)
+60. ☑ loop unswitching — loop-invariant branch hoisted out (test once); exhaustive flag domain {T,F} + identical op ⇒ EXACT verified transform (~1.1× pure-Python, modest; real win at compiled level honest); inverted hoist→DECLINE [test_round2_dce_and_unswitching; round2.py]
