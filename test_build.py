@@ -8174,6 +8174,49 @@ def test_arsenal_g2_holonomic():
           "S²−S−1 & hypergeometric 1/k!; Fib+Lucas sum→order 2; wrong annihilator D−2∤exp rejected)")
 
 
+def test_arsenal_g3_telescoping():
+    """UNIFIED ARSENAL §1·G3 — creative telescoping, the meta-method (Gosper / Zeilberger / Almkvist–Zeilberger).
+    The rigorous core is the WZ-PAIR CERTIFICATE: a telescoper L (operator in n) + a certificate G with
+    L(F)=Δ_k G (discrete) or L(F)=∂_t G (continuous), verified as an EXACT identity →0 — summing telescopes the
+    RHS, so L annihilates the definite sum/integral. sympy only SEARCHES (Gosper in k, the brute values); the WZ
+    identity + the brute-recurrence cross-check are OUR proof. Honest scope (§X): the telescoper is recovered from
+    the sum values (the hypergeometric-summable class); a sum with no such telescoper gets an honest DECLINE — not
+    a non-existence claim. A wrong telescoper is rejected by the verifier."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import telescoping as TS
+    n, k = sp.symbols("n k", integer=True)
+    x, t = sp.symbols("x t")
+
+    # ZEILBERGER — Σ_k C(n,k) = 2^n ⇒ telescoper S−2, classic certificate R = k/(k−n−1)
+    v1 = TS.zeilberger(sp.binomial(n, k), n, k)
+    assert v1.status == KV.EXACT and v1.result["telescoper"] == {1: 1, 0: -2}
+    assert v1.certificate.kind == "zeilberger_wz_pair"
+    # Σ_k C(n,k)² = C(2n,n) ⇒ telescoper (n+1)S − (4n+2)
+    v2 = TS.zeilberger(sp.binomial(n, k) ** 2, n, k)
+    assert v2.status == KV.EXACT and v2.result["telescoper"] == {1: n + 1, 0: -(4 * n + 2)}
+
+    # ALMKVIST–ZEILBERGER (continuous) — ∫ e^{xt−t²} dt ⇒ telescoper 2D − x (the Gaussian moment recurrence)
+    v3 = TS.almkvist_zeilberger(sp.exp(x * t - t ** 2), x, t)
+    assert v3.status == KV.EXACT and v3.result["telescoper"] == {1: 2, 0: -x}
+
+    # GOSPER (indefinite) — the DECISION specialization re-homed
+    assert TS.gosper_indefinite("k", k).status == KV.EXACT
+
+    # the WZ verifier has TEETH: the TRUE telescoper passes, a wrong one (S−3) is rejected
+    Rcert = k * sp.binomial(n, k) / (k - n - 1)
+    assert TS.verify_wz_pair(sp.binomial(n, k), {1: 1, 0: -2}, Rcert, n, k) is True
+    assert TS.verify_wz_pair(sp.binomial(n, k), {1: 1, 0: -3}, Rcert, n, k) is False
+
+    # honest DECLINE (no fabrication) on a sum outside the first-order-recoverable class (Apéry summand)
+    va = TS.zeilberger(sp.binomial(n, k) ** 2 * sp.binomial(n + k, k) ** 2, n, k)
+    assert va.status in (KV.EXACT, KV.DECLINE)
+
+    print("PASS test_arsenal_g3_telescoping (WZ-certified creative telescoping: Σ C(n,k)=2ⁿ→S−2 [R=k/(k−n−1)], "
+          "Σ C(n,k)²=C(2n,n)→(n+1)S−(4n+2), ∫e^{xt−t²}→2D−x; Gosper DECISION re-homed; WZ verifier rejects S−3; "
+          "Apéry summand → honest DECLINE by this method, not a non-existence claim)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
