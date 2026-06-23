@@ -8759,6 +8759,31 @@ def test_arsenal_t_number():
           "certificate, §X])")
 
 
+def test_arsenal_t_structure_randomness():
+    """UNIFIED ARSENAL §4 — T-structure+randomness: fold what folds, PROVE the rest can't (Kolmogorov-honest).
+    Decompose w.r.t. the C-finite model via Berlekamp–Massey linear complexity L: small L ⇒ C-finite ⇒ fold to a
+    rational GF (EXACT); maximal L ⇒ PROVEN no constant-coeff linear recurrence of order < L (Massey) + exact
+    statistics ONLY, NEVER a predictive rule for individual values. USES Berlekamp–Massey; INVENTS nothing."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import transforms_random as TR
+
+    fib = TR.decompose([1, 1, 2, 3, 5, 8, 13, 21, 34, 55])
+    assert fib.status == KV.EXACT and fib.result["kind"] == "structured" and fib.result["linear_complexity"] == 2
+    assert TR.decompose([1, 2, 4, 8, 16, 32, 64, 128]).result["kind"] == "structured"
+
+    primes = TR.decompose([2, 3, 5, 7, 11, 13, 17, 19, 23, 29])
+    assert primes.status == KV.EXACT and primes.result["kind"] == "incompressible_by_linear_recurrence"
+    assert primes.result["predictive_rule"] is None                  # NEVER a predictive rule (Kolmogorov)
+    assert primes.result["mean"] == sp.Rational(sum([2, 3, 5, 7, 11, 13, 17, 19, 23, 29]), 10)   # exact statistic
+    assert primes.certificate.kind == "linear_incompressible" and "Massey" in primes.certificate.detail
+    assert TR.decompose([3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]).result["kind"] == "incompressible_by_linear_recurrence"
+
+    print("PASS test_arsenal_t_structure_randomness (Fibonacci/2ⁿ → C-finite fold; primes/π-digits → PROVEN no "
+          "short linear recurrence [Massey] + exact statistics, NO predictive rule [Kolmogorov-honest §X — uses "
+          "Berlekamp–Massey, invents nothing])")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
