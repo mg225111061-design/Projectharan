@@ -6654,6 +6654,111 @@ def test_round2_sublinear_sampling():
           f"biased estimator ε={rb.eps:.3f}>0.05 ⇒ DECLINE)")
 
 
+def test_mathascent_topmode_split():
+    """MATH-ASCENT §1 — the two TOP-LEVEL modes CODE and MATH route MEASURABLY differently, AND the OMEGA §B
+    fast/normal/extend sub-separation is preserved VERBATIM inside each. CODE's first move is profile→recognize
+    (fold is NOT central); MATH's first move is fold (central, structure-first). The per-commit invariant
+    `routes_differ()` asserts the split; and inside both top modes fast=MICRO/never-Z3 and extend=EXACT-or-DECLINE
+    (the §B contract is identical in CODE and MATH — blurring either fails the build)."""
+    from mathmode import topmode as TM
+    from pillar3 import mode as M
+    from pillar3.verifier import VerifierTier
+    import kernel_verdict as KV
+
+    c, m = TM.route(TM.TopMode.CODE), TM.route(TM.TopMode.MATH)
+    # the split is real: different toolsets, different first move, fold central only in MATH
+    assert TM.routes_differ(), "CODE and MATH must route measurably differently (the §1 invariant)"
+    assert c.toolset != m.toolset and c.default_first_move != m.default_first_move
+    assert m.default_first_move == "fold" and m.fold_is_central, "MATH's first move is fold (central)"
+    assert c.default_first_move == "profile→recognize" and not c.fold_is_central, "CODE leads with profiling"
+    assert "fold" in m.toolset and "fold" not in c.toolset, "fold is a MATH tool, not a CODE tool"
+
+    # ★ §B preserved VERBATIM inside BOTH top modes (the OMEGA mode separation does not blur) ★
+    for top in (TM.TopMode.CODE, TM.TopMode.MATH):
+        inner = TM.inner_modes(top)
+        by = {p.mode: p for p in inner}
+        assert set(by) == {M.Mode.FAST, M.Mode.NORMAL, M.Mode.EXTEND}, f"{top} must keep all three sub-modes"
+        # fast: MICRO tier — NEVER invokes Z3 (Clock A, no blocking)
+        assert by[M.Mode.FAST].verifier_tier == VerifierTier.MICRO, f"{top}.fast must be MICRO (never Z3)"
+        assert not by[M.Mode.FAST].runs_complexity_sweep and by[M.Mode.FAST].stop_on_first_win
+        # extend: EXACT-or-DECLINE (PROBABILISTIC-only fixes rejected)
+        assert by[M.Mode.EXTEND].acceptable_grades == frozenset({KV.EXACT}), f"{top}.extend is EXACT-only"
+        assert by[M.Mode.EXTEND].verifier_tier == VerifierTier.FULL_CERT
+        # normal accepts EXACT+PROBABILISTIC (the balanced contract)
+        assert by[M.Mode.NORMAL].acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
+
+    print("PASS test_mathascent_topmode_split (CODE first-move=profile→recognize / MATH first-move=fold "
+          "[central]; toolsets disjoint; routes_differ()=True; §B preserved VERBATIM inside BOTH: "
+          "fast=MICRO/never-Z3, extend=EXACT-or-DECLINE, normal=EXACT+PROBABILISTIC)")
+
+
+def test_mathascent_fold_universal():
+    """MATH-ASCENT §2 — FOLD, the universal structure-folding tool (the center of MATH). It RECOGNIZES the
+    structure FIRST, routes to the right method, and CO-GENERATES a machine-checked certificate (folding and
+    proving are one act): power sums → Faulhaber (k-induction, ∀n); C-finite recurrences → companion matrix
+    (O(log n)); geometric/telescoping → closed form (verified ≡ naive); polynomial identities → e-graph (Z3).
+    Every EXACT closed form is cross-checked against the brute-force ground truth (NOT a fabricated formula).
+    Where there is no foldable structure — or no stocked closed form — fold DECLINEs honestly (F5), and the
+    k-induction GATE refutes a wrong identity (the anti-fabrication moat)."""
+    from mathmode import fold as F
+    import kernel_verdict as KV
+
+    naive_pow = lambda p, n: sum(k ** p for k in range(1, n + 1))
+    probe = (0, 1, 2, 7, 13, 20)
+
+    # power sums p=0..4 → Faulhaber, k-induction-proven EXACT, closed form ≡ brute force at every probe
+    for p in range(0, 5):
+        r = F.fold({"kind": "power_sum", "p": p})
+        assert r.verdict.status == KV.EXACT, f"power_sum p={p} must EXACT-fold, got {r.verdict.status}"
+        assert r.verdict.certificate.kind == "faulhaber_kinduction" and r.verdict.certificate.delta is None
+        assert all(r.closed_form(n) == naive_pow(p, n) for n in probe), f"p={p} closed form ≢ ground truth"
+
+    # C-finite recurrence (Fibonacci) → companion-matrix O(log n), EXACT, ≡ the naive recurrence
+    fib = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
+    r = F.fold({"kind": "linear_recurrence", "c": [1, 1], "init": [0, 1]})
+    assert r.verdict.status == KV.EXACT and r.verdict.certificate.kind == "cfinite_companion"
+    assert all(r.closed_form(i) == fib[i] for i in range(len(fib))), "companion ≡ fib"
+    # Tribonacci too (order-3 C-finite)
+    rt = F.fold({"kind": "linear_recurrence", "c": [1, 1, 1], "init": [0, 1, 1]})
+    trib = [0, 1, 1, 2, 4, 7, 13, 24, 44, 81]
+    assert rt.verdict.status == KV.EXACT and all(rt.closed_form(i) == trib[i] for i in range(len(trib)))
+
+    # geometric sum Σ_{k<n} r^k = (r^n−1)/(r−1) — EXACT, ≡ naive
+    rg = F.fold({"kind": "geometric_sum", "r": 3})
+    assert rg.verdict.status == KV.EXACT and rg.verdict.certificate.kind == "geometric_closed"
+    assert all(rg.closed_form(n) == sum(3 ** k for k in range(n)) for n in (0, 1, 4, 9, 15))
+
+    # telescoping Σ(g(k+1)−g(k)) = g(n)−g(0) — EXACT, ≡ naive
+    g = lambda k: k * k * k
+    rtl = F.fold({"kind": "telescoping_sum", "g": g})
+    assert rtl.verdict.status == KV.EXACT and rtl.verdict.certificate.kind == "telescoping"
+    assert all(rtl.closed_form(n) == sum(g(k + 1) - g(k) for k in range(n)) for n in (0, 1, 5, 11))
+
+    # polynomial identity  x·1 + x·0  → x  (Z3-certified e-graph equivalence)
+    term = ("+", ("*", ("var", "x"), ("const", 1)), ("*", ("var", "x"), ("const", 0)))
+    rp = F.fold({"kind": "polynomial_identity", "term": term})
+    assert rp.verdict.status == KV.EXACT and rp.verdict.certificate.kind == "egraph_z3_equiv"
+    assert rp.detail == "x", f"x·1 + x·0 must canonicalize to x, got {rp.detail!r}"
+
+    # ── honest DECLINE (F5): no fabricated formula where there is no structure / no stocked closed form ──
+    assert F.fold({"kind": "arbitrary_oracle", "data": [3, 1, 4, 1, 5]}).verdict.status == KV.DECLINE
+    assert F.fold([1, 2, 3]).verdict.status == KV.DECLINE, "a non-object input ⇒ DECLINE (no structure)"
+    assert F.fold({"kind": "power_sum", "p": 9}).verdict.status == KV.DECLINE, "beyond-stock degree ⇒ DECLINE"
+
+    # ── the anti-fabrication MOAT: the same k-induction gate fold relies on REFUTES a wrong identity ──
+    import z3
+    from pillar3 import kinduction as KI
+    nn = z3.Real("n")
+    wrong = lambda k: k * k * k                  # claim Σk² 'is' n³ — the step cz(n)−cz(n−1)=n² must FAIL
+    step_ok, _cex = KI._valid(wrong(nn) - wrong(nn - 1) == nn ** 2)
+    assert step_ok is False, "the induction gate MUST refute a wrong closed form (anti-fabrication)"
+
+    print("PASS test_mathascent_fold_universal (fold recognizes structure FIRST → EXACT closed form + certificate: "
+          "power_sum p=0..4 Faulhaber/k-induction ∀n, C-finite companion O(log n) [fib+tribonacci], geometric & "
+          "telescoping ≡ naive, polynomial_identity e-graph/Z3 — every closed form ≡ brute-force ground truth; "
+          "unstructured / non-object / beyond-stock ⇒ honest DECLINE; wrong identity ⇒ induction gate refutes)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
