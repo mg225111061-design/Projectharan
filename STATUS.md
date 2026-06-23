@@ -34,8 +34,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
   inequalities (nonneg/SOS) · differential (ODE) · graph (shortest-path/bipartite) · special_functions (Γ/ζ) ·
   calculus (∫/d/dx/Taylor) · logic (Z3 SAT/tautology/equiv).
 - Entry point `solver.py`: free-text/JSON → `solve_in_mode(mode)`; `MathSolution.trace()` shows grade-tagged reasoning.
-- Measured coverage (`benchmark.py`): **41 problems / 16 domains — EXACT 32, PROBABILISTIC 1, DECLINE 8**, all
-  matching expected grade, 26 cross-checked vs ground truth. Demonstration: `reports/archive/MATH_SHOWCASE.md`.
+- Measured coverage (`benchmark.py`): **62 problems / 22 domains — EXACT 50, PROBABILISTIC 1, DECLINE 11**, all
+  matching expected grade (62/62), 34 cross-checked vs ground truth. Spans the unified arsenal: G1–G4 foundations
+  (telescoping/ΠΣ*), §2 decision procedures (Petkovšek/Abramov/Risch/Kovacic/CAD), §3 physics P1–P9
+  (Buckingham/Petrov/Wigner/operator-algebra), §4 transforms (symdyn/number/randomness/spectral), and the PHASE-1
+  fast kernels (modexp/fib O(log) · Lucas–Lehmer with honest infeasibility ceiling). Demo: `reports/archive/MATH_SHOWCASE.md`.
 
 ## §B UI (served single-file `mrjeffrey.html`)
 - CODE ⇄ MATH toggle (re-themes + re-routes); fast/normal/extend preserved inside each.
