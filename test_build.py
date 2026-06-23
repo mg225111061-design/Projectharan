@@ -6337,6 +6337,30 @@ def test_round3_cegar_refinement():
           f"bounded-reachability witness ⇒ REFUTED/DECLINE — never a false 'safe')")
 
 
+def test_continuum_polysum_kinduction_exact():
+    """CONTINUUM — polynomial degree-≤2 loop-sum Σ(a·i²+b·i+c) → Faulhaber closed form, EXACT FOR ALL n. Unlike
+    the bounded-Z3 lifts, k-induction (#65) proves the closed form ≡ the loop for the WHOLE unbounded domain
+    (base ∧ step), so it's an EXACT O(n)→O(1) ceiling-breaker valid for all n, measured whole-program. A wrong
+    closed form (k·k instead of k·(k−1)) fails the inductive step ⇒ DECLINE."""
+    from pillar3 import polysum as PS
+    import kernel_verdict as KV
+
+    rows = []
+    for a, b, c in PS.INSTANCES:
+        v, rep = PS.polysum_grade(a, b, c, n=200000, samples=5)
+        assert v.status == KV.EXACT and v.certificate.kind == "kinduction_closed_form" and v.certificate.delta is None
+        assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9, "ratio ≤ ceiling (Rule 2)"
+        assert rep.whole_program_ratio >= 100.0, f"O(n)→O(1) should be a huge win, got {rep.whole_program_ratio:.0f}×"
+        rows.append(rep.whole_program_ratio)
+
+    vw, _ = PS.polysum_grade(3, 2, 5, n=200000, samples=2, closed_override=PS.wrong_closed_z3(3, 2, 5))
+    assert vw.status == KV.DECLINE, "a wrong closed form must fail the inductive step ⇒ DECLINE"
+
+    print(f"PASS test_continuum_polysum_kinduction_exact ({len(PS.INSTANCES)} polynomial loop-sums Σ(a·i²+b·i+c) "
+          f"→ Faulhaber closed form, k-induction-proven for ALL n, EXACT O(n)→O(1) ~{int(sum(rows)/len(rows))}× "
+          f"≤ ceiling (δ=None); wrong closed form fails the inductive step ⇒ DECLINE)")
+
+
 def test_round2_native_compile():
     """ROUND 2 (Group G, item 31 / Round-1 #3) — whole-region NATIVE COMPILATION via numba/llvmlite: the same
     arithmetic compiled to native removes per-element interpreter overhead (the structure-free ~80% lever).
