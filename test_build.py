@@ -8425,6 +8425,58 @@ def test_arsenal_p2_curvature():
           "Γ→Riemann→Ricci→K re-substitution certified)")
 
 
+def test_arsenal_p6_wigner():
+    """UNIFIED ARSENAL §3·P6 — Clebsch–Gordan / Wigner 3j-6j (EXACT, rational × √rational). Computed via
+    sympy.physics.wigner, CERTIFIED by OUR checks: selection-rule zeros (m-sum / triangle) and the EXACT CG
+    unitarity Σ⟨..|JM⟩⟨..|J'M'⟩=δ. A nonzero 3j is cross-checked against the CG relation."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import wigner as W
+
+    v = W.wigner3j(1, 1, 2, 0, 0, 0)
+    assert v.status == KV.EXACT and sp.simplify(v.result - sp.sqrt(30) / 15) == 0
+    assert v.certificate.kind == "wigner3j_cg_crosscheck"
+    z = W.wigner3j(1, 1, 1, 1, 1, 1)                          # m₁+m₂+m₃=3≠0 ⇒ selection-rule zero
+    assert z.status == KV.EXACT and z.result == 0 and z.certificate.kind == "wigner3j_selection_zero"
+    # CG unitarity certifies the whole coupling table (exact δ); ½⊗½ = 0⊕1, 1⊗½ = ½⊕3⁄2
+    o1 = W.cg_orthogonality(sp.S(1) / 2, sp.S(1) / 2)
+    assert o1.status == KV.EXACT and o1.result["decomposition"] == ["0", "1"]
+    o2 = W.cg_orthogonality(1, sp.S(1) / 2)
+    assert o2.status == KV.EXACT and o2.result["decomposition"] == ["1/2", "3/2"]
+    assert W.sixj(1, 1, 1, 1, 1, 1).status == KV.EXACT
+
+    print("PASS test_arsenal_p6_wigner (Wigner 3j(1,1,2;0,0,0)=√30/15 [CG cross-checked], selection-rule zero "
+          "3j(…;1,1,1)=0, CG unitarity Σ=δ certifies ½⊗½=0⊕1 & 1⊗½=½⊕3⁄2 exactly; 6j EXACT)")
+
+
+def test_arsenal_p9_special_holonomic():
+    """UNIFIED ARSENAL §3·P9 — holonomic special-function bridge: every classical special function satisfies a
+    polynomial-coefficient ODE (its annihilator), so registering it as holonomic data lets G2/G3 fire on it.
+    Certificate: L(f)≡0 by substitution for the concrete function (re-checkable); the P9→G2 bridge then closes
+    e.g. Hermite+exp. Large EXACT coverage at low cost — the hard machinery (G1–G3) already exists."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import special_holonomic as SH
+
+    for fam in ("legendre", "hermite", "laguerre", "chebyshev_t", "bessel"):
+        r = SH.register(fam, 3)
+        assert r.status == KV.EXACT and r.certificate.kind == "special_fn_annihilator", fam
+    # the annihilators are the textbook ODEs — re-verify Legendre (1−x²)P″−2xP′+n(n+1)P ≡ 0 here independently
+    x = sp.Symbol("x")
+    P = sp.legendre(3, x)
+    assert sp.simplify((1 - x ** 2) * P.diff(x, 2) - 2 * x * P.diff(x) + 12 * P) == 0
+    # a WRONG annihilator (missing the n(n+1) term) does NOT vanish ⇒ would be rejected
+    assert sp.simplify((1 - x ** 2) * P.diff(x, 2) - 2 * x * P.diff(x)) != 0
+
+    # the bridge into G2: Hermite + exp closes to a finite-order annihilator (P9 feeds holonomic data to G2)
+    cd = SH.closure_demo("hermite", 2)
+    assert cd.status == KV.EXACT and cd.result["sum_order"] >= 1
+
+    print("PASS test_arsenal_p9_special_holonomic (registered Legendre/Hermite/Laguerre/Chebyshev/Bessel "
+          "annihilators, each L(f)≡0-certified; Legendre ODE re-verified, wrong annihilator rejected; P9→G2 "
+          "bridge closes Hermite+exp — special functions become free G2/G3 coverage)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
