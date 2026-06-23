@@ -8124,6 +8124,56 @@ def test_arsenal_g1_ore_core():
           "GCRD(D+1) cofactor-verified; the substrate for G2/G3/P5)")
 
 
+def test_arsenal_g2_holonomic():
+    """UNIFIED ARSENAL §1·G2 — holonomic / D-finite subsystem on the G1 Ore core. A function/sequence is its
+    annihilating operator (ODE/recurrence-as-data); D-finite objects are closed under + and ×, and the closure
+    ALGORITHM computes the new annihilator via the module of derivatives/shifts. Two independent certificates:
+    the MODULE recheck (Σ b_j·reduced-state = 0 over ℚ(x)) and an OPERATIONAL replay (apply L to the concrete
+    combination → 0). Re-homes the existing C-finite + hypergeometric onto this one representation."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import holonomic as H
+    x = sp.Symbol("x")
+
+    expf = H.dfinite_diff({1: 1, 0: -1}, sp.exp(x), "exp")     # (D−1)exp = 0
+    sinf = H.dfinite_diff({2: 1, 0: 1}, sp.sin(x), "sin")      # (D²+1)sin = 0
+
+    # SUM closure: exp+sin ⇒ order-3 annihilator D³−D²+D−1, certified two ways
+    vs = H.grade_sum(expf, sinf)
+    assert vs.status == KV.EXACT and vs.result.order == 3 and vs.certificate.kind == "holonomic_sum"
+    assert sp.simplify(vs.result.L.apply(sp.exp(x) + sp.sin(x))) == 0      # independent operational recheck
+    # PRODUCT closure: exp·sin ⇒ order-2 annihilator D²−2D+2
+    vp = H.grade_product(expf, sinf)
+    assert vp.status == KV.EXACT and vp.result.order == 2
+    assert sp.simplify(vp.result.L.apply(sp.exp(x) * sp.sin(x))) == 0
+
+    # RE-HOME C-finite (Fibonacci S²−S−1) and a hypergeometric term (1/k!) onto annihilator-as-data
+    def fib(n):
+        a, b = 0, 1
+        for _ in range(n):
+            a, b = b, a + b
+        return sp.Integer(a)
+    F = H.cfinite([1, 1], seq=fib, name="Fibonacci")
+    assert H.grade_rehome(F).status == KV.EXACT and F.L.equals(F.alg.op({2: 1, 1: -1, 0: -1}))
+    Hg = H.hypergeom_term("1/(n+1)", seq=lambda n: sp.Rational(1, sp.factorial(n)), name="1/k!")
+    assert H.grade_rehome(Hg).status == KV.EXACT
+    # C-finite SUM closure (Fibonacci + Lucas, same recurrence ⇒ minimal order 2)
+    def luc(n):
+        a, b = 2, 1
+        for _ in range(n):
+            a, b = b, a + b
+        return sp.Integer(a)
+    assert H.grade_sum(F, H.cfinite([1, 1], seq=luc, name="Lucas")).status == KV.EXACT
+
+    # ADVERSARIAL: a wrong annihilator (D−2 for exp) is rejected by the operational certificate
+    bad = H.dfinite_diff({1: 1, 0: -2}, sp.exp(x), "exp?")
+    assert H._operational_cert(bad.alg, bad.L, bad.fn, None) is False
+
+    print("PASS test_arsenal_g2_holonomic (D-finite closure on the Ore core: exp+sin→order-3 D³−D²+D−1, "
+          "exp·sin→order-2 D²−2D+2 [module Σb·state=0 over ℚ(x) + operational L(combo)=0]; re-homed Fibonacci "
+          "S²−S−1 & hypergeometric 1/k!; Fib+Lucas sum→order 2; wrong annihilator D−2∤exp rejected)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.

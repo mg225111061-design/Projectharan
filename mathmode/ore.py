@@ -150,6 +150,20 @@ class OrePoly:
         c = sp.sympify(c)
         return OrePoly(self.alg, {i: c * ai for i, ai in self.coeffs.items()})
 
+    def monic(self) -> "OrePoly":
+        """divide through by the leading coefficient (leading ∂-power coeff → 1) over ℚ(x)."""
+        d = self.degree()
+        if d < 0:
+            return self
+        lead = self.coeffs[d]
+        return OrePoly(self.alg, {i: sp.cancel(c / lead) for i, c in self.coeffs.items()})
+
+    def reduction_vector(self) -> List[sp.Expr]:
+        """for a MONIC order-r operator θ^r + Σ_{i<r} a_i θ^i, return (−a_0,…,−a_{r-1}): θ^r ≡ Σ(−a_i)θ^i."""
+        m = self.monic()
+        r = m.degree()
+        return [-m.coeffs.get(i, sp.Integer(0)) for i in range(r)]
+
     # ── DECISION: equality via canonical normal form ──
     def equals(self, other: "OrePoly") -> bool:
         diff = self.sub(other)
