@@ -31,6 +31,7 @@ from mathmode import probability as PR
 from mathmode import inequalities as IQ
 from mathmode import differential as DE
 from mathmode import graph as GR
+from mathmode import special_functions as SF2
 
 
 @dataclass
@@ -96,6 +97,7 @@ _ARSENAL = {
     "geometry": GE.solve, "certified_numeric": CN.solve, "combinatorics": CB.summation,
     "optimization": OPT.solve, "science_engineering": SE.solve,
     "probability": PR.solve, "inequalities": IQ.solve, "differential": DE.solve, "graph": GR.solve,
+    "special_functions": SF2.solve,
 }
 
 

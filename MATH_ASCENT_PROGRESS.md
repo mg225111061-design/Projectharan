@@ -67,8 +67,12 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
 3h. ☑ science_engineering — dimensional analysis over the 7 SI base dims (exponent-vector algebra): an equation
     is EXACT iff both sides share a dimension vector; a dimensionally-wrong formula (E=m·v) ⇒ DECLINE (a real
     bug-catcher); derive a result's units EXACT. [test_mathascent_optimization_and_science; mathmode/science_engineering.py]
-    Arsenal = 10 families. Remaining/honest-blocked: ◩ logic_verification (Z3 wired) · ⚠ Zeilberger definite-sum
-    recurrences [BLOCKED: ore_algebra absent — not faked] · ☐ ODE/PDE · ☐ tensor · ☐ probability · ☐ inequalities/SOS.
+3i. ☑ special_functions — Γ at integers/half-integers (certified by Γ(z+1)=z·Γ(z); poles ⇒ DECLINE) + ζ at EVEN
+    integers (Euler/Bernoulli π^{2k} closed form, cross-checked vs sympy ζ ∧ the defining series; odd ζ ⇒ DECLINE).
+    [test_mathascent_b4_special_functions; mathmode/special_functions.py]
+    Arsenal = **15 families** (number_theory · combinatorics · linear_algebra · algebra · geometry ·
+    certified_numeric · optimization · science_engineering · probability · inequalities · differential · graph ·
+    special_functions · + fold + broth). Honest-blocked: ⚠ Zeilberger [ore_algebra absent — not faked] · ☐ tensor.
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
 4. ☑ broth proving — prove() does O(1) dict lookup over 3,772 entries + a CHEAP recheck (PRA finite-base for sums,

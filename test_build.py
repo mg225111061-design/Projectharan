@@ -7603,6 +7603,34 @@ def test_mathascent_b4_diophantine():
           "226153980)]; perfect-square N ⇒ DECLINE — all self-certifying)")
 
 
+def test_mathascent_b4_special_functions():
+    """§B4 (arsenal deepening) — SPECIAL FUNCTIONS: exact closed-form Γ and ζ, certified by identities. Γ at
+    integers/half-integers [Γ(5)=24, Γ(½)=√π, Γ(5/2)=3√π/4] is certified by the functional equation Γ(z+1)=z·Γ(z)
+    (an induction); a pole ⇒ honest DECLINE. ζ at EVEN integers [ζ(2)=π²/6, ζ(4)=π⁴/90, ζ(6)=π⁶/945] is the
+    Euler/Bernoulli closed form, cross-checked vs sympy ζ AND a partial sum of the defining series Σ1/nˢ; ODD
+    ζ(3) (no known closed form) ⇒ honest DECLINE — never fabricated. Routed through the solver (15 families)."""
+    import sympy as sp
+    from mathmode import special_functions as SF
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    for two_z, exp in [(2, sp.Integer(1)), (10, sp.Integer(24)), (1, sp.sqrt(sp.pi)),
+                       (5, sp.Rational(3, 4) * sp.sqrt(sp.pi))]:
+        v = SF.gamma_grade(two_z)
+        assert v.status == KV.EXACT and sp.simplify(v.result - exp) == 0, (two_z, v.result)
+    assert SF.gamma_grade(0).status == KV.DECLINE and SF.gamma_grade(-4).status == KV.DECLINE, "poles ⇒ DECLINE"
+    for s, exp in [(2, sp.pi ** 2 / 6), (4, sp.pi ** 4 / 90), (6, sp.pi ** 6 / 945)]:
+        v = SF.zeta_even_grade(s)
+        assert v.status == KV.EXACT and sp.simplify(v.result - exp) == 0, (s, v.result)
+    assert SF.zeta_even_grade(3).status == KV.DECLINE, "ζ(3): no known closed form ⇒ honest DECLINE"
+    assert S.solve({"domain": "special_functions", "op": "zeta_even", "s": 8}).verdict.status == KV.EXACT
+    assert S.solve({"domain": "special_functions", "op": "gamma", "two_z": 7}).verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_b4_special_functions (Γ at integers/half-integers [Γ(5)=24, Γ(½)=√π, Γ(5/2)=3√π/4] "
+          "certified by Γ(z+1)=z·Γ(z), poles ⇒ DECLINE; ζ(2k) Euler/Bernoulli [π²/6, π⁴/90, π⁶/945] cross-checked "
+          "vs sympy ζ ∧ series; odd ζ(3) ⇒ honest DECLINE; solver = 15 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
