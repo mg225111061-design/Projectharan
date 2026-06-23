@@ -102,9 +102,11 @@ def main():
             f"{counts[KV.PROBABILISTIC]} · DECLINE {counts[KV.DECLINE]} (each DECLINE is the honest, correct answer).")
     out.insert(4, head)
     out.insert(5, "")
-    open(os.path.join(_ROOT, "MATH_SHOWCASE.md"), "w", encoding="utf-8").write("\n".join(out))
+    dest = os.path.join(_ROOT, "reports", "archive", "MATH_SHOWCASE.md")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    open(dest, "w", encoding="utf-8").write("\n".join(out))
     print(head)
-    print("wrote MATH_SHOWCASE.md")
+    print("wrote reports/archive/MATH_SHOWCASE.md")
 
 
 if __name__ == "__main__":
