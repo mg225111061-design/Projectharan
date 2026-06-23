@@ -7930,10 +7930,18 @@ def test_native_s2_bitblast_smt():
     tampered = dict(model); k = next(iter(tampered)); tampered[k] = not tampered[k]
     assert S._check_model(bb.cnf.clauses, tampered) is False, "checker must reject a corrupted model"
 
+    # (g) SIGNED comparison now IN-HOUSE (broadened coverage): slt is correct on signed constants, and the
+    # signed-overflow obligation (x+1) >ₛ x — FALSE at INT_MAX — gets its counterexample in-house (no Z3)
+    for av, bv, w, exp in [(-1, 0, 4, True), (7, -8, 4, False), (-8, 7, 4, True), (3, 5, 4, True)]:
+        rr = S.solve_bv(lambda bb, av=av, bv=bv, w=w: bb.slt_lit(bb.const(av % (2 ** w)), bb.const(bv % (2 ** w))), w)
+        assert (rr.status == "SAT") == exp, (av, bv, exp, rr.status)
+    ov = S.solve_bv(lambda bb: -bb.sgt_lit(bb.add(bb.var("x"), bb.const(1)), bb.var("x")), 8)
+    assert ov.status == "SAT" and ov.model["x"] == 127, ov     # INT_MAX(w8): 127+1 = −128 <ₛ 127 ⇒ (x+1)>ₛx false
+
     print(f"PASS test_native_s2_bitblast_smt (ZERO-DEP in-house SMT: {len(cc['rows'])} sound peepholes decided VALID "
           f"and AGREEING with Z3 at matched width; INVALID x+1==x with checked cex x={xc}; SAT 3x≡9→x={sat.model['x']} "
-          f"+ UNSAT 2x≡1; deterministic result+certificate; tamper-rejecting checker; "
-          f"out-of-scope (stay on Z3): {cc['out_of_scope_for_inhouse']} — not Z3 parity, by design)")
+          f"+ UNSAT 2x≡1; SIGNED compare now in-house [(x+1)>ₛx false at INT_MAX=127, found w/o Z3]; deterministic "
+          f"result+certificate; tamper-rejecting checker; still out-of-scope: division/ite — not Z3 parity, by design)")
 
 
 def test_native_s3_triage_layer():

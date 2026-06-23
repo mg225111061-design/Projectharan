@@ -10,8 +10,10 @@ with ZERO external solver. It is:
     AND same certificate, every run.
   • CERTIFICATE-PRODUCING — SAT returns a MODEL that an independent tiny checker verifies against the CNF; for a
     validity claim (∀x. P), UNSAT of ¬P is the proof (decided exhaustively over the w-bit domain by the SAT core).
-Honest scope: bitvector add / sub / mul-by-constant / eq / ult / and / or / xor / not / shifts, quantifier-free,
-fixed width. NOT cvc5/Z3-parity (no arrays, no reals, no unbounded ints). That's the point — small TCB, zero deps.
+Honest scope: bitvector add / sub / mul-by-constant / eq / ult / slt / sgt (signed compare) / and / or / xor /
+not / shifts, quantifier-free, fixed width. NOT cvc5/Z3-parity (no division, no ite-mux as a first-class op, no
+arrays, no reals, no unbounded ints). That's the point — small TCB, zero deps. (Signed comparison was added so the
+signed-overflow obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are decided in-house.)
 """
 from __future__ import annotations
 
@@ -138,6 +140,16 @@ class BitBlaster:
             eqb = self.cnf.lit_and(-self.cnf.lit_xor(a.bits[i], b.bits[i]), borrow)
             borrow = self.cnf.lit_or(nb, eqb)
         return borrow                                       # final borrow ⇔ a < b (unsigned)
+
+    def slt_lit(self, a: BV, b: BV) -> int:                 # SIGNED a < b (two's complement), as a literal
+        am, bm = a.bits[self.w - 1], b.bits[self.w - 1]     # sign bits (MSB)
+        diff = self.cnf.lit_xor(am, bm)
+        # signs differ ⇒ a<b iff a is negative (am=1); signs equal ⇒ unsigned compare
+        return self.cnf.lit_or(self.cnf.lit_and(diff, am),
+                               self.cnf.lit_and(-diff, self.ult_lit(a, b)))
+
+    def sgt_lit(self, a: BV, b: BV) -> int:                 # SIGNED a > b  ≡  b <_s a
+        return self.slt_lit(b, a)
 
 
 # ── DPLL SAT core (deterministic: lowest-index unassigned var, positive first) ───────────────────────────
