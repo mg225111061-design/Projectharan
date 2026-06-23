@@ -7281,6 +7281,102 @@ def test_mathascent_b1_mode_toggle():
           "MATH §B floor enforced [extend EXACT-or-DECLINE, fast/normal accept PROBABILISTIC]; to_dict JSON-safe)")
 
 
+def test_mathascent_b3_archive_safety():
+    """§B3 — SAFE archive extraction (zip/tar/gz → enumerate + type every inner file), defended against bombs and
+    zip-slip BY CONSTRUCTION (in-memory, never writes to disk). A normal archive enumerates + types its files; a
+    nested zip-in-zip recurses (bounded); a '../../evil' entry is REFUSED (zip-slip, not materialized); a per-entry
+    size bomb and a high-ratio bomb are REFUSED; 7z/rar ⇒ honest UNVERIFIED. This is the adversarial-wrong→DECLINE
+    pattern applied to security: a malicious archive is refused safely, never crashes, never escapes the sandbox."""
+    import io
+    import tarfile
+    import zipfile
+    from mathmode import archive as A
+
+    def zf(files):
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+            for n, d in files.items():
+                z.writestr(n, d)
+        return b.getvalue()
+
+    # normal archive — enumerate + type
+    rep = A.extract(zf({"hello.py": b"print(1)", "data.csv": b"1,2,3", "notes.txt": b"hi"}), "p.zip")
+    assert {e.kind for e in rep.entries} == {"py", "csv", "txt"} and not rep.refused
+    # nested zip-in-zip — bounded recursion flattens the inner files
+    rep2 = A.extract(zf({"inner.zip": zf({"deep.py": b"x=1"}), "top.md": b"#h"}), "outer.zip")
+    assert {e.name for e in rep2.entries} == {"deep.py", "top.md"}
+    # ── zip-slip ⇒ refused, never materialized (security) ──
+    rep3 = A.extract(zf({"../../evil.txt": b"pwn", "ok.py": b"1"}), "s.zip")
+    assert any("zip-slip" in r[1] for r in rep3.refused) and [e.name for e in rep3.entries] == ["ok.py"]
+    # ── per-entry size bomb ⇒ refused ──
+    rep4 = A.extract(zf({"big.bin": b"\x00" * 5000}), "b.zip", A.Limits(max_entry_bytes=1000))
+    assert rep4.entries == [] and any("cap" in r[1] for r in rep4.refused)
+    # ── high compression-ratio bomb ⇒ refused ──
+    rep5 = A.extract(zf({"zeros.bin": b"\x00" * (1024 * 1024)}), "z.zip")
+    assert any("ratio" in r[1] or "cap" in r[1] for r in rep5.refused)
+    # ── entry-count cap ⇒ truncated (bomb defense), never unbounded ──
+    rep6 = A.extract(zf({f"f{i}.txt": b"x" for i in range(50)}), "many.zip", A.Limits(max_entries=10))
+    assert rep6.truncated and len(rep6.entries) <= 10
+    # tar.gz extracts; 7z is honest UNVERIFIED
+    tb = io.BytesIO()
+    with tarfile.open(fileobj=tb, mode="w:gz") as t:
+        info = tarfile.TarInfo("a.py")
+        info.size = 8
+        t.addfile(info, io.BytesIO(b"print(2)"))
+    assert any(e.name == "a.py" for e in A.extract(tb.getvalue(), "arch.tar.gz").entries)
+    assert A.extract(b"7z\xbc\xaf", "x.7z").unverified and "not supported" in A.extract(b"x", "y.rar").unverified
+
+    print("PASS test_mathascent_b3_archive_safety (zip/tar/gz extraction enumerates+types inner files; nested "
+          "zip-in-zip recurses bounded; zip-slip REFUSED [not materialized]; per-entry + ratio + count bombs "
+          "REFUSED/truncated; in-memory ⇒ no disk escape; 7z/rar ⇒ honest UNVERIFIED)")
+
+
+def test_mathascent_b2_file_attachment():
+    """§B2 — universal file attachment: detect → (safely) extract → fold-accelerated analysis → JSON-safe report.
+    An XLSX column that is a C-finite sequence folds to a closed form (EXACT); an uploaded ZIP is unpacked and each
+    inner file analyzed (a zip-slip entry refused); PDF/image ⇒ honest UNVERIFIED. The served UI carries the
+    drag-drop + picker wiring. Honest 'unsupported' where blocked — never a fabricated extraction."""
+    import io
+    import zipfile
+    from pathlib import Path
+    from mathmode import ingest as ING
+    import kernel_verdict as KV
+
+    def xlsx(col):
+        rows = "".join(f'<row r="{i+1}"><c r="A{i+1}"><v>{v}</v></c></row>' for i, v in enumerate(col))
+        sheet = ('<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/'
+                 f'2006/main"><sheetData>{rows}</sheetData></worksheet>')
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, "w") as z:
+            z.writestr("xl/worksheets/sheet1.xml", sheet)
+        return b.getvalue()
+
+    fib = xlsx([0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89])
+    # a single XLSX upload → fold-accelerated finding (EXACT), JSON-safe
+    r = ING.analyze_upload("fib.xlsx", fib)
+    assert r["findings"] and r["findings"][0]["solution"]["status"] == KV.EXACT
+    assert "companion fold" in r["findings"][0]["provenance"]
+    # a ZIP bundle → archive route, each inner file analyzed
+    zb = io.BytesIO()
+    with zipfile.ZipFile(zb, "w") as z:
+        z.writestr("seq.xlsx", fib)
+        z.writestr("../../evil.txt", b"pwn")               # zip-slip inside the upload
+    ru = ING.analyze_upload("bundle.zip", zb.getvalue())
+    assert ru["kind"] == "archive" and ru["findings"] and any("zip-slip" in x[1] for x in ru["refused"])
+    # PDF / image ⇒ honest UNVERIFIED (never fabricated)
+    assert ING.analyze_upload("paper.pdf", b"%PDF-1.4")["unverified"]
+    assert ING.analyze_upload("eqn.png", b"\x89PNG")["unverified"]
+
+    # the served UI carries the drag-drop + picker wiring
+    html = Path(__file__).with_name("mrjeffrey.html").read_text(encoding="utf-8")
+    for marker in ("attachZone", "handleAttach", "/api/math/ingest", "dropzone", "ondrop"):
+        assert marker in html, f"B2 UI marker missing: {marker}"
+
+    print("PASS test_mathascent_b2_file_attachment (XLSX C-finite column → O(log n) companion FOLD «EXACT»; ZIP "
+          "bundle unpacked + each inner file analyzed [zip-slip entry refused]; PDF/image ⇒ honest UNVERIFIED; "
+          "served UI has the drag-drop + picker wired to /api/math/ingest)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

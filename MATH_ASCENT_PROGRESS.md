@@ -108,6 +108,14 @@ B1. ☑ CODE ⇄ MATH mode toggle (UI). Prominent OUTER segmented control (코�
     CODE → /api/optimize. Reasoning visible in both (the grade-tagged trace + expandable certificate). Korean,
     design unchanged. Node DOM-stub smoke renders both surfaces; invariant test asserts toggle + routing + floor.
     [test_mathascent_b1_mode_toggle; mrjeffrey.html, server.py /api/math/solve, mathmode/solver.solve_in_mode]
-B2. ☐ universal file attachment (drag-drop + picker, accept nearly every type, fold-accelerated, honest unsupported).
-B3. ☐ archive extraction (zip/tar/gz/7z → unpack → enumerate+type+extract; zip-bomb + zip-slip safety; security test).
-B4. ☐ make BOTH CODE and MATH far stronger (more arsenal, deeper fold, grow broths, Clock-A/B, richer reasoning).
+B2. ☑ universal file attachment. UI: drag-drop zone + picker in the MATH problem screen, attached-file list with
+    remove + per-file progress + grade-tagged findings. Backend: POST /api/math/ingest (base64 JSON, 300MB guard)
+    → mathmode.ingest.analyze_upload → detect→extract→fold-accelerated analysis, JSON-safe. Office (xlsx/docx/pptx)
+    via stdlib zip+XML; CSV/JSON/text; archives via B3; PDF/images ⇒ honest UNVERIFIED. Fold acceleration: a
+    sequence column → O(log n) closed form. [test_mathascent_b2_file_attachment; mathmode/ingest.py, server.py]
+B3. ☑ archive extraction (mathmode/archive.py). zip/tar/gz/bz2/xz → enumerate+type every inner file; nested
+    zip-in-zip bounded recursion; SAFE BY CONSTRUCTION (in-memory, no disk writes ⇒ zip-slip can't touch FS) plus
+    name refusal; bomb defense (per-entry/total/count/ratio/depth caps); 7z/rar ⇒ honest UNVERIFIED. Security-
+    tested (zip-slip + bombs refused, never crashes). [test_mathascent_b3_archive_safety; mathmode/archive.py]
+B4. ◩ in progress — MATH already broadened to 10 families + broth grown; CODE/MATH both to deepen further
+    (more arsenal, grow code broth, richer reasoning). Continue per directive.

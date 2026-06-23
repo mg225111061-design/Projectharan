@@ -66,6 +66,23 @@ p{margin:0 0 12px;color:var(--ink-2)}a{color:var(--accent-deep)}
 .mcert .mcert-body{padding:14px 16px;font-size:13px;color:var(--ink-2);font-family:var(--mono);line-height:1.6;word-break:break-word}
 .mathfield{width:100%;min-height:88px;font-family:var(--mono);font-size:14px;line-height:1.5;padding:14px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);color:var(--ink);resize:vertical}
 .mathfield:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* ── B2: universal file attachment (drag-drop + picker) ── */
+.attach{margin-top:18px}
+.dropzone{display:flex;align-items:center;gap:14px;padding:18px;border:1.5px dashed var(--line);border-radius:var(--r-lg);cursor:pointer;color:var(--ink-2);transition:.18s;background:var(--card)}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--accent-tint)}
+.dropzone .drop-ic{font-size:24px;color:var(--accent);line-height:1}
+.attach-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.attach-item{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--card)}
+.attach-head{display:flex;align-items:center;gap:10px}
+.attach-head .an{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--ink);word-break:break-all}
+.attach-head .ax{margin-left:auto;cursor:pointer;border:0;background:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 6px}
+.attach-head .ax:hover{color:var(--ink)}
+.statusdot{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.attach-find{display:flex;align-items:baseline;gap:8px;padding:7px 0 0;border-top:1px solid var(--line-soft);margin-top:8px;font-size:12.5px}
+.attach-find .af-prov{flex:1;color:var(--ink-2)}
+.attach-find .af-ans{font-family:var(--mono);color:var(--ink);word-break:break-all}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
 .app{min-height:100%;display:flex;flex-direction:column}
 .topbar{display:flex;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--line-soft);background:color-mix(in srgb,var(--page) 82%,transparent);backdrop-filter:saturate(1.2) blur(8px);position:sticky;top:0;z-index:10}
 .brand{display:flex;align-items:center;gap:9px;font-weight:500;letter-spacing:.02em}
@@ -199,7 +216,7 @@ const SAMPLES = [
   ["깔끔한 코드 (보류 예상)","def total(prices):\n    return sum(prices)"],
 ];
 const S = { topMode:"code", screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null,
-  mathMode:"normal", mathInput:"", mathResult:null, mathBusy:false,
+  mathMode:"normal", mathInput:"", mathResult:null, mathBusy:false, attachments:[],
   live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
 let TOAST_T = null;
 const activeMode = () => S.mode || "extend";
@@ -509,6 +526,54 @@ function scrCorpus(){
 
 // ── MATH screens (B1) — the second top-level surface; fast/normal/extend preserved INSIDE this mode ────────
 function gradeChip(g){ return g?$("span",{class:"gchip "+g},gradeLabel(g.toLowerCase())):null; }
+
+// ── B2: universal file attachment (drag-drop + picker) → /api/math/ingest (archives unpacked safely, B3) ──
+function _b64(buf){ let bin=""; const b=new Uint8Array(buf),C=0x8000; for(let i=0;i<b.length;i+=C) bin+=String.fromCharCode.apply(null,b.subarray(i,i+C)); return btoa(bin); }
+async function handleAttach(files){
+  for(const f of files){
+    const item={name:f.name,size:f.size,status:"reading",result:null}; S.attachments.push(item); render();
+    try{
+      const buf=await f.arrayBuffer(); item.status="analyzing"; render();
+      if(S.live){
+        const r=await fetch("/api/math/ingest",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({filename:f.name,content_b64:_b64(buf)})});
+        item.result=await r.json(); item.status="done";
+      } else { item.status="static"; item.result={unverified:"정적 빌드 — 파일 분석(추출·fold)은 라이브 엔진(server:app)이 필요합니다."}; }
+    }catch(e){ item.status="error"; item.result={unverified:"읽기/분석 실패: "+String(e)}; }
+    render();
+  }
+}
+function attachItem(it,idx){
+  const r=it.result||{};
+  const head=$("div",{class:"attach-head"},[
+    $("span",{class:"an"},it.name),
+    it.status==="analyzing"||it.status==="reading"?$("span",{class:"spin"}):$("span",{class:"statusdot"},
+      r.kind==="archive"?`압축 · ${r.n_files} 파일`:(r.fmt?r.fmt:it.status)),
+    $("button",{class:"ax","aria-label":"제거",onclick:()=>{S.attachments.splice(idx,1);render();}},"✕"),
+  ]);
+  const box=$("div",{class:"attach-item"},[head]);
+  (r.findings||[]).slice(0,12).forEach(f=>{ const s=f.solution||{};
+    box.appendChild($("div",{class:"attach-find"},[gradeChip(s.status),$("span",{class:"af-prov"},f.provenance),$("span",{class:"af-ans"},s.answer||"")])); });
+  if(r.refused&&r.refused.length) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"gchip DECLINE"},"보안"),$("span",{class:"af-prov"},`거부 ${r.refused.length}건 (zip-slip/폭탄 방어): ${r.refused.map(x=>x[0]).slice(0,3).join(", ")}`)]));
+  if(r.declines&&r.declines.length) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"statusdot"},`보류 ${r.declines.length}건 (구조 없음 — 정직)`)]));
+  if(r.unverified) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"gchip DECLINE"},"미검증"),$("span",{class:"af-prov"},r.unverified)]));
+  if(r.truncated) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"statusdot"},"※ 한도 도달 — 일부만 분석 (폭탄 방어)")]));
+  return box;
+}
+function attachZone(mode){
+  const fi=$("input",{type:"file",multiple:"",style:"display:none"});
+  fi.addEventListener("change",e=>{ handleAttach([...e.target.files]); e.target.value=""; });
+  const drop=$("div",{class:"dropzone",onclick:()=>fi.click(),
+    ondragover:e=>{e.preventDefault();drop.classList.add("over");}, ondragleave:()=>drop.classList.remove("over"),
+    ondrop:e=>{e.preventDefault();drop.classList.remove("over");handleAttach([...e.dataTransfer.files]);}},[
+    $("span",{class:"drop-ic"},"⇪"),
+    $("div",{},[$("div",{style:"font-weight:500;color:var(--ink)"},"파일을 끌어다 놓거나 클릭해 첨부"),
+      $("div",{class:"muted",style:"font-size:12px"},"엑셀·문서·PPT·CSV·이미지·압축(zip/tar/gz) — 추출 후 fold-가속 분석 (압축은 안전 해제)")]),
+    fi,
+  ]);
+  const zone=$("div",{class:"attach"},[drop]);
+  if(S.attachments&&S.attachments.length){ const list=$("div",{class:"attach-list"}); S.attachments.forEach((it,i)=>list.appendChild(attachItem(it,i))); zone.appendChild(list); }
+  return zone;
+}
 
 function scrMathLanding(){
   return $("div",{},[

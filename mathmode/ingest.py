@@ -29,6 +29,7 @@ import cfinite
 import kernel_verdict as KV
 from mathmode import linear_algebra as LA
 from mathmode import solver as SOLVER
+from mathmode import archive as ARCH
 
 
 # ── ingestion result ─────────────────────────────────────────────────────────────────────────────────────
@@ -228,3 +229,37 @@ def analyze(ing: Ingested) -> dict:
 def analyze_file(path: str = None, data: bytes = None, fmt: str = None) -> dict:
     """Ingest + analyze in one call."""
     return analyze(ingest(path=path, data=data, fmt=fmt))
+
+
+# ── B2: the JSON-safe upload analyzer (handles archives via B3, used by /api/math/ingest) ────────────────
+def _finding_json(f: "Finding") -> dict:
+    return {"provenance": f.provenance, "solution": f.solution.to_dict()}
+
+
+def _report_json(rep: dict, name: str, kind: str = "file") -> dict:
+    return {"kind": kind, "name": name, "fmt": rep.get("fmt"), "unverified": rep.get("unverified"),
+            "ms": rep.get("ms", 0.0),
+            "findings": [_finding_json(f) for f in rep.get("findings", [])],
+            "declines": list(rep.get("declines", []))}
+
+
+def analyze_upload(filename: str, data: bytes) -> dict:
+    """Detect → extract → understand → route an uploaded file (JSON-safe). Archives are SAFELY unpacked (B3) and
+    every inner file is analyzed recursively; the headline fold-acceleration (sequence → closed form) applies to
+    each. PDF/images/7z/rar ⇒ honest UNVERIFIED. Never a fabricated extraction or fold."""
+    if ARCH.is_archive(filename):
+        rep = ARCH.extract(data, filename)
+        files, findings, declines = [], [], []
+        for e in rep.entries:
+            sub = analyze_file(data=e.data, fmt=e.kind or "txt")
+            nf = len(sub.get("findings", []))
+            files.append({"name": e.name, "fmt": sub.get("fmt"), "n_findings": nf,
+                          "unverified": sub.get("unverified")})
+            findings.extend({"provenance": f"{e.name} › {f.provenance}", "solution": f.solution.to_dict()}
+                            for f in sub.get("findings", []))
+            declines.extend(f"{e.name}: {d}" for d in sub.get("declines", []))
+        return {"kind": "archive", "name": filename, "formats": rep.formats, "n_files": len(rep.entries),
+                "refused": rep.refused, "truncated": rep.truncated, "unverified": rep.unverified,
+                "files": files, "findings": findings, "declines": declines}
+    return _report_json(analyze_file(data=data, fmt=(filename.rsplit(".", 1)[-1].lower()
+                                                     if "." in filename else "txt")), filename)

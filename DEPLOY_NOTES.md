@@ -63,8 +63,11 @@ top bar re-themes (a green MATH accent via `data-top="math"`) and re-routes the 
   visible, grade-tagged certified derivation). Backed by `mathmode.solver` (fold → broth → the 10-family arsenal).
 - The **fast/normal/extend** sub-selector is preserved INSIDE each mode (OMEGA §B): MATH `extend` is
   EXACT-or-DECLINE; `fast`/`normal` accept PROBABILISTIC.
-- New endpoint added to `server:app`: `POST /api/math/solve` `{text|problem, mode}` → `{status, grade_ko,
-  answer, certificate, reasoning[]}`. (File attachment `/api/math/ingest` lands next — B2.)
+- New endpoints on `server:app`: `POST /api/math/solve` `{text|problem, mode}` → `{status, grade_ko, answer,
+  certificate, reasoning[]}`; and **`POST /api/math/ingest`** `{filename, content_b64}` → file analysis (B2):
+  detect → safely extract (archives, B3) → fold-accelerated analysis, JSON-safe. The MATH problem screen has a
+  **drag-drop + file picker** (xlsx/docx/pptx/csv/images/zip/tar). Archives are unpacked in-memory with zip-slip
+  + decompression-bomb defenses; PDF/images/7z/rar ⇒ honest UNVERIFIED. A 300 MB boundary guard on uploads.
 
 Local verification (the SAME `server:app` the Docker CMD runs): `POST /api/math/solve {"text":"sum: k**2"}` →
 `200 EXACT`, closed form `n(2n²+3n+1)/6`, certificate `broth_lookup_pra_recheck`; a Monte-Carlo problem in

@@ -434,6 +434,27 @@ def create_app():
                                  "reason": f"math solve failed ({type(e).__name__})", "reasoning": [],
                                  "certificate": None, "answer": ""}, status_code=200)
 
+    # ── B2/B3: universal file attachment — detect → safely extract (archives) → fold-accelerated analysis ──
+    @app.post("/api/math/ingest")
+    async def api_math_ingest(req: Request):                   # noqa: ANN202
+        import base64                                          # noqa: PLC0415
+        from mathmode import ingest as _ING                    # noqa: PLC0415
+        p = await req.json()
+        name = str(p.get("filename", "upload.txt"))
+        try:
+            data = base64.b64decode(p.get("content_b64", "") or "")
+        except Exception:                                      # noqa: BLE001
+            return JSONResponse({"kind": "file", "name": name, "unverified": "invalid base64 payload",
+                                 "findings": [], "declines": []}, status_code=200)
+        if len(data) > 300 * 1024 * 1024:                      # defense-in-depth size guard at the boundary
+            return JSONResponse({"kind": "file", "name": name, "findings": [], "declines": [],
+                                 "unverified": "file too large (>300MB) — refused (bomb defense)"}, status_code=200)
+        try:
+            return JSONResponse(_ING.analyze_upload(name, data))
+        except Exception as e:                                 # noqa: BLE001
+            return JSONResponse({"kind": "file", "name": name, "findings": [], "declines": [],
+                                 "unverified": f"ingest failed ({type(e).__name__})"}, status_code=200)
+
     @app.get("/static/{name}")                                  # shared design system + site script
     async def static_file(name: str):                          # noqa: ANN202
         # allow-listed by suffix + name-only (no path traversal): only files directly under static/.
