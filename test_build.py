@@ -7013,6 +7013,52 @@ def test_mathascent_certified_numeric():
           f"ε={mc.certificate.epsilon:.4f} δ={mc.certificate.delta} [never EXACT]; no sign change / neg √ ⇒ DECLINE)")
 
 
+def test_mathascent_broth_proving():
+    """MATH-ASCENT §4+§8 — BROTH PROVING: O(1) certificate lookup over the 3000+ pre-proven broth, GROWN by
+    Gosper. The expensive proof is paid ONCE offline; at runtime a recognized sum / C-finite recurrence is proven
+    EXACT by an O(1) dict lookup + a CHEAP recheck (PRA finite-base / companion-equality), never a re-search;
+    a miss ⇒ honest DECLINE (fall back to the full §2 fold). §8 growth: the base library could NOT brew the
+    hypergeometric family ([BLOCKED: ore_algebra]); GOSPER brews it dependency-light, and we keep only the
+    entries whose closed form passes the same cheap recheck — and cross-check them against brute force (the
+    Gosper-brewed closed forms are real, not fabricated)."""
+    import sympy as sp
+    from mathmode import broth as B
+    import kernel_verdict as KV
+
+    st = B.stats()
+    assert st["base_total"] >= 3000, f"the broth should be 3000+ (got {st['base_total']})"
+    assert st["gosper_new"] >= 20, f"Gosper should grow the broth by ≥20 new hypergeometric entries (got {st['gosper_new']})"
+    assert st["total"] == st["base_total"] + st["gosper_new"]
+
+    # O(1) proving of known sums (lookup + cheap recheck ⇒ EXACT)
+    for q in ("k", "k**2", "2**k*k"):
+        v = B.prove(q)
+        assert v.status == KV.EXACT and v.certificate.kind == "broth_lookup_pra_recheck"
+    # C-finite recurrence proving (covers the 3000+ c-finite bulk)
+    assert B.prove({"cfinite": [1, 1]}).status == KV.EXACT, "fib recurrence proven by the broth"
+    # miss ⇒ honest DECLINE (1/k has no closed form, never brewed)
+    assert B.prove("1/k").status == KV.DECLINE, "Σ1/k not pre-proven ⇒ DECLINE (fall back to fold)"
+
+    # ── the Gosper-brewed closed forms are REAL: cross-check vs exact brute force (anti-fabrication) ──
+    n = sp.Symbol("n")
+    kk = sp.Symbol("k", integer=True)
+    for q, summand in [("k*factorial(k)", kk * sp.factorial(kk)), ("4**k", 4 ** kk), ("2**k*(2*k + 1)", (2 * kk + 1) * 2 ** kk)]:
+        v = B.prove(q)
+        assert v.status == KV.EXACT, f"{q} should be broth-proven"
+        for N in (1, 4, 7):
+            brute = sum(int(summand.subs(kk, j)) for j in range(1, N + 1))
+            assert int(v.result.subs(n, N)) == brute, f"{q}: closed form ≠ brute at n={N}"
+
+    # ── O(1) lookup is constant (independent of the 3700+ size) ──
+    m = B.measure()
+    assert m["all_hit"] and m["lookup_us"] < 5.0, f"O(1) lookup must be fast & total (got {m['lookup_us']}µs)"
+
+    print(f"PASS test_mathascent_broth_proving (O(1) certificate lookup over {st['total']} broth entries "
+          f"[{st['base_total']} base + {st['gosper_new']} NEW Gosper-brewed hypergeometric — the family the base "
+          f"could not brew without ore_algebra]; lookup {m['lookup_us']:.3f}µs CONSTANT; sums & C-finite ⇒ EXACT "
+          f"via cheap PRA/companion recheck; Gosper closed forms ≡ brute force; miss ⇒ honest DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

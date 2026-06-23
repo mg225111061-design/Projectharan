@@ -61,7 +61,12 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
     ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
-   ☐ index the proven-closed-form broth; O(1) certificate retrieval on a recognized structure.
+4. ☑ broth proving — prove() does O(1) dict lookup over 3735 entries + a CHEAP recheck (PRA finite-base for sums,
+   companion-equality for C-finite) ⇒ EXACT, never a re-search; miss ⇒ honest DECLINE (fall back to fold). §8
+   GROWTH: the base library could NOT brew the hypergeometric family ([BLOCKED: ore_algebra]); GOSPER (sympy,
+   dependency-light) brews it — +28 NEW hypergeometric entries kept (only those passing the cheap recheck),
+   closed forms cross-checked vs brute force. Lookup ~0.08µs CONSTANT (offline brew paid once: ~2.4s).
+   [test_mathascent_broth_proving; mathmode/broth.py]
 
 ## §5 — visible grade-tagged reasoning in both modes
    ☐ surface fold's recognized-structure + certificate kind + grade in the UI reasoning trace (CODE and MATH).
