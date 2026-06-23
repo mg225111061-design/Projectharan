@@ -10,11 +10,11 @@ EXACT / PROBABILISTIC(ε,δ) / DECLINE. MATH-Ascent adds the second top-level mo
 mathematics, fold-first, with the same grade discipline and the same refusal to fabricate. The split is
 enforced in code and re-asserted on every commit.
 
-**20 new modules, ~2,570 lines, 23 new tests, deterministic suite 198/198 green.** The arsenal spans **15
+**22 new modules, ~2,860 lines, 26 new tests, deterministic suite 201/201 green.** The arsenal spans **16
 verified families**; the served app gained a **CODE ⇄ MATH toggle**, **universal file attachment**, and **safe
 archive extraction** (§B). (Three more families beyond the table below: `differential.py` — closed-form ODEs
 verified by back-substitution; `graph.py` — shortest paths with an LP-duality optimality certificate +
-bipartiteness witnesses; `special_functions.py` — exact Γ and ζ.)
+bipartiteness witnesses; `special_functions.py` — exact Γ and ζ; `calculus.py` — integration verified by differentiation. Plus free-text routing to the whole arsenal, and Lagrange interpolation / partial fractions in `algebra.py`.)
 
 | § | capability | module | grade story |
 |---|------------|--------|-------------|
@@ -34,7 +34,7 @@ bipartiteness witnesses; `special_functions.py` — exact Γ and ζ.)
 | 5 | visible grade-tagged reasoning | `solver.py` | one MATH entry point; `trace()` shows route→recognize→fold/broth/arsenal→grade |
 | 6 | universal file ingestion | `ingest.py` | XLSX/DOCX/PPTX via stdlib; fold-accelerated sequence analysis |
 | B3 | safe archive extraction | `archive.py` | zip/tar/gz → enumerate; zip-slip + bomb defenses (in-memory) |
-| 7 | measured capability benchmark | `benchmark.py` | 36 problems / 14 domains, measured deltas only |
+| 7 | measured capability benchmark | `benchmark.py` | 39 problems / 15 domains, measured deltas only |
 
 ## The center: fold (§2)
 
@@ -91,13 +91,14 @@ EXACT. The grade discipline carries verbatim from CODE into MATH.
 
 ## Measured capability (§7) — and the honest HLE position
 
-A representative benchmark of **36 problems across 14 domains**, run through the solver and graded:
+A representative benchmark of **39 problems across 15 domains**, run through the solver and graded:
 
-- **EXACT = 28, PROBABILISTIC = 1, DECLINE = 7** — and all **36/36 match their expected grade**. The seven DECLINEs
+- **EXACT = 30, PROBABILISTIC = 1, DECLINE = 8** — and all **39/39 match their expected grade**. The eight DECLINEs
   are *correct behaviour*: the harmonic sum `Σ1/k`, a singular linear system, the Abel–Ruffini quintic `x⁵−x+1`,
-  parallel segments, a non-existent modular inverse, a dimensionally-wrong formula (`E=mv`), and `x²−1` (which is
-  *not* globally nonnegative — the certifier returns the exact counterexample `x=0`).
-- **22** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
+  parallel segments, a non-existent modular inverse, a dimensionally-wrong formula (`E=mv`), `x²−1` (which is
+  *not* globally nonnegative — the certifier returns the exact counterexample `x=0`), and `∫x^x dx` (no
+  closed-form antiderivative — never a fabricated one).
+- **24** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
   answer, not a claim); every EXACT carries a passed certificate (the ADT enforces it, the bench re-asserts it).
 
 **On HLE:** Humanity's Last Exam is **UNVERIFIED** in this environment — there is no HLE dataset and no scoring
@@ -137,7 +138,7 @@ tools + more broth*, each measured the same way.
 
 ```
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 198 passed, 0 failed
+# … 201 passed, 0 failed
 ```
 
-The 23 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.
+The 26 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.
