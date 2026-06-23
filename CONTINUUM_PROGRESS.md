@@ -53,3 +53,4 @@ verbatim, and an honest complete-vs-remaining accounting. Loop continues (repres
 ## §B — mode-separation invariant (enforced every commit)
 | GUARD | §B mode-separation invariant test | — | fast=MICRO/never-Z3; extend=EXACT-or-DECLINE; 12 fast gates ⊆ 18 extend gates; all 41 capabilities mode-tagged by grade (28 EXACT extend-eligible / 13 PROBABILISTIC fast-normal-only, ZERO leak) | test_mode_separation_invariant | 167/167 |
 | ACC | Round-2 #47/#48/#50 sublinear-MEMORY sketches (HLL / Count-Min / reservoir) | PROBABILISTIC | HLL distinct-count ε~0.06 in 4096 regs (mem⟂N); Count-Min one-sided ε~0.001; reservoir O(k); undersized→DECLINE | test_round2_sublinear_sketches | 168/168 |
+| ACC | Round-2 #39 map-reduce/monoid recognition (Z3 associativity) → EXACT data-parallel-safe | EXACT | 5 associative ops (add/mul/max/min/or) EXACT; 3 non-associative (sub/avg) → DECLINE+counterexample | test_round2_monoid_mapreduce | 169/169 |

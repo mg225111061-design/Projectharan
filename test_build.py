@@ -6367,6 +6367,28 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_monoid_mapreduce():
+    """ROUND 2 (Group H, item 39) — map-reduce / monoid recognition (Z3, SOUND). A reduction can be re-associated
+    into a parallel/tree reduction ONLY if the operator is ASSOCIATIVE; we prove it with Z3. Associative ⇒ the
+    tree/parallel reduction yields the SAME result as the sequential fold regardless of split ⇒ EXACT (data-
+    parallel-safe). A non-associative operator (subtract, average) is Z3-refuted with a counterexample ⇒ DECLINE
+    (re-associating it changes the result — a correctness bug)."""
+    from pillar3 import monoid as MO
+    import kernel_verdict as KV
+
+    for nm, op, idn in MO.associative_ops():
+        r = MO.analyze_reduction(nm, op, idn)
+        assert r.verdict.status == KV.EXACT and r.associative, f"{nm} should be a proven associative reduction"
+        assert r.verdict.certificate.kind == "associativity_proof" and r.verdict.certificate.delta is None
+    for nm, op, idn in MO.nonassociative_ops():
+        r = MO.analyze_reduction(nm, op, idn)
+        assert r.verdict.status == KV.DECLINE and r.counterexample, f"{nm} is non-associative ⇒ DECLINE+witness"
+
+    print(f"PASS test_round2_monoid_mapreduce ({len(MO.associative_ops())} operators PROVEN associative (add/mul/"
+          f"max/min/or) ⇒ EXACT data-parallel-safe tree reduction; {len(MO.nonassociative_ops())} non-associative "
+          f"(subtract/average) ⇒ Z3 counterexample ⇒ DECLINE — re-association would change the result)")
+
+
 def test_mode_separation_invariant():
     """§B MODE-SEPARATION INVARIANT (must hold on EVERY commit) — the three modes are distinct CONTRACTS, not a
     quality dial: (1) fast NEVER invokes Z3 (MICRO tier); (2) extend ships ONLY EXACT (EXACT-or-DECLINE —
