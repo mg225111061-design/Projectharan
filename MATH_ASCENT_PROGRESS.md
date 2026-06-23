@@ -117,5 +117,9 @@ B3. ☑ archive extraction (mathmode/archive.py). zip/tar/gz/bz2/xz → enumerat
     zip-in-zip bounded recursion; SAFE BY CONSTRUCTION (in-memory, no disk writes ⇒ zip-slip can't touch FS) plus
     name refusal; bomb defense (per-entry/total/count/ratio/depth caps); 7z/rar ⇒ honest UNVERIFIED. Security-
     tested (zip-slip + bombs refused, never crashes). [test_mathascent_b3_archive_safety; mathmode/archive.py]
-B4. ◩ in progress — MATH already broadened to 10 families + broth grown; CODE/MATH both to deepen further
-    (more arsenal, grow code broth, richer reasoning). Continue per directive.
+B4. ◩ in progress (both stronger). MATH arsenal broadened to 12 families: +optimization (LP duality),
+    +science_engineering (dimensional analysis), +probability (exact distributions + PROVEN Markov/Chebyshev
+    bounds), +inequalities (polynomial nonnegativity, certified or counterexample). §7 benchmark grown to 30
+    problems / 11 domains (EXACT=22, PROBABILISTIC=1, DECLINE=7, all matching expected; 17 cross-checked). Broth
+    3,735 (Gosper-grown). [test_mathascent_b4_probability_inequalities; mathmode/{optimization,science_engineering,
+    probability,inequalities}.py]. CONTINUE: more families (ODE/tensor/graph), grow broth, code-side EXACT levers.

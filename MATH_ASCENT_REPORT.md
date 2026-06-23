@@ -10,7 +10,9 @@ EXACT / PROBABILISTIC(ε,δ) / DECLINE. MATH-Ascent adds the second top-level mo
 mathematics, fold-first, with the same grade discipline and the same refusal to fabricate. The split is
 enforced in code and re-asserted on every commit.
 
-**12 new modules, ~1,432 lines, 12 new tests, deterministic suite 187/187 green.**
+**17 new modules, ~2,060 lines, 17 new tests, deterministic suite 192/192 green.** The arsenal spans **12
+verified families**; the served app gained a **CODE ⇄ MATH toggle**, **universal file attachment**, and **safe
+archive extraction** (§B).
 
 | § | capability | module | grade story |
 |---|------------|--------|-------------|
@@ -22,10 +24,15 @@ enforced in code and re-asserted on every commit.
 | 3 | symbolic algebra | `algebra.py` | factor / gcd / roots — self-certified; quintic ⇒ Abel–Ruffini DECLINE |
 | 3 | geometry | `geometry.py` | exact rational area / hull / intersection / point-in-polygon |
 | 3 | certified numerics | `certified_numeric.py` | EXACT enclosures (Sturm, IVT, √) vs honest PROBABILISTIC (Monte-Carlo) |
+| 3 | optimization | `optimization.py` | exact LP — self-certifying **strong-duality** (zero gap ⇒ optimal) |
+| 3 | science / engineering | `science_engineering.py` | dimensional analysis over 7 SI base dims (catches `E=mv`) |
+| B4 | probability / statistics | `probability.py` | exact distributions + **proven** Markov/Chebyshev bounds (EXACT, not δ) |
+| B4 | inequalities | `inequalities.py` | polynomial nonnegativity — certified, or an exact counterexample |
 | 4 | O(1) broth proving | `broth.py` | lookup + cheap recheck over 3,735 entries |
 | 5 | visible grade-tagged reasoning | `solver.py` | one MATH entry point; `trace()` shows route→recognize→fold/broth/arsenal→grade |
 | 6 | universal file ingestion | `ingest.py` | XLSX/DOCX/PPTX via stdlib; fold-accelerated sequence analysis |
-| 7 | measured capability benchmark | `benchmark.py` | 24 problems, measured deltas only |
+| B3 | safe archive extraction | `archive.py` | zip/tar/gz → enumerate; zip-slip + bomb defenses (in-memory) |
+| 7 | measured capability benchmark | `benchmark.py` | 30 problems / 11 domains, measured deltas only |
 
 ## The center: fold (§2)
 
@@ -82,18 +89,36 @@ EXACT. The grade discipline carries verbatim from CODE into MATH.
 
 ## Measured capability (§7) — and the honest HLE position
 
-A representative benchmark of **24 problems across 7 domains**, run through the solver and graded:
+A representative benchmark of **30 problems across 11 domains**, run through the solver and graded:
 
-- **EXACT = 18, PROBABILISTIC = 1, DECLINE = 5** — and all **24/24 match their expected grade**. The five DECLINEs
+- **EXACT = 22, PROBABILISTIC = 1, DECLINE = 7** — and all **30/30 match their expected grade**. The seven DECLINEs
   are *correct behaviour*: the harmonic sum `Σ1/k`, a singular linear system, the Abel–Ruffini quintic `x⁵−x+1`,
-  parallel segments, and a non-existent modular inverse.
-- **15** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
+  parallel segments, a non-existent modular inverse, a dimensionally-wrong formula (`E=mv`), and `x²−1` (which is
+  *not* globally nonnegative — the certifier returns the exact counterexample `x=0`).
+- **17** of the EXACT answers are independently cross-checked against ground truth (an EXACT here is a *verified*
   answer, not a claim); every EXACT carries a passed certificate (the ADT enforces it, the bench re-asserts it).
 
 **On HLE:** Humanity's Last Exam is **UNVERIFIED** in this environment — there is no HLE dataset and no scoring
 harness here. Reporting an HLE number would be a fabricated score, which "measured deltas only" forbids. What is
 measured is the arsenal's coverage on this representative set; the honest path to a higher HLE is *more verified
 tools + more broth*, each measured the same way.
+
+## §B — the second mode made usable: toggle, attachment, archives
+
+- **B1 — the CODE ⇄ MATH toggle.** A prominent segmented control in the top bar (`코드` ⇄ `수학`) re-themes the
+  whole surface (green MATH accent via `data-top="math"`) and re-routes it: CODE → the wizard → `/api/optimize`;
+  MATH → the fold-first solver → `POST /api/math/solve`. The **fast/normal/extend** sub-selector is preserved
+  inside each mode — MATH `extend` is EXACT-or-DECLINE (`solver.solve_in_mode` applies the §B grade floor). The
+  reasoning + certificate are visible in both. An invariant test asserts the toggle wiring, the different routing,
+  and the floor.
+- **B2 — universal file attachment.** A drag-drop zone + file picker in the MATH surface; `POST /api/math/ingest`
+  (base64, 300 MB guard) runs `ingest.analyze_upload`: detect → safely extract → fold-accelerated analysis. A
+  spreadsheet column that is a C-finite sequence folds to an O(log n) closed form (EXACT); a `Σ …` line routes to
+  the broth/Gosper fold. PDF/images ⇒ honest UNVERIFIED.
+- **B3 — safe archive extraction.** `archive.py` unpacks zip/tar/gz/bz2/xz **in memory** (so zip-slip cannot
+  touch the filesystem), enumerates + types every inner file, recurses nested archives to a bounded depth, and
+  refuses decompression bombs (per-entry / total / count / ratio / depth caps) and traversal names. 7z/rar ⇒
+  honest UNVERIFIED. Security-tested: a crafted zip-slip / bomb is refused safely, never crashes, never escapes.
 
 ## Constitution held, verbatim
 
@@ -110,7 +135,7 @@ tools + more broth*, each measured the same way.
 
 ```
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 187 passed, 0 failed
+# … 192 passed, 0 failed
 ```
 
-The 12 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.
+The 17 MATH-Ascent tests are `test_mathascent_*`. The progress ledger is `MATH_ASCENT_PROGRESS.md`.

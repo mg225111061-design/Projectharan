@@ -7377,6 +7377,53 @@ def test_mathascent_b2_file_attachment():
           "served UI has the drag-drop + picker wired to /api/math/ingest)")
 
 
+def test_mathascent_b4_probability_inequalities():
+    """§B4 (arsenal deepening) — PROBABILITY (exact distributions + PROVEN tail bounds) and INEQUALITIES
+    (univariate polynomial nonnegativity, certified or a counterexample). Binomial PMF/mean/variance are exact
+    rationals certified by ΣP=1 / E=np / Var=np(1−p). Markov & Chebyshev are THEOREMS ⇒ the bound is EXACT (a
+    proven rational upper bound, not a δ) — and we cross-check it dominates the EXACT binomial tail. Nonnegativity:
+    leading coeff > 0 ∧ all real roots even multiplicity ⇒ p≥0 ∀x (EXACT); else an exact witness x₀ with p(x₀)<0
+    ⇒ DECLINE. An SOS p=Σqᵢ² is accepted by exact expansion. Both routed through the solver (arsenal = 12 families)."""
+    from fractions import Fraction as Fr
+    import sympy as sp
+    from mathmode import probability as PR
+    from mathmode import inequalities as IQ
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    # exact binomial
+    vb = PR.binomial_grade(10, Fr(1, 3))
+    assert vb.status == KV.EXACT and vb.result["mean"] == Fr(10, 3) and vb.result["var"] == Fr(20, 9)
+    assert PR.binomial_grade(5, Fr(3, 2)).status == KV.DECLINE, "p>1 ⇒ DECLINE"
+    # Markov / Chebyshev proven bounds dominate the EXACT binomial tail (anti-fabrication)
+    n, p = 20, Fr(1, 2)
+    mean, var = n * p, n * p * (1 - p)
+    mk = PR.markov_grade(mean, 15)
+    assert mk.status == KV.EXACT and PR.binomial_tail(n, p, 15) <= mk.result, "Markov must dominate the true tail"
+    ch = PR.chebyshev_grade(var, 5)
+    two_sided = PR.binomial_tail(n, p, 15) + sum(PR.binomial_pmf(n, p)[k] for k in range(0, 6))
+    assert ch.status == KV.EXACT and two_sided <= ch.result, "Chebyshev must dominate the two-sided tail"
+
+    # nonnegativity — EXACT certificate vs exact counterexample
+    x = sp.Symbol("x")
+    assert IQ.nonneg_grade(x ** 2 + 1, x).status == KV.EXACT
+    assert IQ.nonneg_grade((x - 1) ** 2 * (x + 2) ** 2, x).status == KV.EXACT, "even multiplicities ⇒ ≥0"
+    d = IQ.nonneg_grade(x ** 2 - 1, x)
+    assert d.status == KV.DECLINE and "witness" in d.reason, "must give an exact counterexample"
+    assert IQ.nonneg_grade(x ** 3, x).status == KV.DECLINE, "odd degree ⇒ takes negative values"
+    # SOS certificate accepted iff it actually reconstructs the polynomial
+    assert IQ.verify_sos_grade(x ** 2 + 2 * x + 1, [x + 1], x).status == KV.EXACT
+    assert IQ.verify_sos_grade(x ** 2 - 1, [x], x).status == KV.DECLINE
+
+    # routed through the unified solver (arsenal now 12 families)
+    assert S.solve({"domain": "probability", "op": "markov", "mean": 3, "a": 10}).verdict.status == KV.EXACT
+    assert S.solve({"domain": "inequalities", "op": "nonneg", "poly": x ** 2 + 1}).verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_b4_probability_inequalities (exact Binomial [ΣP=1,E=np,Var=np(1−p)]; PROVEN Markov "
+          "& Chebyshev bounds [EXACT, dominate the exact tail — not a δ]; polynomial nonnegativity [even-mult roots "
+          "∧ lead>0 ⇒ EXACT, else exact counterexample witness ⇒ DECLINE]; SOS by exact expansion; solver = 12 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

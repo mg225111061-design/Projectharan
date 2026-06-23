@@ -96,6 +96,23 @@ def _suite() -> List[Problem]:
         Problem("Monte-Carlo π (approx)", "certified_numeric",
                 {"domain": "certified_numeric", "op": "montecarlo_pi", "samples": 40000, "delta": 1e-2},
                 KV.PROBABILISTIC, None),
+        # ── deepened arsenal (B4): optimization, science, probability, inequalities ──
+        Problem("LP max 3x+2y (duality)", "optimization",
+                {"domain": "optimization", "op": "lp_max", "c": [3, 2], "A": [[1, 1], [1, 3]], "b": [4, 6]},
+                KV.EXACT, lambda v: v.result[1] == 12),
+        Problem("dim-check E=½mv²", "science_engineering",
+                {"domain": "science_engineering", "op": "dimension_check", "equation": "E = m*v**2",
+                 "binding": {"E": "energy", "m": "mass", "v": "velocity"}}, KV.EXACT, None),
+        Problem("dim-check E=mv (wrong)", "science_engineering",
+                {"domain": "science_engineering", "op": "dimension_check", "equation": "E = m*v",
+                 "binding": {"E": "energy", "m": "mass", "v": "velocity"}}, KV.DECLINE, None),
+        Problem("Markov bound (proven)", "probability",
+                {"domain": "probability", "op": "markov", "mean": 3, "a": 10}, KV.EXACT,
+                lambda v: v.result == Fr(3, 10)),
+        Problem("x²+1 ≥ 0 (nonneg)", "inequalities",
+                {"domain": "inequalities", "op": "nonneg", "poly": sp.Symbol("x") ** 2 + 1}, KV.EXACT, None),
+        Problem("x²−1 ≥ 0 ? (counterexample)", "inequalities",
+                {"domain": "inequalities", "op": "nonneg", "poly": sp.Symbol("x") ** 2 - 1}, KV.DECLINE, None),
     ]
 
 
