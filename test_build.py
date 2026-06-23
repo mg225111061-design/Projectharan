@@ -7201,6 +7201,46 @@ def test_mathascent_benchmark():
           f"{r.cross_checked} EXACT answers cross-checked vs ground truth; HLE itself UNVERIFIED — no fabricated score)")
 
 
+def test_mathascent_optimization_and_science():
+    """MATH-ASCENT §3 (arsenal, deepening) — OPTIMIZATION (exact LP with a self-certifying DUALITY proof) and
+    SCIENCE/ENGINEERING (dimensional analysis). LP: max cᵀx s.t. Ax≤b, x≥0 solved by exact rational vertex
+    enumeration; the certificate is strong duality — a feasible primal x* and feasible dual y* with zero gap
+    PROVE x* optimal (weak duality sandwiches it); unbounded/infeasible ⇒ honest DECLINE. Dimensional analysis:
+    an equation is EXACT iff both sides resolve to the same exponent vector over the 7 SI base dimensions — which
+    catches a dimensionally-wrong physical formula (E=m·v ≠ energy) as a DECLINE. Both routed through the solver."""
+    from fractions import Fraction as Fr
+    from mathmode import optimization as OPT
+    from mathmode import science_engineering as SE
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    # LP with the duality certificate
+    v = OPT.lp_max_grade([3, 2], [[1, 1], [1, 3]], [4, 6])
+    assert v.status == KV.EXACT and v.result[1] == 12 and v.certificate.kind == "lp_strong_duality"
+    assert OPT.lp_max_grade([5, 4], [[6, 4], [1, 2]], [24, 6]).result[1] == 21, "classic LP optimum 21 at (3,3/2)"
+    assert OPT.lp_max_grade([1], [[-1]], [0]).status == KV.DECLINE, "unbounded ⇒ honest DECLINE"
+
+    # dimensional analysis — consistent EXACT, wrong formula DECLINE
+    assert SE.consistency_grade("E = m*v**2", {"E": "energy", "m": "mass", "v": "velocity"}).status == KV.EXACT
+    assert SE.consistency_grade("F = m*a", {"F": "force", "m": "mass", "a": "acceleration"}).status == KV.EXACT
+    assert SE.consistency_grade("E = m*v", {"E": "energy", "m": "mass", "v": "velocity"}).status == KV.DECLINE, \
+        "E=m·v is momentum-dimensioned, not energy ⇒ DECLINE (catches the wrong formula)"
+    assert SE.consistency_grade("y = x + t", {"y": "length", "x": "length", "t": "time"}).status == KV.DECLINE, \
+        "length + time is an inconsistent sum ⇒ DECLINE"
+    assert SE.derive_dimension_grade("m*v", {"m": "mass", "v": "velocity"}).result == SE.DIM["momentum"]
+
+    # routed through the unified solver (the arsenal now spans 10 families)
+    sol = S.solve({"domain": "optimization", "op": "lp_max", "c": [3, 2], "A": [[1, 1], [1, 3]], "b": [4, 6]})
+    assert sol.verdict.status == KV.EXACT and any(st.stage == "arsenal" for st in sol.reasoning)
+    sol2 = S.solve({"domain": "science_engineering", "op": "dimension_check", "equation": "E = m*v**2",
+                    "binding": {"E": "energy", "m": "mass", "v": "velocity"}})
+    assert sol2.verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_optimization_and_science (exact LP via strong-duality certificate [primal+dual "
+          "feasible, zero gap ⇒ optimal; unbounded ⇒ DECLINE]; dimensional analysis over 7 SI base dims [E=½mv² ✓, "
+          "F=ma ✓, E=mv ✗→DECLINE, length+time ✗→DECLINE]; both routed through the solver — arsenal now 10 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

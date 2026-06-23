@@ -23,6 +23,8 @@ from mathmode import linear_algebra as LA
 from mathmode import algebra as AL
 from mathmode import geometry as GE
 from mathmode import certified_numeric as CN
+from mathmode import optimization as OPT
+from mathmode import science_engineering as SE
 
 
 @dataclass
@@ -53,6 +55,7 @@ class MathSolution:
 _ARSENAL = {
     "number_theory": NT.solve, "linear_algebra": LA.solve, "algebra": AL.solve,
     "geometry": GE.solve, "certified_numeric": CN.solve, "combinatorics": CB.summation,
+    "optimization": OPT.solve, "science_engineering": SE.solve,
 }
 
 

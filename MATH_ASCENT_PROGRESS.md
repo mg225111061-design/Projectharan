@@ -57,8 +57,14 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
 3f. ☑ certified_numeric — EXACT enclosures (Sturm real-root count ≡ isolation; IVT sign-change root bracket;
     √n rational bracket lo²≤n≤hi²; ε=width not δ) vs honest PROBABILISTIC Monte-Carlo (Hoeffding ε,δ — never
     EXACT); no sign change / neg √ ⇒ DECLINE. [test_mathascent_certified_numeric; mathmode/certified_numeric.py]
-    Remaining: ◩ logic_verification (Z3 wired — wire a MATH-facing prove/refute) · ☐ optimization_or ·
-    ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
+3g. ☑ optimization — exact LP (max cᵀx s.t. Ax≤b, x≥0) by rational vertex enumeration, SELF-CERTIFYING via
+    STRONG DUALITY (feasible primal x* + feasible dual y* + zero gap ⇒ x* PROVABLY optimal); unbounded/infeasible
+    ⇒ honest DECLINE. [test_mathascent_optimization_and_science; mathmode/optimization.py]
+3h. ☑ science_engineering — dimensional analysis over the 7 SI base dims (exponent-vector algebra): an equation
+    is EXACT iff both sides share a dimension vector; a dimensionally-wrong formula (E=m·v) ⇒ DECLINE (a real
+    bug-catcher); derive a result's units EXACT. [test_mathascent_optimization_and_science; mathmode/science_engineering.py]
+    Arsenal = 10 families. Remaining/honest-blocked: ◩ logic_verification (Z3 wired) · ⚠ Zeilberger definite-sum
+    recurrences [BLOCKED: ore_algebra absent — not faked] · ☐ ODE/PDE · ☐ tensor · ☐ probability · ☐ inequalities/SOS.
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
 4. ☑ broth proving — prove() does O(1) dict lookup over 3735 entries + a CHEAP recheck (PRA finite-base for sums,
