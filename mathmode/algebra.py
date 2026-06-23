@@ -72,8 +72,42 @@ def solve_poly_grade(poly, x=None) -> KV.Verdict:
     return KV.exact(list(roots), "algebra.solve", "exact roots (radicals)", cert)
 
 
+def interpolate_grade(points, x=None) -> KV.Verdict:
+    """The unique degree-<n polynomial through n points. Certificate: p(xᵢ)=yᵢ for EVERY point (self-certifying,
+    exact). Duplicate x-coordinates (over-determined / ill-posed) ⇒ honest DECLINE."""
+    x = x or sp.Symbol("x")
+    pts = [(sp.nsimplify(a), sp.nsimplify(b)) for a, b in points]
+    xs = [a for a, _ in pts]
+    if len(set(xs)) != len(xs):
+        return KV.decline("interpolate: duplicate x-coordinates ⇒ ill-posed ⇒ DECLINE", "algebra.interpolate")
+    if len(pts) < 1:
+        return KV.decline("interpolate: need ≥ 1 point ⇒ DECLINE", "algebra.interpolate")
+    p = sp.expand(sp.interpolate(pts, x))
+    if any(sp.simplify(p.subs(x, a) - b) != 0 for a, b in pts):     # ★ passes every point, exactly ★
+        return KV.decline("interpolate: polynomial fails a point ⇒ DECLINE", "algebra.interpolate")
+    cert = KV.Cert(KV.EXACT, "interpolation_passes_points", passed=True, check_cost=f"{len(pts)} exact evaluations",
+                   detail=f"p(x) = {sp.sstr(p)} passes all {len(pts)} points exactly (unique degree<{len(pts)})")
+    return KV.exact(p, "algebra.interpolate", "exact Lagrange", cert)
+
+
+def partial_fractions_grade(expr, x=None) -> KV.Verdict:
+    """Partial-fraction decomposition of a rational function. Certificate: the decomposition RECOMBINES to the
+    original (exact). A non-rational input that does not simplify back ⇒ honest DECLINE."""
+    x = x or sp.Symbol("x")
+    e = _expr(expr, x)
+    try:
+        ap = sp.apart(e, x)
+    except Exception as ex:                                  # noqa: BLE001
+        return KV.decline(f"partial_fractions: not decomposable ({type(ex).__name__}) ⇒ DECLINE", "algebra.apart")
+    if sp.simplify(ap - e) != 0:                             # ★ recombination ≡ original, exact ★
+        return KV.decline("partial_fractions: decomposition ≠ original ⇒ DECLINE", "algebra.apart")
+    cert = KV.Cert(KV.EXACT, "partial_fractions_recombine", passed=True, check_cost="one symbolic recombination",
+                   detail=f"{sp.sstr(e)} = {sp.sstr(ap)} (recombines to the original, exact)")
+    return KV.exact(ap, "algebra.apart", "exact partial fractions", cert)
+
+
 def solve(problem: dict) -> KV.Verdict:
-    """problem = {"op": "factor"|"poly_gcd"|"solve_poly", ...}. Unknown op ⇒ honest DECLINE."""
+    """problem = {"op": "factor"|"poly_gcd"|"solve_poly"|"interpolate"|"partial_fractions", ...}."""
     op = problem.get("op")
     x = sp.Symbol(problem.get("var", "x"))
     if op == "factor":
@@ -82,4 +116,8 @@ def solve(problem: dict) -> KV.Verdict:
         return poly_gcd_grade(problem["p"], problem["q"], x)
     if op == "solve_poly":
         return solve_poly_grade(problem["poly"], x)
+    if op == "interpolate":
+        return interpolate_grade(problem["points"], x)
+    if op == "partial_fractions":
+        return partial_fractions_grade(problem["expr"], x)
     return KV.decline(f"algebra: unknown op {op!r} ⇒ DECLINE", "algebra")

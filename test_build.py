@@ -7693,6 +7693,30 @@ def test_mathascent_b4_calculus():
           "[unevaluated, no fabricated antiderivative]; solver = 16 families)")
 
 
+def test_mathascent_b4_interp_apart():
+    """§B4 (algebra deepening) — Lagrange INTERPOLATION (self-certified by p(xᵢ)=yᵢ at every point; duplicate x ⇒
+    DECLINE) and PARTIAL FRACTIONS (self-certified by recombination ≡ original). (0,0),(1,1),(2,4) ⇒ x²;
+    1/(x²−1) ⇒ 1/(2(x−1)) − 1/(2(x+1)). Routed through the algebra domain."""
+    import sympy as sp
+    from mathmode import algebra as AL
+    import kernel_verdict as KV
+
+    x = sp.Symbol("x")
+    v = AL.interpolate_grade([(0, 0), (1, 1), (2, 4)], x)
+    assert v.status == KV.EXACT and sp.simplify(v.result - x ** 2) == 0
+    assert sp.simplify(AL.interpolate_grade([(1, 2), (3, 4), (5, 6)], x).result - (x + 1)) == 0
+    assert AL.interpolate_grade([(0, 0), (0, 1)], x).status == KV.DECLINE, "duplicate x ⇒ DECLINE"
+    pf = AL.partial_fractions_grade(1 / (x ** 2 - 1), x)
+    assert pf.status == KV.EXACT and sp.simplify(pf.result - 1 / (x ** 2 - 1)) == 0
+    assert sp.simplify(AL.partial_fractions_grade((x + 3) / ((x + 1) * (x + 2)), x).result
+                       - (x + 3) / ((x + 1) * (x + 2))) == 0
+    assert AL.solve({"op": "interpolate", "points": [(0, 1), (1, 3), (2, 7)]}).status == KV.EXACT
+    assert AL.solve({"op": "partial_fractions", "expr": 1 / (x ** 2 - 1)}).status == KV.EXACT
+
+    print("PASS test_mathascent_b4_interp_apart (Lagrange interpolation [p(xᵢ)=yᵢ self-cert: (0,0)(1,1)(2,4)→x²; "
+          "duplicate x ⇒ DECLINE]; partial fractions [recombine≡original: 1/(x²−1)→1/(2(x−1))−1/(2(x+1))])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
