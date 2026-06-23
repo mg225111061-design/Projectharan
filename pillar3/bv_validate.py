@@ -46,7 +46,8 @@ def bv_equiv_inhouse(build: Callable, bits: int = 8) -> Tuple[str, Optional[dict
     SMT (no Z3). `build(bb)` returns (lhs_BV, rhs_BV) over a `bitblast_smt.BitBlaster`. Same contract as bv_equiv —
     PROVEN (UNSAT of ≠) / REFUTED (a checked counterexample) — but EXACT only WITHIN `bits` (the bound is stated by
     the certificate) and only for this solver's QF-BV theory. Used to discharge in-scope obligations with no
-    external solver, and to cross-check Z3 where both apply. NOT Z3 parity (no signed `>`, division, or ite-mux)."""
+    external solver, and to cross-check Z3 where both apply. NOT Z3 parity (no division, variable-shift, or ite-mux;
+    signed compare, general multiply, and right-shift ARE in-house)."""
     import os
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root → bitblast_smt
@@ -62,7 +63,7 @@ def bv_equiv_inhouse(build: Callable, bits: int = 8) -> Tuple[str, Optional[dict
 def cross_check_inhouse_vs_z3() -> dict:
     """Demonstrate the in-house solver is a FAITHFUL zero-dependency replacement for Z3 on its decidable subset:
     prove every sound peephole BOTH ways at the SAME small width and assert agreement. The unsafe peepholes are
-    NOT cross-checked here — they need signed/division/ite, outside the in-house theory (honest scope, stays on Z3)."""
+    NOT cross-checked here — they need ite-mux / division, outside the in-house theory (honest scope, stays on Z3)."""
     import os
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -7881,11 +7881,12 @@ def test_native_s1_rust_core():
 def test_native_s2_bitblast_smt():
     """§2 — ZERO-DEPENDENCY bit-blasting SMT (in-house DPLL SAT + bit-blaster + independent certificate checker;
     no coqc/cvc5/Bitwuzla/Lean/Z3). It DECIDES fixed-width QF-bitvector obligations the CODE engine actually
-    generates (add/sub/mul-by-const/and/or/xor/not/shift/eq/ult) so those proofs need no external solver. Honest
-    scope (§X): a validity result is EXACT *within the stated width* (bound = 2^width), DETERMINISTIC (same input ⇒
-    same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT model is re-checked by a tiny
-    independent checker; ∀-validity is UNSAT of the negation over the whole w-bit domain). It is NOT cvc5/Z3
-    parity — no signed comparison, no division, no ite-mux, no arrays/reals/unbounded ints — and we never imply it."""
+    generates (add/sub/mul-by-const/general-mul/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt) so those proofs need
+    no external solver. Honest scope (§X): a validity result is EXACT *within the stated width* (bound = 2^width),
+    DETERMINISTIC (same input ⇒ same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT model is
+    re-checked by a tiny independent checker; ∀-validity is UNSAT of the negation over the whole w-bit domain). It
+    is NOT cvc5/Z3 parity — no division, no variable-amount shift, no ite-mux, no arrays/reals/unbounded ints — and
+    we never imply it (signed compare, general multiply, and right-shift ARE in-house; sections g–h decide them)."""
     import bitblast_smt as S
     from pillar3 import bv_validate as BV
 
@@ -7938,10 +7939,28 @@ def test_native_s2_bitblast_smt():
     ov = S.solve_bv(lambda bb: -bb.sgt_lit(bb.add(bb.var("x"), bb.const(1)), bb.var("x")), 8)
     assert ov.status == "SAT" and ov.model["x"] == 127, ov     # INT_MAX(w8): 127+1 = −128 <ₛ 127 ⇒ (x+1)>ₛx false
 
+    # (h) EXPANDED THEORY (general multiply + logical/arithmetic right-shift) — the STRENGTH-REDUCTION catalog the
+    # CODE engine WANTS TO ACCEPT (mul↔shift, branchless sign-mask, bit round-trips, the ×-ring laws) is PROVEN
+    # VALID in-house, not merely refuted. Each is decided EXACT-within-width by UNSAT of the negation, with a cert
+    # stating its bound. This catalog is in-house-ONLY (ops outside pillar3's Z3 set) — no Z3-parity pretence.
+    sr = S.prove_strength_reductions()
+    assert len(sr) >= 8, "the strength-reduction catalog must be non-trivial"
+    for name, r in sr.items():
+        assert r.status == "VALID" and f"2^{r.width}" in r.certificate, \
+            f"{name}: strength reduction must be VALID with a width-bounded certificate: {r}"
+    # and the general multiplier produces a REAL refutation, not a false VALID: x·x == x is false (e.g. x=2 ⇒ 4≠2)
+    sq = S.prove_bv_identity(lambda bb: (lambda x: (bb.mul(x, x), x))(bb.var("x")), 4)
+    assert sq.status == "INVALID" and (sq.model["x"] ** 2) % 16 != sq.model["x"], sq
+    # determinism extends to the new theory: identical status + certificate across independent runs
+    assert {n: r.certificate for n, r in S.prove_strength_reductions().items()} == \
+           {n: r.certificate for n, r in sr.items()}, "strength-reduction proofs must be deterministic"
+
     print(f"PASS test_native_s2_bitblast_smt (ZERO-DEP in-house SMT: {len(cc['rows'])} sound peepholes decided VALID "
           f"and AGREEING with Z3 at matched width; INVALID x+1==x with checked cex x={xc}; SAT 3x≡9→x={sat.model['x']} "
-          f"+ UNSAT 2x≡1; SIGNED compare now in-house [(x+1)>ₛx false at INT_MAX=127, found w/o Z3]; deterministic "
-          f"result+certificate; tamper-rejecting checker; still out-of-scope: division/ite — not Z3 parity, by design)")
+          f"+ UNSAT 2x≡1; SIGNED compare now in-house [(x+1)>ₛx false at INT_MAX=127, found w/o Z3]; EXPANDED theory: "
+          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift: sign-mask, bit round-trips, "
+          f"mul↔shift, × commutes/associates/distributes] + REAL refutation x·x≠x cex x={sq.model['x']}; deterministic "
+          f"result+certificate; tamper-rejecting checker; still out-of-scope: division/variable-shift/ite — by design)")
 
 
 def test_native_s3_triage_layer():

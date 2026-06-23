@@ -75,19 +75,27 @@ crates); source + `Cargo.lock` + bridge are committed.
 ## §2 — zero-dependency bit-blasting SMT  ·  `bitblast_smt.py`  ·  `test_native_s2_bitblast_smt`
 
 In-house DPLL SAT + bit-blaster + independent certificate checker — **no coqc/cvc5/Bitwuzla/Lean/Z3**. Decides
-fixed-width **quantifier-free bitvector** obligations (add / sub / mul-by-constant / and / or / xor / not / shift /
-eq / unsigned-lt). A validity result is **EXACT within the stated width** (bound = 2^w); DETERMINISTIC (same input
-⇒ same result AND same certificate); CERTIFICATE-PRODUCING (every SAT model is re-checked by a tiny independent
-checker — that one function is the whole TCB; ∀-validity is UNSAT of the negation over the w-bit domain).
+fixed-width **quantifier-free bitvector** obligations (add / sub / neg / mul-by-constant / **general w×w multiply** /
+and / or / xor / not / left-shift / **logical+arithmetic right-shift** / eq / unsigned-lt / **signed lt+gt**). A
+validity result is **EXACT within the stated width** (bound = 2^w); DETERMINISTIC (same input ⇒ same result AND same
+certificate); CERTIFICATE-PRODUCING (every SAT model is re-checked by a tiny independent checker — that one function
+is the whole TCB; ∀-validity is UNSAT of the negation over the w-bit domain).
 
 **Wired into the engine.** `pillar3/bv_validate.bv_equiv_inhouse` gives the machine-semantics validator a
 zero-dependency backend, and `cross_check_inhouse_vs_z3` proves every SOUND peephole (`mul2_to_shl1`,
 `mul8_to_shl3`, `xor_via_or_minus_and`, `add_sub_cancel`, `clear_low_bit`) BOTH in-house and with Z3 at the same
 width and asserts agreement — a faithful zero-dep replacement on its decidable subset.
 
-**Honest scope (§X).** NOT cvc5/Z3 parity: no signed `>`, no division, no ite-mux, no arrays/reals/unbounded ints.
-The overflow-unsafe peepholes (`succ_gt_self`, `mul2_div2_id`, `add_monotone`) need exactly those and stay on Z3 —
-the cross-check declares them out-of-scope. Small TCB, zero deps: that is the point.
+**Expanded theory — strength-reduction catalog.** `prove_strength_reductions` decides VALID in-house (UNSAT of the
+negation, EXACT within width) the transforms CODE wants to ACCEPT: `mul8_to_shl3_general`, `general_mul=mul_const`,
+the branchless sign-mask `ashr(x,w-1) = neg(lshr(x,w-1))`, the shift round-trips that clear low/high bits, and the
+×-ring laws (commute / associate / distribute) — so a strength reduction ships EXACT with zero external solver. A
+real refutation is still found (`x·x = x` is INVALID with a checked counterexample) — never a false VALID.
+
+**Honest scope (§X).** NOT cvc5/Z3 parity: no division, no variable-amount shift, no ite-mux, no arrays/reals/
+unbounded ints. The overflow-unsafe peepholes (`succ_gt_self`, `mul2_div2_id`, `add_monotone`) need ite-mux /
+division and stay on Z3 — the cross-check declares them out-of-scope (signed compare, general multiply, and
+right-shift ARE in-house now). Small TCB, zero deps: that is the point.
 
 ## §3 — AST-depth fast-triage before the proof cache  ·  `proof_triage.py`  ·  `test_native_s3_triage_layer`
 

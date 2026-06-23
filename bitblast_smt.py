@@ -10,10 +10,13 @@ with ZERO external solver. It is:
     AND same certificate, every run.
   • CERTIFICATE-PRODUCING — SAT returns a MODEL that an independent tiny checker verifies against the CNF; for a
     validity claim (∀x. P), UNSAT of ¬P is the proof (decided exhaustively over the w-bit domain by the SAT core).
-Honest scope: bitvector add / sub / mul-by-constant / eq / ult / slt / sgt (signed compare) / and / or / xor /
-not / shifts, quantifier-free, fixed width. NOT cvc5/Z3-parity (no division, no ite-mux as a first-class op, no
-arrays, no reals, no unbounded ints). That's the point — small TCB, zero deps. (Signed comparison was added so the
-signed-overflow obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are decided in-house.)
+Honest scope: bitvector add / sub / neg / mul-by-constant / general w×w multiply / eq / ult / slt / sgt (signed
+compare) / and / or / xor / not / left-shift / logical+arithmetic right-shift (by a constant), quantifier-free,
+fixed width. NOT cvc5/Z3-parity (no division, no VARIABLE-amount shift, no ite-mux as a first-class op, no arrays,
+no reals, no unbounded ints). That's the point — small TCB, zero deps. (Signed comparison was added so the
+signed-overflow obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are decided in-house;
+general multiply + right-shift were added so strength-reduction transforms — mul↔shift, sign-mask, bit round-trips
+— are proven VALID in-house rather than only refuted, each EXACT within the stated width.)
 """
 from __future__ import annotations
 
@@ -124,6 +127,21 @@ class BitBlaster:
 
     def shl(self, a: BV, k: int) -> BV:
         return BV([self._false] * min(k, self.w) + a.bits[: max(0, self.w - k)])
+
+    def lshr(self, a: BV, k: int) -> BV:                    # LOGICAL right shift by constant k (zero-fill from top)
+        return BV([a.bits[i + k] if i + k < self.w else self._false for i in range(self.w)])
+
+    def ashr(self, a: BV, k: int) -> BV:                    # ARITHMETIC right shift by constant k (sign-fill from top)
+        sign = a.bits[self.w - 1]
+        return BV([a.bits[i + k] if i + k < self.w else sign for i in range(self.w)])
+
+    def mul(self, a: BV, b: BV) -> BV:                      # general w×w multiply mod 2^w (shift-add, and-gated)
+        acc = self.const(0)
+        for j in range(self.w):                            # partial product j = (a << j) gated by b_j, summed
+            pp = BV([self.cnf.lit_and(a.bits[i - j], b.bits[j]) if i >= j else self._false
+                     for i in range(self.w)])
+            acc = self.add(acc, pp)
+        return acc
 
     def eq_lit(self, a: BV, b: BV) -> int:                  # a literal that is True iff a == b
         acc = self._true
@@ -288,3 +306,44 @@ def inhouse_sound_peepholes() -> List[Tuple[str, "callable", int]]:
 def prove_sound_peepholes() -> Dict[str, BVResult]:
     """Decide every in-house sound peephole VALID with a checkable certificate — ZERO external solver."""
     return {name: prove_bv_identity(build, width) for name, build, width in inhouse_sound_peepholes()}
+
+
+# ── STRENGTH-REDUCTION catalog (the EXPANDED theory: general multiply + logical/arithmetic right-shift) ─────────
+# These are the transforms the CODE engine WANTS TO ACCEPT — turning an expensive op into a cheap one (multiply→
+# shift, mask→shift round-trip, branchless sign via arithmetic shift). Unlike the unsafe peepholes that stay on Z3,
+# every one of these is PROVEN VALID *in-house* (UNSAT of the negation over the whole w-bit domain) — so the engine
+# can soundly ACCEPT the strength reduction with ZERO external solver, EXACT within the stated width. This catalog
+# is in-house-ONLY (it exercises ops outside pillar3's Z3-cross-checked set), so it is deliberately NOT part of
+# inhouse_sound_peepholes() / cross_check_inhouse_vs_z3 — we never imply Z3 parity for it.
+def inhouse_strength_reductions() -> List[Tuple[str, "callable", int]]:
+    def _sign_mask(bb):                                       # ashr(x,w-1) ≡ neg(lshr(x,w-1)) — branchless sign mask
+        x = bb.var("x"); return (bb.ashr(x, bb.w - 1), bb.neg(bb.lshr(x, bb.w - 1)))
+    def _clear_low(bb):                                       # lshr-then-shl round-trip ≡ AND ~(2^k−1) (clear low k)
+        x = bb.var("x"); k = 2; mask = ((1 << bb.w) - 1) ^ ((1 << k) - 1)
+        return (bb.shl(bb.lshr(x, k), k), bb.band(x, bb.const(mask)))
+    def _clear_high(bb):                                      # shl-then-lshr round-trip ≡ AND (2^(w−k)−1) (clear high)
+        x = bb.var("x"); k = 2; return (bb.lshr(bb.shl(x, k), k), bb.band(x, bb.const((1 << (bb.w - k)) - 1)))
+    def _mul_to_shift(bb):                                    # general x·8 ≡ x<<3 (strength reduction, general mul side)
+        x = bb.var("x"); return (bb.mul(x, bb.const(8)), bb.shl(x, 3))
+    def _mul_agrees(bb):                                      # general multiplier AGREES with trusted shift-add const
+        x = bb.var("x"); return (bb.mul(x, bb.const(5)), bb.mul_const(x, 5))
+    def _mul_comm(bb):                                        # × commutes mod 2^w (multiplier soundness)
+        x, y = bb.var("x"), bb.var("y"); return (bb.mul(x, y), bb.mul(y, x))
+    def _mul_assoc(bb):                                       # × associates mod 2^w (reassociation is sound)
+        x, y, z = bb.var("x"), bb.var("y"), bb.var("z")
+        return (bb.mul(bb.mul(x, y), z), bb.mul(x, bb.mul(y, z)))
+    def _mul_dist(bb):                                        # × distributes over + mod 2^w (the ring law)
+        x, y, z = bb.var("x"), bb.var("y"), bb.var("z")
+        return (bb.mul(x, bb.add(y, z)), bb.add(bb.mul(x, y), bb.mul(x, z)))
+    # (name, build, width). Multiply is O(w²) gates so 3-var laws stay at width 3 (exhaustive over 2^9 inputs);
+    # 1-var stays at 6. Each is a bounded, deterministic, EXACT-WITHIN-WIDTH decision — widen + re-prove to raise it.
+    return [("sign_mask_ashr=neg_lshr", _sign_mask, 6), ("clear_low_bits_roundtrip", _clear_low, 6),
+            ("clear_high_bits_roundtrip", _clear_high, 6), ("mul8_to_shl3_general", _mul_to_shift, 6),
+            ("general_mul=mul_const", _mul_agrees, 6), ("mul_commutes", _mul_comm, 4),
+            ("mul_associates", _mul_assoc, 3), ("mul_distributes_over_add", _mul_dist, 3)]
+
+
+def prove_strength_reductions() -> Dict[str, BVResult]:
+    """Decide every in-house strength-reduction identity VALID with a checkable certificate (general multiply +
+    right-shift theory) — ZERO external solver, EXACT within each stated width."""
+    return {name: prove_bv_identity(build, width) for name, build, width in inhouse_strength_reductions()}

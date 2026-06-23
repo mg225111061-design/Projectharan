@@ -66,12 +66,16 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
 - **§3 ✅** AST-depth fast-triage before the proof cache (`proof_triage.py`; deterministic route, lossless verdict;
   regression demonstrated + fixed in `proof_cache.measure_triage`; `test_native_s3_triage_layer`).
 - **§2 ✅** ZERO-DEPENDENCY bit-blasting SMT (`bitblast_smt.py`: in-house DPLL SAT + bit-blaster + independent
-  certificate checker — no coqc/cvc5/Bitwuzla/Lean/Z3). Decides QF-bitvector (add/sub/mul-by-const/and/or/xor/not/
-  shift/eq/ult), EXACT *within the stated width* (bound = 2^w), deterministic (same result **and** certificate),
-  every SAT model re-checked by a tiny TCB. Wired into `pillar3/bv_validate.bv_equiv_inhouse` and cross-checked
-  against Z3 on the sound peepholes (`cross_check_inhouse_vs_z3` → all agree); `test_native_s2_bitblast_smt`.
-  **Honest scope (§X):** NOT cvc5/Z3 parity — no signed `>`, no division, no ite-mux, no arrays/reals/unbounded
-  ints; the overflow-unsafe peepholes (signed/division/ite) stay on Z3. Small TCB, zero deps — that's the point.
+  certificate checker — no coqc/cvc5/Bitwuzla/Lean/Z3). Decides QF-bitvector (add/sub/neg/mul-by-const/general-mul/
+  and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt), EXACT *within the stated width* (bound = 2^w), deterministic (same
+  result **and** certificate), every SAT model re-checked by a tiny TCB. Wired into `pillar3/bv_validate.bv_equiv_inhouse`
+  and cross-checked against Z3 on the sound peepholes (`cross_check_inhouse_vs_z3` → all agree). The expanded theory
+  decides a STRENGTH-REDUCTION catalog VALID in-house (`prove_strength_reductions`: mul↔shift, branchless sign-mask
+  `ashr(x,w-1)=neg(lshr(x,w-1))`, bit round-trips, ×-ring commute/assoc/distrib) — so CODE can ACCEPT those speedups
+  with zero external solver, EXACT within width; `test_native_s2_bitblast_smt`. **Honest scope (§X):** NOT cvc5/Z3
+  parity — no division, no variable-amount shift, no ite-mux, no arrays/reals/unbounded ints; the overflow-unsafe
+  peepholes (which need ite-mux / division) stay on Z3 (signed compare, general multiply, right-shift ARE in-house).
+  Small TCB, zero deps — that's the point.
 - **§1 ✅** dependency-0 Rust core (`rust_core/` std-only cdylib via ctypes — no PyO3/maturin/cffi/flint/faer;
   `rust_core.py` bridge). Delivers the v34-deferred pieces: flat **arena AST** (one deterministic pass);
   **deterministic fixed-precision multimodular CRT ring** — Garner-combines residues over a fixed 4-prime basis
