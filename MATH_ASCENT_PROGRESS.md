@@ -125,6 +125,10 @@ B3. ☑ archive extraction (mathmode/archive.py). zip/tar/gz/bz2/xz → enumerat
     zip-in-zip bounded recursion; SAFE BY CONSTRUCTION (in-memory, no disk writes ⇒ zip-slip can't touch FS) plus
     name refusal; bomb defense (per-entry/total/count/ratio/depth caps); 7z/rar ⇒ honest UNVERIFIED. Security-
     tested (zip-slip + bombs refused, never crashes). [test_mathascent_b3_archive_safety; mathmode/archive.py]
+B4u. ☑ usability — strict free-text routing (solver.parse_problem._parse_natural) connects the UI text box to
+    the whole arsenal: 'is 97 prime', 'factor x^4-1', 'gcd(48,36)', 'pell 61', 'zeta(2)', 'gamma(5/2)',
+    'solve x^2-5x+6', 'x^2+1>=0', 'totient 100', 'factorize 360' → right domain/op, EXACT; fuzzy/unknown ⇒ {} ⇒
+    honest DECLINE (no fabricated route). [test_mathascent_b4_natural_input; mathmode/solver.py]
 B4. ◩ in progress (both stronger). MATH arsenal broadened to 12 families: +optimization (LP duality),
     +science_engineering (dimensional analysis), +probability (exact distributions + PROVEN Markov/Chebyshev
     bounds), +inequalities (polynomial nonnegativity, certified or counterexample). §7 benchmark grown to 30

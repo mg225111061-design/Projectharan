@@ -7631,6 +7631,42 @@ def test_mathascent_b4_special_functions():
           "vs sympy ζ ∧ series; odd ζ(3) ⇒ honest DECLINE; solver = 15 families)")
 
 
+def test_mathascent_b4_natural_input():
+    """§B4 (usability) — STRICT free-text routing connects the UI's text box to the whole arsenal: unambiguous
+    phrasings ('is 97 prime', 'factor x^4-1', 'gcd(48,36)', 'pell 61', 'zeta(2)', 'gamma(5/2)', 'solve x^2-5x+6',
+    'x^2+1 >= 0', 'totient 100', 'factorize 360') parse to the right domain/op and solve EXACT. Crucially it is
+    STRICT — fuzzy / unknown text ('prove the Riemann hypothesis') parses to {} ⇒ honest DECLINE (never a
+    fabricated route), and a parsed-but-false claim ('x^2-1 >= 0') is correctly DECLINEd with a counterexample."""
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    routed = {
+        "is 97 prime": ("number_theory", "is_prime"), "isprime(1000003)": ("number_theory", "is_prime"),
+        "factorize 360": ("number_theory", "factorize"), "factor 360": ("number_theory", "factorize"),
+        "factor x^4-1": ("algebra", "factor"), "gcd(48,36)": ("number_theory", "egcd"),
+        "phi(36)": ("number_theory", "euler_phi"), "totient 100": ("number_theory", "euler_phi"),
+        "pell 61": ("number_theory", "pell"), "zeta(2)": ("special_functions", "zeta_even"),
+        "gamma(5)": ("special_functions", "gamma"), "gamma(5/2)": ("special_functions", "gamma"),
+        "solve x^2-5*x+6": ("algebra", "solve_poly"), "roots of x^2-5*x+6=0": ("algebra", "solve_poly"),
+        "x^2+1 >= 0": ("inequalities", "nonneg"),
+    }
+    for text, (dom, op) in routed.items():
+        p = S.parse_problem(text)
+        assert p.get("domain") == dom and p.get("op") == op, (text, p)
+        assert S.solve_in_mode(text, "normal").verdict.status == KV.EXACT, text
+
+    # ── strict: fuzzy / unknown free text ⇒ {} ⇒ honest DECLINE (no fabricated route) ──
+    for bad in ["prove the riemann hypothesis", "what is the meaning of life", "make my code faster"]:
+        assert S.parse_problem(bad) == {}, f"{bad!r} must NOT route"
+        assert S.solve_in_mode(bad, "normal").verdict.status == KV.DECLINE
+    # parsed but FALSE claim ⇒ DECLINE with the counterexample (x²−1 is not globally ≥ 0)
+    assert S.solve_in_mode("x^2-1 >= 0", "normal").verdict.status == KV.DECLINE
+
+    print("PASS test_mathascent_b4_natural_input (15 strict free-text phrasings route to the right arsenal "
+          "domain/op and solve EXACT [is-prime, factor, gcd, pell, zeta, gamma, solve, nonneg, totient…]; fuzzy / "
+          "unknown text ⇒ {} ⇒ honest DECLINE [no fabricated route]; a false 'x²−1≥0' ⇒ DECLINE w/ counterexample)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -176,8 +176,46 @@ def parse_problem(text) -> dict:
             return {"fold": json.loads(m2.group(1))}
         except Exception:                                # noqa: BLE001
             return {}
+    nat = _parse_natural(s)                               # strict free-text → arsenal routing
+    if nat:
+        return nat
     if "k" in s and not any(ch.isalpha() for ch in s.replace("k", "").replace("factorial", "")):
         return {"sum": s.replace("^", "**")}
+    return {}
+
+
+# ── strict free-text → arsenal routing (unambiguous patterns only; anything fuzzy ⇒ {} ⇒ honest DECLINE) ──
+def _parse_natural(s: str) -> dict:
+    import re
+    t = s.strip().rstrip("?.").strip()
+    NT_OPS = (
+        (r"(?:is\s+)?(\d+)\s+(?:a\s+)?prime", lambda m: {"domain": "number_theory", "op": "is_prime", "n": int(m[1])}),
+        (r"(?:is_?prime|prime)\s*\(?\s*(\d+)\s*\)?", lambda m: {"domain": "number_theory", "op": "is_prime", "n": int(m[1])}),
+        (r"factori[sz]e?\s+(\d+)", lambda m: {"domain": "number_theory", "op": "factorize", "n": int(m[1])}),
+        (r"(?:euler\s*)?(?:phi|totient|φ)\s*\(?\s*(\d+)\s*\)?", lambda m: {"domain": "number_theory", "op": "euler_phi", "n": int(m[1])}),
+        (r"gcd\s*\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?", lambda m: {"domain": "number_theory", "op": "egcd", "a": int(m[1]), "b": int(m[2])}),
+        (r"pell\s*\(?\s*(\d+)\s*\)?", lambda m: {"domain": "number_theory", "op": "pell", "N": int(m[1])}),
+        (r"(?:zeta|ζ)\s*\(?\s*(\d+)\s*\)?", lambda m: {"domain": "special_functions", "op": "zeta_even", "s": int(m[1])}),
+        (r"gamma\s*\(?\s*(\d+)\s*/\s*2\s*\)?", lambda m: {"domain": "special_functions", "op": "gamma", "two_z": int(m[1])}),
+        (r"gamma\s*\(?\s*(\d+)\s*\)?", lambda m: {"domain": "special_functions", "op": "gamma", "two_z": 2 * int(m[1])}),
+    )
+    for pat, build in NT_OPS:
+        mm = re.fullmatch(pat, t, re.IGNORECASE)
+        if mm:
+            return build(mm)
+    # factor <poly-in-x> | factor <int> ; solve/roots <poly> ; <poly> >= 0
+    mf = re.fullmatch(r"factor\s+(.+)", t, re.IGNORECASE)
+    if mf:
+        arg = mf.group(1).strip()
+        if re.fullmatch(r"\d+", arg):
+            return {"domain": "number_theory", "op": "factorize", "n": int(arg)}
+        return {"domain": "algebra", "op": "factor", "poly": arg.replace("^", "**")}
+    msv = re.fullmatch(r"(?:solve|roots?(?:\s+of)?)\s+(.+?)(?:\s*=\s*0)?", t, re.IGNORECASE)
+    if msv and "x" in msv.group(1):
+        return {"domain": "algebra", "op": "solve_poly", "poly": msv.group(1).strip().replace("^", "**")}
+    mnn = re.fullmatch(r"(.+?)\s*(?:>=|≥)\s*0", t)
+    if mnn and "x" in mnn.group(1):
+        return {"domain": "inequalities", "op": "nonneg", "poly": mnn.group(1).strip().replace("^", "**")}
     return {}
 
 
