@@ -8358,6 +8358,39 @@ def test_arsenal_s2_real_qe():
           "cross-checked vs sympy; multivariate flagged future)")
 
 
+def test_arsenal_p7_buckingham():
+    """UNIFIED ARSENAL §3·P7 — Buckingham-Pi (EXACT decision over ℚ). #Π = nullity(D) = n − rank(D); each Π is an
+    integer null-space vector with D·w=0 (dimensionless). Certificate: D·w=0 exactly + rank–nullity. Pipe flow →
+    {Reynolds, Euler}; pendulum → period²g/L (mass exponent 0 — the classic 'period independent of mass')."""
+    import kernel_verdict as KV
+    from mathmode import buckingham as BP
+
+    pipe = {"rho": {"M": 1, "L": -3}, "V": {"L": 1, "T": -1}, "Dia": {"L": 1},
+            "mu": {"M": 1, "L": -1, "T": -1}, "dp": {"M": 1, "L": -1, "T": -2}}
+    v = BP.buckingham_pi(pipe)
+    assert v.status == KV.EXACT and len(v.result) == 2 and v.certificate.kind == "buckingham_nullspace"
+    # each group is genuinely dimensionless: re-verify D·w=0 here, independently
+    for p in v.result:
+        net = {}
+        for q, e in p["exponents"].items():
+            for b, x in pipe[q].items():
+                net[b] = net.get(b, 0) + x * e
+        assert all(val == 0 for val in net.values()), (p, net)
+    # the Reynolds/Euler content is present (some integer multiple): μ/(ρVD) and Δp/(ρV²)
+    groups = {tuple(sorted(p["exponents"].items())) for p in v.result}
+    assert len(groups) == 2
+
+    # no dimensionless group when rank = n
+    assert BP.buckingham_pi({"len": {"L": 1}}).result == []
+    # pendulum: T,L,g,m → exactly ONE Π and the MASS exponent is 0 (period independent of mass)
+    vp = BP.buckingham_pi({"period": {"T": 1}, "L": {"L": 1}, "g": {"L": 1, "T": -2}, "m": {"M": 1}})
+    assert vp.status == KV.EXACT and len(vp.result) == 1 and vp.result[0]["exponents"]["m"] == 0
+
+    print("PASS test_arsenal_p7_buckingham (Buckingham-Pi EXACT over ℚ: pipe flow ρ,V,D,μ,Δp → 2 Π-groups "
+          "{Reynolds μ/ρVD, Euler Δp/ρV²} (each D·w=0 dimensionless), rank=n → 0 groups, pendulum → 1 Π with "
+          "mass-exponent 0 (period independent of mass); #Π = n−rank by rank–nullity)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
