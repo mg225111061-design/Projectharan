@@ -31,10 +31,10 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 45. ☐ idle-time / background precomputation (perceived vs actual)
 ## Group J — Ω(N) side-door (PROBABILISTIC, report ε,δ)
 46. ☑ sublinear sampling (mean) O(N)→O(k) cost⟂N PROBABILISTIC ε=0.0025 δ=0 ~4×@N=500000; biased→DECLINE [test_round2_sublinear_sampling; round2.py]
-47. ☐ cardinality sketch (HyperLogLog; ε)
-48. ☐ frequency sketch (Count-Min; ε)
+47. ☑ HyperLogLog cardinality — distinct-count in O(2^p) registers (memory ⟂ N), PROBABILISTIC ε~0.06; 16-register HLL→DECLINE [test_round2_sublinear_sketches; round2.py]
+48. ☑ Count-Min frequency — d×w counters (sublinear), one-sided (never under-estimates) PROBABILISTIC ε~0.001; 2×20 table→DECLINE [test_round2_sublinear_sketches; round2.py]
 49. ☑ Bloom membership O(n)→O(1)/query FP-ε=0.019 ZERO false-neg ~5.7×@n=3000 PROBABILISTIC; false-neg variant→DECLINE [test_round2_bloom_membership; round2.py]
-50. ☐ streaming/one-pass bounded memory (reservoir sampling)
+50. ☑ reservoir sampling — one-pass uniform size-k sample, O(k) memory (never materialises N) [test_round2_sublinear_sketches; round2.py]
 ## Group K — memory/allocation/GC
 51. ☐ allocation elimination / object pooling
 52. ☐ escape analysis → stack/avoid-heap

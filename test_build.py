@@ -6338,6 +6338,35 @@ def test_round3_cegar_refinement():
           f"bounded-reachability witness ⇒ REFUTED/DECLINE — never a false 'safe')")
 
 
+def test_round2_sublinear_sketches():
+    """ROUND 2 (Group J, items 47/48/50) — sublinear-MEMORY sketches: bounded memory for an UNBOUNDED stream,
+    PROBABILISTIC with a reported ε. (47) HyperLogLog distinct-count in O(2^p) registers ⟂ N; (48) Count-Min
+    frequency in a d×w table, ONE-SIDED (never under-estimates); (50) reservoir uniform sample of k in O(k).
+    An undersized sketch ⇒ ε too large ⇒ DECLINE; a Count-Min that under-estimates ⇒ invariant broken ⇒ DECLINE."""
+    from pillar3 import round2 as R2
+    import kernel_verdict as KV
+
+    # 47 — HyperLogLog: PROBABILISTIC(ε), memory ⟂ N (4096 registers regardless of stream length)
+    v = R2.cardinality_grade(lambda: R2._make_card_stream(200000), p=12, eps_target=0.09, trials=9, n=200000)
+    assert v.status == KV.PROBABILISTIC and v.certificate.kind == "hyperloglog" and v.certificate.delta is not None
+    assert R2.cardinality_grade(lambda: R2._make_card_stream(200000), p=4, eps_target=0.09, trials=5, n=200000).status == KV.DECLINE, \
+        "a 16-register HLL must be too inaccurate ⇒ DECLINE"
+
+    # 48 — Count-Min: PROBABILISTIC(ε), one-sided over-estimate; undersized table ⇒ DECLINE
+    vf = R2.frequency_grade(lambda: R2._make_freq_stream(80000, 800), d=5, w=2000, eps_target=0.05, trials=7)
+    assert vf.status == KV.PROBABILISTIC and vf.certificate.kind == "count_min"
+    assert R2.frequency_grade(lambda: R2._make_freq_stream(80000, 800), d=2, w=20, eps_target=0.05, trials=5).status == KV.DECLINE, \
+        "a 2×20 Count-Min must over-estimate too much ⇒ DECLINE"
+
+    # 50 — reservoir sampling: uniform sample of k, O(k) memory (never materialises the stream)
+    sample = R2.reservoir_sample(range(100000), 100)
+    assert len(sample) == 100 and all(0 <= x < 100000 for x in sample), "reservoir yields a size-k sample from the stream"
+
+    print(f"PASS test_round2_sublinear_sketches (HyperLogLog distinct-count ε={v.certificate.delta:.3f} in 4096 regs "
+          f"(memory ⟂ N); Count-Min frequency ε={vf.certificate.delta:.4f} one-sided (never under-estimates); "
+          f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
+
+
 def test_mode_separation_invariant():
     """§B MODE-SEPARATION INVARIANT (must hold on EVERY commit) — the three modes are distinct CONTRACTS, not a
     quality dial: (1) fast NEVER invokes Z3 (MICRO tier); (2) extend ships ONLY EXACT (EXACT-or-DECLINE —

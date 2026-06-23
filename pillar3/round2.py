@@ -265,3 +265,100 @@ def native_grade(make_input, fast_fn=None, residual_iters=0, *, n, samples=7, to
     v = KV.probabilistic(fast_fn, "native", str(rep), cert)
     v.report = rep
     return v, rep
+
+
+# ── items 47/48/50 — sublinear-MEMORY sketches: bounded memory for an unbounded stream (PROBABILISTIC, ε) ──
+# These trade exactness for O(1)/sublinear MEMORY (not wall-clock): the value is answering a stream query with
+# memory independent of N. Graded PROBABILISTIC with a REPORTED ε; an undersized sketch ⇒ ε too large ⇒ DECLINE.
+import math as _m2
+
+
+def hll_estimate(stream, p: int = 12):
+    """HyperLogLog distinct-count estimate using 2^p registers (memory O(2^p), INDEPENDENT of the stream length)."""
+    m = 1 << p
+    reg = [0] * m
+    maxbits = 64 - p
+    for x in stream:
+        h = hash((x, 0x9E3779B9)) & 0xFFFFFFFFFFFFFFFF
+        idx = h & (m - 1)
+        w = h >> p
+        rank = (maxbits - w.bit_length() + 1) if w else (maxbits + 1)   # leftmost 1-bit (leading zeros + 1)
+        if rank > reg[idx]:
+            reg[idx] = rank
+    alpha = 0.7213 / (1 + 1.079 / m)
+    E = alpha * m * m / sum(2.0 ** -r for r in reg)
+    V = reg.count(0)
+    if E <= 2.5 * m and V:
+        E = m * _m2.log(m / V)                              # small-range correction
+    return E
+
+
+def cardinality_grade(make_stream, *, p: int = 12, eps_target: float = 0.06, trials: int = 9, n: int = 0):
+    """PROBABILISTIC distinct-count: 95th-pct relative error of HLL vs the exact set over `trials` streams; memory
+    is O(2^p) registers regardless of N. ε ≤ target ⇒ PROBABILISTIC(ε); else DECLINE (sketch too small)."""
+    errs = []
+    for _ in range(trials):
+        s = make_stream()
+        exact = len(set(s))
+        est = hll_estimate(s, p)
+        errs.append(abs(est - exact) / max(1, exact))
+    errs.sort()
+    eps = errs[min(len(errs) - 1, int(0.95 * len(errs)))]
+    if eps > eps_target:
+        return KV.decline(f"HLL ε={eps:.4f} > target {eps_target} (p={p} too small) ⇒ DECLINE", "sketch")
+    cert = KV.Cert(KV.PROBABILISTIC, "hyperloglog", passed=True, check_cost=f"{1 << p} registers (O(1) vs O(distinct))",
+                   delta=max(eps, 1e-6), detail=f"distinct-count ε={eps:.4f} (95th pct), memory ⟂ N ({1 << p} regs)")
+    return KV.probabilistic(hll_estimate, "sketch", f"O(1) memory ({1 << p} regs)", cert)
+
+
+def count_min(stream, d: int = 5, w: int = 1000):
+    """Count-Min frequency sketch (d×w counters, sublinear memory): a ONE-SIDED OVER-estimate of each item's count."""
+    table = [[0] * w for _ in range(d)]
+    for x in stream:
+        for i in range(d):
+            table[i][hash((x, i, 17)) % w] += 1
+    return lambda x: min(table[i][hash((x, i, 17)) % w] for i in range(d))
+
+
+def frequency_grade(make_stream, *, d: int = 5, w: int = 1000, eps_target: float = 0.05, trials: int = 7):
+    """PROBABILISTIC frequency: Count-Min never UNDER-estimates (invariant); ε = max relative over-estimate vs the
+    exact Counter, normalised by stream length, over `trials`. ε ≤ target ⇒ PROBABILISTIC; a false UNDER-estimate
+    (broken sketch) ⇒ DECLINE (invariant broken); ε too large ⇒ DECLINE (table too small)."""
+    from collections import Counter
+    eps_max = 0.0
+    for _ in range(trials):
+        s = make_stream()
+        exact = Counter(s)
+        cm = count_min(s, d, w)
+        N = max(1, len(s))
+        if any(cm(k) < exact[k] for k in exact):            # the one-sided invariant: never under-estimate
+            return KV.decline("Count-Min UNDER-estimated a count (invariant broken) ⇒ DECLINE", "sketch")
+        eps_max = max(eps_max, max((cm(k) - exact[k]) for k in exact) / N)
+    if eps_max > eps_target:
+        return KV.decline(f"Count-Min over-estimate ε={eps_max:.4f} > {eps_target} (table {d}×{w} too small) ⇒ DECLINE", "sketch")
+    cert = KV.Cert(KV.PROBABILISTIC, "count_min", passed=True, check_cost=f"{d}×{w} counters (sublinear)",
+                   delta=max(eps_max, 1e-6), detail=f"frequency over-estimate ε={eps_max:.4f}, one-sided (never under)")
+    return KV.probabilistic(count_min, "sketch", f"{d}×{w} counters", cert)
+
+
+def reservoir_sample(stream, k: int = 100):
+    """One-pass uniform sample of k items from a stream of UNKNOWN length, O(k) memory (never materialises N)."""
+    res = []
+    for i, x in enumerate(stream):
+        if i < k:
+            res.append(x)
+        else:
+            j = _rnd.Random(i * 2654435761 & 0xFFFFFFFF).randrange(i + 1)   # deterministic per-index for testability
+            if j < k:
+                res[j] = x
+    return res
+
+
+def _make_card_stream(n: int = 200000):
+    rng = _rnd.Random(_rnd.Random().random())
+    return [rng.randrange(n * 3) for _ in range(n)]
+
+
+def _make_freq_stream(n: int = 80000, keys: int = 800):
+    rng = _rnd.Random(_rnd.Random().random())
+    return [rng.randrange(keys) for _ in range(n)]
