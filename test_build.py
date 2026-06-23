@@ -8329,6 +8329,35 @@ def test_arsenal_s2_integration_decisions():
           "Airy y″−xy=0 → non-Liouvillian DECLINE — closed-form-or-proven-none)")
 
 
+def test_arsenal_s2_real_qe():
+    """UNIFIED ARSENAL §2 — CAD / real quantifier elimination (univariate DECISION). Over a real-closed field the
+    real roots of the formula's polynomials split ℝ into sign-invariant cells; sampling one point per cell and
+    evaluating EXACTLY decides ∀/∃. Certificate: the cell sign-table (re-checkable). EXACT either way, with a
+    FALSE-∀ / TRUE-∃ carrying a witness cell. Honest scope (§X): univariate; multivariate CAD flagged future."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import real_qe as RQ
+    x = RQ._x
+
+    assert RQ.decide("forall", x ** 2 + 1 > 0, x).result is True            # always positive
+    v2 = RQ.decide("forall", x ** 2 - 1 > 0, x)
+    assert v2.result is False and v2.certificate.kind == "cad_cell_signtable" and "witness" in v2.certificate.detail
+    assert RQ.decide("exists", sp.Eq(x ** 2 - 2, 0), x).result is True      # ±√2
+    assert RQ.decide("exists", sp.Eq(x ** 2 + 1, 0), x).result is False     # no real root
+    assert RQ.decide("forall", (x - 1) ** 2 >= 0, x).result is True         # PSD
+    assert RQ.decide("forall", (x - 1) ** 2 > 0, x).result is False         # equality at x=1 (strict fails)
+    assert RQ.decide("forall", x ** 4 - x ** 2 + 1 > 0, x).result is True   # (x²−½)²+¾ > 0
+    assert RQ.decide("exists", sp.And(x ** 2 - 4 > 0, x < 0), x).result is True   # x < −2
+
+    # independent cross-check against sympy's own inequality reducer
+    assert sp.reduce_inequalities(x ** 2 + 1 > 0, x) == sp.true
+    assert sp.reduce_inequalities((x - 1) ** 2 > 0, x) != sp.true
+
+    print("PASS test_arsenal_s2_real_qe (univariate CAD: ∀x²+1>0 ✓, ∀x²−1>0 ✗ (witness cell), ∃x²−2=0 ✓, "
+          "∃x²+1=0 ✗, ∀(x−1)²≥0 ✓ vs strict ✗, ∀x⁴−x²+1>0 ✓, ∃(x²−4>0 ∧ x<0) ✓ — sign-invariant-cell DECISION, "
+          "cross-checked vs sympy; multivariate flagged future)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
