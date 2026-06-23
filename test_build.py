@@ -6855,6 +6855,87 @@ def test_mathascent_combinatorics_gosper():
           "a wrong antidifference ⇒ telescoping certificate refuses it)")
 
 
+def test_mathascent_linear_algebra():
+    """MATH-ASCENT §3 (arsenal) — LINEAR ALGEBRA, exact over ℚ (Fraction, never float), SELF-CERTIFYING:
+    solve A·x=b proven by the residual A·x−b=0; inverse proven by A·A⁻¹=I; determinant (fraction-free Bareiss)
+    certified by a SECOND independent exact method (cofactor for small n, sympy exact det for large). Singular
+    systems ⇒ honest DECLINE (no unique solution / not invertible). A 200-case exact fuzz confirms every EXACT
+    residual is genuinely zero and every DECLINE is genuinely singular."""
+    import random
+    from fractions import Fraction as Fr
+    import sympy as sp
+    from mathmode import linear_algebra as LA
+    import kernel_verdict as KV
+
+    # exact solve with residual certificate
+    v = LA.solve_grade([[2, 1, -1], [-3, -1, 2], [-2, 1, 2]], [8, -11, -3])
+    assert v.status == KV.EXACT and v.result == [Fr(2), Fr(3), Fr(-1)], v.result
+    assert v.certificate.kind == "exact_residual" and v.certificate.delta is None
+    assert LA.solve_grade([[1, 2], [2, 4]], [1, 2]).status == KV.DECLINE, "singular ⇒ DECLINE"
+    # exact inverse with A·A⁻¹=I certificate
+    inv = LA.inverse_grade([[4, 7], [2, 6]])
+    assert inv.status == KV.EXACT and inv.result == [[Fr(3, 5), Fr(-7, 10)], [Fr(-1, 5), Fr(2, 5)]]
+    assert LA.inverse_grade([[1, 2], [2, 4]]).status == KV.DECLINE, "singular ⇒ not invertible ⇒ DECLINE"
+    # determinant: Bareiss ≡ cofactor (small) and ≡ sympy (large)
+    assert LA.det_grade([[6, 1, 1], [4, -2, 5], [2, 8, 7]]).result == -306
+    rng = random.Random(3)
+    M9 = [[rng.randint(-5, 5) for _ in range(9)] for _ in range(9)]
+    vL = LA.det_grade(M9)
+    assert vL.status == KV.EXACT and vL.result == Fr(sp.Matrix(M9).det()), "n=9 sympy cross-check path"
+
+    # ── 200-case exact fuzz: EXACT ⇒ residual zero; DECLINE ⇒ genuinely singular ──
+    exact_n = sing_n = 0
+    for _ in range(200):
+        n = rng.randint(2, 5)
+        A = [[rng.randint(-9, 9) for _ in range(n)] for _ in range(n)]
+        b = [rng.randint(-9, 9) for _ in range(n)]
+        r = LA.solve_grade(A, b)
+        if r.status == KV.EXACT:
+            assert LA._matvec(LA._F(A), r.result) == [Fr(t) for t in b]
+            exact_n += 1
+        else:
+            assert LA._bareiss_det(LA._F(A)) == 0
+            sing_n += 1
+    assert LA.solve({"op": "det", "A": [[1, 0], [0, 1]]}).result == 1
+    assert LA.solve({"op": "zzz"}).status == KV.DECLINE
+
+    print(f"PASS test_mathascent_linear_algebra (exact ℚ solve [residual A·x−b=0], inverse [A·A⁻¹=I], det "
+          f"[Bareiss ≡ cofactor/sympy] — all SELF-CERTIFYING; singular ⇒ honest DECLINE; 200-case fuzz: "
+          f"{exact_n} EXACT residuals all zero, {sing_n} singular ⇒ DECLINE)")
+
+
+def test_mathascent_algebra_symbolic():
+    """MATH-ASCENT §3 (arsenal) — SYMBOLIC ALGEBRA, self-certified: factor (expand(∏factors)≡poly), polynomial
+    gcd (g|p ∧ g|q, exact division), root-solving (every root EXPLICIT and p(root)≡0). sympy searches; our exact
+    independent check proves. A general quintic with no radical solution ⇒ honest DECLINE (Abel–Ruffini — not a
+    fabricated closed form)."""
+    import sympy as sp
+    from mathmode import algebra as AL
+    import kernel_verdict as KV
+
+    x = sp.Symbol("x")
+    # factor — reconstructs by expand
+    vf = AL.factor_grade(x ** 4 - 1, x)
+    assert vf.status == KV.EXACT and sp.expand(vf.result) == x ** 4 - 1
+    assert vf.certificate.kind == "factor_reconstructs"
+    # polynomial gcd — divides both exactly
+    vg = AL.poly_gcd_grade(x ** 2 - 1, x ** 2 - 3 * x + 2, x)
+    assert vg.status == KV.EXACT and sp.simplify(vg.result - (x - 1)) == 0
+    # root-solving — explicit roots, each substitutes to 0
+    vr = AL.solve_poly_grade(x ** 2 - 5 * x + 6, x)
+    assert vr.status == KV.EXACT and set(vr.result) == {2, 3}
+    vc = AL.solve_poly_grade(x ** 3 - 2, x)
+    assert vc.status == KV.EXACT and all(sp.simplify(r ** 3 - 2) == 0 for r in vc.result)
+    # ── honest DECLINE: a general quintic has no radical solution (Abel–Ruffini) ──
+    assert AL.solve_poly_grade(x ** 5 - x + 1, x).status == KV.DECLINE, "no radical roots ⇒ DECLINE (not fabricated)"
+    assert AL.solve({"op": "factor", "poly": x ** 2 - 4}).status == KV.EXACT
+    assert AL.solve({"op": "zzz"}).status == KV.DECLINE
+
+    print("PASS test_mathascent_algebra_symbolic (factor [expand(∏)≡poly], poly gcd [g|p ∧ g|q exact division], "
+          "root-solving [every root explicit ∧ p(root)≡0] — all self-certified; general quintic x⁵−x+1 ⇒ honest "
+          "DECLINE [Abel–Ruffini, roots only implicit RootOf — never a fabricated closed form])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

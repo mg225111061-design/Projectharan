@@ -45,9 +45,14 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
     cross-check), PROVEN-no-closed-form (1/k, 1/k!) ⇒ DECLINE, wrong antidifference ⇒ cert refuses; binomial
     (Pascal) + Catalan (two-forms) recurrence-checked. sympy searches, our checker proves.
     [test_mathascent_combinatorics_gosper; mathmode/combinatorics.py]
-    Remaining: ☐ algebra_symbolic · ◩ linear_algebra (v40 Toeplitz/WHT/matmul exist — wire) · ☐ geometry ·
-    ◩ logic_verification (Z3 wired) · ◩ certified_numeric (Freivalds/interval exist) · ☐ optimization_or ·
-    ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
+3c. ☑ linear_algebra — exact ℚ (Fraction, never float), SELF-CERTIFYING: solve A·x=b [residual A·x−b=0],
+    inverse [A·A⁻¹=I], determinant [fraction-free Bareiss ≡ cofactor (n≤7) / sympy exact (n>7)]; singular ⇒
+    honest DECLINE; 200-case fuzz. [test_mathascent_linear_algebra; mathmode/linear_algebra.py]
+3d. ☑ algebra_symbolic — factor [expand(∏factors)≡poly], polynomial gcd [g|p ∧ g|q exact division], root-solving
+    [every root explicit ∧ p(root)≡0]; general quintic ⇒ honest DECLINE (Abel–Ruffini, RootOf ≠ closed form).
+    sympy searches, our exact check proves. [test_mathascent_algebra_symbolic; mathmode/algebra.py]
+    Remaining: ☐ geometry · ◩ logic_verification (Z3 wired) · ◩ certified_numeric (Freivalds/interval exist) ·
+    ☐ optimization_or · ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
    ☐ index the proven-closed-form broth; O(1) certificate retrieval on a recognized structure.
