@@ -14,11 +14,11 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **214 통과 / 214** (`test_build.py`, 결정론 실행; 아래 명령) |
+| 테스트 | **215 통과 / 215** (`test_build.py`, 결정론 실행; 아래 명령) |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
-| 진행 중 | **UNIFIED ARSENAL**(a 변환계 + b ~70 fold 패밀리 + c 물리) — 기초 먼저: §1 foundations ✅ (G1 Ore · G2 holonomic · G3 telescoping · G4 ΠΣ*) → §2 결정절차 → §3 물리 → §4 변환. (NATIVE-CORE 완료: `NATIVE_CORE_REPORT.md`.) |
+| 진행 중 | **UNIFIED ARSENAL**(a 변환계 + b ~70 fold 패밀리 + c 물리) — 기초 먼저: §1 foundations ✅ (G1·G2·G3·G4) → §2 decision procedures: summation ✅ (Petkovšek·Abramov) → integration·QE 결정절차 → §3 물리 → §4 변환. (NATIVE-CORE 완료: `NATIVE_CORE_REPORT.md`.) |
 
 **※ 오래된 과거 지시 무시:** 예전 HANDOFF는 "`haran-web/`를 Projectharan에 push하라"고 했다 — 그건 **이미 끝났다**.
 지금은 Projectharan 위에서 직접 개발 중이고, 앱은 `server.py`가 서빙한다. 그 작업은 더 이상 할 일이 아니다.
@@ -27,7 +27,7 @@
 ```bash
 cd /home/user/Projectharan
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 214 passed, 0 failed
+# … 215 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
 `test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).

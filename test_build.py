@@ -8261,6 +8261,41 @@ def test_arsenal_g4_pisigma():
           "ΠΣ* boundary DECLINE [defines H]; σ-cert rejects a wrong g)")
 
 
+def test_arsenal_s2_summation_decisions():
+    """UNIFIED ARSENAL §2 (summation) — DECISION PROCEDURES: Petkovšek/van Hoeij (all hypergeometric solutions of
+    a linear recurrence, or proof of none) and Abramov (rational summability of r(n), or proof it is not
+    rationally summable). "Closed form OR proof of non-existence", each with OUR certificate: a found recurrence
+    solution is substitution-checked over ℚ(n); a rational antidifference is telescoping-checked; non-existence is
+    a proven DECISION (Petkovšek/Gosper completeness). sympy SEARCHES, our checks PROVE; a wrong solution is rejected."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import decision_summation as DS
+    n = DS._n
+
+    # PETKOVŠEK — y(n+1)−2y(n)=0 ⇒ 2ⁿ ; (n+1)y(n+1)−y(n)=0 ⇒ 1/n!  (each substitution-verified)
+    v1 = DS.petkovsek([-2, 1])
+    assert v1.status == KV.EXACT and any(sp.simplify(t - 2 ** n) == 0 for t in v1.result)
+    assert v1.certificate.kind == "petkovsek_substitution"
+    v2 = DS.petkovsek([-1, n + 1])
+    assert v2.status == KV.EXACT and any(sp.simplify(t - 1 / sp.factorial(n)) == 0 for t in v2.result)
+
+    # ABRAMOV — Σ 1/(n(n+1)) is rationally summable (R=−1/n, telescoping-checked); Σ 1/n and Σ 1/n² are PROVEN not
+    v3 = DS.abramov_summable(1 / (n * (n + 1)))
+    assert v3.status == KV.EXACT and sp.simplify(v3.result - (-1 / n)) == 0
+    assert sp.simplify(v3.result.subs(n, n + 1) - v3.result - 1 / (n * (n + 1))) == 0   # independent telescoping recheck
+    assert DS.abramov_summable(1 / n).result == "NOT_RATIONALLY_SUMMABLE"
+    assert DS.abramov_summable(1 / n ** 2).result == "NOT_RATIONALLY_SUMMABLE"
+    assert DS.abramov_summable(n).status == KV.EXACT                     # polynomials are rationally summable
+
+    # ADVERSARIAL: the substitution certificate rejects a fabricated solution (3ⁿ does not solve y(n+1)=2y(n))
+    assert DS._verify_recurrence_solution([-2, 1], 3 ** n, n) is False
+    assert DS._verify_recurrence_solution([-2, 1], 2 ** n, n) is True
+
+    print("PASS test_arsenal_s2_summation_decisions (Petkovšek: y(n+1)=2y(n)→2ⁿ, (n+1)y(n+1)=y(n)→1/n! "
+          "[substitution-certified]; Abramov: Σ1/(n(n+1))→−1/n [telescoping-certified], Σ1/n & Σ1/n² PROVEN not "
+          "rationally summable; wrong solution 3ⁿ rejected — closed-form-or-proven-none, each a DECISION)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
