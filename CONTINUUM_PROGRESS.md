@@ -44,3 +44,8 @@ EXACT-share majority. Next per CONTINUUM: SPEED broth families + Clock-A/B throu
 | SPEED | big-multiplier recognizer: accidental O(n²) string-build (subscript-target concat) → list+join O(n) | PROBABILISTIC | ~452×@n=16000 (the common AI antipattern; CPython's in-place += opt does NOT apply to a subscript/attr target); wrong order→DECLINE | test_round1_big_recognizers | 165/165 |
 | ACC+SPEED | polynomial degree-≤2 loop-sum Σ(a·i²+b·i+c) → Faulhaber closed form, EXACT for ALL n (k-induction) | EXACT | O(n)→O(1) ~23611×@n=200000, proven ∀n (base+step), δ=None; wrong closed form fails step→DECLINE | test_continuum_polysum_kinduction_exact | 166/166 |
 | SPEED | big-multiplier recognizer: edit distance naive exponential recursion → O(m·n) DP | PROBABILISTIC | ~3145×@L=11; wrong (drops the substitution diagonal)→DECLINE | test_round1_big_recognizers | 166/166 |
+| LEDGER | EXACT-share inventory refreshed (Round-3 + CONTINUUM EXACT capabilities) | — | EXACT 28 (6 pre + 22 new) / PROBABILISTIC 13 = 68% EXACT share; live-corroborated | test_tier2_exact_share_rising | 166/166 |
+
+MILESTONE: CONTINUUM_MASTER_REPORT.md written — measured flagships, EXACT-share trajectory (2→28, 68%), honest-
+DECLINE catalogue, §A2 substitution ledger, soundness-events-caught, Layer-2 leap status, deploy status, §X
+verbatim, and an honest complete-vs-remaining accounting. Loop continues (representative, not exhaustive).
