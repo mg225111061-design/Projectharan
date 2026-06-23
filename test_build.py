@@ -6367,6 +6367,29 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_defensive_copy_elim():
+    """ROUND 2 (Group K, item 53) — defensive-copy elimination (SOUND mutation analysis). If a conservative AST
+    analysis PROVES the callee never mutates its argument (no subscript/attr store, no mutating method, no aliased
+    mutation), the defensive f(list(x)) copy is DEAD: f(x) ≡ f(list(x)) and skips the O(n) copy ⇒ EXACT + faster.
+    If the callee CAN mutate (e.g. xs.sort()), the copy is load-bearing ⇒ DECLINE (removing it would corrupt the
+    caller's data — a wrong 'safe' is unsound)."""
+    from pillar3 import copyelim as CE
+    import kernel_verdict as KV
+
+    assert CE.mutates_arg(CE.peek_readonly)[0] is False, "a read-only callee must be proven non-mutating"
+    assert CE.mutates_arg(CE.normalize_mutating)[0] is True, "xs.sort() must be detected as argument mutation"
+
+    v, rep = CE.copyelim_grade(CE.peek_readonly, lambda: CE.make_copy_input(120000), n=120000, samples=5)
+    assert v.status == KV.EXACT and v.certificate.kind == "no_arg_mutation" and v.certificate.delta is None
+    assert rep.whole_program_ratio <= rep.amdahl_ceiling + 1e-9 and rep.whole_program_ratio >= 5.0
+
+    vm, _ = CE.copyelim_grade(CE.normalize_mutating, lambda: CE.make_copy_input(120000), n=120000, samples=2)
+    assert vm.status == KV.DECLINE, "a mutating callee must keep the defensive copy ⇒ DECLINE"
+
+    print(f"PASS test_round2_defensive_copy_elim (callee proven non-mutating ⇒ defensive O(n) copy dropped, EXACT "
+          f"{rep.whole_program_ratio:.0f}× ≤ ceiling; a mutating callee (xs.sort()) ⇒ keep the copy ⇒ DECLINE — sound)")
+
+
 def test_round2_serialization_swap():
     """ROUND 2 (Group H, item 40) — serialization swap json→marshal: a lossless representation swap, measured.
     The fast round-trip must reproduce the object EXACTLY (differential) AND measure a whole-program win;

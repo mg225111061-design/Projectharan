@@ -38,7 +38,7 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 ## Group K — memory/allocation/GC
 51. ☐ allocation elimination / object pooling
 52. ☐ escape analysis → stack/avoid-heap
-53. ☐ defensive-copy elimination
+53. ☑ defensive-copy elimination (sound mutation analysis) — callee proven non-mutating ⇒ drop defensive f(list(x)) copy EXACT ~658× (O(n) copy gone for O(1) read); mutating callee (xs.sort())→keep copy→DECLINE [test_round2_defensive_copy_elim; pillar3/copyelim.py]
 54. ☐ cache-aware tiling/blocking
 55. ☐ data-layout locality (hot/cold field split)
 ## Group L — global compiler transforms
