@@ -261,6 +261,36 @@ def euler_phi_grade(n: int) -> KV.Verdict:
     return KV.exact(phi, "number_theory.euler_phi", "via factorization", cert)
 
 
+# ── discrete logarithm (baby-step giant-step) — certificate g^x ≡ h (mod m) ──────────────────────────────
+def discrete_log_grade(g: int, h: int, m: int) -> KV.Verdict:
+    """Find x with g^x ≡ h (mod m) via baby-step/giant-step (O(√m)). Certificate: pow(g,x,m)==h%m (exact). No
+    such x (the search is exhaustive over the cyclic order) ⇒ honest DECLINE — never a fabricated exponent."""
+    import math
+    if m <= 1:
+        return KV.decline(f"discrete_log: modulus m={m} must be > 1 ⇒ DECLINE", "number_theory.dlog")
+    g, h = g % m, h % m
+    if gcd(g, m) != 1:
+        return KV.decline(f"discrete_log: gcd(g,m)={gcd(g,m)}≠1 (g not invertible) ⇒ DECLINE", "number_theory.dlog")
+    n = int(math.isqrt(m)) + 1
+    table = {}
+    e = 1
+    for j in range(n):                                        # baby steps g^j
+        table.setdefault(e, j)
+        e = e * g % m
+    ginv_n = pow(pow(g, n, m), -1, m)                         # (g^n)^{-1} mod m
+    cur = h
+    for i in range(n + 1):                                    # giant steps h·(g^{-n})^i
+        if cur in table:
+            x = i * n + table[cur]
+            if pow(g, x, m) == h:                             # ★ the certificate, re-checked ★
+                cert = KV.Cert(KV.EXACT, "discrete_log_check", passed=True, check_cost="O(1) one modexp",
+                               detail=f"g^x ≡ h (mod {m}) with x={x} (BSGS O(√m), verified)")
+                return KV.exact(x, "number_theory.dlog", "O(√m) BSGS", cert)
+        cur = cur * ginv_n % m
+    return KV.decline(f"discrete_log: no x with {g}^x ≡ {h} (mod {m}) (exhaustive over the order) ⇒ DECLINE",
+                      "number_theory.dlog")
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
     """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
@@ -281,4 +311,6 @@ def solve(problem: dict) -> KV.Verdict:
         return factorize_grade(problem["n"])
     if op == "euler_phi":
         return euler_phi_grade(problem["n"])
+    if op == "discrete_log":
+        return discrete_log_grade(problem["g"], problem["h"], problem["m"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

@@ -7517,13 +7517,24 @@ def test_mathascent_b4_primality():
         return sum(1 for k in range(1, n + 1) if math.gcd(k, n) == 1)
     for n in [1, 2, 9, 10, 36, 100, 997]:
         assert NT.euler_phi_grade(n).result == phi_brute(n)
+    # discrete logarithm (BSGS) — certificate g^x ≡ h (mod m); no solution / non-invertible ⇒ DECLINE
+    vd = NT.discrete_log_grade(2, 22, 29)
+    assert vd.status == KV.EXACT and pow(2, vd.result, 29) == 22
+    assert pow(3, NT.discrete_log_grade(3, 13, 17).result, 17) == 13
+    assert NT.discrete_log_grade(4, 3, 7).status == KV.DECLINE, "4^x mod 7 ∈ {1,2,4}; 3 unreachable ⇒ DECLINE"
+    assert NT.discrete_log_grade(6, 3, 9).status == KV.DECLINE, "gcd(6,9)≠1 ⇒ DECLINE"
+    xx = pow(2, 979, 1000003)
+    assert pow(2, NT.discrete_log_grade(2, xx, 1000003).result, 1000003) == xx, "recover x mod a large prime"
+
     # routed through the number_theory domain
     assert NT.solve({"op": "is_prime", "n": 97}).result is True
     assert NT.solve({"op": "factorize", "n": 84}).result == {2: 2, 3: 1, 7: 1}
+    assert NT.solve({"op": "discrete_log", "g": 3, "h": 13, "m": 17}).status == KV.EXACT
 
     print("PASS test_mathascent_b4_primality (deterministic Miller–Rabin below 3.317e24 ⇒ EXACT proof [Mersenne "
           "2³¹−1 prime, Carmichael 561 composite]; above ⇒ PROBABILISTIC(δ=4⁻⁴⁰) for prime, EXACT witness for "
-          "composite; factorization ∏pᵢ^eᵢ=n ∧ each prime; Euler φ from the verified factorization ≡ brute count)")
+          "composite; factorization ∏pᵢ^eᵢ=n ∧ each prime; Euler φ ≡ brute count; discrete log g^x≡h via BSGS, "
+          "no-solution / non-invertible ⇒ DECLINE)")
 
 
 def test_mathascent_b4_eigen():
