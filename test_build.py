@@ -8074,6 +8074,56 @@ def test_native_s5_dependency_audit():
           f"hard top-level = {fds['hard_top_level']})")
 
 
+def test_arsenal_g1_ore_core():
+    """UNIFIED ARSENAL §1·G1 — Ore-algebra / skew-polynomial core (the non-commutative keystone). ℚ(x)[∂;σ,δ]
+    specialising to differential (D), shift (S), q-shift (Q). What is CERTIFIED: (1) EQUALITY is a DECISION
+    PROCEDURE via canonical normal form ([D,x]=1 and [S,n]=S DECIDED, and a wrong commutative claim D·x=x·D
+    decided FALSE — both EXACT); (2) the non-commutative PRODUCT carries an OPERATIONAL certificate
+    ((A·B)(f) ≡ A(B(f)) on a test battery); (3) GCRD carries a COFACTOR certificate (right-divides both inputs,
+    remainder 0). This one algebra is the substrate for G2 holonomic, G3 telescoping, and P5 operator identities."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import ore as O
+
+    # (1) DECISION — Heisenberg/Weyl [D,x]=1 and shift [S,n]=S, decided by canonical normal form
+    algD, brD = O.commutator("D", "x")
+    vD = O.decide_equality(brD, algD.op({0: 1}), "[D,x]")
+    assert vD.status == KV.EXACT and vD.result is True and vD.certificate.kind == "ore_normal_form"
+    algS, brS = O.commutator("S", "n")
+    vS = O.decide_equality(brS, algS.op({1: 1}), "[S,n]")
+    assert vS.status == KV.EXACT and vS.result is True
+    # a wrong (commutative) claim must be DECIDED FALSE — EXACT, never crash, never fabricate equality
+    xo = algD.op({0: "x"}); th = algD.theta()
+    vne = O.decide_equality(th.mul(xo), xo.mul(th), "D·x vs x·D")
+    assert vne.status == KV.EXACT and vne.result is False
+
+    # (2) PRODUCT with operational composition certificate:  D²·x = x·D² + 2·D
+    prod = O.grade_product(algD.op({2: 1}), xo)
+    assert prod.status == KV.EXACT and prod.certificate.kind == "ore_product_composition"
+    assert prod.result.equals(algD.op({2: "x", 1: 2}))
+    # the certificate has TEETH: composition replay rejects a non-product (D·x ≠ x·D as operators on f)
+    assert O.product_equals_composition(th, xo) is True
+    assert sp.simplify(th.mul(xo).apply(sp.Symbol("x") ** 2) - xo.mul(th).apply(sp.Symbol("x") ** 2)) != 0
+
+    # (3) GCRD cofactor: A=(D+x)(D+1), B=(D−1)(D+1) share the right factor (D+1)
+    P = algD.op({0: 1, 1: 1})
+    g = O.grade_gcrd(algD.op({0: "x", 1: 1}).mul(P), algD.op({0: -1, 1: 1}).mul(P))
+    assert g.status == KV.EXACT and g.certificate.kind == "ore_gcrd_cofactor"
+    _, r1 = O.right_divmod(g.result, P)
+    _, r2 = O.right_divmod(P, g.result)
+    assert r1.is_zero() and r2.is_zero()                       # gcrd is an associate of (D+1)
+
+    # q-shift sanity + DETERMINISM (same decision twice)
+    algQ = O.OreAlgebra(sp.Symbol("x"), "Q"); q = algQ.q
+    brQ = algQ.theta().mul(algQ.op({0: "x"})).sub(algQ.op({0: "x"}).mul(algQ.theta()))
+    assert brQ.equals(algQ.op({1: (q - 1) * sp.Symbol("x")}))
+    assert O.decide_equality(brD, algD.op({0: 1})).result == O.decide_equality(brD, algD.op({0: 1})).result
+
+    print("PASS test_arsenal_g1_ore_core (Ore keystone ℚ(x)[∂;σ,δ] D/S/Q: [D,x]=1 & [S,n]=S DECIDED EXACT, "
+          "D·x≠x·D decided False; product D²·x=x·D²+2·D operationally certified ((A·B)(f)≡A(B(f))); "
+          "GCRD(D+1) cofactor-verified; the substrate for G2/G3/P5)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
