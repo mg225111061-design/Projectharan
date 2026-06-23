@@ -291,6 +291,73 @@ def discrete_log_grade(g: int, h: int, m: int) -> KV.Verdict:
                       "number_theory.dlog")
 
 
+# ── modular square root (Tonelli–Shanks) — certificate x² ≡ a (mod p) ─────────────────────────────────────
+def modular_sqrt_grade(a: int, p: int) -> KV.Verdict:
+    """Find x with x² ≡ a (mod p), p an odd prime, via Tonelli–Shanks. Certificate: x²≡a (re-checked). A
+    quadratic NON-residue is PROVEN by Euler's criterion (a^((p−1)/2) ≡ −1) ⇒ honest DECLINE; non-prime p ⇒ DECLINE."""
+    a %= p
+    if p == 2:
+        return KV.exact(a % 2, "number_theory.modsqrt", "O(1)",
+                        KV.Cert(KV.EXACT, "modsqrt_check", True, "O(1)", detail=f"x²≡a (mod 2), x={a % 2}"))
+    if not (p > 2 and _is_prime_det(p) if p < _DET_BOUND else True):
+        return KV.decline(f"modular_sqrt: p={p} must be an odd prime ⇒ DECLINE", "number_theory.modsqrt")
+    if a == 0:
+        return KV.exact(0, "number_theory.modsqrt", "O(1)",
+                        KV.Cert(KV.EXACT, "modsqrt_check", True, "O(1)", detail="x²≡0 (mod p), x=0"))
+    if pow(a, (p - 1) // 2, p) != 1:                          # Euler's criterion: a is a non-residue ⇒ PROVEN none
+        return KV.decline(f"modular_sqrt: {a} is a quadratic non-residue mod {p} (Euler) ⇒ DECLINE",
+                          "number_theory.modsqrt")
+    if p % 4 == 3:
+        x = pow(a, (p + 1) // 4, p)
+    else:
+        q, s = p - 1, 0
+        while q % 2 == 0:
+            q //= 2; s += 1
+        z = 2
+        while pow(z, (p - 1) // 2, p) != p - 1:
+            z += 1
+        m, c, t, x = s, pow(z, q, p), pow(a, q, p), pow(a, (q + 1) // 2, p)
+        while t != 1:
+            i, t2 = 0, t
+            while t2 != 1:
+                t2 = t2 * t2 % p; i += 1
+            b = pow(c, 1 << (m - i - 1), p)
+            m, c, t, x = i, b * b % p, t * b * b % p, x * b % p
+    if x * x % p != a:                                        # ★ the certificate, re-checked ★
+        return KV.decline("modular_sqrt: x²≢a (mod p) ⇒ DECLINE", "number_theory.modsqrt")
+    cert = KV.Cert(KV.EXACT, "modsqrt_check", passed=True, check_cost="O(1) one square",
+                   detail=f"x² ≡ {a} (mod {p}) with x={x} (Tonelli–Shanks, verified); ±x are the two roots")
+    return KV.exact(x, "number_theory.modsqrt", "O(log²p)", cert)
+
+
+# ── Pell's equation x² − N·y² = 1 (fundamental solution via the continued fraction of √N) ─────────────────
+def pell_grade(N: int) -> KV.Verdict:
+    """Fundamental solution (x,y) of x² − N·y² = 1 via the periodic continued fraction of √N. Certificate:
+    x² − N·y² = 1 (exact). N a perfect square ⇒ no nontrivial solution ⇒ honest DECLINE."""
+    import math
+    if N < 2:
+        return KV.decline(f"pell: N={N} must be ≥ 2 ⇒ DECLINE", "number_theory.pell")
+    a0 = math.isqrt(N)
+    if a0 * a0 == N:
+        return KV.decline(f"pell: N={N} is a perfect square ⇒ no nontrivial solution ⇒ DECLINE", "number_theory.pell")
+    m, d, a = 0, 1, a0
+    h0, h1 = 1, a0                                            # convergent numerators
+    k0, k1 = 0, 1                                             # convergent denominators
+    for _ in range(10 ** 6):
+        if h1 * h1 - N * k1 * k1 == 1:
+            break
+        m = d * a - m
+        d = (N - m * m) // d
+        a = (a0 + m) // d
+        h0, h1 = h1, a * h1 + h0
+        k0, k1 = k1, a * k1 + k0
+    if h1 * h1 - N * k1 * k1 != 1:                            # ★ the certificate ★
+        return KV.decline("pell: no fundamental solution found within bound ⇒ DECLINE", "number_theory.pell")
+    cert = KV.Cert(KV.EXACT, "pell_identity", passed=True, check_cost="O(1) one identity",
+                   detail=f"x²−{N}·y² = 1 with (x,y)=({h1},{k1}) (CF of √{N}, verified)")
+    return KV.exact((h1, k1), "number_theory.pell", "O(period) CF", cert)
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
     """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
@@ -313,4 +380,8 @@ def solve(problem: dict) -> KV.Verdict:
         return euler_phi_grade(problem["n"])
     if op == "discrete_log":
         return discrete_log_grade(problem["g"], problem["h"], problem["m"])
+    if op == "modular_sqrt":
+        return modular_sqrt_grade(problem["a"], problem["p"])
+    if op == "pell":
+        return pell_grade(problem["N"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

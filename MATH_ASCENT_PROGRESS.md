@@ -40,8 +40,9 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
     the checked identity AS the certificate; no-inverse / inconsistent-CRT / gcd∤c ⇒ honest DECLINE; 300-case
     exact fuzz. +PRIMALITY (deterministic Miller–Rabin < 3.317e24 ⇒ EXACT proof; above ⇒ PROBABILISTIC(δ=4⁻ᵏ) for
     prime, EXACT witness for composite) + FACTORIZATION (Pollard rho; ∏pᵢ^eᵢ=n ∧ each prime) + Euler φ +
-    DISCRETE LOG (BSGS O(√m), cert g^x≡h; no-solution/non-invertible ⇒ DECLINE).
-    [test_mathascent_number_theory, test_mathascent_b4_primality; mathmode/number_theory.py]
+    DISCRETE LOG (BSGS, cert g^x≡h) + MODULAR √ (Tonelli–Shanks, cert x²≡a; non-residue ⇒ Euler DECLINE) + PELL
+    (x²−Ny²=1 via CF of √N, incl. N=61; perfect-square ⇒ DECLINE). [test_mathascent_number_theory,
+    test_mathascent_b4_primality, test_mathascent_b4_diophantine; mathmode/number_theory.py]
 3b. ☑ combinatorics_sums — Gosper creative-telescoping (DECISION procedure): indefinite/definite hypergeometric
     summation, EXACT closed form certified by OUR telescoping check (T(k+1)−T(k)=t(k) ∧ exact brute-force
     cross-check), PROVEN-no-closed-form (1/k, 1/k!) ⇒ DECLINE, wrong antidifference ⇒ cert refuses; binomial

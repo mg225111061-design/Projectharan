@@ -7567,6 +7567,42 @@ def test_mathascent_b4_eigen():
           "eigenvalues ⇒ honest DECLINE [implicit RootOf, never fabricated])")
 
 
+def test_mathascent_b4_diophantine():
+    """§B4 (number theory) — MODULAR SQUARE ROOTS (Tonelli–Shanks) and PELL'S EQUATION, both self-certifying.
+    modular_sqrt: x²≡a (mod p) re-checked; a quadratic NON-residue is PROVEN by Euler's criterion ⇒ honest
+    DECLINE; non-prime p ⇒ DECLINE. pell: the fundamental (x,y) of x²−N·y²=1 from the continued fraction of √N,
+    certified by x²−N·y²=1 (exact) — incl. the famous N=61 with its huge fundamental solution; a perfect-square N
+    has no nontrivial solution ⇒ DECLINE."""
+    import random
+    from mathmode import number_theory as NT
+    import kernel_verdict as KV
+
+    # modular sqrt — both p≡3 (mod 4) and Tonelli–Shanks p≡1 (mod 4) paths
+    for a, p in [(2, 7), (10, 13), (2, 41)]:
+        v = NT.modular_sqrt_grade(a, p)
+        assert v.status == KV.EXACT and (v.result ** 2) % p == a % p
+    assert NT.modular_sqrt_grade(3, 7).status == KV.DECLINE, "3 is a non-residue mod 7 (Euler) ⇒ DECLINE"
+    assert NT.modular_sqrt_grade(2, 15).status == KV.DECLINE, "non-prime modulus ⇒ DECLINE"
+    p = 1000003
+    x0 = random.Random(5).randrange(1, p)
+    vl = NT.modular_sqrt_grade(x0 * x0 % p, p)
+    assert vl.status == KV.EXACT and (vl.result ** 2) % p == x0 * x0 % p, "recover a root mod a large prime"
+
+    # Pell — fundamental solutions, certified by x²−N·y²=1
+    for N, exp in [(2, (3, 2)), (3, (2, 1)), (7, (8, 3))]:
+        v = NT.pell_grade(N)
+        x, y = v.result
+        assert v.status == KV.EXACT and x * x - N * y * y == 1 and (x, y) == exp
+    x61, y61 = NT.pell_grade(61).result
+    assert x61 * x61 - 61 * y61 * y61 == 1 and x61 == 1766319049, "the classic N=61 fundamental solution"
+    assert NT.pell_grade(9).status == KV.DECLINE, "perfect square N ⇒ no nontrivial solution ⇒ DECLINE"
+    assert NT.solve({"op": "pell", "N": 2}).result == (3, 2)
+
+    print("PASS test_mathascent_b4_diophantine (modular √ via Tonelli–Shanks [x²≡a re-checked; non-residue ⇒ Euler "
+          "DECLINE; non-prime ⇒ DECLINE]; Pell x²−Ny²=1 from CF of √N [N=2→(3,2), N=7→(8,3), N=61→(1766319049,"
+          "226153980)]; perfect-square N ⇒ DECLINE — all self-certifying)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
