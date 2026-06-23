@@ -8507,6 +8507,42 @@ def test_arsenal_p5_operator_algebra():
           "decidable by the Ore/Wick normal form, the QM↔holonomic bridge)")
 
 
+def test_arsenal_p8_lagrangian():
+    """UNIFIED ARSENAL §3·P8 — Lagrangian/Hamiltonian + Noether + Lie point symmetry (EXACT where algebraic).
+    Euler–Lagrange (harmonic ⇒ q̈+ω²q=0); Noether energy H conserved (dH/dt≡0 ON-SHELL); canonical Poisson {q,p}=1;
+    Lie point symmetry of a 1st-order ODE DECIDED by the prolongation residual. Certificates are re-substitution
+    (mod EL / mod ODE). Honest scope: verify a GIVEN generator; integrating the determining system is flagged."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import lagrangian as LG
+    t = sp.Symbol("t"); q = sp.Function("q"); w = sp.Symbol("omega", positive=True)
+    x, y = sp.Symbol("x"), sp.Symbol("y")
+
+    # Euler–Lagrange: harmonic oscillator ⇒ q̈ + ω²q = 0
+    L = sp.Rational(1, 2) * q(t).diff(t) ** 2 - sp.Rational(1, 2) * w ** 2 * q(t) ** 2
+    el = LG.euler_lagrange(L, q, t)
+    assert el.status == KV.EXACT and sp.simplify(el.result.lhs + (w ** 2 * q(t) + q(t).diff(t, 2))) == 0
+    # Noether energy: H = ½q̇² + ½ω²q² conserved (dH/dt ≡ 0 mod EL)
+    en = LG.energy_conservation(L, q, t)
+    assert en.status == KV.EXACT and en.certificate.kind == "noether_energy"
+    assert sp.simplify(en.result - (sp.Rational(1, 2) * q(t).diff(t) ** 2 + sp.Rational(1, 2) * w ** 2 * q(t) ** 2)) == 0
+    # explicit-t Lagrangian ⇒ energy NOT conserved ⇒ honest DECLINE
+    assert LG.energy_conservation(sp.Rational(1, 2) * q(t).diff(t) ** 2 - sp.cos(t) * q(t), q, t).status == KV.DECLINE
+
+    # canonical Poisson structure {q,p}=1
+    assert LG.canonical_poisson().status == KV.EXACT
+
+    # Lie point symmetry (1st-order ODE) DECISION: y′=y has X=y∂_y (scaling) but NOT ∂_y; autonomous y′=y²−1 has ∂_x
+    assert LG.lie_point_symmetry(y, 0, y, x, y).result is True
+    assert LG.lie_point_symmetry(y, 0, 1, x, y).result is False
+    assert LG.lie_point_symmetry(y ** 2 - 1, 1, 0, x, y).result is True
+    assert LG.lie_point_symmetry(y, 0, y, x, y).certificate.kind == "lie_prolongation"
+
+    print("PASS test_arsenal_p8_lagrangian (Euler–Lagrange harmonic→q̈+ω²q=0; Noether energy H=½q̇²+½ω²q² "
+          "conserved [dH/dt≡0 mod EL], explicit-t→DECLINE; {q,p}=1; Lie point symmetry DECIDED via prolongation "
+          "(y∂_y sym of y′=y, ∂_y not, ∂_x sym of autonomous) — re-substitution certified)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
