@@ -8647,6 +8647,29 @@ def test_arsenal_phase1_nl():
           "[BLOCKED] DECLINE — NL UNVERIFIED, computation EXACT, checker arbitrates)")
 
 
+def test_arsenal_p3_petrov():
+    """UNIFIED ARSENAL §3·P3 — Petrov classification (algebraic DECISION). The type is the multiplicity partition
+    of the 4 principal null directions (roots of the Weyl quartic Ψ₀+4Ψ₁λ+6Ψ₂λ²+4Ψ₃λ³+Ψ₄λ⁴, ∞-root deficit when
+    Ψ₄=0): (1,1,1,1)→I, (2,1,1)→II, (2,2)→D, (3,1)→III, (4)→N, ∅→O. Certificate: the partition + the speciality
+    invariant I³−27J². Schwarzschild (only Ψ₂≠0) ⇒ type D."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import petrov as PV
+    M, r = sp.symbols("M r", positive=True)
+
+    sch = PV.classify([0, 0, -M / r ** 3, 0, 0])
+    assert sch.status == KV.EXACT and sch.result["type"] == "D" and sch.result["partition"] == (2, 2)
+    assert sch.result["special"] is True and sch.certificate.kind == "petrov_pnd_partition"
+    assert PV.classify([0, 0, 0, 0, 1]).result["type"] == "N"                 # pp-wave
+    assert PV.classify([0, 0, 0, 0, 0]).result["type"] == "O"                 # conformally flat
+    assert PV.classify([0, 0, 0, 1, 1]).result["type"] == "III"
+    assert PV.classify([1, 0, 0, 0, 1]).result["type"] == "I"                 # λ⁴+1: 4 distinct PNDs
+    assert PV.classify([0, 0, sp.Rational(1, 3), sp.Rational(-3, 4), 1]).result["type"] == "II"   # (2,1,1)
+
+    print("PASS test_arsenal_p3_petrov (Petrov via PND multiplicities: Schwarzschild→D (2,2) [I³=27J²], pp-wave→N, "
+          "conformally-flat→O, →III (3,1), →I (1,1,1,1), →II (2,1,1) — all six types decided)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.

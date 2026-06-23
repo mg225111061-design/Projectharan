@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **226 passed / 226** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **227 passed / 227** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | **UNIFIED ARSENAL** (a transform system + b ~70 fold families + c physics) — foundational-first: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 physics: P7·P2·P6·P9·P5·P8·P1 ✅ → P3·P4 · **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 transforms. (NATIVE-CORE done: `NATIVE_CORE_REPORT.md`.) |
+| Now building | **UNIFIED ARSENAL** (a transform system + b ~70 fold families + c physics) — foundational-first: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 physics: P7·P2·P6·P9·P5·P8·P1 ✅ · P3 Petrov ✅ → P4 · **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 transforms. (NATIVE-CORE done: `NATIVE_CORE_REPORT.md`.) |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).
