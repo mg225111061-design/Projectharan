@@ -7667,6 +7667,32 @@ def test_mathascent_b4_natural_input():
           "unknown text ⇒ {} ⇒ honest DECLINE [no fabricated route]; a false 'x²−1≥0' ⇒ DECLINE w/ counterexample)")
 
 
+def test_mathascent_b4_calculus():
+    """§B4 (arsenal deepening) — CALCULUS: symbolic integration verified by DIFFERENTIATION (the self-check).
+    ∫f dx = F is EXACT iff d/dx F − f ≡ 0 (symbolic ∧ numeric finite-difference); definite integrals use the FTC
+    on that verified antiderivative + a numeric-quadrature cross-check. ∫x²=x³/3, ∫1/x=log x, ∫eˣ=eˣ, ∫sin=−cos
+    are EXACT; ∫x^x (no closed form sympy finds, unevaluated Integral) ⇒ honest DECLINE — never a fabricated
+    antiderivative. Routed through the solver (16 families)."""
+    import sympy as sp
+    from mathmode import calculus as C
+    from mathmode import solver as S
+    import kernel_verdict as KV
+
+    x = sp.Symbol("x")
+    for f in (x ** 2, 1 / x, sp.exp(x), sp.sin(x), 2 * x + 1):
+        v = C.integrate_grade(f, x)
+        assert v.status == KV.EXACT and sp.simplify(sp.diff(v.result, x) - f) == 0, f
+    assert C.integrate_grade(sp.exp(-x ** 2), x).status == KV.EXACT, "erf antiderivative still diff-verifies"
+    assert C.integrate_grade(x ** x, x).status == KV.DECLINE, "no closed-form antiderivative ⇒ honest DECLINE"
+    assert C.definite_integral_grade(x ** 2, x, 0, 1).result == sp.Rational(1, 3)
+    assert sp.simplify(C.definite_integral_grade(1 / x, x, 1, sp.E).result - 1) == 0
+    assert S.solve({"domain": "calculus", "op": "integrate", "f": x ** 2}).verdict.status == KV.EXACT
+
+    print("PASS test_mathascent_b4_calculus (∫ verified by differentiation: ∫x²=x³/3, ∫1/x=log x, ∫eˣ=eˣ, "
+          "∫sin=−cos all EXACT [d/dx F≡f]; definite ∫_0^1 x²=1/3 via FTC + quadrature; ∫x^x ⇒ honest DECLINE "
+          "[unevaluated, no fabricated antiderivative]; solver = 16 families)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
