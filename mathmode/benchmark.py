@@ -123,6 +123,14 @@ def _suite() -> List[Problem]:
         Problem("bipartite? triangle (odd cycle)", "graph",
                 {"domain": "graph", "op": "bipartite", "n": 3, "edges": [[0, 1], [1, 2], [2, 0]]}, KV.EXACT,
                 lambda v: v.result["bipartite"] is False),
+        Problem("ζ(2) = π²/6 (Euler)", "special_functions",
+                {"domain": "special_functions", "op": "zeta_even", "s": 2}, KV.EXACT,
+                lambda v: sp.simplify(v.result - sp.pi ** 2 / 6) == 0),
+        Problem("is_prime(2³¹−1) (deterministic)", "number_theory",
+                {"domain": "number_theory", "op": "is_prime", "n": 2 ** 31 - 1}, KV.EXACT, lambda v: v.result is True),
+        Problem("Pell x²−61y²=1", "number_theory",
+                {"domain": "number_theory", "op": "pell", "N": 61}, KV.EXACT,
+                lambda v: v.result[0] ** 2 - 61 * v.result[1] ** 2 == 1),
     ]
 
 
