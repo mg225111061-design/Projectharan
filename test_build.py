@@ -8477,6 +8477,36 @@ def test_arsenal_p9_special_holonomic():
           "bridge closes Hermite+exp — special functions become free G2/G3 coverage)")
 
 
+def test_arsenal_p5_operator_algebra():
+    """UNIFIED ARSENAL §3·P5 — operator algebra (commutators · Wick normal ordering · identities via G1). The
+    bosonic Heisenberg algebra [a,a†]=1 IS G1's differential Ore algebra (a↔D, a†↔x, [D,x]=1), and the OrePoly
+    canonical form (a† left, a right) IS Wick normal order — so operator equality is DECIDABLE by the normal form
+    (the QM↔holonomic bridge). Adversarial wrong identities are rejected."""
+    import kernel_verdict as KV
+    from mathmode import operator_algebra as OA
+
+    # canonical commutation relations + Heisenberg [x,p]=iℏ
+    assert OA.canonical_relations().status == KV.EXACT
+    assert OA.heisenberg_xp().status == KV.EXACT
+    # Wick normal ordering: a·a† = a†·a + 1  (decided exactly via the normal form)
+    assert OA.a().mul(OA.adag()).equals(OA.adag().mul(OA.a()).add(OA._alg.one()))
+    # (a+a†)² = a² + 2 a†a + (a†)² + 1
+    s = OA.a().add(OA.adag())
+    expect = OA.a().mul(OA.a()).add(OA.adag().mul(OA.a()).scale(2)).add(OA.adag().mul(OA.adag())).add(OA._alg.one())
+    assert s.mul(s).equals(expect)
+    # [N,a†]=a† via the graded decider; the certificate is the Wick normal form
+    di = OA.decide_identity(OA.comm(OA.number(), OA.adag()), OA.adag(), "[N,a†]=a†")
+    assert di.status == KV.EXACT and di.result is True and di.certificate.kind == "wick_normal_form"
+    # ADVERSARIAL: forgetting the +1 (a·a† = a†·a) is decided FALSE
+    assert OA.decide_identity(OA.a().mul(OA.adag()), OA.adag().mul(OA.a())).result is False
+    # normal-order rendering
+    assert OA.solve({"op": "normal_order", "word": ["a", "adag"]}).status == KV.EXACT
+
+    print("PASS test_arsenal_p5_operator_algebra (Heisenberg≅G1: [a,a†]=1, [N,a†]=a†, [N,a]=−a, [x,p]=iℏ DECIDED; "
+          "Wick normal order a·a†=a†·a+1 and (a+a†)²=a²+2a†a+(a†)²+1; wrong a·a†=a†·a rejected — operator equality "
+          "decidable by the Ore/Wick normal form, the QM↔holonomic bridge)")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
