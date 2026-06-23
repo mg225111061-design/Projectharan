@@ -6759,6 +6759,102 @@ def test_mathascent_fold_universal():
           "unstructured / non-object / beyond-stock ⇒ honest DECLINE; wrong identity ⇒ induction gate refutes)")
 
 
+def test_mathascent_number_theory():
+    """MATH-ASCENT §3 (arsenal) — NUMBER THEORY: exact-integer solvers, each with a cheap-to-check certificate
+    that is the actual identity (not a label). egcd → Bézout a·x+b·y=g; modinv → a·a⁻¹≡1 (mod m); CRT → x≡rᵢ
+    (mod mᵢ) ∀i; modexp → O(log b) ≡ exact reference; linear Diophantine → a·x+b·y=c. Honest DECLINE on the
+    PROVABLY unsolvable (no inverse when gcd≠1; inconsistent CRT; gcd(a,b)∤c). A 300-case exact fuzz confirms
+    every EXACT certificate genuinely holds and every DECLINE is a real impossibility."""
+    import random
+    from math import gcd
+    from mathmode import number_theory as NT
+    import kernel_verdict as KV
+
+    # egcd / Bézout
+    for a, b in [(240, 46), (0, 5), (17, 0), (-12, 18), (1000003, 17)]:
+        v = NT.egcd_grade(a, b)
+        g, x, y = v.result
+        assert v.status == KV.EXACT and a * x + b * y == g and g == gcd(a, b), (a, b, v.result)
+    # modinv: EXACT when coprime, DECLINE (proven) otherwise
+    assert (NT.modinv_grade(3, 11).status, (3 * NT.modinv_grade(3, 11).result) % 11) == (KV.EXACT, 1)
+    assert NT.modinv_grade(4, 8).status == KV.DECLINE, "gcd(4,8)=4 ⇒ no inverse ⇒ DECLINE"
+    # CRT: EXACT consistent, DECLINE inconsistent
+    xc, Mc = NT.crt_grade([2, 3, 2], [3, 5, 7]).result
+    assert xc == 23 and Mc == 105 and xc % 3 == 2 and xc % 5 == 3 and xc % 7 == 2
+    assert NT.crt_grade([0, 1], [2, 4]).status == KV.DECLINE, "x even ∧ x≡1(mod4) inconsistent ⇒ DECLINE"
+    # modexp: O(log b) ≡ exact reference
+    vm = NT.modexp_grade(7, 1234567, 1000000007)
+    assert vm.status == KV.EXACT and vm.result == pow(7, 1234567, 1000000007)
+    assert NT.modexp_grade(5, 100, 13).result == pow(5, 100, 13)
+    # linear Diophantine: witness EXACT, gcd∤c ⇒ DECLINE
+    xd, yd = NT.diophantine_grade(12, 18, 30).result
+    assert 12 * xd + 18 * yd == 30
+    assert NT.diophantine_grade(4, 6, 7).status == KV.DECLINE, "gcd(4,6)=2 ∤ 7 ⇒ unsolvable ⇒ DECLINE"
+    # dispatch + honest unknown-op DECLINE
+    assert NT.solve({"op": "modexp", "a": 3, "b": 50, "m": 7}).status == KV.EXACT
+    assert NT.solve({"op": "frobnicate"}).status == KV.DECLINE
+
+    # ── 300-case exact fuzz: every EXACT cert holds; every DECLINE is a genuine impossibility ──
+    rng = random.Random(7)
+    exact_n = decl_n = 0
+    for _ in range(300):
+        a, b = rng.randint(1, 10 ** 6), rng.randint(1, 10 ** 6)
+        g, x, y = NT.egcd_grade(a, b).result
+        assert a * x + b * y == g
+        m = rng.randint(2, 10 ** 6)
+        mi = NT.modinv_grade(a, m)
+        if mi.status == KV.EXACT:
+            assert (a * mi.result) % m == 1
+            exact_n += 1
+        else:
+            assert gcd(a, m) != 1
+            decl_n += 1
+
+    print(f"PASS test_mathascent_number_theory (egcd/Bézout, modinv, CRT, modexp O(log b), linear Diophantine — "
+          f"each EXACT with the checked identity as certificate; no-inverse / inconsistent-CRT / gcd∤c ⇒ honest "
+          f"DECLINE; 300-case fuzz: {exact_n} EXACT certs all hold, {decl_n} DECLINEs all genuinely unsolvable)")
+
+
+def test_mathascent_combinatorics_gosper():
+    """MATH-ASCENT §3 (arsenal) — COMBINATORICS / SUMS via GOSPER creative-telescoping (a DECISION procedure).
+    For a hypergeometric term t(k), Gosper returns a closed antidifference T (⇒ Σ t = T(b+1)−T(a) for EVERY
+    range) or PROVES none exists. sympy searches; OUR certificate proves: the telescoping identity T(k+1)−T(k)=
+    t(k) simplifies to 0 AND the closed form matches the exact brute-force sum over independent ranges. No
+    closed form (1/k, 1/k!) ⇒ honest DECLINE (never a fabricated formula); a WRONG antidifference ⇒ the
+    telescoping certificate refuses it (the anti-fabrication moat). Binomial/Catalan come with a recurrence
+    cross-check (EXACT)."""
+    import sympy as sp
+    from mathmode import combinatorics as CB
+    import kernel_verdict as KV
+
+    k = sp.Symbol("k", integer=True)
+    # indefinite Gosper: closed antidifference, telescoping-certified
+    assert CB.gosper_indefinite(k, k).status == KV.EXACT, "Σk has the antidifference k(k-1)/2"
+    assert CB.gosper_indefinite(k * sp.factorial(k), k).status == KV.EXACT, "Σ k·k! telescopes to k!"
+    # PROVEN no hypergeometric closed form ⇒ DECLINE (honest, not fabricated)
+    assert CB.gosper_indefinite(1 / k, k).status == KV.DECLINE, "harmonic Σ1/k has no closed form ⇒ DECLINE"
+    assert CB.gosper_indefinite(1 / sp.factorial(k), k).status == KV.DECLINE
+
+    # definite sums cross-checked vs exact brute force
+    vd = CB.gosper_definite(k * sp.factorial(k), k, 0, 6)
+    assert vd.status == KV.EXACT and vd.result == sp.factorial(7) - 1, "Σ_{0..6} k·k! = 7!−1"
+    assert CB.gosper_definite(k, k, 1, 10).result == 55, "Σ_{1..10} k = 55"
+    assert CB.gosper_definite(2 * k + 1, k, 0, 9).result == 100, "Σ_{0..9} (2k+1) = 10² = 100"
+
+    # exact combinatorial values with recurrence cross-checks
+    assert CB.binomial_grade(20, 7).result == int(sp.binomial(20, 7)) and CB.binomial_grade(-1, 2).status == KV.DECLINE
+    assert CB.catalan_grade(8).result == 1430 and CB.summation({"op": "catalan", "n": 5}).result == 42
+    assert CB.summation({"op": "nope"}).status == KV.DECLINE, "unknown op ⇒ honest DECLINE"
+
+    # ── anti-fabrication moat: a WRONG antidifference must fail the telescoping certificate ──
+    assert not CB._telescopes(k * k, k, k), "k² is NOT an antidifference of k ((k+1)²−k²=2k+1≠k) ⇒ cert REFUSES"
+
+    print("PASS test_mathascent_combinatorics_gosper (Gosper indefinite/definite hypergeometric summation — "
+          "EXACT closed form certified by OUR telescoping check + exact brute-force cross-check [Σk·k!=7!−1, "
+          "Σ(2k+1)=n²]; harmonic / 1/k! ⇒ PROVEN no closed form ⇒ DECLINE; binomial/Catalan recurrence-checked; "
+          "a wrong antidifference ⇒ telescoping certificate refuses it)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

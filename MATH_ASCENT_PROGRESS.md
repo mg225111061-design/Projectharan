@@ -36,9 +36,18 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
    [test_mathascent_fold_universal; mathmode/fold.py]
 
 ## §3 — verified solving/proving arsenal (fold central, computation offloaded from the LLM)
-   ☐ algebra_symbolic · ☐ number_theory · ◩ linear_algebra (v40 Toeplitz/WHT/matmul exist — wire) ·
-   ☐ combinatorics_sums (Faulhaber ☑ via fold; Gosper/Zeilberger pending) · ☐ geometry · ◩ logic_verification
-   (Z3 wired) · ◩ certified_numeric (Freivalds/interval exist) · ☐ optimization_or · ☐ science_engineering.
+3a. ☑ number_theory — egcd/Bézout, modular inverse, CRT, modexp O(log b), linear Diophantine; each EXACT with
+    the checked identity AS the certificate; no-inverse / inconsistent-CRT / gcd∤c ⇒ honest DECLINE; 300-case
+    exact fuzz (every EXACT cert holds, every DECLINE genuinely unsolvable). [test_mathascent_number_theory;
+    mathmode/number_theory.py]
+3b. ☑ combinatorics_sums — Gosper creative-telescoping (DECISION procedure): indefinite/definite hypergeometric
+    summation, EXACT closed form certified by OUR telescoping check (T(k+1)−T(k)=t(k) ∧ exact brute-force
+    cross-check), PROVEN-no-closed-form (1/k, 1/k!) ⇒ DECLINE, wrong antidifference ⇒ cert refuses; binomial
+    (Pascal) + Catalan (two-forms) recurrence-checked. sympy searches, our checker proves.
+    [test_mathascent_combinatorics_gosper; mathmode/combinatorics.py]
+    Remaining: ☐ algebra_symbolic · ◩ linear_algebra (v40 Toeplitz/WHT/matmul exist — wire) · ☐ geometry ·
+    ◩ logic_verification (Z3 wired) · ◩ certified_numeric (Freivalds/interval exist) · ☐ optimization_or ·
+    ☐ science_engineering · ☐ Zeilberger (definite-sum recurrences).
 
 ## §4 — ultra-fast certificate proving over the 3000+ broth (O(1) lookup)
    ☐ index the proven-closed-form broth; O(1) certificate retrieval on a recognized structure.
