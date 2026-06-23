@@ -5723,6 +5723,7 @@ def test_round1_big_recognizers():
         ("lis", R1.lis_naive, R1.lis_wrong, lambda: R1._mk_lis(3000), R1._lis_in, 3000),
         ("summed_area", R1.p2d_naive, R1.p2d_wrong, lambda: R1._mk_p2d(200, 200, 3000), R1._p2d_in, 200),
         ("string_build", R1.report_naive, R1.report_wrong, lambda: R1._mk_report(16000), R1._report_in, 16000),
+        ("edit_distance", R1.ed_naive, R1.ed_wrong, lambda: R1._mk_ed(11), R1._ed_in, 11),
     ]
     for nm, naive, wrong, mk, gen, n in wrongs:
         w = A.Recognizer(nm + "_W", "algo_replace", naive, wrong, mk, 0, gen, [], n, 1.2)

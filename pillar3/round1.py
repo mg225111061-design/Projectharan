@@ -613,6 +613,57 @@ def _p2d_in():
             ([[5]], [(0, 0, 1, 1)])]
 
 
+# ── item 9-ext2 — edit distance: naive exponential recursion O(3^(m+n)) → O(m·n) DP table ──────────────
+def ed_naive(a, b):
+    def go(i, j):
+        if i == 0:
+            return j
+        if j == 0:
+            return i
+        if a[i - 1] == b[j - 1]:
+            return go(i - 1, j - 1)
+        return 1 + min(go(i - 1, j), go(i, j - 1), go(i - 1, j - 1))
+    return go(len(a), len(b))
+
+
+def ed_dp(a, b):
+    m, n = len(a), len(b)
+    dp = list(range(n + 1))
+    for i in range(1, m + 1):
+        prev = dp[0]
+        dp[0] = i
+        for j in range(1, n + 1):
+            cur = dp[j]
+            dp[j] = prev if a[i - 1] == b[j - 1] else 1 + min(dp[j], dp[j - 1], prev)
+            prev = cur
+    return dp[n]
+
+
+def ed_wrong(a, b):                                         # drops the diagonal (substitution) ⇒ wrong distance
+    m, n = len(a), len(b)
+    dp = list(range(n + 1))
+    for i in range(1, m + 1):
+        dp[0] = i
+        for j in range(1, n + 1):
+            dp[j] = dp[j] if a[i - 1] == b[j - 1] else 1 + min(dp[j], dp[j - 1])
+    return dp[n]
+
+
+_ED_CACHE: dict = {}
+
+
+def _mk_ed(L=11):
+    if L not in _ED_CACHE:
+        a = "".join(chr(97 + (i * 7) % 5) for i in range(L))   # low-similarity pair ⇒ the recursion really branches
+        b = "".join(chr(97 + (i * 3 + 1) % 5) for i in range(L))
+        _ED_CACHE[L] = (a, b)
+    return _ED_CACHE[L]
+
+
+def _ed_in():
+    return [("kitten", "sitting"), ("abc", "abc"), ("", "abc"), ("flaw", "lawn"), ("aa", "aaa"), ("ab", "ba")]
+
+
 # ── item 16c — accidental O(n²) string build: concat into a subscript/attr target → list-accumulate + join ─
 # (CPython's in-place += optimization applies ONLY to a simple LOCAL name; a subscript/attribute target like
 #  acc["s"] = acc["s"] + ln does NOT qualify ⇒ each concat copies the whole prefix ⇒ genuine O(n²).)
@@ -648,6 +699,8 @@ def catalog() -> List[Recognizer]:
     return [
         Recognizer("string_build_join", "accidental_quadratic", report_naive, report_fast,
                    lambda: _mk_report(16000), residual_iters=0, gen_inputs=_report_in, relations=[], n=16000, floor=1.30),
+        Recognizer("edit_distance_dp", "algo_replace", ed_naive, ed_dp,
+                   lambda: _mk_ed(11), residual_iters=0, gen_inputs=_ed_in, relations=[], n=11, floor=1.30),
         Recognizer("matrix_power_recurrence", "algo_replace", fib_iter, fib_fast_doubling,
                    lambda: _mk_fib(24000), residual_iters=0, gen_inputs=_fib_in, relations=[], n=24000, floor=1.30),
         Recognizer("kmp_substring", "algo_replace", search_naive, search_kmp,
