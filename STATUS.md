@@ -8,11 +8,11 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **209 passed / 209** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **210 passed / 210** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
-| Now building | NATIVE-CORE: §0.5 ✅ · §3 ✅ · §2 ✅ · §1 ✅ · §4 routing ✅ → next §5 deps→0, then report |
+| Now building | **NATIVE-CORE COMPLETE** ✅ §0.5 · §1 · §2 · §3 · §4 · §5 — see `NATIVE_CORE_REPORT.md`. Next: user directive |
 
 ## Grades (the ADT, enforced at construction — `kernel_verdict.py`)
 - **EXACT** — machine-checked certificate / decision procedure / exhaustive-bounded domain (bound stated).
@@ -89,14 +89,22 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   **Honest (§X):** a mock is always `live=False` / `source=mock-sim:*` (never dressed as live); the real-egress LIVE
   path is **UNVERIFIED** [egress-blocked] and NEVER fabricates a response; keys are per-call args, redacted, never
   logged. LLM proposes, the verifier grades.
-- Next: **§5** dependency elimination (big solvers→0, numpy optional-not-required, document the final dep set),
-  then write `NATIVE_CORE_REPORT.md`. Native build / live egress stay **UNVERIFIED** where the sandbox blocks,
-  Python path verified-fallback — never faked.
+- **§5 ✅** dependency elimination, MEASURED + ENFORCED (`dependency_audit.py`, `test_native_s5_dependency_audit`).
+  FORBIDDEN big provers / native binders (coqc/cvc5/Bitwuzla/Lean/PyO3/maturin/cffi) = **0 imports**; the grade
+  ADT + the whole NATIVE-CORE (7 modules) are **STDLIB-ONLY** — empty third-party closure, proven statically AND
+  at runtime (a subprocess imports them with numpy/sympy/z3/anthropic/openai/numba/llvmlite all hidden, every one
+  loads); **numpy is OPTIONAL-not-required for the core** (a heavy dep of specific CODE/MATH numeric kernels only);
+  17 optional packages are lazy/graceful-degrade. Final hard top-level set: `fastapi, numpy, pydantic, sympy, z3`.
+- **NATIVE-CORE is COMPLETE** — full report in `NATIVE_CORE_REPORT.md` (with the §X "what we must not claim"
+  constraints kept verbatim). Native build / live egress stay **UNVERIFIED** where the sandbox blocks, Python path
+  the verified fallback — never faked.
 
 ## Known flakes (load-induced, NOT regressions — pass in isolation)
 `test_round2_sublinear_sketches` (HLL ε near boundary), `test_pillar3_stage2_compounding_loop` (timing),
-absolute-threshold perf gates (`test_v40_phase2_structured_matrices`, `test_foldext2_stage*`). C6 splits these
-perf assertions out of the correctness suite so "0 regression" holds on any hardware.
+absolute-threshold perf gates (`test_v40_phase2_structured_matrices`, `test_foldext2_stage*`), and
+`test_phaseV_equivalence_coverage` (couples a measured win-floor to the EXACT grade ⇒ noisy under parallel load;
+PROVEN-equivalence itself is stable — pass in isolation). C6 splits perf assertions out of the correctness suite so
+"0 regression" holds on any hardware; these remaining win-floor/threshold couplings are the next C6 candidates.
 
 ## Version scheme (C5 — one monotonic timeline; legacy labels mapped)
 Build numbering is the git history on this branch. Legacy labels map onto one timeline:
@@ -111,4 +119,4 @@ Details: `DEPLOY_NOTES.md`.
 
 ## Document map
 Root keeps only: `README.md`, `HANDOFF.md` (onboarding), **`STATUS.md`** (this), `DEPLOY_NOTES.md`, and
-`NATIVE_CORE_REPORT.md` (when the native work lands). All historical campaign reports → `reports/archive/`.
+**`NATIVE_CORE_REPORT.md`** (the native campaign — landed). All historical campaign reports → `reports/archive/`.

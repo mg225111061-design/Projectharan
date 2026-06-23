@@ -8031,6 +8031,49 @@ def test_native_s4_llm_routing():
           f"keys redacted/per-call-only — LLM proposes, verifier decides)")
 
 
+def test_native_s5_dependency_audit():
+    """§5 — dependency elimination (toward zero), MEASURED and ENFORCED so it cannot silently regress. Asserts:
+    (1) FORBIDDEN big provers / native binders (coqc/cvc5/Bitwuzla/Lean/PyO3/maturin/cffi) appear in ZERO imports
+        — runtime dep 0 (Coq is only an optional subprocess in haran_coq.py, [BLOCKED] when absent);
+    (2) the grade ADT + the whole NATIVE-CORE are STDLIB-ONLY — empty third-party top-level import closure, proven
+        BOTH statically (AST closure) AND at runtime (a subprocess imports them with numpy/sympy/z3/anthropic/
+        openai/numba/llvmlite all hidden, and every one still loads);
+    (3) numpy is OPTIONAL-not-required for the core — it is in NO core closure (it, with sympy/z3, is a heavy dep
+        of specific CODE/MATH numeric kernels only, documented honestly);
+    (4) the LLM SDKs, JIT, and file-ingest libs are imported LAZILY (function scope) ⇒ optional, graceful-degrade.
+    This is the constitution's 'No Lean/Coq/Isabelle runtime dep (=0)' + 'phone-home=0' made into a checked gate."""
+    import dependency_audit as DA
+
+    fds = DA.final_dependency_set()
+    # (1) big provers / native binders = 0
+    assert fds["forbidden_present"] == [], f"forbidden deps imported: {fds['forbidden_present']}"
+
+    # (2) every core module has an EMPTY third-party closure (static stdlib-only proof)
+    closure = DA.core_third_party_closure()
+    assert set(closure) == set(DA.CORE_MODULES)
+    for mod, third in closure.items():
+        assert third == set(), f"core module {mod} pulls third-party deps at import: {sorted(third)}"
+    # …and the RUNTIME proof: the core imports with all heavy deps hidden
+    rt = DA.runtime_core_without_heavy()
+    assert not rt["fail"] and set(rt["ok"]) == set(DA.CORE_MODULES), f"core failed to import w/o heavy deps: {rt['fail']}"
+
+    # (3) numpy is NOT required by the core (optional-not-required), and is honestly listed as a kernel heavy dep
+    assert all("numpy" not in third for third in closure.values()), "numpy must not be a core dependency"
+    assert "numpy" in fds["heavy_required_by_kernels"], "numpy must be honestly documented as a kernel heavy dep"
+
+    # (4) LLM SDKs / JIT / file-ingest libs are LAZY (optional) — never hard top-level imports
+    must_be_lazy = {"anthropic", "openai", "numba", "llvmlite", "PIL", "pypdf", "pytesseract", "docx", "openpyxl"}
+    hard = set(fds["hard_top_level"])
+    leaked = must_be_lazy & hard
+    assert not leaked, f"these must stay lazy/optional but are hard top-level imports: {sorted(leaked)}"
+
+    print(f"PASS test_native_s5_dependency_audit (FORBIDDEN big-provers/native-binders = 0; CORE [{len(DA.CORE_MODULES)} "
+          f"modules: grade ADT + NATIVE-CORE] STDLIB-ONLY — empty closure, and imports with "
+          f"{len(rt['hidden'])} heavy deps HIDDEN ✓; numpy OPTIONAL-not-required for the core "
+          f"(heavy kernel dep only); {len(fds['optional_lazy'])} optional-lazy pkgs graceful-degrade; "
+          f"hard top-level = {fds['hard_top_level']})")
+
+
 def test_docs_not_stale():
     """C-process (anti-entropy): the onboarding docs must state the REAL test count — a stale HANDOFF/STATUS that
     feeds the next session a false current-state is an honesty-constitution violation at the onboarding layer.
