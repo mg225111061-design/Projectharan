@@ -115,6 +115,16 @@ def solve(problem: dict) -> MathSolution:
     steps.append(Step("route", f"top_mode=MATH; first move = {route.default_first_move}; "
                                f"fold_is_central={route.fold_is_central}"))
 
+    # ── three-way DECLINE (1): the parser couldn't read it — a PRECISE parse-failure, not "no structure" ──
+    if "_parse_error" in problem:
+        v = KV.decline(f"parse: {problem['_parse_error']}", "mathmode.parse")
+        steps.append(Step("recognize", f"PARSE FAILURE — {problem['_parse_error']}", KV.DECLINE))
+        return MathSolution(v, steps)
+
+    # ── fast kernels (O(log)/O(1) routes + honest O(n) ceilings): modexp / fib / lucas / faulhaber / … ──
+    if "kernel" in problem:
+        return _solve_kernel(problem, steps)
+
     # ── summation: MATH's first move is fold, accelerated by the O(1) broth ──
     if "sum" in problem:
         summand = problem["sum"]
@@ -152,38 +162,64 @@ def solve(problem: dict) -> MathSolution:
     return MathSolution(v, steps)
 
 
+def _solve_kernel(problem: dict, steps: List[Step]) -> MathSolution:
+    """Route a fast-kernel op (O(log)/O(1) or honest-O(n)-ceiling) and record a grade-tagged step."""
+    from mathmode import fastkernels as FK
+    k = problem["kernel"]
+    steps.append(Step("recognize", f"fast kernel = {k}"))
+    if k == "modexp":
+        v = FK.modexp(problem["a"], problem["b"], problem["m"])
+    elif k == "fib":
+        v = FK.fib_mod(problem["n"], problem.get("m"))
+    elif k == "lucas":
+        v = FK.lucas_mod(problem["n"], problem.get("m"))
+    elif k == "catalan":
+        v = FK.catalan(problem["n"], problem.get("m"))
+    elif k == "factorial":
+        v = FK.factorial(problem["n"], problem.get("m"))
+    elif k == "lcm":
+        v = FK.lcm(problem["a"], problem["b"])
+    elif k == "faulhaber":
+        lo = problem.get("lo", 1)
+        v = FK.faulhaber(problem["p"], problem["N"], problem.get("m"))
+        if v.status == KV.EXACT and lo not in (0, 1):                  # Σ_{lo}^{N} = S(N) − S(lo−1)
+            low = FK.faulhaber(problem["p"], lo - 1, problem.get("m"))
+            if low.status == KV.EXACT:
+                v = KV.exact(v.result - low.result, "fastkernels.faulhaber", v.complexity, v.certificate)
+    elif k == "lucas_lehmer":
+        v = FK.lucas_lehmer(problem["p"])
+    elif k == "collatz":
+        v = FK.collatz(problem["n"])
+    else:
+        v = KV.decline(f"solver: unknown kernel {k!r} ⇒ DECLINE", "mathmode.solve")
+    stage = "kernel" if v.status != KV.DECLINE else "kernel"
+    steps.append(Step(stage, v.certificate.detail if v.certificate else v.reason, v.status))
+    return MathSolution(v, steps)
+
+
 def parse_problem(text) -> dict:
-    """Lenient text → problem dict for the MATH surface. Accepts:
-       • a JSON object (used directly),               • 'sum: <expr in k>' / 'Σ <expr>'  → {"sum": …},
-       • 'fold: <json>'                               → {"fold": …},
-       • a bare summand mentioning k                  → {"sum": …}.
-    Anything else returns {} (⇒ the solver DECLINEs honestly)."""
+    """Lenient text → problem dict for the MATH surface, via the robust PHASE-1 parser (`mathmode.parse`):
+    Σ/sum(f,k,lo,hi), a^b mod m / pow / towers, fibonacci/lucas/catalan [mod m], Lucas–Lehmer / isprime(2^p−1),
+    collatz, n! / factorial, C(n,k), gcd/lcm, det/eigenvalues/inverse([[..]]), factor/solve/integrate/diff/…,
+    bare summand in k. Unrecognized ⇒ {"_parse_error": <precise hint>} so the solver gives a SPECIFIC parse DECLINE.
+    Legacy 'sum:'/'fold:' prefixes still accepted."""
     if isinstance(text, dict):
         return text
     s = (text or "").strip()
     if not s:
-        return {}
-    if s[0] == "{":
-        try:
-            return json.loads(s)
-        except Exception:                                # noqa: BLE001
-            pass
+        return {"_parse_error": "empty input"}
     import re
-    m = re.match(r"\s*(?:sum\s*[:=]\s*|Σ\s*)(.+)$", s, re.IGNORECASE)
-    if m:
-        return {"sum": m.group(1).strip().rstrip(".").replace("^", "**")}
     m2 = re.match(r"\s*fold\s*[:=]\s*(.+)$", s, re.IGNORECASE)
     if m2:
         try:
             return {"fold": json.loads(m2.group(1))}
         except Exception:                                # noqa: BLE001
-            return {}
-    nat = _parse_natural(s)                               # strict free-text → arsenal routing
-    if nat:
-        return nat
-    if "k" in s and not any(ch.isalpha() for ch in s.replace("k", "").replace("factorial", "")):
-        return {"sum": s.replace("^", "**")}
-    return {}
+            return {"_parse_error": "fold: payload is not valid JSON"}
+    mleg = re.match(r"\s*sum\s*[:=]\s*(.+)$", s, re.IGNORECASE)
+    if mleg:
+        return {"sum": mleg.group(1).strip().rstrip(".").replace("^", "**")}
+    from mathmode import parse as _P
+    return _P.parse(s)
 
 
 # ── strict free-text → arsenal routing (unambiguous patterns only; anything fuzzy ⇒ {} ⇒ honest DECLINE) ──

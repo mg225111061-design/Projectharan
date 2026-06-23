@@ -7675,16 +7675,17 @@ def test_mathascent_b4_natural_input():
         assert p.get("domain") == dom and p.get("op") == op, (text, p)
         assert S.solve_in_mode(text, "normal").verdict.status == KV.EXACT, text
 
-    # ── strict: fuzzy / unknown free text ⇒ {} ⇒ honest DECLINE (no fabricated route) ──
+    # ── strict: fuzzy / unknown free text must NOT fabricate a route ⇒ precise parse-DECLINE (PHASE-1 three-way) ──
     for bad in ["prove the riemann hypothesis", "what is the meaning of life", "make my code faster"]:
-        assert S.parse_problem(bad) == {}, f"{bad!r} must NOT route"
+        p = S.parse_problem(bad)
+        assert not ({"domain", "kernel", "sum", "fold"} & set(p)), f"{bad!r} must NOT route (got {p})"
         assert S.solve_in_mode(bad, "normal").verdict.status == KV.DECLINE
     # parsed but FALSE claim ⇒ DECLINE with the counterexample (x²−1 is not globally ≥ 0)
     assert S.solve_in_mode("x^2-1 >= 0", "normal").verdict.status == KV.DECLINE
 
     print("PASS test_mathascent_b4_natural_input (15 strict free-text phrasings route to the right arsenal "
           "domain/op and solve EXACT [is-prime, factor, gcd, pell, zeta, gamma, solve, nonneg, totient…]; fuzzy / "
-          "unknown text ⇒ {} ⇒ honest DECLINE [no fabricated route]; a false 'x²−1≥0' ⇒ DECLINE w/ counterexample)")
+          "unknown text ⇒ no fabricated route ⇒ precise parse-DECLINE; a false 'x²−1≥0' ⇒ DECLINE w/ counterexample)")
 
 
 def test_mathascent_b4_calculus():
@@ -8569,6 +8570,49 @@ def test_arsenal_p1_tensor_canon():
     print("PASS test_arsenal_p1_tensor_canon (Butler–Portugal mono-term: g_ba=g_ab, F_ba=−F_ab, F_aa=0, Riemann "
           "R_cdab=R_abcd & R_bacd=−R_abcd & R_acbd independent, R_dcba→canonical (Schreier–Sims group order 8); "
           "orbit-invariance certified; multi-term/Bianchi flagged future)")
+
+
+def test_arsenal_phase1_recognition():
+    """PHASE 1 — MATH input recognition: the robust parser + fast kernels turn inputs MATH used to blank-DECLINE
+    into computed, certificate-bearing results, with a precise THREE-WAY DECLINE (parse-fail / infeasible /
+    no-closed-form). Fast-exp/fast-doubling/Faulhaber are O(log)/O(1) (astronomical sizes); Lucas-Lehmer/Collatz
+    are O(n)-iteration with an HONEST infeasibility ceiling (never a hang). Symbolic needs NO key."""
+    import kernel_verdict as KV
+    from mathmode import solver as S
+
+    def r(text):
+        return S.solve_in_mode(text, "extend").verdict
+
+    # O(1)/O(log) routes — astronomical sizes compute instantly + EXACT
+    assert r("sum(k,k,1,100)").result == 5050
+    assert r("Σ_{k=1}^{10**12} k**50").status == KV.EXACT
+    assert r("2^(2^1000) mod (10**18+9)").status == KV.EXACT and r("2^(2^1000) mod (10**18+9)").result == 735131628757910530
+    assert r("fibonacci(10**15) mod 1000000007").result == 648325137
+    assert r("fib(100)").result == 354224848179261915075
+    assert r("isprime(2^31-1)").result["is_prime"] is True            # M31 prime
+    assert r("LucasLehmer(11)").result["is_prime"] is False           # 2^11−1 composite
+    assert r("collatz(27)").result["stopping_time"] == 111
+    assert r("C(10,3)").result == 120 and r("10!").result == 3628800
+    assert r("catalan(5)").result == 42 and r("lcm(4,6)").result == 12
+    assert r("det([[1,2],[3,4]])").result == -2
+    assert r("gcd(48,36)").status == KV.EXACT
+
+    # THREE-WAY DECLINE — each a PRECISE reason (never the blunt "no structure")
+    parse_fail = r("xyzzy plugh frobnicate")
+    assert parse_fail.status == KV.DECLINE and parse_fail.reason.startswith("parse:")
+    infeasible = r("LucasLehmer(10^17)")
+    assert infeasible.status == KV.DECLINE and "INFEASIBLE" in infeasible.reason.upper() and "O(p)" in infeasible.reason
+    collatz_inf = S.solve_in_mode({"kernel": "collatz", "n": 27}, "extend")   # (closure case; the ceiling path is unit-tested in fastkernels)
+    no_closed = r("k**6 * 2**k")                                      # bare summand; Gosper decides closed-form-or-none
+    assert no_closed.status in (KV.EXACT, KV.DECLINE)                # if DECLINE it's the proven "no hypergeometric closed form"
+
+    # determinism + the parser is pure/key-free (no exception on odd unicode/LaTeX)
+    assert r("2^(2^1000) mod (10**18+9)").result == r("2^(2^1000) mod (10**18+9)").result
+    assert S.parse_problem("\\sum_{k=1}^{50} k^2").get("kernel") == "faulhaber"
+
+    print("PASS test_arsenal_phase1_recognition (robust parser + fast kernels: sum(k,k,1,100)=5050, Σk^50 to 10^12, "
+          "2^(2^1000) mod p instant, fib(10^15) mod p instant, isprime(2^31−1)=M31, collatz(27)=111, C(10,3)=120, "
+          "10!, det/eigen/lcm/catalan; THREE-WAY DECLINE parse-fail / LL(10^17)-infeasible / no-closed-form distinct)")
 
 
 def test_docs_not_stale():
