@@ -24,7 +24,7 @@ Legend: ☑ done · ☐ pending · ⚠ UNVERIFIED[reason]
 39. ☑ map-reduce / monoid recognition (Z3) — operator associativity PROVEN ⇒ tree/parallel reduction ≡ sequential fold EXACT (data-parallel-safe; add/mul/max/min/or); non-associative (subtract/average)→DECLINE+counterexample [test_round2_monoid_mapreduce; pillar3/monoid.py]
 40. ☑ serialization swap json→marshal — lossless round-trip (verified) ~3.3× PROBABILISTIC; lossy serializer→DECLINE; orjson/msgpack ⚠[lib absent] [test_round2_serialization_swap; round2.py]
 ## Group I — waiting-elimination (bet on the future, NOT caching)
-41. ☐ speculative execution + rollback (report misspeculation δ)
+41. ☑ speculative execution + rollback (waiting-elimination, NOT caching) — bet on predicted next query during idle, latency hidden on hits; PROBABILISTIC reporting misspeculation δ=0.15 (latency-critical compute 2000→304); correctness-checked; random stream δ≈1→DECLINE [test_round2_speculative_execution; pillar3/speculation.py]
 42. ☐ speculative parallel branches (compute both, select)
 43. ☐ precompute-query separation (build structure for not-yet-asked queries)
 44. ☐ speculative prefetch via learned access prediction (report hit rate)

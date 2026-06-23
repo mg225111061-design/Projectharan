@@ -6367,6 +6367,28 @@ def test_round2_sublinear_sketches():
           f"reservoir uniform size-k sample O(k); undersized sketches ⇒ DECLINE — all PROBABILISTIC, never EXACT)")
 
 
+def test_round2_speculative_execution():
+    """ROUND 2 (Group I, item 41) — speculative execution + rollback (waiting-elimination, NOT caching). During
+    idle time it precomputes the PREDICTED next query so its latency is hidden on a HIT; on a MISS it rolls back
+    and computes on demand. Trades more total work for less latency-critical work; PROBABILISTIC, REPORTING the
+    misspeculation rate δ. Correctness is checked (speculative results == on-demand). A poor predictor (random
+    stream, δ≈1) hides no latency ⇒ DECLINE."""
+    from pillar3 import speculation as SP
+    import kernel_verdict as KV
+
+    r = SP.speculation_grade(SP.make_predictable(2000, 0.15), SP.predict_next, SP._expensive, delta_target=0.4)
+    assert r.verdict.status == KV.PROBABILISTIC and r.verdict.certificate.kind == "speculative_execution"
+    assert r.verdict.certificate.delta is not None and r.hit_rate >= 0.6, "latency must be hidden on most queries"
+    assert r.latency_critical_compute < r.naive_compute, "speculation must cut latency-critical compute"
+
+    rr = SP.speculation_grade(SP.make_random(2000), SP.predict_next, SP._expensive, delta_target=0.4)
+    assert rr.verdict.status == KV.DECLINE, "an unpredictable stream (δ≈1) must DECLINE — the bet isn't worth it"
+
+    print(f"PASS test_round2_speculative_execution (predictable stream: latency hidden on {r.hit_rate:.0%}, "
+          f"misspeculation δ={r.delta:.3f}, latency-critical compute {r.naive_compute}→{r.latency_critical_compute} "
+          f"— PROBABILISTIC (never EXACT); random stream δ={rr.delta:.2f} ⇒ DECLINE)")
+
+
 def test_round2_defensive_copy_elim():
     """ROUND 2 (Group K, item 53) — defensive-copy elimination (SOUND mutation analysis). If a conservative AST
     analysis PROVES the callee never mutates its argument (no subscript/attr store, no mutating method, no aliased
