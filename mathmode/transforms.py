@@ -8,6 +8,8 @@ else a PROVEN DECLINE naming the obstruction. The router is DETERMINISTIC — it
 Transform categories wired here (each reuses a verified closer + co-generated certificate):
   • T-algebraic-differential  integral → Risch decision (elementary or proven non-elementary); sum → Gosper fold.
   • T-symbolic-dynamics       chaos → subshift integer matrix → entropy/ζ (EXACT).
+  • T-spectral-operator       chaos → transfer (Perron–Frobenius) operator → invariant density / spectral gap
+                              (EXACT for piecewise-linear Markov; general maps ⇒ certified-numeric Ulam, flagged).
   • T-number-system           modular→rational; real→algebraic (PSLQ, verified); series→rational GF (BM).
   • T-structure+randomness    fold the C-finite part; PROVE the rest has no short linear recurrence (no prediction).
   • T-physics                 tensor→Butler–Portugal; Weyl scalars→Petrov; metric-pair→Cartan–Karlhede SPI;
@@ -39,6 +41,9 @@ def route(obj: dict) -> Tuple[str, KV.Verdict]:
     if typ == "subshift":
         from mathmode import transforms_symdyn as SD
         return "T-symbolic-dynamics", SD.subshift(obj["A"])
+    if typ == "transfer_operator":
+        from mathmode import transforms_spectral as SP
+        return "T-spectral-operator", SP.transfer_operator_spectrum(obj["M"])
     if typ == "modular":
         from mathmode import transforms_number as TN
         return "T-number-system", TN.modular_to_rational(obj["r"], obj["m"])
@@ -69,6 +74,8 @@ def corpus() -> list:
     return [
         ("golden-mean shift", {"type": "subshift", "A": [[1, 1], [1, 0]]}, KV.EXACT),
         ("full 2-shift", {"type": "subshift", "A": [[1, 1], [1, 1]]}, KV.EXACT),
+        ("Markov transfer operator", {"type": "transfer_operator",
+                                      "M": [[sp.Rational(3, 4), sp.Rational(1, 4)], [sp.Rational(1, 4), sp.Rational(3, 4)]]}, KV.EXACT),
         ("modular 3/7", {"type": "modular", "r": (3 * pow(7, -1, 10 ** 9 + 7)) % (10 ** 9 + 7), "m": 10 ** 9 + 7}, KV.EXACT),
         ("golden ratio", {"type": "constant", "value": (1 + sp.sqrt(5)) / 2}, KV.EXACT),
         ("√2", {"type": "constant", "value": sp.sqrt(2)}, KV.EXACT),

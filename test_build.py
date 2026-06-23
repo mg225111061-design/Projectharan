@@ -8792,6 +8792,34 @@ def test_arsenal_t_structure_randomness():
           "Berlekamp–Massey, invents nothing])")
 
 
+def test_arsenal_t_spectral():
+    """UNIFIED ARSENAL §4 — T-spectral-operator: chaos → transfer (Perron–Frobenius) operator → exact spectrum.
+    For a piecewise-linear Markov map the PF operator on the partition is a finite column-stochastic rational
+    matrix; its leading eigenvalue 1 gives the INVARIANT DENSITY, and the spectral gap 1−|λ₂| / decay rate −log|λ₂|
+    give exponential mixing — all EXACT. Certificate: M·v=v + columns sum to 1 + exact eigenvalues. Honest scope
+    (§X): EXACT only for the Markov operator; general maps ⇒ certified-numeric Ulam (PROBABILISTIC), never EXACT."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import transforms_spectral as SP
+
+    # doubling-map transfer operator on the dyadic partition ⇒ uniform invariant density, instant mixing (gap 1)
+    d = SP.transfer_operator_spectrum([[sp.Rational(1, 2)] * 2, [sp.Rational(1, 2)] * 2])
+    assert d.status == KV.EXACT and d.result["invariant_density"] == [sp.Rational(1, 2), sp.Rational(1, 2)]
+    assert d.result["spectral_gap"] == 1 and d.result["lambda_2"] == 0
+    assert d.certificate.kind == "transfer_operator_spectrum"
+    # a map with a genuine spectral gap ⇒ eigenvalues 1, 1/2; correlations decay like (1/2)ⁿ, rate −log(1/2)=log 2
+    g = SP.transfer_operator_spectrum([[sp.Rational(3, 4), sp.Rational(1, 4)], [sp.Rational(1, 4), sp.Rational(3, 4)]])
+    assert g.result["spectral_gap"] == sp.Rational(1, 2) and sp.simplify(g.result["decay_rate"] - sp.log(2)) == 0
+    # adversarial: not a PF operator (columns don't sum to 1, or a negative entry) ⇒ DECLINE
+    assert SP.transfer_operator_spectrum([[1, 1], [1, 1]]).status == KV.DECLINE
+    assert SP.transfer_operator_spectrum([[sp.Rational(3, 2), sp.Rational(-1, 2)],
+                                          [sp.Rational(-1, 2), sp.Rational(3, 2)]]).status == KV.DECLINE
+
+    print("PASS test_arsenal_t_spectral (transfer/Perron–Frobenius operator: doubling-map → uniform invariant "
+          "density, gap 1 (instant mixing); gapped map → λ₂=1/2, decay −log|λ₂|=log 2 — EXACT for piecewise-linear "
+          "Markov; non-PF matrix DECLINEd; general maps flagged certified-numeric/Ulam, never EXACT §X)")
+
+
 def test_arsenal_transform_router():
     """UNIFIED ARSENAL §4 — the transform-system ROUTER: classify an object → choose a transform that re-expresses
     it into a §1–§3-closable form → dispatch → check the certificate → EXACT, else a PROVEN DECLINE naming the
@@ -8815,11 +8843,10 @@ def test_arsenal_transform_router():
     n2, v2 = TF.route({"type": "subshift", "A": [[1, 1], [1, 0]]})
     assert (n1, v1.status) == (n2, v2.status) == ("T-symbolic-dynamics", KV.EXACT)
     # each transform category is exercised (the capability spread, not one path)
-    transforms_used = {r["transform"] for r in cov["rows"] if r["status"] != KV.DECLINE or r["transform"] != "none"}
-    assert {"T-symbolic-dynamics", "T-number-system", "T-structure+randomness", "T-algebraic-differential",
-            "T-physics"} <= {r["transform"] for r in cov["rows"]}
+    assert {"T-symbolic-dynamics", "T-spectral-operator", "T-number-system", "T-structure+randomness",
+            "T-algebraic-differential", "T-physics"} <= {r["transform"] for r in cov["rows"]}
 
-    print(f"PASS test_arsenal_transform_router (router fires across all 5 transform categories; "
+    print(f"PASS test_arsenal_transform_router (router fires across all 6 transform categories; "
           f"{cov['structured_closed']}/{cov['structured_corpus']} curated structured items closed "
           f"({cov['structured_coverage_pct']}% on the CURATED capability corpus — NOT universal; domain-conditional), "
           f"2 honest DECLINEs [∫e^{{x²}} non-elementary, unrecognized object]; deterministic routing)")
