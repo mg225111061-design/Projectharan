@@ -7108,6 +7108,68 @@ def test_mathascent_solver_reasoning():
           "unrecognized ⇒ honest DECLINE)")
 
 
+def test_mathascent_file_ingestion():
+    """MATH-ASCENT §6 — universal file ingestion + FOLD-accelerated analysis, honest about what it cannot read.
+    Office formats (XLSX/DOCX) are parsed with the STANDARD LIBRARY (zip+XML, no fragile deps). The headline is
+    fold acceleration: a spreadsheet column that is secretly a C-finite sequence is RECOGNIZED (shortest exact
+    recurrence, verified on every term) and FOLDED to an O(log n) closed form; a 'Σ …' line in a document is
+    routed to the broth/Gosper fold. A non-C-finite column (primes) and plain prose ⇒ honest DECLINE; PDF and
+    images ⇒ honest UNVERIFIED (no working reader/OCR — never a fabricated transcription)."""
+    import io
+    import zipfile
+    from mathmode import ingest as ING
+    import kernel_verdict as KV
+
+    def xlsx(col):
+        rows = "".join(f'<row r="{i+1}"><c r="A{i+1}"><v>{v}</v></c></row>' for i, v in enumerate(col))
+        sheet = ('<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/'
+                 f'2006/main"><sheetData>{rows}</sheetData></worksheet>')
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("xl/worksheets/sheet1.xml", sheet)
+        return buf.getvalue()
+
+    def docx(text):
+        body = "".join(f"<w:p><w:r><w:t>{t}</w:t></w:r></w:p>" for t in text.split("\n"))
+        doc = ('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/'
+               f'2006/main"><w:body>{body}</w:body></w:document>')
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("word/document.xml", doc)
+        return buf.getvalue()
+
+    # XLSX: Fibonacci column → order-2 recurrence → O(log n) companion fold (EXACT)
+    rep = ING.analyze_file(data=xlsx([0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]), fmt="xlsx")
+    assert rep["findings"] and "order-2 recurrence c=[1, 1]" in rep["findings"][0].provenance
+    assert rep["findings"][0].solution.verdict.status == KV.EXACT
+    # XLSX: Tribonacci column → order-3
+    rep3 = ING.analyze_file(data=xlsx([0, 1, 1, 2, 4, 7, 13, 24, 44, 81, 149, 274]), fmt="xlsx")
+    assert any("order-3" in f.provenance for f in rep3["findings"])
+    # XLSX: primes → NOT C-finite → honest DECLINE (not foldable)
+    repp = ING.analyze_file(data=xlsx([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37]), fmt="xlsx")
+    assert repp["findings"] == [] and any("no C-finite" in d for d in repp["declines"])
+
+    # DOCX: 'sum: k**2' → solver fold EXACT; Gosper sum too
+    repd = ING.analyze_file(data=docx("Compute:\nsum: k**2\nthanks"), fmt="docx")
+    assert repd["findings"] and repd["findings"][0].solution.verdict.status == KV.EXACT
+    repg = ING.analyze_file(data=docx("Σ k*factorial(k)"), fmt="docx")
+    assert repg["findings"] and repg["findings"][0].solution.verdict.status == KV.EXACT
+    # DOCX: prose only → honest DECLINE (no structure)
+    assert ING.analyze_file(data=docx("The quick brown fox."), fmt="docx")["findings"] == []
+
+    # PDF / image → honest UNVERIFIED (never fabricated)
+    assert ING.analyze_file(data=b"%PDF-1.4", fmt="pdf")["unverified"]
+    assert "OCR" in ING.analyze_file(data=b"\x89PNG", fmt="png")["unverified"]
+
+    # the fold accelerator in isolation: a sequence → shortest verified recurrence
+    assert ING.find_recurrence([2, 1, 3, 4, 7, 11, 18, 29]) == ([1, 1], [2, 1]), "Lucas: order-2 c=[1,1]"
+    assert ING.find_recurrence([2, 3, 5, 7, 11, 13, 17, 19, 23]) is None, "primes are not C-finite"
+
+    print("PASS test_mathascent_file_ingestion (stdlib zip+XML ingestion: XLSX Fibonacci/Tribonacci columns → "
+          "recognized C-finite recurrence → O(log n) companion FOLD «EXACT»; primes column / prose ⇒ honest "
+          "DECLINE; DOCX 'Σ …' → broth/Gosper fold «EXACT»; PDF & images ⇒ honest UNVERIFIED [no reader/OCR])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

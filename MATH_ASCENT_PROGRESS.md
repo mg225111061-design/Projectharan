@@ -75,7 +75,11 @@ Legend: ☑ done(new, tested) · ◩ wired-from-existing (cite) · ☐ pending �
    Honest DECLINE shows exactly where structure ran out. [test_mathascent_solver_reasoning; mathmode/solver.py]
 
 ## §6 — universal file ingestion + fold-accelerated analysis
-   ☐ PDF/DOCX/PPTX/XLSX/images (incl. photos of equations → symbolic); honest DECLINE on unstructured/OCR limits.
+6. ☑ ingest (mathmode/ingest.py): XLSX/DOCX/PPTX via STDLIB zip+XML (no fragile deps), CSV/JSON/TXT too. Fold
+   acceleration: a numeric column → shortest exact C-finite recurrence (find_recurrence, verified every term) →
+   O(log n) companion FOLD «EXACT»; a 'Σ …' / 'sum: …' line → broth/Gosper fold. Non-C-finite column (primes) /
+   prose ⇒ honest DECLINE; PDF (pypdf [BLOCKED]) & images (no OCR/tesseract) ⇒ honest UNVERIFIED — never a
+   fabricated transcription. [test_mathascent_file_ingestion; mathmode/ingest.py]
 
 ## §7 — MATH deliverables + honest HLE push (measured deltas only)
    ☐ MATH demo set; measured-only deltas; never an unmeasured score claim.
