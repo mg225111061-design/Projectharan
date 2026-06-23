@@ -42,8 +42,24 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 - Universal file attachment (drag-drop + picker) → `/api/math/ingest`; fold-accelerated analysis.
 - Safe archive extraction (`archive.py`): zip/tar/gz, in-memory, zip-slip + decompression-bomb defenses.
 
+## Module families (C4 — analyzed; not the trivial dups the review assumed)
+A dependency-mapped review (importers per module) found these are **layered, distinct-consumer modules, not
+literal copies** — so a behaviour-preserving merge is a real refactor, not a delete:
+- **e-graph (4):** `egraph` (core engine) · `equality_saturation` (e-graph + Z3-extraction — the MATH `fold`'s
+  critical path) · `fold_egraph` (fold-rules **already reusing `egraph`**, i.e. an adapter) · `egraph_native`
+  (extracted-term → LLVM emit). Four pipeline STAGES, not four engines. The two cores (`egraph` /
+  `equality_saturation`) genuinely overlap → **unification folds INTO §1** (the native term core becomes the one
+  canonical engine; merging Python now then rewriting in Rust would be wasted work).
+- **spec_* (6):** a LAYERED toolkit, not dups — `spec_strengthen`→`spec_strength_gate`, `spec_infer`→`spec_fragment`,
+  `spec_gate`←prove_exact/measure, `spec_propagation`←proof_dag; `spec_strengthen`/`spec_propagation` are
+  **tested** (not dead). Kept; the layering is intentional and documented.
+- **frontends (6):** distinct LANGUAGES (c/go/java/js/native…), not copies. tree-sitter convergence deferred
+  (availability + a large rewrite); honest UNVERIFIED, not faked.
+Conclusion: no risky merge performed (the suite stays 205-green); the real e-graph unification is sequenced into
+§1, the spec_* layering is kept, frontend→tree-sitter is deferred. Entropy reduced by MAPPING + the C1/C2 doc fixes.
+
 ## In progress / planned (NATIVE-CORE directive)
-- §0.5 cleanup: **C1 HANDOFF ✅ · C2 STATUS.md (this) + archive ✅ · C3 key wording · C4 dedupe · C5 versioning · C6 perf↔correctness gates**.
+- §0.5 cleanup: **C1 HANDOFF ✅ · C2 STATUS.md (this) + archive ✅ · C3 key wording ✅ · C4 mapped (e-graph→§1) ✅ · C5 versioning ✅ · C6 perf↔correctness gates ✅ · C-process stale-doc test ✅**.
 - §3 AST-depth fast-triage before the proof cache · §1 Rust core (arena AST, deterministic fixed-precision ring,
   deterministic SIMD) · §2 zero-dependency bit-blasting SMT (CDCL SAT + certificate checker) · §4 multi-LLM
   abstraction + mock · §5 dependency elimination. Native build / live egress marked **UNVERIFIED** where the
