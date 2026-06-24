@@ -256,6 +256,20 @@ def _loop_collapse(code: str) -> Optional[Dict]:
         if d is not None and d.status == "NO_CLOSED_FORM":
             return {"kind": "sum", "status": "NO_CLOSED_FORM", "complexity": "irreducible (proven)",
                     "grade": d.verdict.status, "certificate": d.certificate}
+        if d is None:                                          # not a single Σ-loop → try a NESTED Σ_iΣ_j collapse
+            fn = SR._first_fn(code, None)                      # decide-only; the nested gate is now BOUNDED (no hang)
+            nst = SR._nested_acc(fn) if fn is not None else None
+            if nst is not None:                                # a RECOGNIZED double-nested accumulation
+                nd = SR._offload_nested(code, fn, nst)
+                if nd.status == "OFFLOADED":                   # CAS-proposed + differential-equivalence gated (honest)
+                    return {"kind": "nested_sum", "status": "CLOSED_FORM", "closed_form": nd.closed_form,
+                            "complexity": nd.complexity.replace("O(1) (was ", "").rstrip(")") + " → O(1)",
+                            "grade": "EXACT", "certificate": nd.certificate}
+                # Recognized as nested but did NOT collapse ⇒ honest NONE. Do NOT fall through to the recurrence
+                # detector: a double-nested accumulation is never a single-state C-finite recurrence, and the
+                # recurrence detector SAMPLES the loop by executing it — for an explosive inner bound (e.g.
+                # range(1, 2**i)) that would run an unbounded loop and hang. (Sound + no-hang.)
+                return None
         if d is None:                                          # not a Σ-loop → try the C-finite recurrence collapse
             import loop_recurrence as LR                       # noqa: PLC0415
             rc = LR.decide_recurrence_collapse(code, measure=False)       # decide-only: fast, no timing, no threads

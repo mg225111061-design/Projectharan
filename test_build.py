@@ -10386,10 +10386,25 @@ def test_loop_collapse_fork_safe():
         # ★ the regression guard ★: _loop_collapse adds NO threads (so a later multiprocessing.fork can't deadlock)
         assert threading.active_count() <= base, "decide-only _loop_collapse must spawn NO threads (fork-safe)"
 
-    print("PASS test_loop_collapse_fork_safe (_loop_collapse decide-only + synchronous for both the recurrence and "
-          "modular cases: COLLAPSED c=[1,1] EXACT with a certificate, no (unmeasured) ratio [shown in the live trace "
-          "instead], fast, and spawns NO threads [active_count does not increase] — the multiprocessing.fork "
-          "deadlock regression is gated)")
+    # ★ §3 (live nested wiring): a doubly-nested Σ_iΣ_j loop now collapses O(n²)→O(1) in the LIVE engine path ★
+    nested = "def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += j\n return acc"
+    col = EB._loop_collapse(nested)
+    assert col and col["kind"] == "nested_sum" and col["status"] == "CLOSED_FORM" and col["grade"] == "EXACT", col
+    assert col["closed_form"] == "n*(n**2 + 3*n + 2)/6" and "→ O(1)" in col["complexity"], col
+
+    # ★ NO-HANG regression: a nested loop with an EXPONENTIAL inner bound is RECOGNIZED-but-declined; it must NOT
+    #   fall through to the loop-SAMPLING recurrence detector (which would execute range(1, 2**i) and hang). It
+    #   returns None FAST. (This assertion completing under the time bound IS the no-hang proof.) ★
+    exp_nested = "def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,2**i):\n   acc += j\n return acc"
+    t0 = time.monotonic()
+    col_exp = EB._loop_collapse(exp_nested)
+    assert col_exp is None, f"exponential-bound nested must DECLINE (honest NONE), got {col_exp}"
+    assert time.monotonic() - t0 < 2.0, "must return FAST — never sample/execute an unbounded nested loop (no hang)"
+
+    print("PASS test_loop_collapse_fork_safe (_loop_collapse decide-only + synchronous: recurrence/modular COLLAPSED "
+          "c=[1,1] EXACT + certificate, no (unmeasured) ratio, fast, NO threads [fork-safe]; LIVE nested Σ_iΣ_j → O(1) "
+          "[nested_sum EXACT]; exponential-bound nested DECLINEs FAST without sampling an unbounded loop [no-hang] — "
+          "the fork-deadlock AND the unbounded-sampling regressions are gated)")
 
 
 def test_modular_recurrence_collapse():

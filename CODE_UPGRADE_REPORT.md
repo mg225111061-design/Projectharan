@@ -399,7 +399,11 @@ polynomial of total degree ≤ 2 in the loop vars — a non-polynomial bound (e.
 equivalence gate can never execute an unbounded/exponential loop (no hang); with polynomial bounds the sampled loop
 stays ≤ N² iterations, so the gate is always cheap. Sound: an accumulator-dependent body, triple nesting, an extra
 outer statement, a non-identity initializer, and an exponential bound are all correctly REJECTED.
-`test_haran_nested_loop_collapse`.
+`test_haran_nested_loop_collapse`. **Wired LIVE**: `engine_bridge._loop_collapse` now surfaces the nested collapse
+in the real optimize path (kind `nested_sum`, EXACT, certificate) — and because a recognized double-nested
+accumulation is never a single-state C-finite recurrence, it returns its collapse-or-NONE WITHOUT falling through to
+the loop-SAMPLING recurrence detector (which executes the loop and would hang on an explosive inner bound). The
+recurrence/modular paths for genuine single-state loops are unchanged. `test_loop_collapse_fork_safe`.
 
 **MEASURED code-shape reach (§3 deepen).** `algo50_coverage.measure_code_shapes()` quantifies the CODE recognizer's
 collapse breadth, with NO padding — a collapse counts only if `dispatch`→OFFLOADED AND the emitted closed form matches
