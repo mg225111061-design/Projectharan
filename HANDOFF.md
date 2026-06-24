@@ -18,7 +18,8 @@
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
-| 진행 중 | **UNIFIED ARSENAL**(a 변환계 + b ~70 fold 패밀리 + c 물리) — 기초 먼저: §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 물리: P7·P2·P6·P9·P5·P8·P1 ✅ · P3 Petrov ✅ · P4 Cartan–Karlhede ✅ (physics P1–P9 ✅) → §4 transforms: T-symbolic-dynamics·T-spectral-operator·T-number-system·T-structure+randomness ✅ · ROUTER ✅ (6 categories) → **MATH recognition PHASE-1 ✅** (robust parser + fast kernels: modexp/fib/Faulhaber/Lucas-Lehmer/collatz, 3-way DECLINE) → §4 변환. (NATIVE-CORE 완료: `NATIVE_CORE_REPORT.md`.) |
+| HARAN-50 | **✅ COMPLETE — 50 NAMED layer-1 알고리즘 전부 CONFIRMED** (`algo50.py`; A20·B10·C15·D5, 0 PARTIAL·0 GAP). 8 gaps 건설 + 9 partials 폐쇄(전부 1-커밋-1-항목, 증명서 동반·적대적 테스트). §2 broth 확장(`haran_broth.py`, 8개 알고리즘 717항목 @ ~0.07µs O(1), 전부 재실행으로 재검증) · §3 측정 커버리지(`algo50_coverage.py`, 34건/12알고리즘, 적대적 6/6 DECLINE) · §4 tier 라우팅(`algo50_router.py`, broth-hit 즉시·fast는 heavy solver 금지). §X 정직 캡션 test-enforced(CAD 이중지수·Lucas–Lehmer O(p)·CP/Tucker·ECM NP-hard→DECLINE). 상세는 STATUS.md / CODE_UPGRADE_REPORT.md §5. |
+| (이전) 진행 중 | **UNIFIED ARSENAL**(a 변환계 + b ~70 fold 패밀리 + c 물리) — §1 ✅ (G1·G2·G3·G4) → §2 ✅ (Petkovšek·Abramov·Risch·Kovacic·CAD) → §3 물리 P1–P9 ✅ → §4 transforms ✅ · ROUTER ✅ → **MATH recognition PHASE-1 ✅**. (NATIVE-CORE 완료: `NATIVE_CORE_REPORT.md`.) |
 
 **※ 오래된 과거 지시 무시:** 예전 HANDOFF는 "`haran-web/`를 Projectharan에 push하라"고 했다 — 그건 **이미 끝났다**.
 지금은 Projectharan 위에서 직접 개발 중이고, 앱은 `server.py`가 서빙한다. 그 작업은 더 이상 할 일이 아니다.
