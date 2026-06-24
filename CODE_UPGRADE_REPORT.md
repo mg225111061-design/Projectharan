@@ -197,7 +197,9 @@ Measured: `Fib(n) mod (10⁹+7)` → **~58× at n = 100 000** (naive ~4 ms → c
 Pell-mod `c=[2,1]` → ~80×. A small modulus (early values wrap → no clean fit) and a non-modular loop DECLINE
 (honest). `cfinite.companion_nth_mod` (mod inside power-by-squaring), `test_modular_recurrence_collapse`. Honest
 limits in the cert verbatim: f=1, Amdahl ceiling for embedding, DOMAIN-CONDITIONAL (C-finite modular recurrences
-only); per C6 the magnitude is perf_obs, the gate is the held-out verification.
+only); per C6 the magnitude is perf_obs, the gate is the held-out verification. It surfaces end-to-end:
+`run_optimize`'s `collapse` field reports `kind=modular_recurrence` for a modular loop, so the proven O(log n)
+modular collapse is part of the actual optimize result, not just the recognizer.
 
 ---
 

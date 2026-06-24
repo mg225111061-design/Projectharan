@@ -9357,6 +9357,11 @@ def test_run_optimize_collapse():
     assert cf and cf["kind"] == "recurrence" and cf["status"] == "COLLAPSED"
     assert cf["complexity"] == "O(n) → O(log n)" and cf["c"] == [1, 1] and cf["grade"] == "EXACT" and cf["certificate"]
 
+    fibm = "M = 10 ** 9 + 7\ndef f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, (a + b) % M\n    return a"
+    cm = EB.run_optimize(fibm, "normal")["collapse"]                 # the modular case (genuine-win) also surfaces
+    assert cm and cm["kind"] == "modular_recurrence" and cm["status"] == "COLLAPSED" and cm["c"] == [1, 1]
+    assert "(mod M)" in cm["complexity"] and cm["grade"] == "EXACT" and cm["certificate"]
+
     # no loop / glue code ⇒ no fabricated collapse (honest None)
     assert EB.run_optimize("def h(c):\n    return c.get('a', 1)", "normal")["collapse"] is None
 

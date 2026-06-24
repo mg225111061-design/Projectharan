@@ -263,6 +263,12 @@ def _loop_collapse(code: str, budget_s: float = 2.0) -> Optional[Dict]:
                 return {"kind": "recurrence", "status": "COLLAPSED", "order": rc.order, "c": rc.c,
                         "complexity": "O(n) → O(log n)", "ratio": round(rc.ratio, 1), "measured_win": rc.measured_win,
                         "grade": rc.verdict.status, "certificate": rc.verdict.certificate.detail}
+            mc = LR.decide_modular_recurrence_collapse(code, n=20000, trials=2)   # the genuine-win modular case
+            if mc.status == "COLLAPSED":
+                return {"kind": "modular_recurrence", "status": "COLLAPSED", "order": mc.order, "c": mc.c,
+                        "complexity": "O(n) → O(log n) (mod M)", "ratio": round(mc.ratio, 1),
+                        "measured_win": mc.measured_win, "grade": mc.verdict.status,
+                        "certificate": mc.verdict.certificate.detail}
         return None
 
     try:
