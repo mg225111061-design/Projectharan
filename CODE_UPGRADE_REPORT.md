@@ -247,6 +247,36 @@ general-purpose-accelerator claim (the DECLINEs are correct behaviour, not failu
 
 ---
 
+## §5 (HARAN / 50 algorithms) — an HONEST catalog over the absorbed arsenal: `algo50.py`
+
+The HARAN campaign tracks **50 NAMED layer-1 algorithms** (20 foundational · 10 frontier · 15 number-theory ·
+5 quantum/relativity). The honest framing (§0-A): these are 50 NAMED GENERAL ALGORITHMS — ≈15 truly-fundamental
+plus specializations/applications — **NOT 50 fundamentally-distinct structures**. The first deliverable is the
+SPINE: `algo50.py`, a single catalog that names all 50 and POINTS each into the real implementation already
+living in the absorbed engine (`mathmode/` decision procedures, `pillar3/`, the root frontier kernels, the
+`kernel_router` REGISTRY, the `sublinear_layer`, the `broth`). It re-implements nothing.
+
+Its honesty is mechanical, not asserted: a per-commit test (`test_algo50_registry`) IMPORTS every non-GAP entry
+point and asserts the named callable EXISTS — so "we have algorithm N" is a **re-checked fact**. The catalog
+carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), the re-checkable certificate, the
+TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
+eligibility, and a status.
+
+**Status (MEASURED, honest — never rounded up to "50 done"):** **33 CONFIRMED + 9 PARTIAL + 8 GAP.** The 8 GAPS
+are NAMED, not padded over: #13 Bostan–Mori, #14 Newton-iteration, #19 Gröbner, #28 autodiff, #32 power-towers,
+#34 Lucas-theorem+lifting, #43 sieve, #45 Jacobi/reciprocity. The 9 PARTIALS name the missing sub-variant (e.g.
+#36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
+Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
+#27 — NEVER marked EXACT). Tiers: fast 10 / normal 30 / extend 10. The honest-complexity caveats are RECORDED and
+test-enforced: **CAD (#18) is doubly-exponential — NEVER O(1); Lucas–Lehmer (#37) is O(p)-iteration with a real
+ceiling; the sieve (#43) is O(n log log n) enumeration, not a collapse.** Quantum/relativity (#46–50) is the exact
+ALGEBRAIC layer only, each EXACT with a recorded exact-only caveat. The heavy decision procedures (Petkovšek, ΠΣ*,
+Risch, CAD, Gröbner, Kovacic) are extend-tier — fast never hosts them. Broth measured live: **3,772 entries,
+O(1) lookup ≈ 0.05 µs, all-hit** (the precomputed-lookup-fast mechanism — it does NOT make execution O(1)).
+The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_registry`.
+
+---
+
 ## §X — WHAT WE MUST NOT CLAIM (verbatim)
 
 - fast/normal/extend are distinct roles with TIME BUDGETS (~1s/~30s/~8min); extend is BOUNDED at ~8 minutes,

@@ -8,7 +8,7 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **246 passed / 246** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **247 passed / 247** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
@@ -68,6 +68,14 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
 
 ## In progress / planned (NATIVE-CORE directive)
 - §0.5 cleanup: **C1 HANDOFF ✅ · C2 STATUS.md (this) + archive ✅ · C3 key wording ✅ · C4 mapped (e-graph→§1) ✅ · C5 versioning ✅ · C6 perf↔correctness gates ✅ · C-process stale-doc test ✅**.
+- **HARAN-50 ✅ (spine)** `algo50.py` — the honest CATALOG of the 50 NAMED layer-1 algorithms (20 foundational ·
+  10 frontier · 15 number-theory · 5 quantum/relativity), each POINTING into the real implementation (no
+  re-implementation). MEASURED status: **33 CONFIRMED + 9 PARTIAL + 8 GAP** — gaps NAMED not padded (#13 Bostan–
+  Mori, #14 Newton, #19 Gröbner, #28 autodiff, #32 power-towers, #34 Lucas-thm, #43 sieve, #45 Jacobi). A
+  per-commit test (`test_algo50_registry`) IMPORTS every non-gap entry point so "we have algorithm N" is re-checked.
+  47 EXACT-capable / 3 PROBABILISTIC; CAD doubly-exp + Lucas–Lehmer O(p)-iter caveats test-enforced; broth 3,772
+  entries @ ~0.05 µs O(1) lookup. The 8 GAPS are the next work queue. (§X: 50 NAMED GENERAL algorithms ≈15
+  fundamental + specializations, NOT 50 distinct structures; broth = precomputed-lookup-fast, NOT execution-O(1).)
 - **§3 ✅** AST-depth fast-triage before the proof cache (`proof_triage.py`; deterministic route, lossless verdict;
   regression demonstrated + fixed in `proof_cache.measure_triage`; `test_native_s3_triage_layer`).
 - **§2 ✅** ZERO-DEPENDENCY bit-blasting SMT (`bitblast_smt.py`: in-house DPLL SAT + bit-blaster + independent

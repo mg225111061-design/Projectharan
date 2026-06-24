@@ -9048,6 +9048,56 @@ def test_docs_not_stale():
           f"onboarding docs cannot silently drift from reality)")
 
 
+def test_algo50_registry():
+    """HARAN/MR.JEFFREY §1 — the 50 NAMED layer-1 algorithms are CATALOGUED honestly in `algo50`, and every
+    CONFIRMED/PARTIAL entry point RESOLVES (import + attribute) so 'we have algorithm N' is a re-checked fact,
+    never a claim. The catalog is the honest spine: GAPS are NAMED (never padded over), grades obey the ADT,
+    quantum/relativity is exact-algebraic-only, the heavy decision procedures are extend-tier (fast never runs
+    them), and the doubly-exp / O(p)-iteration / sieve-enumeration honesty caveats are RECORDED, not glossed."""
+    import algo50 as A
+    import kernel_verdict as KV
+
+    # (a) exactly 50, grouped 20 / 10 / 15 / 5 (no padding, no fake/duplicate structures)
+    c = A.counts()
+    assert c["total"] == 50 and (c["A"], c["B"], c["C"], c["D"]) == (20, 10, 15, 5), c
+    assert c["confirmed"] + c["partial"] + c["gap"] == 50, c
+    assert {a.num for a in A.ALGOS} == set(range(1, 51)), "numbers 1..50 each exactly once"
+
+    # (b) EVERY non-GAP entry point IMPORTS and the named callable EXISTS — the 'confirm' is re-checked, not claimed
+    v = A.verify_entrypoints()
+    assert v["all_present_resolve"], f"unresolved/mislabeled entry points: {v['missing']} {v['mislabeled']}"
+    assert len(v["ok"]) == c["present"] == c["confirmed"] + c["partial"], (len(v["ok"]), c)
+
+    # (c) the grade ADT is honoured; the PROBABILISTIC frontier kernels are NEVER marked EXACT (24/26/27)
+    for a in A.ALGOS:
+        assert a.grade in {KV.EXACT, KV.PROBABILISTIC, KV.DECLINE}, a
+        assert a.tier in {"fast", "normal", "extend"} and a.status in {"CONFIRMED", "PARTIAL", "GAP"}, a
+    for n in (24, 26, 27):
+        assert A.BY_NUM[n].grade == KV.PROBABILISTIC, f"#{n} must be PROBABILISTIC (never EXACT)"
+
+    # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
+    gaps = dict(A.gaps())
+    assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
+    assert set(gaps) == {13, 14, 19, 28, 32, 34, 43, 45}, gaps
+
+    # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
+    assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
+    assert "O(p)" in A.BY_NUM[37].complexity, "Lucas–Lehmer must be flagged O(p)-iteration (never O(1))"
+    assert "ENUMERATION" in A.BY_NUM[43].complexity.upper(), "sieve is enumeration, not a collapse"
+
+    # (f) TIER discipline: fast NEVER hosts the heavy decision procedures — those live in extend (budgeted ~8min)
+    HEAVY = {4, 6, 16, 18, 19, 20}   # Petkovsek, PiSigma*, Risch, CAD, Gröbner, Kovacic
+    assert all(A.BY_NUM[n].tier == "extend" for n in HEAVY), "heavy decision procedures must be extend-tier"
+    assert all(a.num not in HEAVY for a in A.by_tier("fast")), "fast must never host a heavy decision procedure"
+
+    # (g) quantum/relativity (46–50) is the exact ALGEBRAIC layer — all EXACT with a recorded exact-only caveat
+    for a in A.by_group("D"):
+        assert a.grade == KV.EXACT and a.note, f"#{a.num} must be EXACT with an exact-algebraic-only caveat"
+
+    print(f"PASS test_algo50_registry ({A.summary()}; all {c['present']} non-gap entry points resolve; "
+          f"{c['gap']} gaps NAMED not padded {sorted(gaps)}; CAD doubly-exp + Lucas–Lehmer O(p) caveats recorded)")
+
+
 def test_mode_budget_roles():
     """§1 (CORE) — fast/normal/extend are DISTINCT roles with DISTINCT, ENFORCED wall-clock budgets, not speed
     presets. The headline guarantee: extend is BOUNDED at ~8 min — NOT unlimited; at the deadline it returns the
