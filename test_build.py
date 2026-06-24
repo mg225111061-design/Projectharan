@@ -9234,6 +9234,54 @@ def test_loop_speedup():
           f"honest DECLINE [no closed form to collapse — never a faked speedup])")
 
 
+def test_loop_recurrence():
+    """§4 (ceiling-breaker) — an O(n) state-update loop computing a C-finite sequence collapses to an O(log n)
+    companion-matrix form, decided soundly by sample → fit → VERIFY. The Berlekamp-style fit is NEVER trusted on
+    its own: companion_nth must equal the USER'S ACTUAL loop on HELD-OUT n (beyond the fit window) AND at the
+    measured n — a wrong fit is rejected (DECLINE, never a wrong collapse). DOMAIN-CONDITIONAL: C-finite only (a
+    factorial / non-integer loop DECLINEs). Per C6 the speedup magnitude is perf_obs; the hard gate is the verified
+    equivalence (the O(log n) form ≡ the loop) + the honest-limit certificate."""
+    import loop_recurrence as LR
+    import cfinite
+    import kernel_verdict as KV
+
+    fib = "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
+    m = LR.decide_recurrence_collapse(fib, n=50000, trials=3)
+    assert m.status == "COLLAPSED" and m.verdict.status == KV.EXACT and m.verdict.certificate.passed
+    assert m.c == [1, 1] and m.init == [0, 1] and m.order == 2
+
+    # ★ soundness ★: the O(log n) companion form == a FRESH independent Fibonacci at held-out n (not the fitted seq)
+    def fib_ref(nn):
+        a, b = 0, 1
+        for _ in range(nn):
+            a, b = b, a + b
+        return a
+    for nv in (37, 101, 500, 50000):
+        assert cfinite.companion_nth(m.c, m.init, nv) == fib_ref(nv), f"companion ≠ Fibonacci at n={nv}"
+    perf_obs("recurrence_collapse_fib", ratio=round(m.ratio, 2), measured_win=m.measured_win,
+             naive_ms=round(m.naive_s * 1e3, 2), log_ms=round(m.log_s * 1e3, 2), n=m.n, order=m.order)
+
+    # honest-limit markers + the soundness basis stated verbatim in the certificate
+    cert = m.verdict.certificate.detail
+    for marker in ("DOMAIN-CONDITIONAL", "Amdahl", "f=1", "C-finite", "VERIFIED ≡ the user's loop on held-out"):
+        assert marker in cert, f"the certificate must state the honest limit / soundness basis: {marker}"
+
+    # ── DECLINE: a non-C-finite loop (factorial) and a non-integer loop are honestly declined (keep the loop) ──
+    fact = "def f(n):\n    p = 1\n    for k in range(1, n + 1):\n        p *= k\n    return p"
+    nonint = "def g(n):\n    return n / 2.0"
+    assert LR.decide_recurrence_collapse(fact, n=2000).status == "DECLINE", "factorial is not C-finite ⇒ DECLINE"
+    assert LR.decide_recurrence_collapse(nonint, n=2000).status == "DECLINE", "non-integer ⇒ DECLINE"
+    # a Pell-like recurrence (different coefficients) is also recognized + verified (not just Fibonacci)
+    pell = "def p(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, 2 * b + a\n    return a"
+    mp = LR.decide_recurrence_collapse(pell, n=3000)
+    assert mp.status == "COLLAPSED" and mp.c == [2, 1], mp
+
+    print(f"PASS test_loop_recurrence (Fibonacci O(n) loop → O(log n) companion [c={m.c}, init={m.init}], VERIFIED ≡ "
+          f"a FRESH Fibonacci on held-out n; MEASURED {m.ratio:.1f}× at n={m.n} [win={m.measured_win}; perf_obs, not a "
+          f"gate]; Pell c=[2,1] recognized; factorial & non-integer → honest DECLINE [not C-finite — keep the loop]; "
+          f"cert states f=1 / Amdahl / domain-conditional / held-out-verified)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

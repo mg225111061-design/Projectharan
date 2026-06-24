@@ -133,6 +133,26 @@ reports the proven O(1) collapse (`O(n) 루프 → O(1) 닫힌형 n(n+1)(2n+1)/6
 
 ---
 
+## §4 (ceiling-breaker) — linear-recurrence loop → O(log n) companion collapse, verified + measured
+
+A new ceiling-breaker class: an O(n) state-update loop computing a C-finite sequence (Fibonacci/Pell/tribonacci/…)
+collapses to an O(log n) companion-matrix form. `loop_recurrence.decide_recurrence_collapse(source)` decides it
+SOUNDLY without parsing the transition algebra: it SAMPLES the user's f(0..N), FITS the shortest exact integer
+recurrence (`mathmode.ingest.find_recurrence`, Berlekamp-style), and — the sound gate — VERIFIES
+`cfinite.companion_nth(c, init) ≡ the user's ACTUAL loop on HELD-OUT n` (beyond the fit window) and at the
+measured n. A wrong fit is rejected ⇒ DECLINE (never a wrong collapse). Measured: Fibonacci O(n) loop → O(log n)
+companion `c=[1,1]` **~6× at n = 50 000** (naive ~21 ms → ~3.5 ms), grade EXACT; Pell `c=[2,1]` recognized;
+factorial / non-integer loops are NOT C-finite ⇒ honest DECLINE (keep the loop).
+
+Honest framing in the certificate, verbatim: the collapse MEASURABLY wins when the sequence values GROW (bigint
+blowup makes the O(n) loop's per-step cost rise — Fibonacci-like); machine-int-bounded sequences stay cheap so the
+verified collapse may NOT beat the loop at a given n (`measured_win` is reported truthfully, never assumed). The
+loop IS the function (f = 1) ⇒ whole-program FOR THIS FUNCTION; embed it in a larger program and the speedup is ≤
+the **Amdahl** ceiling; **DOMAIN-CONDITIONAL** — C-finite sequences only. Per C6 the magnitude is `perf_obs`; the
+hard gate is the verified equivalence + the honest-limit certificate. `loop_recurrence.py`, `test_loop_recurrence`.
+
+---
+
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
 
 The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general
