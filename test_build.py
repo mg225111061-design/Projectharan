@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {13, 14, 19, 28, 34}, gaps   # #45 Jacobi, #43 sieve, #32 power-towers now CONFIRMED
+    assert set(gaps) == {13, 14, 19, 28}, gaps   # #45 Jacobi, #43 sieve, #32 power-towers, #34 Lucas now CONFIRMED
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9219,6 +9219,42 @@ def test_haran_power_tower_carmichael():
     print("PASS test_haran_power_tower_carmichael (#32: a^(b^c) mod m via Carmichael-λ; small battery == "
           "pow(a,b^c,m); large-formable cross-checked vs direct; PURE-THEOREM branch ground-truthed against a "
           "200001-bit exponent; λ(m) unit-validated; m<1/negatives → DECLINE; EXACT certificate re-checkable)")
+
+
+def test_haran_lucas_granville():
+    """HARAN #34 (Group C) — C(n,k) mod p^e by LUCAS' theorem (e=1) / GRANVILLE prime-power lifting (e≥2), EXACT
+    even for ASTRONOMICAL n (only the base-p digits / Σ⌊n/p^i⌋ matter). Certified two INDEPENDENT ways: the full
+    direct C(n,k) mod p^e for small n, and the mod-p Lucas digit-product for ANY n (valid at any size). Exhaustively
+    matched against math.comb across primes AND prime powers."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+    import math
+
+    # (a) exhaustive small: ALL (n,k), n<60, across primes AND PRIME POWERS == direct math.comb mod p^e
+    for p, e in [(2, 1), (3, 1), (5, 1), (7, 1), (2, 2), (3, 2), (2, 3), (5, 3), (7, 2)]:
+        pe = p ** e
+        for n in range(0, 60):
+            for k in range(0, n + 1):
+                v = NT.binom_mod_pe_grade(n, k, p, e)
+                assert v.status == KV.EXACT and v.result == math.comb(n, k) % pe, (n, k, p, e)
+
+    # (b) astronomical n (Lucas, e=1): C(10^18, 10^9) mod p — EXACT, mod-p cross-checked against the digit-product
+    v = NT.binom_mod_pe_grade(10 ** 18, 10 ** 9, 104729, 1)
+    assert v.status == KV.EXACT and v.result == NT._lucas_mod_p(10 ** 18, 10 ** 9, 104729)
+    assert v.certificate.kind == "binom_mod_pe_lucas_granville"
+
+    # (c) astronomical n, PRIME POWER: C(10^18, 12345) mod 3^7 — EXACT; its mod-3 projection == Lucas mod 3
+    v = NT.binom_mod_pe_grade(10 ** 18, 12345, 3, 7)
+    assert v.status == KV.EXACT and v.result % 3 == NT._lucas_mod_p(10 ** 18, 12345, 3)
+
+    # (d) edge + honest DECLINE: k>n → 0; p not prime / p^e>10^6 / negatives / e<1 → DECLINE
+    assert NT.binom_mod_pe_grade(5, 9, 7, 1).result == 0
+    for bad in [(10, 3, 4, 1), (10, 3, 2, 25), (-1, 0, 3, 1), (10, 3, 7, 0)]:
+        assert NT.binom_mod_pe_grade(*bad).status == KV.DECLINE
+
+    print("PASS test_haran_lucas_granville (#34: C(n,k) mod p^e via Lucas/Granville; exhaustive n<60 across 9 "
+          "(p,e) incl. prime powers == math.comb; astronomical C(10^18,10^9) mod p + C(10^18,12345) mod 3^7 with "
+          "mod-p Lucas cross-check; k>n→0; non-prime/p^e>10^6/negatives → DECLINE; EXACT certificate re-checkable)")
 
 
 def test_mode_budget_roles():

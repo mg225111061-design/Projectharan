@@ -536,6 +536,91 @@ def power_tower_grade(a: int, b: int, c: int, m: int) -> KV.Verdict:
     return KV.exact(val, "number_theory.power_tower", "Carmichael-λ reduction O(log)", cert)
 
 
+def _lucas_mod_p(n: int, k: int, p: int) -> int:
+    """C(n,k) mod p (prime) via Lucas' theorem: ∏ C(nᵢ,kᵢ) over the base-p digits. Handles ASTRONOMICAL n (only
+    the digits matter). Independent of the prime-power machinery — used as a mod-p cross-check for any n."""
+    r = 1
+    while (n or k) and r:
+        ni, ki = n % p, k % p
+        if ki > ni:
+            return 0
+        c = 1                                                # C(ni,ki) mod p with ni,ki < p (direct, invertible)
+        for j in range(min(ki, ni - ki)):
+            c = c * (ni - j) % p * pow(j + 1, -1, p) % p
+        r = r * c % p
+        n //= p
+        k //= p
+    return r
+
+
+def _binom_mod_pe(n: int, k: int, p: int, e: int) -> int:
+    """C(n,k) mod p^e for prime p, e ≥ 1, handling ASTRONOMICAL n (Granville/Andrew: n! = p^{v_p} · ∏ g(⌊n/p^i⌋),
+    Kummer valuation, unit part inverted mod p^e). g(m) = ∏_{1≤j≤m, p∤j} j mod p^e."""
+    if k < 0 or k > n:
+        return 0
+    pe = p ** e
+    blk = 1
+    for j in range(1, pe):                                   # one full coprime-to-p block ≡ ±1 (generalized Wilson)
+        if j % p:
+            blk = blk * j % pe
+
+    def g(m: int) -> int:                                    # ∏_{1≤j≤m, p∤j} j mod p^e (period-pe collapse)
+        res = pow(blk, m // pe, pe)
+        for j in range(1, m % pe + 1):
+            if j % p:
+                res = res * j % pe
+        return res
+
+    def fact_unit_val(m: int):                               # m! = p^val · unit (unit coprime to p)
+        unit, val = 1, 0
+        while m:
+            unit = unit * g(m) % pe
+            m //= p
+            val += m                                         # Legendre v_p(m!) = Σ ⌊m/p^i⌋
+        return unit, val
+
+    un, vn = fact_unit_val(n)
+    uk, vk = fact_unit_val(k)
+    ud, vd = fact_unit_val(n - k)
+    v = vn - vk - vd                                         # Kummer: v = #carries adding k+(n−k) base p
+    if v >= e:
+        return 0                                             # p^e | C(n,k)
+    unit = un * pow(uk, -1, pe) % pe * pow(ud, -1, pe) % pe
+    return p ** v * unit % pe
+
+
+def binom_mod_pe_grade(n: int, k: int, p: int, e: int = 1) -> KV.Verdict:
+    """C(n,k) mod p^e by LUCAS' THEOREM (e=1) / GRANVILLE prime-power lifting (e≥2) — exact even for ASTRONOMICAL n
+    (only the base-p digits / Σ⌊n/p^i⌋ are needed). EXACT, certified two INDEPENDENT ways: (1) for n ≤ 2000 a
+    direct cross-check against math.comb(n,k) mod p^e (full p^e ground truth); (2) for EVERY n the result reduced
+    mod p must equal the independent Lucas digit-product (mod-p ground truth, valid at any size). p must be prime,
+    p^e ≤ 10^6 (cert bound), n,k ≥ 0; otherwise honest DECLINE."""
+    if n < 0 or k < 0 or e < 1:
+        return KV.decline(f"binom_mod_pe: need n,k≥0, e≥1 (got n={n},k={k},e={e}) ⇒ DECLINE", "number_theory.binom_mod_pe")
+    if not (p < _DET_BOUND and _is_prime_det(p)):
+        return KV.decline(f"binom_mod_pe: p={p} must be a (small) prime ⇒ DECLINE", "number_theory.binom_mod_pe")
+    if p ** e > 10 ** 6:
+        return KV.decline(f"binom_mod_pe: p^e={p**e} beyond the certified bound 10^6 ⇒ DECLINE", "number_theory.binom_mod_pe")
+    pe = p ** e
+    val = _binom_mod_pe(n, k, p, e)
+    # ── independent re-checks ──
+    luc = _lucas_mod_p(n, k, p)
+    if val % p != luc:                                       # ★ mod-p projection MUST equal Lucas (any n) ★
+        return KV.decline(f"binom_mod_pe: result {val} mod p ≠ Lucas {luc} ⇒ DECLINE (correctness-bug guard)",
+                          "number_theory.binom_mod_pe")
+    how = "≡ Lucas mod p (any n)"
+    if n <= 2000:                                            # full p^e ground truth where comb is computable
+        import math
+        if val != math.comb(n, k) % pe:
+            return KV.decline(f"binom_mod_pe: result ≠ direct C(n,k) mod p^e ⇒ DECLINE (bug guard)",
+                              "number_theory.binom_mod_pe")
+        how = "direct C(n,k) mod p^e + " + how
+    cert = KV.Cert(KV.EXACT, "binom_mod_pe_lucas_granville", passed=True,
+                   check_cost="O(log_p n · p^e) + cross-check",
+                   detail=f"C({n},{k}) mod {p}^{e} = {val}; certified: {how}")
+    return KV.exact(val, "number_theory.binom_mod_pe", "Lucas/Granville O(log_p n)", cert)
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
     """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
@@ -568,4 +653,6 @@ def solve(problem: dict) -> KV.Verdict:
         return sieve_primes_grade(problem["n"])
     if op == "power_tower":
         return power_tower_grade(problem["a"], problem["b"], problem["c"], problem["m"])
+    if op == "binom_mod_pe":
+        return binom_mod_pe_grade(problem["n"], problem["k"], problem["p"], problem.get("e", 1))
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

@@ -262,9 +262,9 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **36 CONFIRMED + 9 PARTIAL + 5 GAP** (gaps close
-one-per-commit as they are built). The 5 remaining GAPS are NAMED, not padded over: #13 Bostan–Mori, #14
-Newton-iteration, #19 Gröbner, #28 autodiff, #34 Lucas-theorem+lifting. The 9 PARTIALS
+**Status (MEASURED, honest — never rounded up to "50 done"):** **37 CONFIRMED + 9 PARTIAL + 4 GAP** (gaps close
+one-per-commit as they are built; **Group C number-theory is now complete**). The 4 remaining GAPS are NAMED, not
+padded over: #13 Bostan–Mori, #14 Newton-iteration, #19 Gröbner, #28 autodiff. The 9 PARTIALS
 name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
@@ -296,6 +296,13 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   u^λ ≡ 1 on units). The test ground-truths the pure-theorem branch against a 200001-bit exponent. m<1/negatives →
   DECLINE; m unfactorable → DECLINE (can't certify λ). EXACT, tier fast, broth-eligible.
   `test_haran_power_tower_carmichael`. (36 CONFIRMED now.)
+- **#34 Lucas' theorem + Granville lifting** → `mathmode.number_theory.binom_mod_pe_grade`. C(n,k) mod p^e by
+  Lucas (e=1) / the Granville–Andrew prime-power method (n! = p^{v_p}·∏ g(⌊n/p^i⌋), Kummer valuation, unit part
+  inverted mod p^e) — exact even for ASTRONOMICAL n. Certified two INDEPENDENT ways: full direct math.comb mod p^e
+  for n ≤ 2000, and the mod-p Lucas digit-product for ANY n. Exhaustively matched against math.comb (n<60 across
+  9 (p,e) incl. prime powers); astronomical C(10^18,10^9) mod p + C(10^18,12345) mod 3^7 cross-checked. Non-prime
+  p / p^e>10^6 / negatives → DECLINE. EXACT, tier fast, broth-eligible. `test_haran_lucas_granville`. (37 CONFIRMED;
+  **Group C complete.**)
 
 ---
 
