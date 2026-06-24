@@ -9424,6 +9424,35 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_mobius():
+    """HARAN #44 (Group C) — the Möbius function μ(n) from the verified factorization (0 if squareful, else
+    (−1)^#distinct-primes), EXACT, certified two INDEPENDENT ways: the Dirichlet identity Σ_{d|n} μ(d) = [n=1]
+    over the divisors, and a cross-check against a linear-sieve μ (a different algorithm). Closes the Euler-φ
+    partial (φ AND μ now present)."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    # (a) exhaustive 1..1200 == an independent linear-sieve μ, all EXACT with the Dirichlet certificate
+    sieve = NT._mobius_sieve(1200)
+    for n in range(1, 1201):
+        v = NT.mobius_grade(n)
+        assert v.status == KV.EXACT and v.result == sieve[n], (n, v.result, sieve[n])
+        assert v.certificate.kind == "mobius_dirichlet"
+
+    # (b) known values incl. squarefree, squareful, and a 4-prime squarefree (μ=+1)
+    assert [NT.mobius_grade(n).result for n in (1, 2, 6, 4, 12, 30, 210)] == [1, -1, 1, 0, 0, -1, 1]
+
+    # (c) Mertens partial sum M(100)=Σ_{n≤100} μ(n) via the graded function matches the sieve cumulative
+    assert sum(NT.mobius_grade(n).result for n in range(1, 101)) == sum(sieve[1:101])
+
+    # (d) n<1 ⇒ honest DECLINE
+    assert NT.mobius_grade(0).status == KV.DECLINE and NT.mobius_grade(-4).status == KV.DECLINE
+
+    print("PASS test_haran_mobius (#44: Möbius μ from factorization, EXACT; 1..1200 == independent linear-sieve μ; "
+          "Dirichlet Σ_(d|n)μ(d)=[n=1] cert; μ(1,2,6,4,12,30,210)=1,−1,1,0,0,−1,1; Mertens M(100) matches; "
+          "n<1 → DECLINE — closes the Euler-φ partial)")
+
+
 def test_haran_broth_lookup():
     """HARAN §2 — the cross-algorithm BROTH: common instantiations of SEVERAL of the 50 algorithms pre-proven
     OFFLINE → O(1) hash lookup at runtime. The certificate discipline is the strongest possible: EVERY cached

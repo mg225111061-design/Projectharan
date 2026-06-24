@@ -196,9 +196,10 @@ _C: List[Algo] = [
          KV.EXACT, "soundness (each prime independently MR-verified) + completeness (trial-division cross-check / "
          "π(n) checkpoint)", "O(n log log n) ENUMERATION — not a collapse", False, NORMAL, False,
          note="classic boolean sieve; segmented/wheel are constant-factor/memory optimizations, not yet added"),
-    Algo(44, "Euler φ / Möbius / multiplicative functions", "C", "mathmode.number_theory", "euler_phi_grade",
-         KV.EXACT, "φ(n)=∏(p−1)p^(e−1) via verified factorization (multiplicativity)", "factorization-bound", False,
-         NORMAL, False, PARTIAL, "Euler φ present; Möbius μ / general multiplicative eval not yet"),
+    Algo(44, "Euler φ / Möbius / multiplicative functions", "C", "mathmode.number_theory", "mobius_grade",
+         KV.EXACT, "μ: Dirichlet Σ_(d|n)μ(d)=[n=1] + linear-sieve cross-check; φ: ∏(p−1)p^(e−1)",
+         "factorization-bound", False, NORMAL, True,
+         note="Euler φ AND Möbius μ present; an arbitrary-multiplicative-function framework not yet abstracted"),
     Algo(45, "Quadratic reciprocity / Jacobi symbol", "C", "mathmode.number_theory", "jacobi_grade", KV.EXACT,
          "reciprocity-law value ≡ ∏ Legendre (Euler criterion) over factorization — two algorithms agree",
          "O(log a · log n)", True, FAST, True),

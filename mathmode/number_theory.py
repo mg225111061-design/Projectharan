@@ -261,6 +261,67 @@ def euler_phi_grade(n: int) -> KV.Verdict:
     return KV.exact(phi, "number_theory.euler_phi", "via factorization", cert)
 
 
+def _mobius_from_factors(factors: dict) -> int:
+    if any(e >= 2 for e in factors.values()):
+        return 0                                              # a squared prime factor ⇒ μ = 0
+    return (-1) ** len(factors)                               # squarefree ⇒ (−1)^(#distinct primes)
+
+
+def _mobius_sieve(limit: int) -> List[int]:
+    """Möbius μ for 0..limit by a linear sieve (INDEPENDENT of factorization — the cross-check oracle)."""
+    mu = [0] * (limit + 1)
+    if limit >= 1:
+        mu[1] = 1
+    primes: List[int] = []
+    is_comp = [False] * (limit + 1)
+    for i in range(2, limit + 1):
+        if not is_comp[i]:
+            primes.append(i)
+            mu[i] = -1
+        for p in primes:
+            if i * p > limit:
+                break
+            is_comp[i * p] = True
+            if i % p == 0:
+                mu[i * p] = 0
+                break
+            mu[i * p] = -mu[i]
+    return mu
+
+
+def mobius_grade(n: int) -> KV.Verdict:
+    """Möbius μ(n) from the prime factorization (0 if squareful, else (−1)^#distinct-primes), EXACT. Certified
+    two INDEPENDENT ways: (1) the Dirichlet identity Σ_{d|n} μ(d) = [n=1] re-checked over the divisors, and (2)
+    for small n a cross-check against a linear-sieve μ (a different algorithm). n<1 ⇒ DECLINE."""
+    if n < 1:
+        return KV.decline(f"mobius: n={n} < 1 ⇒ DECLINE", "number_theory.mobius")
+    fv = factorize_grade(n)
+    if fv.status == KV.DECLINE:
+        return fv
+    mu = _mobius_from_factors(fv.result)
+    # (1) Dirichlet: Σ_{d|n} μ(d) = 1 if n==1 else 0 — re-checked over all divisors (μ at each via its factors)
+    divisors = [d for d in range(1, n + 1) if n % d == 0] if n <= 100000 else None
+    if divisors is not None:
+        s = 0
+        for d in divisors:
+            dv = factorize_grade(d)
+            s += _mobius_from_factors(dv.result) if dv.status != KV.DECLINE else 0
+        if s != (1 if n == 1 else 0):
+            return KV.decline(f"mobius: Σ_(d|n) μ(d) = {s} ≠ [n=1] ⇒ DECLINE (correctness-bug guard)",
+                              "number_theory.mobius")
+        how = "Dirichlet Σ_(d|n) μ(d)=[n=1]"
+    else:
+        how = "multiplicativity over the verified factorization (n too large for the divisor-sum recheck)"
+    # (2) independent linear-sieve cross-check for small n
+    if n <= 20000 and mu != _mobius_sieve(n)[n]:
+        return KV.decline("mobius: ≠ linear-sieve μ ⇒ DECLINE (bug guard)", "number_theory.mobius")
+    if n <= 20000:
+        how += " + linear-sieve cross-check"
+    cert = KV.Cert(KV.EXACT, "mobius_dirichlet", passed=True, check_cost="O(#factors) + divisor-sum recheck",
+                   detail=f"μ({n}) = {mu} via the verified factorization {fv.result}; certified: {how}")
+    return KV.exact(mu, "number_theory.mobius", "via factorization", cert)
+
+
 # ── discrete logarithm (baby-step giant-step) — certificate g^x ≡ h (mod m) ──────────────────────────────
 def discrete_log_grade(g: int, h: int, m: int) -> KV.Verdict:
     """Find x with g^x ≡ h (mod m) via baby-step/giant-step (O(√m)). Certificate: pow(g,x,m)==h%m (exact). No
@@ -655,4 +716,6 @@ def solve(problem: dict) -> KV.Verdict:
         return power_tower_grade(problem["a"], problem["b"], problem["c"], problem["m"])
     if op == "binom_mod_pe":
         return binom_mod_pe_grade(problem["n"], problem["k"], problem["p"], problem.get("e", 1))
+    if op == "mobius":
+        return mobius_grade(problem["n"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")
