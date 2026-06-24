@@ -192,6 +192,19 @@ bug — these gates are what prevent it.
 
 ---
 
+## §4 (fold coverage) — MEASURED, domain-conditional loop-collapse coverage
+
+A capstone metric that quantifies the loop-collapse capability honestly, exactly as the MATH §7 benchmark reports
+measured coverage (never a fabricated score). `loop_collapse_bench.run()` runs a representative corpus of 13 loops
+through the unified §2/§4 collapse decision and grades each: **COLLAPSE 8** (Σk/Σk²/Σk³/Σk·2ᵏ/Σ1/(k(k+1)) → O(1);
+Fibonacci/Pell/Lucas → O(log n)), **PROVEN-IRREDUCIBLE 2** (Σ1/k harmonic, Σ1/(k²+1) — a first-class "no closed
+form"), **honest DECLINE 3** (factorial Π, Σ(k mod 3) non-hypergeometric, glue — outside the decided class).
+**13/13 matched the expected classification; all 10 decided rows carry an EXACT certificate.** The report states
+verbatim that this is the MEASURED share of a STRUCTURED corpus — DOMAIN-CONDITIONAL by construction, NEVER a
+general-purpose-accelerator claim (the DECLINEs are correct behaviour, not failures). `test_loop_collapse_coverage`.
+
+---
+
 ## §X — WHAT WE MUST NOT CLAIM (verbatim)
 
 - fast/normal/extend are distinct roles with TIME BUDGETS (~1s/~30s/~8min); extend is BOUNDED at ~8 minutes,
