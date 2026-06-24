@@ -60,6 +60,21 @@ def _structured() -> List[Tuple[str, int, str, object]]:
     # #49 Wigner 3j — three exact algebraic values
     for j in [(1, 1, 2, 0, 0, 0), (1, 1, 0, 0, 0, 0), (2, 2, 2, 0, 0, 0)]:
         items.append((f"wigner3j·{j}", 49, "3j", (lambda j=j: W.wigner3j(*j))))
+    # broaden the corpus across more of the 50 (decision procedures + the closed gaps/partials), small fast inputs
+    import groebner as GB
+    import hermite as HM
+    import cp_decompose as CP
+    import mathmode.telescoping as TS
+    import mathmode.decision_summation as DS
+    items.append(("gosper", 1, "Σ indefinite", (lambda: TS.gosper_indefinite("k"))))
+    items.append(("abramov", 5, "rational sum", (lambda: DS.abramov_summable("1/(k*(k+1))"))))
+    items.append(("hermite", 17, "∫A/B rational", (lambda: HM.hermite_reduce_grade("1", "x**2*(x+1)"))))
+    items.append(("groebner", 19, "ideal membership", (lambda: GB.ideal_member_grade(["x-1", "y-1"], "x*y-1", ["x", "y"]))))
+    items.append(("cp_rank1", 25, "CP rank-1", (lambda: CP.cp_decompose_grade([[[2, -2], [1, -1]], [[4, -4], [2, -2]]]))))
+    items.append(("bpsw", 36, "primality", (lambda: NT.bpsw_grade(10007))))
+    items.append(("factorize", 38, "∏ pᵢ^eᵢ", (lambda: NT.factorize_grade(360))))
+    items.append(("cipolla", 39, "modular sqrt", (lambda: NT.cipolla_sqrt_grade(2, 7))))
+    items.append(("rho_dlog", 40, "discrete log", (lambda: NT.pollard_rho_dlog_grade(2, 22, 29))))
     return items
 
 

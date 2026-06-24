@@ -9723,18 +9723,18 @@ def test_haran_coverage():
     import kernel_verdict as KV
 
     m = C.measure()
-    # every structured item certifies, across breadth (≥10 distinct algorithms of the 50)
-    assert m["covered_cases"] == m["corpus_structured"] >= 30, m
-    assert m["n_algorithms_covered"] >= 10 and m["families_covered"] >= 30, m
-    assert m["by_grade"][KV.EXACT] >= 30, m
+    # every structured item certifies, across breadth (≥20 distinct algorithms of the 50)
+    assert m["covered_cases"] == m["corpus_structured"] >= 40, m
+    assert m["n_algorithms_covered"] >= 20 and m["families_covered"] >= 40, m
+    assert m["by_grade"][KV.EXACT] >= 40, m
 
     # ★ DOMAIN-CONDITIONAL honesty: the adversarial/unstructured block declines IN FULL (structure absent) ★
     assert m["adversarial_correct"] and m["adversarial_declined"] == m["adversarial_total"] == 6, m
 
     print(f"PASS test_haran_coverage (§3: {m['covered_cases']} covered cases across {m['n_algorithms_covered']} of "
-          f"the 50 algorithms [{m['families_covered']} generalized families] — all certified; {m['adversarial_declined']}"
-          f"/{m['adversarial_total']} adversarial/unstructured inputs correctly DECLINE — DOMAIN-CONDITIONAL, NOT a "
-          f"general-purpose accelerator, NOT fake 100%)")
+          f"the 50 algorithms [{m['families_covered']} generalized families] — all certified EXACT; "
+          f"{m['adversarial_declined']}/{m['adversarial_total']} adversarial/unstructured inputs correctly DECLINE "
+          f"— DOMAIN-CONDITIONAL, NOT a general-purpose accelerator, NOT fake 100%)")
 
 
 def test_haran_mobius():
