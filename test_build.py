@@ -9843,6 +9843,55 @@ def test_haran_nested_loop_collapse():
           "CAS-proposed + bounded-execution-gated)")
 
 
+def test_haran_dispatch_adversarial_soundness():
+    """HARAN §3 (soundness battery) — the FULL dispatch pipeline (every code shape) is SOUND on a battery of tricky
+    near-miss inputs: each either DECLINEs (NONE) or OFFLOADs a closed form that MATCHES real execution — NEVER a
+    wrong closed form, and NEVER a hang. This consolidates the per-shape guarantees into one regression gate. The
+    "tricky-but-valid" cases prove the recognizers are not over-conservative; the "must-decline" cases prove they
+    never collapse what they cannot prove; the infinite-recursion & huge-bound cases prove no input executes an
+    unbounded loop (the gate is bounded — found-and-fixed hang class)."""
+    import structure_recognizer as SR
+    import sympy
+    import time as _t
+
+    # (a) tricky-but-VALID: must OFFLOAD a closed form that matches real execution (recognizers not over-conservative)
+    valid = [
+        ("def f(n):\n s=0\n for n in range(n):\n  s+=n\n return s", lambda n: sum(range(n))),       # loop var shadows param
+        ("def f(n):\n s=0\n for k in range(n):\n  s += k/3\n return s", lambda n: sum(k / 3 for k in range(n))),  # true-div
+        ("def f(n):\n s=0\n for k in range(n**5):\n  s+=k\n return s", lambda n: sum(range(n ** 5))),  # huge poly bound (bounded gate)
+    ]
+    for src, ref in valid:
+        d = SR.dispatch(src, "f")
+        assert d.status == "OFFLOADED", (src, d.status, d.detail)
+        F = sympy.sympify(d.closed_form); p = next(iter(F.free_symbols), sympy.Symbol("n"))
+        for N in (2, 3, 4):
+            assert abs(float(F.subs(p, N)) - ref(N)) < 1e-6, (src, N, d.closed_form)
+
+    # (b) must DECLINE — the recognizer/gate can only refuse on a misread, never ship a wrong collapse
+    must_decline = [
+        "def f(n):\n s=0\n for k in range(n):\n  if k>5: break\n  s+=k\n return s",               # break
+        "def f(n):\n s=0\n for k in range(n):\n  if k%2: continue\n  s+=k\n return s",             # continue
+        "def f(n):\n s=0\n acc=[]\n for k in range(n):\n  acc.append(k)\n  s+=k\n return s",       # side effect
+        "def f(n):\n s=0\n for k in range(-n, n):\n  s+=k\n return s",                              # non-constant lower bound
+        "def f(n):\n return reduce(lambda a,k: a + (lambda x: x*x)(k), range(1,n+1), 0)",          # nested lambda in reduce
+        "def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   acc += 7\n return acc",  # nested constant body
+        "G=5\ndef f(n):\n if n<1:\n  return 0\n return f(n-1)+n*G",                                 # recursion body refs a global
+    ]
+    for src in must_decline:
+        assert SR.dispatch(src, "f").status == "NONE", src
+
+    # (c) NO-HANG: an infinite recursion `f(n)=f(n)+1` (self-call is f(n), not f(n-1)) is STATICALLY rejected — it
+    #     must DECLINE FAST, never executed. (This assertion returning under the bound is the no-hang proof.)
+    _t0 = _t.monotonic()
+    assert SR.dispatch("def f(n):\n if n<1:\n  return 0\n return f(n)+1", "f").status == "NONE"
+    assert _t.monotonic() - _t0 < 2.0, "infinite recursion must be statically rejected, never executed (no hang)"
+
+    print("PASS test_haran_dispatch_adversarial_soundness (full-pipeline battery: loop-var-shadow / true-div / "
+          "n⁵-bound OFFLOAD correctly [recognizers not over-conservative]; break / continue / side-effect / "
+          "non-constant-bound / nested-lambda-reduce / nested-constant-body / global-in-recursion all DECLINE; "
+          "infinite recursion statically rejected FAST [no-hang] — NEVER a wrong closed form, NEVER a hang)")
+
+
 def test_haran_filtered_loop_collapse():
     """HARAN §3 (code-shape: FILTERED) — a modular-filtered accumulation `for k in range(lo,hi): if k%M==R: acc +=
     h(k)` (O(n)) collapses to an O(1) closed form by the EXACT reindex k = M·t + r₀ (r₀ = least k≥lo with k≡R mod M),
