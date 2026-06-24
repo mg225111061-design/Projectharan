@@ -96,6 +96,15 @@ def _names_used(node: ast.AST) -> set:
     return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
 
 
+def _canon_expr(src: str) -> str:
+    """Canonical source for an expression: round-trip through the AST so cosmetically-different
+    spellings (`(n) + 1` vs `n + 1`) collapse to one string. Keeps the structural key shape-invariant."""
+    try:
+        return ast.unparse(ast.parse(src, mode="eval").body)
+    except SyntaxError:
+        return src
+
+
 def _has_call(fnnode: ast.AST, mod: str) -> bool:
     """True if the function calls `mod.<something>` (e.g. re.* or random.*)."""
     for n in ast.walk(fnnode):
@@ -181,7 +190,7 @@ def _while_acc_loop(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
     kvar = cond.left.id
     ot = type(cond.ops[0]).__name__
     hi_src = ast.unparse(cond.comparators[0])
-    hi = f"({hi_src}) + 1" if ot == "LtE" else (hi_src if ot == "Lt" else None)
+    hi = _canon_expr(f"({hi_src}) + 1") if ot == "LtE" else (hi_src if ot == "Lt" else None)
     if hi is None:
         return None
     inits = {}                                               # simple pre-loop assigns (handles 's=0; k=1')
@@ -250,10 +259,82 @@ def _comprehension_acc(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
     return _AccLoop(var=var, lo=lo, hi=hi, op=op, algebra=algebra, body=body)
 
 
+def _recursion_acc(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
+    """CODE-SHAPE NORMALIZATION: a LINEAR self-recursion `def f(p): if p<c: return ID; return f(p-1) OP h(p)` ⇒
+    the SAME `_AccLoop` (sum k=lo..p of h(k)). Conservative — exactly one self-call f(p−1), monoid-identity base,
+    h(p) depends only on p; else None. Binary recursion (f(p−1)+f(p−2)) has two self-calls ⇒ rejected."""
+    import copy
+    if _for_loops(fnnode) or any(isinstance(n, ast.While) for n in ast.walk(fnnode)):
+        return None
+    a = fnnode.args
+    if len(a.args) != 1 or a.vararg or a.kwarg or a.kwonlyargs:
+        return None
+    p, fname = a.args[0].arg, fnnode.name
+    selfcalls = [n for n in ast.walk(fnnode) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Name) and n.func.id == fname]
+    if len(selfcalls) != 1:                                  # linear recursion only (binary → reject)
+        return None
+    sc = selfcalls[0]
+    if not (len(sc.args) == 1 and isinstance(sc.args[0], ast.BinOp) and isinstance(sc.args[0].op, ast.Sub)
+            and isinstance(sc.args[0].left, ast.Name) and sc.args[0].left.id == p
+            and isinstance(sc.args[0].right, ast.Constant) and sc.args[0].right.value == 1):
+        return None                                          # the self-call must be exactly f(p−1)
+    body = fnnode.body
+    base_test = base_ret = rec_ret = None
+    if len(body) == 2 and isinstance(body[0], ast.If) and isinstance(body[1], ast.Return):
+        iff = body[0]
+        if len(iff.body) == 1 and isinstance(iff.body[0], ast.Return) and not iff.orelse:
+            base_test, base_ret, rec_ret = iff.test, iff.body[0], body[1]
+    elif len(body) == 1 and isinstance(body[0], ast.If) and body[0].orelse:
+        iff = body[0]
+        if (len(iff.body) == 1 and isinstance(iff.body[0], ast.Return)
+                and len(iff.orelse) == 1 and isinstance(iff.orelse[0], ast.Return)):
+            base_test, base_ret, rec_ret = iff.test, iff.body[0], iff.orelse[0]
+    if base_test is None:
+        return None
+    if not (isinstance(base_test, ast.Compare) and len(base_test.ops) == 1 and isinstance(base_test.left, ast.Name)
+            and base_test.left.id == p and isinstance(base_test.comparators[0], ast.Constant)):
+        return None
+    cval, ot = base_test.comparators[0].value, type(base_test.ops[0]).__name__
+    if ot == "Lt":
+        lo = cval                                            # p<c → terms from k=c
+    elif ot in ("LtE", "Eq"):
+        lo = cval + 1                                        # p<=c / p==c → terms from k=c+1
+    else:
+        return None
+    rv = rec_ret.value
+    if not (isinstance(rv, ast.BinOp) and type(rv.op).__name__ in _MONOID_BIN):
+        return None
+    b = _MONOID_BIN[type(rv.op).__name__]
+    sides = [rv.left, rv.right]
+    if sides[0] is sc:
+        h = sides[1]
+    elif sides[1] is sc:
+        h = sides[0]
+    else:
+        return None                                          # recursion term must be f(p−1) OP h(p)
+    if not isinstance(base_ret.value, ast.Constant):
+        return None
+    ident = base_ret.value.value
+    if (b[0] == "+" and ident != 0) or (b[0] == "*" and ident != 1):
+        return None                                          # base case must be the monoid identity
+    idx = "k" if p != "k" else "j"
+    hh = copy.deepcopy(h)
+    for nd in ast.walk(hh):
+        if isinstance(nd, ast.Name) and nd.id == p:
+            nd.id = idx
+    body_idx = ast.unparse(hh)
+    if idx not in _names_used(ast.parse(body_idx, mode="eval")):
+        return None                                          # the summand must depend on the index
+    return _AccLoop(var=idx, lo=str(lo), hi=_canon_expr(f"{p} + 1"), op=b[0], algebra=b[1], body=body_idx)
+
+
 def _acc_loop_any_shape(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
-    """Code-shape invariance: a for-loop, a counter-while, and a sum/prod comprehension computing the same
-    accumulation all NORMALIZE to the same `_AccLoop` structural key (same op/algebra/body) ⇒ the same algorithm."""
-    return _closed_form_loop(fnnode) or _while_acc_loop(fnnode) or _comprehension_acc(fnnode)
+    """Code-shape invariance: a for-loop, a counter-while, a sum/prod comprehension, and a linear self-recursion
+    computing the same accumulation all NORMALIZE to the same `_AccLoop` structural key (same op/algebra/body) ⇒
+    the same algorithm + the same verified closed form."""
+    return (_closed_form_loop(fnnode) or _while_acc_loop(fnnode) or _comprehension_acc(fnnode)
+            or _recursion_acc(fnnode))
 
 
 @dataclass
@@ -370,8 +451,11 @@ _SAMPLE_N = [1, 2, 3, 5, 8, 13, 20, 37, 64]
 
 
 def _make_callable(source: str, name: str):
-    ns: dict = {}
-    exec(compile(source, "<recognize>", "exec"), {"__builtins__": _SAFE_BUILTINS}, ns)  # noqa: S102
+    # ONE shared namespace for globals+locals: a recursive function's __globals__ must contain itself,
+    # else its self-call raises NameError (the classic exec-with-two-dicts gotcha). __builtins__ stays
+    # restricted, so executing the analyzed code for the equivalence gate still cannot import/open/eval.
+    ns: dict = {"__builtins__": _SAFE_BUILTINS}
+    exec(compile(source, "<recognize>", "exec"), ns)  # noqa: S102
     return ns.get(name)
 
 

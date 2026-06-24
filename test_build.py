@@ -9714,27 +9714,31 @@ def test_haran_tier_routing():
 
 
 def test_haran_code_shape_invariance():
-    """HARAN §3 (code-shape mapping) — the SAME mathematical structure written as a for-loop, a counter-while, and
-    a sum/prod comprehension all NORMALIZE to the SAME structural key (CLOSED_FORM_LOOP, same op/algebra/body) AND
-    the verified lift produces the SAME O(1) closed form. One algorithm, many code shapes ⇒ coverage widens WITHOUT
-    inventing structures. Adversarial (soundness): a non-counter while and an accumulator-dependent body must NOT
-    be misclassified — the execution gate can only DECLINE on a misread, never ship a wrong collapse."""
+    """HARAN §3 (code-shape mapping) — the SAME mathematical structure written as a for-loop, a counter-while, a
+    sum/prod comprehension, AND a linear self-recursion all NORMALIZE to the SAME structural key (CLOSED_FORM_LOOP,
+    BYTE-IDENTICAL op/algebra/body/bounds) AND the verified lift produces the SAME O(1) closed form. The recursion's
+    closed form is differential-equivalence verified against the ACTUALLY-EXECUTED recursive code (the gate runs real
+    self-calls). One algorithm, many code shapes ⇒ coverage widens WITHOUT inventing structures. Adversarial
+    (soundness): a non-counter while, an accumulator-dependent body, and BINARY recursion (two self-calls, e.g.
+    Fibonacci) must NOT be misclassified — the execution gate can only DECLINE on a misread, never ship a wrong
+    collapse."""
     import structure_recognizer as SR
 
     forsrc = "def f(n):\n s=0\n for k in range(1,n+1):\n  s+=k*k\n return s"
     whilesrc = "def f(n):\n s=0; k=1\n while k<=n:\n  s+=k*k; k+=1\n return s"
     compsrc = "def f(n):\n return sum(k*k for k in range(1,n+1))"
+    recursrc = "def f(n):\n if n<1:\n  return 0\n return f(n-1)+n*n"           # linear self-recursion of Σk²
 
     keys, forms = set(), set()
-    for src in (forsrc, whilesrc, compsrc):
+    for src in (forsrc, whilesrc, compsrc, recursrc):
         acc = SR._acc_loop_any_shape(SR._first_fn(src, "f"))
         assert acc is not None, src
-        keys.add((acc.op, acc.algebra, acc.body))
+        keys.add((acc.var, acc.lo, acc.hi, acc.op, acc.algebra, acc.body))   # FULL key incl. bounds
         assert SR.recognize(src, "f").kind == "CLOSED_FORM_LOOP", src
         d = SR.dispatch(src, "f")
         assert d.status == "OFFLOADED", (src, d.status)
         forms.add(d.closed_form)
-    assert len(keys) == 1, keys                              # ONE structural key across the 3 code shapes
+    assert len(keys) == 1, keys                              # ONE byte-identical key across ALL 4 code shapes
     assert len(forms) == 1 and "n*(n + 1)*(2*n + 1)/6" in forms.pop()   # SAME verified Σk² closed form
 
     # a product comprehension normalizes to the same shape with op '*' (recognizer level, no exec needed)
@@ -9744,10 +9748,13 @@ def test_haran_code_shape_invariance():
     # ★ soundness: NON-canonical shapes must NOT be misclassified as a closed-form loop ★
     assert SR.recognize("def f(x):\n while x>1:\n  x=x//2\n return x", "f").kind != "CLOSED_FORM_LOOP"   # not a counter
     assert SR.recognize("def f(n):\n s=1\n for k in range(1,n+1):\n  s+=s\n return s", "f").kind != "CLOSED_FORM_LOOP"  # acc-dependent body
+    assert SR._recursion_acc(SR._first_fn("def f(n):\n if n<2:\n  return n\n return f(n-1)+f(n-2)", "f")) is None  # Fibonacci: binary recursion
+    assert SR._recursion_acc(SR._first_fn("def f(n):\n if n<1:\n  return 5\n return f(n-1)+n", "f")) is None        # base ≠ monoid identity
 
     print("PASS test_haran_code_shape_invariance (§3 code-shape mapping: for-loop / counter-while / sum-comprehension "
-          "of Σk² all normalize to ONE structural key [+ verified to the same O(1) closed form n(n+1)(2n+1)/6]; prod-"
-          "comprehension → op '*'; non-counter-while & accumulator-dependent body correctly REJECTED — sound)")
+          "/ linear self-recursion of Σk² all normalize to ONE byte-identical structural key [+ verified to the same "
+          "O(1) closed form n(n+1)(2n+1)/6, the recursion gate executing real self-calls]; prod-comprehension → op "
+          "'*'; non-counter-while, accumulator-dependent body & BINARY recursion [Fibonacci] correctly REJECTED — sound)")
 
 
 def test_haran_coverage():
