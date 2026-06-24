@@ -426,9 +426,10 @@ and hang. Unaffordable samples are skipped; the affordable small samples still v
 collapse breadth, with NO padding — a collapse counts only if `dispatch`→OFFLOADED AND the emitted closed form matches
 a brute-force evaluation on fresh inputs. Measured: **30/30** (six Σ-targets — Σk, Σk², Σk³, Σ(2k−1), Σk(k+1),
 Σ(3k²−k) — × five shapes) single-fold collapses, all six targets fully SHAPE-INVARIANT (each target's five shapes
-agree on ONE closed form); **4/4** nested O(n²)→O(1); **34 total** execution-verified code collapses; and **6/6**
-adversarial code shapes correctly REJECTED. This MEASURES the recognizer's reach — it is NOT a claim that arbitrary
-code collapses (unstructured code declines — the honest majority). `test_haran_code_shape_coverage`.
+agree on ONE closed form); **4/4** nested O(n²)→O(1); **4/4** modular-filtered Σ_{k%M==R} O(n)→O(1); **1/1**
+super-linear `range(2ⁿ)` O(2ⁿ)→O(1); **39 total** execution-verified code collapses; and **6/6** adversarial code
+shapes correctly REJECTED. This MEASURES the recognizer's reach — it is NOT a claim that arbitrary code collapses
+(unstructured code declines — the honest majority). `test_haran_code_shape_coverage`.
 
 ### §4 — TIER ROUTING for the 50: fast / normal / extend + broth short-circuit (`algo50_router.py`)
 

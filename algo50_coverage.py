@@ -165,15 +165,47 @@ def _adversarial_code_shapes() -> List[Tuple[str, str]]:
     ]
 
 
+def _filtered_code_corpus() -> List[Tuple[str, str, object]]:
+    """(label, source, brute-force reference) — modular-FILTERED accumulations Σ_{k%M==R} h(k) that collapse O(n)→O(1)."""
+    return [
+        ("filtered·evens·k", "def f(n):\n s=0\n for k in range(n):\n  if k%2==0:\n   s += k\n return s",
+         lambda n: sum(k for k in range(n) if k % 2 == 0)),
+        ("filtered·odds·k²", "def f(n):\n s=0\n for k in range(1,n+1):\n  if k%2==1:\n   s += k*k\n return s",
+         lambda n: sum(k * k for k in range(1, n + 1) if k % 2 == 1)),
+        ("filtered·mult3·k", "def f(n):\n s=0\n for k in range(n):\n  if k%3==0:\n   s += k\n return s",
+         lambda n: sum(k for k in range(n) if k % 3 == 0)),
+        ("filtered·k≡1mod4", "def f(n):\n s=0\n for k in range(n):\n  if k%4==1:\n   s += k\n return s",
+         lambda n: sum(k for k in range(n) if k % 4 == 1)),
+    ]
+
+
+def _strided_code_corpus() -> List[Tuple[str, str, object]]:
+    """(label, source, brute-force reference) — a SUPER-LINEAR upper bound `range(2**n)` collapses to O(1) via the
+    bounded gate's affordable small samples (an O(2ⁿ) loop → an O(1) closed form; the power is one bigint op)."""
+    return [
+        ("strided·Σ k<2ⁿ", "def f(n):\n s=0\n for j in range(2**n):\n  s += j\n return s",
+         lambda n: sum(range(2 ** n))),
+    ]
+
+
 def measure_code_shapes() -> Dict[str, object]:
     """HARAN §3 (code-shape mapping) — MEASURED reach of the CODE-side recognizer: how many (target × code-shape)
-    pairs collapse to a VERIFIED O(1)/closed form via `structure_recognizer.dispatch`, plus nested O(n²)→O(1). A
-    collapse counts ONLY if dispatch returns OFFLOADED AND the emitted closed form independently matches a brute-force
-    evaluation on fresh inputs (NO padding). Per target, all five shapes must agree on ONE closed form (shape
-    invariance). Adversarial code shapes MUST NOT collapse. This is a measured CODE-collapse count, NOT a claim that
-    arbitrary code collapses — unstructured code declines (the honest majority)."""
+    pairs collapse to a VERIFIED O(1)/closed form via `structure_recognizer.dispatch`, plus nested O(n²)→O(1),
+    modular-FILTERED Σ_{k%M==R} O(n)→O(1), and a super-linear `range(2ⁿ)` O(2ⁿ)→O(1). A collapse counts ONLY if
+    dispatch returns OFFLOADED AND the emitted closed form independently matches a brute-force evaluation on fresh
+    inputs (NO padding). Per single-fold target, all five shapes must agree on ONE closed form (shape invariance).
+    Adversarial code shapes MUST NOT collapse. This is a measured CODE-collapse count, NOT a claim that arbitrary
+    code collapses — unstructured code declines (the honest majority)."""
     import sympy
     import structure_recognizer as SR
+
+    def _verified_offload(src, ref, samples):
+        d = SR.dispatch(src, "f")
+        if d.status != "OFFLOADED" or not d.closed_form:
+            return False
+        F = sympy.sympify(d.closed_form)
+        psym = next(iter(F.free_symbols), sympy.Symbol("n"))
+        return all(abs(float(F.subs(psym, N)) - ref(N)) < 1e-6 for N in samples)
 
     SHAPES = ["for", "while", "comprehension", "recursion", "reduce"]
     collapses = 0
@@ -199,14 +231,9 @@ def measure_code_shapes() -> Dict[str, object]:
         if offloaded_here == len(SHAPES) and len(cforms) == 1:
             fully_invariant += 1
 
-    nested_ok = 0
-    for _lbl, src, ref in _nested_code_corpus():
-        d = SR.dispatch(src, "f")
-        if d.status == "OFFLOADED" and d.closed_form:
-            F = sympy.sympify(d.closed_form)
-            psym = next(iter(F.free_symbols), sympy.Symbol("n"))
-            if all(abs(float(F.subs(psym, N)) - ref(N)) < 1e-6 for N in (4, 7, 11, 16, 25)):
-                nested_ok += 1
+    nested_ok = sum(1 for _l, src, ref in _nested_code_corpus() if _verified_offload(src, ref, (4, 7, 11, 16, 25)))
+    filtered_ok = sum(1 for _l, src, ref in _filtered_code_corpus() if _verified_offload(src, ref, (7, 10, 13, 16, 25, 30)))
+    strided_ok = sum(1 for _l, src, ref in _strided_code_corpus() if _verified_offload(src, ref, (3, 6, 9, 12)))
 
     adv = _adversarial_code_shapes()
     adv_rejected = sum(1 for _lbl, src in adv if SR.dispatch(src, "f").status != "OFFLOADED")
@@ -219,7 +246,11 @@ def measure_code_shapes() -> Dict[str, object]:
         "per_shape_collapses": per_shape,
         "nested_collapses": nested_ok,
         "nested_total": len(_nested_code_corpus()),
-        "total_code_collapses": collapses + nested_ok,
+        "filtered_collapses": filtered_ok,             # modular-filtered Σ_{k%M==R} O(n)→O(1)
+        "filtered_total": len(_filtered_code_corpus()),
+        "strided_collapses": strided_ok,               # super-linear range(2ⁿ) O(2ⁿ)→O(1) (bounded gate)
+        "strided_total": len(_strided_code_corpus()),
+        "total_code_collapses": collapses + nested_ok + filtered_ok + strided_ok,
         "adversarial_total": len(adv),
         "adversarial_rejected": adv_rejected,
         "adversarial_correct": adv_rejected == len(adv),

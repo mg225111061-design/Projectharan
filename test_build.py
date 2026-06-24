@@ -9891,13 +9891,14 @@ def test_haran_filtered_loop_collapse():
 
 
 def test_haran_code_shape_coverage():
-    """HARAN §3 — MEASURED reach of the CODE-side code-shape collapse: every (Σ-target × code-shape) pair and every
-    nested form that VERIFIABLY collapses to a closed form (dispatch→OFFLOADED AND the emitted closed form matches a
-    brute-force evaluation on fresh inputs — NO padding). Six single-fold targets × five shapes (for / counter-while
-    / comprehension / recursion / functools.reduce) = 30, all fully shape-invariant (each target's five shapes agree
-    on ONE closed form); + four nested O(n²)→O(1) = 34 measured collapses. The adversarial code shapes MUST NOT
-    collapse. This MEASURES the CODE recognizer's breadth; it is NOT a claim that arbitrary code collapses
-    (unstructured code declines — the honest majority)."""
+    """HARAN §3 — MEASURED reach of the CODE-side code-shape collapse: every (Σ-target × code-shape) pair, nested,
+    filtered, and strided form that VERIFIABLY collapses to a closed form (dispatch→OFFLOADED AND the emitted closed
+    form matches a brute-force evaluation on fresh inputs — NO padding). Six single-fold targets × five shapes (for /
+    counter-while / comprehension / recursion / functools.reduce) = 30, all fully shape-invariant (each target's five
+    shapes agree on ONE closed form); + four nested O(n²)→O(1); + four modular-FILTERED Σ_{k%M==R} O(n)→O(1); + one
+    super-linear range(2ⁿ) O(2ⁿ)→O(1) = 39 measured collapses. The adversarial code shapes MUST NOT collapse. This
+    MEASURES the CODE recognizer's breadth; it is NOT a claim that arbitrary code collapses (unstructured code
+    declines — the honest majority)."""
     import algo50_coverage as C
 
     m = C.measure_code_shapes()
@@ -9905,17 +9906,21 @@ def test_haran_code_shape_coverage():
     assert m["single_fold_collapses"] == m["single_fold_max"] == 30, m
     assert m["fully_invariant_targets"] == m["single_fold_targets"] == 6, m
     assert all(v == 6 for v in m["per_shape_collapses"].values()), m          # all 5 shapes reach all 6 targets
-    # every nested form collapses O(n²)→O(1)
+    # nested O(n²)→O(1), filtered O(n)→O(1), strided O(2ⁿ)→O(1) all collapse in full
     assert m["nested_collapses"] == m["nested_total"] == 4, m
-    assert m["total_code_collapses"] == 34, m
+    assert m["filtered_collapses"] == m["filtered_total"] == 4, m
+    assert m["strided_collapses"] == m["strided_total"] == 1, m
+    assert m["total_code_collapses"] == 39, m
     # ★ soundness: every adversarial code shape is correctly REJECTED (no false collapse) ★
     assert m["adversarial_correct"] and m["adversarial_rejected"] == m["adversarial_total"] == 6, m
 
     print(f"PASS test_haran_code_shape_coverage (§3 code-shape reach: {m['single_fold_collapses']}/{m['single_fold_max']} "
           f"(target × shape) single-fold collapses across {m['code_shapes']} shapes, all {m['fully_invariant_targets']} "
           f"targets shape-invariant; {m['nested_collapses']}/{m['nested_total']} nested O(n²)→O(1); "
-          f"{m['total_code_collapses']} total execution-verified code collapses; {m['adversarial_rejected']}/"
-          f"{m['adversarial_total']} adversarial shapes correctly REJECTED — MEASURED, not a general-code claim)")
+          f"{m['filtered_collapses']}/{m['filtered_total']} filtered O(n)→O(1); {m['strided_collapses']}/"
+          f"{m['strided_total']} strided O(2ⁿ)→O(1); {m['total_code_collapses']} total execution-verified code "
+          f"collapses; {m['adversarial_rejected']}/{m['adversarial_total']} adversarial shapes correctly REJECTED "
+          f"— MEASURED, not a general-code claim)")
 
 
 def test_haran_coverage():
