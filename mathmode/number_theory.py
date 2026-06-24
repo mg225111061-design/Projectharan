@@ -424,6 +424,54 @@ def jacobi_grade(a: int, n: int) -> KV.Verdict:
     return KV.exact(fast, "number_theory.jacobi", "quadratic reciprocity O(log)", cert)
 
 
+_PI_CHECKPOINTS = {10: 4, 100: 25, 1000: 168, 10000: 1229, 100000: 9592, 1000000: 78498}  # π(n) ground truth
+
+
+def sieve_primes_grade(n: int) -> KV.Verdict:
+    """All primes ≤ n by the SIEVE OF ERATOSTHENES. EXACT by construction (every composite is struck by a prime
+    factor ≤ √n). The certificate is re-checkable TWO ways: SOUNDNESS — every returned p passes an INDEPENDENT
+    primality test (deterministic Miller–Rabin, not the sieve); COMPLETENESS — for n ≤ 30000 a full INDEPENDENT
+    trial-division cross-check (exact set equality), else the |result| = π(n) checkpoint count. Beyond both we
+    honestly DECLINE TO CERTIFY (the sieve value exists, but we won't stamp EXACT without a witness).
+    HONEST: this is O(n log log n) ENUMERATION — NOT a collapse; large n is bounded by time/memory, not instant."""
+    if n < 2:
+        return KV.decline(f"sieve: n={n} < 2 ⇒ no primes ⇒ DECLINE", "number_theory.sieve")
+    s = bytearray([1]) * (n + 1)
+    s[0] = s[1] = 0
+    for p in range(2, int(n ** 0.5) + 1):
+        if s[p]:
+            s[p * p::p] = bytearray(len(range(p * p, n + 1, p)))   # strike multiples of each found prime
+    primes = [i for i in range(2, n + 1) if s[i]]
+    # ── SOUNDNESS: every returned prime independently verified prime (Miller–Rabin, not the sieve) ──
+    sound = all((_is_prime_det(p) if p < _DET_BOUND else not any(_mr_composite(p, a) for a in _DET_BASES))
+                for p in primes)
+    # ── COMPLETENESS: a fully independent recomputation (small n) or the π(n) checkpoint count ──
+    if n <= 30000:
+        def _tp(m: int) -> bool:                              # independent trial-division primality (no sieve state)
+            d = 2
+            while d * d <= m:
+                if m % d == 0:
+                    return False
+                d += 1
+            return True
+        complete = primes == [i for i in range(2, n + 1) if _tp(i)]
+        how = f"full independent trial-division cross-check over [2,{n}]"
+    elif n in _PI_CHECKPOINTS:
+        complete = len(primes) == _PI_CHECKPOINTS[n]
+        how = f"|result| = {len(primes)} = π({n}) checkpoint"
+    else:
+        return KV.decline(f"sieve: n={n} is beyond the trial-division cross-check bound (30000) and not a π(n) "
+                          f"checkpoint ⇒ cannot certify completeness ⇒ DECLINE (raise the bound to certify)",
+                          "number_theory.sieve")
+    if not (sound and complete):
+        return KV.decline("sieve: soundness/completeness re-check failed ⇒ DECLINE (correctness-bug guard)",
+                          "number_theory.sieve")
+    cert = KV.Cert(KV.EXACT, "sieve_sound_and_complete", passed=True, check_cost="MR per prime + " + how,
+                   detail=f"{len(primes)} primes ≤ {n}: every one independently verified prime ∧ completeness via "
+                          f"{how}")
+    return KV.exact(primes, "number_theory.sieve", "Sieve of Eratosthenes O(n log log n) enumeration", cert)
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
     """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
@@ -452,4 +500,6 @@ def solve(problem: dict) -> KV.Verdict:
         return pell_grade(problem["N"])
     if op == "jacobi":
         return jacobi_grade(problem["a"], problem["n"])
+    if op == "sieve":
+        return sieve_primes_grade(problem["n"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

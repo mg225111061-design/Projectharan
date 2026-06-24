@@ -262,9 +262,9 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **34 CONFIRMED + 9 PARTIAL + 7 GAP** (gaps close
-one-per-commit as they are built). The 7 remaining GAPS are NAMED, not padded over: #13 Bostan–Mori, #14
-Newton-iteration, #19 Gröbner, #28 autodiff, #32 power-towers, #34 Lucas-theorem+lifting, #43 sieve. The 9 PARTIALS
+**Status (MEASURED, honest — never rounded up to "50 done"):** **35 CONFIRMED + 9 PARTIAL + 6 GAP** (gaps close
+one-per-commit as they are built). The 6 remaining GAPS are NAMED, not padded over: #13 Bostan–Mori, #14
+Newton-iteration, #19 Gröbner, #28 autodiff, #32 power-towers, #34 Lucas-theorem+lifting. The 9 PARTIALS
 name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
@@ -283,6 +283,12 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   agree ⇒ EXACT, mismatch ⇒ DECLINE (a correctness-bug guard). Adversarially tested vs a brute-force quadratic-
   residue scan at 7 primes, full multiplicativity + period-n, the (2|n) supplement law, (1001|9907)=−1, gcd>1→0,
   even/invalid n→DECLINE. EXACT, tier fast, broth-eligible. `test_haran_jacobi_reciprocity`. (34 CONFIRMED now.)
+- **#43 Sieve of Eratosthenes** → `mathmode.number_theory.sieve_primes_grade`. EXACT by construction, with a
+  certificate verified TWO independent ways: SOUNDNESS (every returned prime re-checked by deterministic
+  Miller–Rabin, not the sieve) + COMPLETENESS (full independent trial-division set-equality for n ≤ 30000, else
+  the |result| = π(n) checkpoint). Beyond both it honestly DECLINES TO CERTIFY rather than stamp EXACT without a
+  witness. HONEST: O(n log log n) ENUMERATION — not a collapse; the classic boolean sieve (segmented/wheel are
+  constant-factor optimizations, not yet added). `test_haran_sieve_eratosthenes`. (35 CONFIRMED now.)
 
 ---
 

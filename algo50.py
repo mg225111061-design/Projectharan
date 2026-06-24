@@ -188,9 +188,10 @@ _C: List[Algo] = [
     Algo(42, "Stern–Brocot / rational reconstruction", "C", "mathmode.transforms_number", "modular_to_rational",
          KV.EXACT, "p ≡ q·r (mod m), bounded |p|,q ≤ √(m/2) (uniqueness)", "O(log m)", False, FAST, False,
          PARTIAL, "rational reconstruction present; the Stern–Brocot tree walk not yet"),
-    Algo(43, "Sieve of Eratosthenes (segmented + wheel)", "C", "", "", KV.EXACT,
-         "by construction (every composite struck by a proven prime factor)", "O(n log log n) ENUMERATION — not a "
-         "collapse", False, NORMAL, False, GAP),
+    Algo(43, "Sieve of Eratosthenes (segmented + wheel)", "C", "mathmode.number_theory", "sieve_primes_grade",
+         KV.EXACT, "soundness (each prime independently MR-verified) + completeness (trial-division cross-check / "
+         "π(n) checkpoint)", "O(n log log n) ENUMERATION — not a collapse", False, NORMAL, False,
+         note="classic boolean sieve; segmented/wheel are constant-factor/memory optimizations, not yet added"),
     Algo(44, "Euler φ / Möbius / multiplicative functions", "C", "mathmode.number_theory", "euler_phi_grade",
          KV.EXACT, "φ(n)=∏(p−1)p^(e−1) via verified factorization (multiplicativity)", "factorization-bound", False,
          NORMAL, False, PARTIAL, "Euler φ present; Möbius μ / general multiplicative eval not yet"),

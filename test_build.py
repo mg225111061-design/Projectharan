@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {13, 14, 19, 28, 32, 34, 43}, gaps   # #45 Jacobi/reciprocity now CONFIRMED
+    assert set(gaps) == {13, 14, 19, 28, 32, 34}, gaps   # #45 Jacobi, #43 sieve now CONFIRMED
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9140,6 +9140,44 @@ def test_haran_jacobi_reciprocity():
     print("PASS test_haran_jacobi_reciprocity (#45: Jacobi via quadratic reciprocity O(log), cross-checked vs "
           "∏ Legendre/Euler over factorization; matches brute-force QR at 7 primes; multiplicative + period-n; "
           "(2|n) supplement + (1001|9907)=−1; gcd>1→0; even/invalid n→DECLINE; EXACT certificate re-checkable)")
+
+
+def test_haran_sieve_eratosthenes():
+    """HARAN #43 (Group C) — the Sieve of Eratosthenes, EXACT by construction, with a re-checkable
+    SOUNDNESS+COMPLETENESS certificate verified two INDEPENDENT ways (Miller–Rabin per prime for soundness; full
+    trial-division set-equality for small n / π(n) checkpoint for large). The function honestly DECLINES to
+    *certify* beyond its bound rather than stamp EXACT without a witness. HONEST: O(n log log n) ENUMERATION,
+    NOT a collapse."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    def tp(m):                                            # independent trial-division ground truth
+        return m >= 2 and all(m % d for d in range(2, int(m ** 0.5) + 1))
+
+    # (a) small n: EXACT, and the prime set equals an independent trial-division recomputation
+    for n in (2, 3, 10, 100, 1000, 5000):
+        v = NT.sieve_primes_grade(n)
+        assert v.status == KV.EXACT, (n, v.status)
+        assert v.result == [i for i in range(2, n + 1) if tp(i)], n
+        assert v.certificate.kind == "sieve_sound_and_complete" and v.certificate.passed
+    assert NT.sieve_primes_grade(30).result == [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+    # (b) the π(n) checkpoints (count ground truth) — EXACT, count matches exactly
+    for n, pi in [(1000, 168), (10000, 1229), (100000, 9592)]:
+        v = NT.sieve_primes_grade(n)
+        assert v.status == KV.EXACT and len(v.result) == pi, (n, len(v.result), pi)
+
+    # (c) honest DECLINE: n<2 (no primes) and beyond the cross-check bound + not a π(n) checkpoint (can't certify)
+    assert NT.sieve_primes_grade(1).status == KV.DECLINE and NT.sieve_primes_grade(0).status == KV.DECLINE
+    assert NT.sieve_primes_grade(50000).status == KV.DECLINE   # >30000, not a checkpoint ⇒ cannot certify
+
+    # (d) soundness is INDEPENDENT of the sieve: every returned prime passes Miller–Rabin
+    primes1k = NT.sieve_primes_grade(1000).result
+    assert all(NT._is_prime_det(p) for p in primes1k), "every sieve prime must pass an independent primality test"
+
+    print(f"PASS test_haran_sieve_eratosthenes (#43: Eratosthenes EXACT by construction; {len(primes1k)} primes "
+          f"≤1000; full trial-division cross-check (n≤5000) + π(n) checkpoints 168/1229/9592; soundness via "
+          f"independent Miller–Rabin; honest DECLINE for n<2 and beyond the bound — enumeration, not collapse)")
 
 
 def test_mode_budget_roles():
