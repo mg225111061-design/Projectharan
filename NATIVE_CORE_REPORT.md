@@ -76,7 +76,7 @@ crates); source + `Cargo.lock` + bridge are committed.
 
 In-house DPLL SAT + bit-blaster + independent certificate checker — **no coqc/cvc5/Bitwuzla/Lean/Z3**. Decides
 fixed-width **quantifier-free bitvector** obligations (add / sub / neg / mul-by-constant / **general w×w multiply** /
-**unsigned division (udiv)** / and / or / xor / not / left-shift / **logical+arithmetic right-shift** /
+**unsigned + signed division (udiv/sdiv)** / and / or / xor / not / left-shift / **logical+arithmetic right-shift** /
 **variable-amount shift (barrel shifter)** / eq / unsigned-lt / **signed lt+gt** / **ite-mux**). A validity result
 is **EXACT within the stated width** (bound = 2^w);
 DETERMINISTIC (same input ⇒ same result AND same
@@ -100,12 +100,13 @@ still found (`x·x = x` INVALID; `x//3 ≠ x>>1` (non-power-of-2 division is not
 not multiply-by-the-amount); and the overflow-unsafe `(x+1)>ₛx` REFUTED in-house at INT_MAX via ite-mux) — never a
 false VALID.
 
-**Honest scope (§X).** NOT cvc5/Z3 parity: no SIGNED division (sdiv), no arrays/reals/unbounded ints. The
-overflow-unsafe peepholes (`succ_gt_self`, `mul2_div2_id`, `add_monotone`) stay out of the SOUND cross-check — they
-are unsound (and `mul2_div2_id` needs SIGNED division) — though the in-house solver can now REFUTE the conditional
-ones via ite-mux. Signed compare, general multiply, right-shift, ite-mux, UNSIGNED division (udiv — incl. the
-div→shift `x//2^k ≡ x>>k`), and VARIABLE-amount shift (barrel shifter — incl. mul-by-power-of-two `x·2^k ≡ x<<k`)
-ARE in-house. Small TCB, zero deps: that is the point.
+**Honest scope (§X).** NOT cvc5/Z3 parity: no arrays/reals/unbounded ints. The overflow-unsafe peepholes
+(`succ_gt_self`, `mul2_div2_id`, `add_monotone`) stay out of the SOUND cross-check because they are UNSOUND — the
+in-house solver can now DECIDE all three (the conditional ones via ite-mux, `mul2_div2_id` via sdiv), but the
+cross-check asserts PROVEN≡PROVEN so only SOUND peepholes participate. Signed compare, general multiply,
+right-shift, ite-mux, UNSIGNED+SIGNED division (udiv/sdiv — incl. the div→shift `x//2^k ≡ x>>k` and the signed
+div→shift WITH round-toward-zero bias), and VARIABLE-amount shift (barrel shifter — incl. mul-by-power-of-two
+`x·2^k ≡ x<<k`) ARE in-house. Small TCB, zero deps: that is the point.
 
 ## §3 — AST-depth fast-triage before the proof cache  ·  `proof_triage.py`  ·  `test_native_s3_triage_layer`
 

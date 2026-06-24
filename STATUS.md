@@ -79,12 +79,13 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   (`prove_strength_reductions`: mul↔shift, branchless sign-mask `ashr(x,w-1)=neg(lshr(x,w-1))`, bit round-trips,
   ×-ring commute/assoc/distrib, and **branchless conditional tricks verified ≡ their if-then-else spec** — e.g.
   branchless abs `(x^ashr)−ashr ≡ x<0?−x:x` via ite-mux) — so CODE can ACCEPT those speedups with zero external
-  solver, EXACT within width; `test_native_s2_bitblast_smt`. **Honest scope (§X):** NOT cvc5/Z3 parity — no SIGNED
-  division (sdiv), no arrays/reals/unbounded ints; the overflow-unsafe peepholes stay out of the SOUND cross-check
-  (they're unsound, and `mul2_div2_id` needs SIGNED division) — though the in-house solver can now REFUTE the
-  conditional ones (e.g. `(x+1)>ₛx` at INT_MAX) via ite-mux. Signed compare, general multiply, right-shift, ite-mux,
-  UNSIGNED division (udiv — incl. div→shift `x//2^k ≡ x>>k`), and VARIABLE-amount shift (barrel shifter — incl.
-  mul-by-power-of-two `x·2^k ≡ x<<k`) ARE in-house. Small TCB, zero deps — that's the point.
+  solver, EXACT within width; `test_native_s2_bitblast_smt`. **Honest scope (§X):** NOT cvc5/Z3 parity — no
+  arrays/reals/unbounded ints; the overflow-unsafe peepholes stay out of the SOUND cross-check because they're
+  UNSOUND (the in-house solver can now DECIDE all three — the conditional ones via ite-mux, `mul2_div2_id` via
+  sdiv — but the cross-check asserts PROVEN≡PROVEN, so only SOUND peepholes participate). Signed compare, general
+  multiply, right-shift, ite-mux, UNSIGNED+SIGNED division (udiv/sdiv — incl. div→shift `x//2^k ≡ x>>k` and the
+  signed div→shift WITH round-toward-zero BIAS), and VARIABLE-amount shift (barrel shifter — incl. mul-by-power-of-
+  two `x·2^k ≡ x<<k`) ARE in-house. Small TCB, zero deps — that's the point.
 - **§1 ✅** dependency-0 Rust core (`rust_core/` std-only cdylib via ctypes — no PyO3/maturin/cffi/flint/faer;
   `rust_core.py` bridge). Delivers the v34-deferred pieces: flat **arena AST** (one deterministic pass);
   **deterministic fixed-precision multimodular CRT ring** — Garner-combines residues over a fixed 4-prime basis
