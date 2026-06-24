@@ -9188,6 +9188,41 @@ def test_code_stream():
           "fabricated progress; SSE frames JSON-valid)")
 
 
+def test_loop_speedup():
+    """§4 (generated-code speed) — turn a DECIDED closed form into a MEASURED, Amdahl-honest, certificate-backed
+    whole-program speedup. The accumulation loop IS the function (f=1), so the naive O(n) loop vs the O(1) closed
+    form is a whole-program speedup FOR THIS FUNCTION; the ratio is MEASURED at a stated n (it GROWS as O(n), never
+    an average), reported only behind a re-verification that the closed form == the loop AT n (a mismatch DECLINEs
+    — never a wrong speedup). DOMAIN-CONDITIONAL: closed-form-able loops only. Per C6 the magnitude is perf_obs
+    (informational), not a hard gate — the hard gate is soundness + the honest-limit certificate."""
+    import loop_decision as LD
+    import kernel_verdict as KV
+    import sympy as sp
+
+    m = LD.measure_collapse_speedup("k**2", "k", 1, n=30000, trials=5)
+    assert m.status == "MEASURED" and m.verdict.status == KV.EXACT and m.verdict.certificate.passed
+    # ★ soundness ★: INDEPENDENTLY re-verify the emitted closed form == the brute-force loop (don't trust the timer)
+    n = sp.Symbol("n"); cf = sp.sympify(m.closed_form)
+    for nv in (1, 7, 30, 30000):
+        assert sp.simplify(cf.subs(n, nv) - sum(j * j for j in range(1, nv + 1))) == 0, f"closed form wrong at n={nv}"
+    # the collapse is genuinely faster (O(n)→O(1)) and the timings are real; MAGNITUDE is perf_obs (not a gate)
+    assert m.naive_s > 0 and m.closed_s > 0 and m.ratio > 1.0
+    perf_obs("loop_collapse_k2", ratio=round(m.ratio, 1), naive_ms=round(m.naive_s * 1e3, 2),
+             closed_us=round(m.closed_s * 1e6, 2), n=m.n)
+    # ★ honesty markers verbatim in the certificate (the §X limits are stated, never an unconditional claim) ★
+    c = m.verdict.certificate.detail
+    for marker in ("f=1", "Amdahl", "DOMAIN-CONDITIONAL", "GROWS as O(n)", "NOT an average"):
+        assert marker in c, f"the certificate must state the honest limit: {marker}"
+    # no closed form ⇒ nothing to measure ⇒ honest DECLINE (the harmonic loop is irreducible, never a faked speedup)
+    h = LD.measure_collapse_speedup("1/k", "k", 1, n=1000)
+    assert h.status == "DECLINE" and h.verdict.status == KV.DECLINE
+
+    print(f"PASS test_loop_speedup (Σk² O(n) loop → O(1) closed form: MEASURED {m.ratio:.0f}× at n={m.n} [naive "
+          f"{m.naive_s * 1e3:.2f}ms → {m.closed_s * 1e6:.2f}µs], closed form independently re-verified == the loop; "
+          f"cert states f=1 / Amdahl-ceiling / grows-O(n) / domain-conditional / not-an-average; harmonic Σ1/k → "
+          f"honest DECLINE [no closed form to collapse — never a faked speedup])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

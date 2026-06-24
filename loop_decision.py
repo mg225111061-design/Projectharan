@@ -145,3 +145,77 @@ def decide_sum_collapse(summand_src: str, var: str = "k", lo: int = 1) -> LoopDe
                         certificate=cert.detail,
                         verdict=KV.exact(str(cf), "loop_decision.gosper", "DECISION (closed form) + differential gate",
                                          cert))
+
+
+@dataclass
+class CollapseSpeedup:
+    status: str                       # MEASURED | DECLINE
+    summand: str
+    closed_form: str = ""
+    n: int = 0
+    naive_s: float = 0.0
+    closed_s: float = 0.0
+    ratio: float = 1.0
+    verdict: Optional["KV.Verdict"] = None
+
+
+def _median_time(fn, trials: int) -> float:
+    import time
+    ts = []
+    for _ in range(trials):
+        t0 = time.perf_counter()
+        fn()
+        ts.append(time.perf_counter() - t0)
+    ts.sort()
+    return ts[len(ts) // 2]
+
+
+def measure_collapse_speedup(summand_src: str, var: str = "k", lo: int = 1, n: int = 100000,
+                             trials: int = 5) -> CollapseSpeedup:
+    """§4 — turn a DECIDED closed form into a MEASURED, Amdahl-honest, certificate-backed speedup. The whole
+    FUNCTION is the accumulation loop, so we time the naive O(n) loop vs the O(1) closed form at a stated n (the
+    loop IS the program here ⇒ f=1; this is a whole-program speedup FOR THIS FUNCTION). Sound: the closed form is
+    re-verified == the loop AT the measured n before timing — a disagreement DECLINEs (never a wrong 'speedup').
+    DOMAIN-CONDITIONAL: only closed-form-able loops collapse; near-zero on general code. The ratio is MEASURED at
+    n (it grows as O(n)) — never an average, never a guarantee."""
+    d = decide_sum_collapse(summand_src, var, lo)
+    if d.status != CLOSED_FORM:
+        return CollapseSpeedup("DECLINE", summand_src,
+                               verdict=KV.decline(f"measure_collapse: {d.status} — no closed form to collapse, nothing "
+                                                  f"to measure (sound)", "loop_decision"))
+    k, nsym = sp.Symbol(var), sp.Symbol("n")
+    f = sp.sympify(summand_src, locals={var: k})
+    fl = sp.lambdify(k, f, "math")
+    cf = sp.lambdify(nsym, sp.sympify(d.closed_form), "math")
+
+    def naive():
+        acc = 0.0
+        for j in range(lo, n + 1):
+            acc += fl(j)
+        return acc
+
+    def closed():
+        return cf(n)
+
+    # ★ soundness gate at the MEASURED n: the closed form must equal the loop here (else never report a speedup) ★
+    nv, cv = naive(), closed()
+    if abs(nv - cv) > 1e-6 * max(1.0, abs(cv)):
+        return CollapseSpeedup("DECLINE", summand_src, d.closed_form, n,
+                               verdict=KV.decline(f"measure_collapse: closed form ≠ loop at n={n} ({nv} vs {cv}) ⇒ "
+                                                  f"DECLINE (no wrong speedup)", "loop_decision"))
+    naive_s = _median_time(naive, trials)
+    closed_s = _median_time(closed, max(trials, 9))           # the O(1) form is tiny — more trials for a stable median
+    ratio = (naive_s / closed_s) if closed_s > 0 else float("inf")
+    import fold_dispatcher as FD                              # honest Amdahl framing for the embedded case
+    wp_half = FD.amdahl_overall_speedup(ratio, 0.5)
+    cert = KV.Cert(KV.EXACT, "measured_loop_collapse", passed=True, check_cost=f"{trials} timed trials at n={n}",
+                   detail=f"MEASURED whole-function speedup {ratio:.1f}× at n={n}: the O(n) accumulation loop "
+                          f"(naive {naive_s * 1e3:.2f} ms) → the O(1) closed form {d.closed_form} "
+                          f"({closed_s * 1e6:.2f} µs), closed form re-verified == the loop at n. HONEST: the loop IS "
+                          f"this function (f=1) ⇒ whole-program FOR THIS FUNCTION; the ratio GROWS as O(n) (n stated, "
+                          f"NOT an average); if the loop were only 50% of a larger program the whole-program speedup "
+                          f"would be ≤ {wp_half:.2f}× (Amdahl ceiling). DOMAIN-CONDITIONAL — closed-form-able loops "
+                          f"only, near-zero on general/control-flow code; never a general-purpose accelerator.")
+    return CollapseSpeedup("MEASURED", summand_src, d.closed_form, n, naive_s, closed_s, ratio,
+                           verdict=KV.exact({"ratio": ratio, "n": n, "naive_s": naive_s, "closed_s": closed_s},
+                                            "loop_decision.measure", "measured loop collapse (Amdahl-honest)", cert))

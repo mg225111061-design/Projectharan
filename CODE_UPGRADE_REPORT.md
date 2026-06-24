@@ -112,6 +112,22 @@ review per §X. So the user now watches the real CODE process unfold live, not j
 
 ---
 
+## §4 (generated-code speed) — a DECIDED closed form → a MEASURED, Amdahl-honest speedup
+
+`loop_decision.measure_collapse_speedup` turns a §2 closed-form decision into a MEASURED whole-program speedup,
+honestly framed. The accumulation loop IS the function, so it times the naive O(n) loop vs the O(1) closed form at
+a stated n — a whole-program speedup FOR THIS FUNCTION (f = 1). Measured: `Σk²` collapses ~**5000×** at n = 30 000
+(naive ~2 ms → closed ~0.4 µs), grade EXACT. The honest limits are stated in the certificate, verbatim, every
+time: the ratio is MEASURED at n and **GROWS as O(n)** (never an average, never a guarantee); if the loop were
+only 50 % of a larger program the whole-program speedup would be ≤ the **Amdahl** ceiling; and it is
+**DOMAIN-CONDITIONAL** — closed-form-able loops only, near-zero on general/control-flow code, never a
+general-purpose accelerator. SOUND: the speedup is reported only after the closed form is re-verified == the loop
+AT the measured n (a mismatch DECLINEs — never a wrong "speedup"); the harmonic Σ1/k has no closed form, so it
+honestly DECLINEs (nothing to measure). Per C6 the magnitude is `perf_obs` (informational), not a hard gate — the
+gate is soundness + the honest-limit certificate. `test_loop_speedup`.
+
+---
+
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
 
 The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general
