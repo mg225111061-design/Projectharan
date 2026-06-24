@@ -9862,10 +9862,10 @@ def test_haran_coverage():
     import kernel_verdict as KV
 
     m = C.measure()
-    # every structured item certifies, across breadth (≥20 distinct algorithms of the 50)
-    assert m["covered_cases"] == m["corpus_structured"] >= 40, m
-    assert m["n_algorithms_covered"] >= 20 and m["families_covered"] >= 40, m
-    assert m["by_grade"][KV.EXACT] >= 40, m
+    # every structured item certifies, across breadth (≥25 distinct algorithms of the 50)
+    assert m["covered_cases"] == m["corpus_structured"] >= 50, m
+    assert m["n_algorithms_covered"] >= 25 and m["families_covered"] >= 50, m
+    assert m["by_grade"][KV.EXACT] >= 50, m
 
     # ★ DOMAIN-CONDITIONAL honesty: the adversarial/unstructured block declines IN FULL (structure absent) ★
     assert m["adversarial_correct"] and m["adversarial_declined"] == m["adversarial_total"] == 6, m

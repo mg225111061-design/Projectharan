@@ -75,6 +75,17 @@ def _structured() -> List[Tuple[str, int, str, object]]:
     items.append(("factorize", 38, "∏ pᵢ^eᵢ", (lambda: NT.factorize_grade(360))))
     items.append(("cipolla", 39, "modular sqrt", (lambda: NT.cipolla_sqrt_grade(2, 7))))
     items.append(("rho_dlog", 40, "discrete log", (lambda: NT.pollard_rho_dlog_grade(2, 22, 29))))
+    # broaden across MORE of the 50: forward-mode AD (#28), multipoint eval (#29), fast-doubling fib (#33),
+    # Stern–Brocot (#42) — each dispatched to the real algorithm, must certify EXACT
+    import autodiff as AD
+    for expr, pt in [("x**3+2*x", {"x": 3}), ("x**2*y", {"x": 2, "y": 5}), ("(x+1)*(x-2)", {"x": 7})]:
+        items.append((f"autodiff·{expr}", 28, expr, (lambda expr=expr, pt=pt: AD.autodiff_grade(expr, pt))))
+    for lbl, coeffs, pts in [("cubic", [1, 2, 3, 4], [1, 2, 3, 4, 5]), ("quad", [5, -1, 2], [0, 1, 2, 3])]:
+        items.append((f"multipoint·{lbl}", 29, lbl, (lambda coeffs=coeffs, pts=pts: NS.multipoint_eval_grade(coeffs, pts))))
+    for nn, mm in [(1000, 1000000007), (10 ** 6, 998244353)]:
+        items.append((f"fib_mod·{nn}", 33, f"F({nn})", (lambda nn=nn, mm=mm: FK.fib_mod(nn, mm))))
+    for p, q in [(22, 7), (355, 113), (13, 8)]:
+        items.append((f"stern_brocot·{p}/{q}", 42, f"{p}/{q}", (lambda p=p, q=q: NT.stern_brocot_grade(p, q))))
     return items
 
 

@@ -77,7 +77,7 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   #38 Pollard p−1, #17 Hermite, #25 exact-CP-rank1) were built/closed one-per-commit. A per-commit test
   (`test_algo50_registry`) IMPORTS every entry point so "we have algorithm N" is re-checked. §2 BROTH widened
   (`haran_broth.py`, 1,367 cross-algorithm instantiations across 13 of the 50 @ ~0.07 µs O(1), each re-verified by
-  re-execution); §3 measured coverage (`algo50_coverage.py`: MATH 43 cases / 21 algorithms certified + CODE-side
+  re-execution); §3 measured coverage (`algo50_coverage.py`: MATH 53 cases / 25 algorithms certified + CODE-side
   code-shape reach 34 execution-verified collapses [6 Σ-targets × 5 shapes + 4 nested], 6/6 adversarial DECLINE,
   domain-conditional); §4 tier routing (`algo50_router.py`: broth-hit short-circuits any mode, fast never hosts the heavy
   solver). §X honest caveats RECORDED + test-enforced: CAD doubly-exp, Lucas–Lehmer O(p)-iter, general CP/Tucker
