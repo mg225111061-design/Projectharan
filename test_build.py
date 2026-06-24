@@ -9693,6 +9693,14 @@ def test_haran_tier_routing():
     assert h["action"] == "BROTH_HIT" and h["grade"] == KV.EXACT and "0.1µs" in h["ui"]
     assert R.route(49, "fast", broth_key=("wigner3j", 1, 1, 2, 0, 0, 0))["action"] == "BROTH_HIT"
 
+    # ★ the §2↔§4 payoff on the BROADENED broth: #38 factorization & #40 discrete-log are EXTEND-tier (HEAVY) —
+    #   a fast-mode MISS TIERS UP (fast won't run the heavy solver), but a pre-proven BROTH HIT returns INSTANTLY
+    #   even in fast, returning the exact pre-proven value ★
+    assert R.route(38, "fast")["action"] == "TIER_UP"                       # heavy factorizer: fast won't run it…
+    hb = R.route(38, "fast", broth_key=("factorize", 12))                   # …but the broth hit short-circuits it
+    assert hb["action"] == "BROTH_HIT" and hb["grade"] == KV.EXACT and hb["value"] == "{2: 2, 3: 1}"
+    assert R.route(40, "fast", broth_key=("dlog", 2, 22, 29))["action"] == "BROTH_HIT"   # heavy dlog, instant in fast
+
     # (b) MISS: fast NEVER hosts a heavy extend-tier solver — it tiers up (the headline fast contract)
     for heavy in (4, 6, 16, 18, 19, 20):     # Petkovsek, PiSigma*, Risch, CAD, Gröbner, Kovacic
         r = R.route(heavy, "fast")
