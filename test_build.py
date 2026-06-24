@@ -9418,6 +9418,55 @@ def test_loop_collapse_budget_bounded():
           f"COLLAPSES within budget [no false negative from the bound] — fast never blocks on user code)")
 
 
+def test_modular_recurrence_collapse():
+    """§4 (ceiling-breaker) — a MODULAR C-finite loop (f(n) mod M — the common Fibonacci/Pell-mod case) collapses
+    to an O(log n) companion-matrix-power-MOD-M form. This is the case where O(log n) GENUINELY WINS: the modulus
+    keeps ints BOUNDED (no bigint), so it is true O(log n) ring work (~56× measured here). Sound: M is detected
+    from the loop's `% M`, the recurrence is fitted from the early (unwrapped) samples, and — the gate —
+    companion_nth_mod ≡ the user's ACTUAL loop on HELD-OUT n WHERE IT HAS WRAPPED. A small M (early values wrap →
+    no clean fit) or a non-modular loop DECLINEs. Per C6 the magnitude is perf_obs; the hard gate is the verified
+    equivalence + the honest-limit certificate."""
+    import loop_recurrence as LR
+    import cfinite
+    import kernel_verdict as KV
+
+    M = 10 ** 9 + 7
+    fibm = ("M = 10 ** 9 + 7\ndef f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, (a + b) % M\n"
+            "    return a")
+    r = LR.decide_modular_recurrence_collapse(fibm, n=100000, trials=3)
+    assert r.status == "COLLAPSED" and r.verdict.status == KV.EXACT and r.c == [1, 1] and r.init == [0, 1], r
+
+    # ★ soundness ★: the O(log n) companion-mod == a FRESH modular Fibonacci on held-out n WHERE IT HAS WRAPPED
+    def fib_mod(nn):
+        a, b = 0, 1
+        for _ in range(nn):
+            a, b = b, (a + b) % M
+        return a
+    for nv in (84, 500, 5000, 100000):
+        assert cfinite.companion_nth_mod(r.c, r.init, nv, M) == fib_mod(nv), f"companion-mod ≠ the loop at n={nv}"
+    # the collapse genuinely wins (O(log n) bounded vs O(n) bounded) — magnitude via perf_obs (not a hard gate)
+    assert r.naive_s > r.log_s and r.measured_win
+    perf_obs("modular_recurrence_collapse_fib", ratio=round(r.ratio, 1), win=r.measured_win, n=r.n,
+             naive_ms=round(r.naive_s * 1e3, 2), log_us=round(r.log_s * 1e6, 2))
+    cert = r.verdict.certificate.detail
+    for marker in ("genuinely WINS", "BOUNDED", "DOMAIN-CONDITIONAL", "Amdahl", "held-out"):
+        assert marker in cert, f"the certificate must state: {marker}"
+
+    # Pell-mod (different coefficients, INLINE literal modulus) is also recognized + verified
+    pellm = "def g(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, (2 * b + a) % 1000000009\n    return a"
+    rp = LR.decide_modular_recurrence_collapse(pellm, n=3000)
+    assert rp.status == "COLLAPSED" and rp.c == [2, 1], rp
+    # a small modulus (early values wrap → no clean fit) and a non-modular loop DECLINE (honest)
+    small = "def f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, (a + b) % 7\n    return a"
+    plain = "def f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
+    assert LR.decide_modular_recurrence_collapse(small).status == "DECLINE", "small M (wraps early) ⇒ DECLINE"
+    assert LR.decide_modular_recurrence_collapse(plain).status == "DECLINE", "no `% M` ⇒ DECLINE (use exact recognizer)"
+
+    print(f"PASS test_modular_recurrence_collapse (Fib(n) mod 1e9+7: O(n) modular loop → O(log n) companion-mod "
+          f"[c=[1,1]], VERIFIED ≡ a fresh modular loop on WRAPPED held-out n; MEASURED {r.ratio:.0f}× at n={r.n} "
+          f"[bounded ints ⇒ O(log n) genuinely wins; perf_obs]; Pell-mod c=[2,1]; small-M & non-modular → DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

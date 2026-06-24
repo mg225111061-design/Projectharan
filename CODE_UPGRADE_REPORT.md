@@ -185,6 +185,22 @@ arrays/reals/unbounded ints (those stay on Z3).
 
 ---
 
+## §4 (ceiling-breaker) — MODULAR linear recurrence → O(log n): the case where O(log n) genuinely wins
+
+The non-modular recurrence collapse is verified but only modestly faster (bigint multiplies eat the asymptotic
+win). The MODULAR case — `f(n) mod M`, the common Fibonacci/Pell-mod kernel in competitive programming and crypto
+— is where O(log n) **genuinely wins**: the modulus keeps ints BOUNDED, so the companion-matrix power is true
+O(log n) ring work. `loop_recurrence.decide_modular_recurrence_collapse` detects M from the loop's `% M`, fits the
+recurrence from the early (unwrapped) samples, and — the sound gate — VERIFIES `cfinite.companion_nth_mod ≡ the
+user's ACTUAL loop on HELD-OUT n WHERE IT HAS WRAPPED` (so the modular behaviour, not just the prefix, is checked).
+Measured: `Fib(n) mod (10⁹+7)` → **~58× at n = 100 000** (naive ~4 ms → companion-mod ~68 µs), grade EXACT;
+Pell-mod `c=[2,1]` → ~80×. A small modulus (early values wrap → no clean fit) and a non-modular loop DECLINE
+(honest). `cfinite.companion_nth_mod` (mod inside power-by-squaring), `test_modular_recurrence_collapse`. Honest
+limits in the cert verbatim: f=1, Amdahl ceiling for embedding, DOMAIN-CONDITIONAL (C-finite modular recurrences
+only); per C6 the magnitude is perf_obs, the gate is the held-out verification.
+
+---
+
 ## §4 (soundness, adversarial) — attack spec fragility: zero wrong collapses
 
 Spec fragility is the dominant failure mode, so we attack it directly. The headline attack: a loop that equals

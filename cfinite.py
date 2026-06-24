@@ -64,6 +64,37 @@ def companion_nth(c: Sequence[int], init: Sequence[int], n: int) -> int:
     return sum(P[0][k] * v[k] for k in range(d))    # (P · v)[0] = f(n)
 
 
+def _matmul_mod(A: List[List[int]], B: List[List[int]], M: int) -> List[List[int]]:
+    d = len(A)
+    return [[sum(A[i][k] * B[k][j] for k in range(d)) % M for j in range(d)] for i in range(d)]
+
+
+def _matpow_mod(Mat: List[List[int]], p: int, M: int) -> List[List[int]]:
+    d = len(Mat)
+    R = [[1 if i == j else 0 for j in range(d)] for i in range(d)]          # identity
+    base = [[x % M for x in row] for row in Mat]
+    while p > 0:                                    # power-by-squaring with the modulus INSIDE → bounded ints
+        if p & 1:
+            R = _matmul_mod(R, base, M)
+        base = _matmul_mod(base, base, M)
+        p >>= 1
+    return R
+
+
+def companion_nth_mod(c: Sequence[int], init: Sequence[int], n: int, M: int) -> int:
+    """O(log n) evaluation of f(n) MOD M via companion-matrix power with the modulus INSIDE — bounded ints (no
+    bigint blowup), so this is genuinely O(log n) ring operations and MEASURABLY beats the O(n) modular loop at
+    large n. Exact: ≡ naive_nth(c, init, n) % M by the same companion-matrix theorem."""
+    d = len(c)
+    if n < d:
+        return init[n] % M
+    C = [[c[j] % M for j in range(d)]] + \
+        [[1 if k == i - 1 else 0 for k in range(d)] for i in range(1, d)]
+    P = _matpow_mod(C, n - (d - 1), M)
+    v = [init[d - 1 - i] % M for i in range(d)]
+    return sum(P[0][k] * v[k] for k in range(d)) % M
+
+
 def verify_cfinite(c: Sequence[int], init: Sequence[int],
                    ns: Sequence[int] = (8, 16, 24, 40, 63)) -> Tuple[bool, List[int]]:
     """Certify the closed form: companion_nth ≡ naive_nth for every n in `ns` (exact int).

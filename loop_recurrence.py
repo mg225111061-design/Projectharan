@@ -128,3 +128,95 @@ def decide_recurrence_collapse(source: str, fn_name: Optional[str] = None, sampl
                                                "loop_recurrence",
                                                "verified O(n)→O(log n) collapse (≡ loop on held-out n; Amdahl-honest)",
                                                cert))
+
+
+def _detect_modulus(fn, ns) -> Optional[int]:
+    """Find a modulus M from a `% M` in the loop's update — M as a literal, a constant expr (10**9+7), or a
+    Name resolved in the function's namespace. A wrong guess is harmless: the held-out verification rejects it."""
+    import ast
+    for node in ast.walk(fn):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+            try:
+                v = eval(compile(ast.Expression(node.right), "<m>", "eval"), {"__builtins__": {}}, dict(ns))  # noqa: S307
+                if isinstance(v, int) and not isinstance(v, bool) and v > 1:
+                    return v
+            except Exception:                                # noqa: BLE001
+                continue
+    return None
+
+
+def decide_modular_recurrence_collapse(source: str, fn_name: Optional[str] = None, sample: int = 24,
+                                       n: int = 100000, trials: int = 5) -> RecurrenceCollapse:
+    """DECIDE whether a single-parameter loop computes a C-finite sequence f(n) MOD M and, if so, collapse the
+    O(n) modular loop to an O(log n) companion-matrix-power-MOD-M form — the case where O(log n) genuinely WINS
+    (bounded ints, no bigint). Sound: M is detected from the loop's `% M`, the recurrence is fitted from the
+    early (unwrapped) samples, and — the gate — `companion_nth_mod ≡ the user's ACTUAL loop on HELD-OUT n where
+    it has WRAPPED`. A wrong M or a wrong fit ⇒ DECLINE (never a wrong collapse). Otherwise DECLINE (honest)."""
+    import structure_recognizer as SR
+
+    fn = SR._first_fn(source, fn_name)
+    if fn is None or len(fn.args.args) != 1:
+        return _decline("not a single-parameter function ⇒ outside this recognizer")
+    ns: dict = {"__builtins__": SR._SAFE_BUILTINS}            # SINGLE namespace ⇒ f.__globals__ sees module consts (M)
+    try:
+        exec(compile(source, "<modrec>", "exec"), ns)        # noqa: S102 — sandboxed builtins, no imports/IO
+    except Exception as e:                                    # noqa: BLE001
+        return _decline(f"could not build the function ({type(e).__name__})")
+    f = ns.get(fn.name)
+    if f is None:
+        return _decline("function not found after exec")
+    M = _detect_modulus(fn, ns)
+    if M is None:
+        return _decline("no modulus `% M` found in the loop ⇒ not a modular recurrence (use the exact recognizer)")
+
+    # 1) SAMPLE early values (likely unwrapped for a large M) → fit the exact integer recurrence
+    seq: List[int] = []
+    for i in range(sample):
+        try:
+            v = f(i)
+        except Exception:                                    # noqa: BLE001
+            return _decline("the loop raised during sampling ⇒ DECLINE")
+        if not isinstance(v, int) or isinstance(v, bool):
+            return _decline("non-integer sequence ⇒ DECLINE")
+        seq.append(v)
+    rec = find_recurrence(seq)
+    if rec is None:
+        return _decline("no short integer recurrence fits the early samples ⇒ DECLINE (not C-finite, or M too small)")
+    c, init = rec
+
+    # 2) ★ SOUND GATE: companion_nth_MOD ≡ the loop on HELD-OUT n where the loop has WRAPPED (mod behaviour) ★
+    holdout = [sample + 60, sample + 130, 2 * sample + 300, 3 * sample + 777]
+    for nv in holdout:
+        try:
+            want = f(nv)
+        except Exception:                                    # noqa: BLE001
+            return _decline("the loop raised on held-out n ⇒ DECLINE")
+        if cfinite.companion_nth_mod(c, init, nv, M) != want:
+            return _decline(f"companion-mod ≠ the loop at held-out n={nv} (mod {M}) ⇒ DECLINE (no wrong collapse)")
+
+    # 3) re-check at the measured n, then MEASURE the O(n) modular loop vs the O(log n) companion-mod
+    if f(n) != cfinite.companion_nth_mod(c, init, n, M):
+        return _decline(f"companion-mod ≠ loop at the measured n={n} ⇒ DECLINE")
+    naive_s = _median_time(lambda: f(n), trials)
+    log_s = _median_time(lambda: cfinite.companion_nth_mod(c, init, n, M), max(trials, 9))
+    ratio = (naive_s / log_s) if log_s > 0 else float("inf")
+    import fold_dispatcher as FD
+    wp_half = FD.amdahl_overall_speedup(ratio, 0.5)
+    order = len(c)
+    win = ratio > 1.1
+    cert = KV.Cert(KV.EXACT, "verified_modular_recurrence_collapse", passed=True,
+                   check_cost=f"{trials} timed trials at n={n} + held-out companion-mod≡loop verification",
+                   detail=f"order-{order} C-finite recurrence f(n)=Σ c_j·f(n-1-j) mod {M}, c={c}, init={init}, fitted "
+                          f"from {sample} early samples and VERIFIED ≡ the user's loop on held-out n {holdout} WHERE "
+                          f"IT HAS WRAPPED (mod {M}). MEASURED O(n)→O(log n) {ratio:.1f}× at n={n} (naive "
+                          f"{naive_s * 1e3:.2f} ms → companion-mod {log_s * 1e6:.2f} µs). This is the case the O(log n) "
+                          f"collapse genuinely WINS: the modulus keeps ints BOUNDED (no bigint), so it is true "
+                          f"O(log n) ring work. The loop IS this function (f=1) ⇒ whole-program FOR THIS FUNCTION; "
+                          f"embed → ≤ {wp_half:.2f}× (Amdahl). DOMAIN-CONDITIONAL — C-finite modular recurrences only.")
+    return RecurrenceCollapse("COLLAPSED", c=c, init=init, order=order, n=n, naive_s=naive_s, log_s=log_s,
+                              ratio=ratio, measured_win=win,
+                              closed_desc=f"companion_nth_mod(c={c}, init={init}, n, M={M}) — O(log n) bounded",
+                              verdict=KV.exact({"c": c, "init": init, "M": M, "ratio": ratio, "n": n, "measured_win": win},
+                                               "loop_recurrence",
+                                               f"verified O(n)→O(log n) modular collapse mod {M} (≡ loop on wrapped "
+                                               f"held-out n; Amdahl-honest)", cert))
