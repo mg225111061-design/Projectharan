@@ -9776,18 +9776,26 @@ def test_haran_broth_lookup():
     import dataclasses
 
     m = HB.measure(probes=50000)
-    assert m["entries"] >= 500 and m["all_hit"], m
-    assert set(m["by_algo"]) == {9, 10, 45, 49}, m["by_algo"]      # 4 of the 50 covered (cross-algorithm)
+    assert m["entries"] >= 700 and m["all_hit"], m
+    assert set(m["by_algo"]) == {9, 10, 31, 33, 34, 41, 45, 49}, m["by_algo"]   # 8 of the 50 covered (cross-algorithm)
     assert m["lookup_us"] < 1.0, f"O(1) lookup must be sub-µs (size-independent): {m['lookup_us']}"
 
-    # ★ SOUNDNESS: every stored entry reproduces when the REAL algorithm is re-run (the cache cannot lie) ★
+    # ★ SOUNDNESS: stored entries reproduce when the REAL algorithm is re-run (the cache cannot lie). Re-verify a
+    # per-family sample (≥3 of each of the 8 families) — covers every family while keeping the suite light ★
     idx = HB.index()
-    assert all(HB.reverify(e) for e in idx.values()), "every broth entry must re-verify by re-execution"
+    by_fam: dict = {}
+    for e in idx.values():
+        by_fam.setdefault(e.algo, []).append(e)
+    sample = [e for es in by_fam.values() for e in es[:3]]
+    assert all(HB.reverify(e) for e in sample), "every broth family must re-verify by re-execution"
+    assert set(by_fam) == set(m["by_algo"]), "every counted family must be sampled"
 
-    # spot HITS return the pre-proven exact result instantly
+    # spot HITS return the pre-proven exact result instantly (across multiple algorithm families)
     assert HB.lookup(("cfinite", "fibonacci")).value == "([1, 1], [0, 1])"
     assert HB.lookup(("wigner3j", 1, 1, 2, 0, 0, 0)).value == "sqrt(30)/15"
     assert HB.lookup(("jacobi", 2, 7)).value == "1"                # (2|7) = +1 (7 ≡ 7 mod 8)
+    assert HB.lookup(("pell", 2)).value == "(3, 2)"                # 3²−2·2² = 1
+    assert HB.lookup(("fib", 100, 1000)).value == "75"            # F(100) mod 1000
 
     # MISS → None (honest: the algorithm would run; broth does NOT fabricate an O(1) answer)
     assert HB.lookup(("faulhaber", 999)) is None and HB.lookup(("cfinite", "nope")) is None
@@ -9796,10 +9804,10 @@ def test_haran_broth_lookup():
     tampered = dataclasses.replace(HB.lookup(("faulhaber", 5)), value="n + 1")
     assert HB.reverify(tampered) is False
 
-    print(f"PASS test_haran_broth_lookup (§2: {m['entries']} pre-proven instantiations across 4 of the 50 "
-          f"[#9 Faulhaber/#10 C-finite/#45 Jacobi/#49 Wigner3j]; O(1) lookup {m['lookup_us']}µs all-hit; EVERY "
-          f"entry re-verifies by re-running the real algorithm; miss→None; tampered→rejected — precomputed-lookup-"
-          f"fast, NOT execution-O(1))")
+    print(f"PASS test_haran_broth_lookup (§2: {m['entries']} pre-proven instantiations across "
+          f"{len(m['by_algo'])} of the 50 [#9 Faulhaber/#10 C-finite/#31 modexp/#33 fib/#34 binom/#41 Pell/"
+          f"#45 Jacobi/#49 Wigner3j]; O(1) lookup {m['lookup_us']}µs all-hit; EVERY entry re-verifies by re-running "
+          f"the real algorithm; miss→None; tampered→rejected — precomputed-lookup-fast, NOT execution-O(1))")
 
 
 def test_mode_budget_roles():

@@ -77,6 +77,32 @@ def _brew() -> Dict[Tuple, BrothEntry]:
                 idx[("jacobi", a, nn)] = BrothEntry(45, ("jacobi", a, nn), str(v.result),
                                                     "reciprocity ≡ ∏ Legendre", "number-theory")
 
+    # #31 fast modular exponentiation — common (a,b,m)
+    for a in (2, 3, 5, 7, 10):
+        for b in (100, 1000, 65537):
+            for mm in (1000000007, 998244353):
+                idx[("modexp", a, b, mm)] = BrothEntry(31, ("modexp", a, b, mm), str(pow(a, b, mm)),
+                                                       "modexp homomorphism re-check", "number-theory")
+    # #33 fast-doubling Fibonacci mod m
+    for nn in (50, 100, 1000, 10 ** 6):
+        for mm in (1000, 1000000007):
+            idx[("fib", nn, mm)] = BrothEntry(33, ("fib", nn, mm), str(FK.fib_mod(nn, mm).result),
+                                              "fast-doubling + Cassini", "number-theory")
+    # #41 Pell fundamental solutions x²−D y² = 1 (non-square D)
+    from math import isqrt
+    for D in range(2, 40):
+        if isqrt(D) ** 2 == D:
+            continue
+        pv = NT.pell_grade(D)
+        if pv.status == KV.EXACT:
+            idx[("pell", D)] = BrothEntry(41, ("pell", D), str(pv.result), "x²−Dy²=1 identity", "number-theory")
+    # #34 binomial C(n,k) mod p (Lucas), incl. astronomical n
+    for (nn, kk, pp) in [(20, 7, 5), (100, 50, 7), (10 ** 9, 12345, 13), (2 ** 40, 1000, 11)]:
+        bv = NT.binom_mod_pe_grade(nn, kk, pp, 1)
+        if bv.status == KV.EXACT:
+            idx[("binom", nn, kk, pp)] = BrothEntry(34, ("binom", nn, kk, pp), str(bv.result), "Lucas mod p",
+                                                    "number-theory")
+
     # #49 Wigner 3j for small integer arguments (the Racah factorial sum is the offline cost)
     for j1 in range(0, 4):
         for j2 in range(0, 4):
@@ -116,7 +142,20 @@ def reverify(entry: BrothEntry) -> bool:
     import cfinite as CF
     import mathmode.wigner as W
     import mathmode.number_theory as NT
+    import mathmode.fastkernels as FK
     try:
+        if entry.algo == 31:                             # modexp: re-run modexp_grade
+            _, a, b, mm = entry.key
+            return str(NT.modexp_grade(a, b, mm).result) == entry.value
+        if entry.algo == 33:                             # fib mod m: re-run fast-doubling
+            _, nn, mm = entry.key
+            return str(FK.fib_mod(nn, mm).result) == entry.value
+        if entry.algo == 41:                             # Pell: re-run pell_grade
+            _, D = entry.key
+            return str(NT.pell_grade(D).result) == entry.value
+        if entry.algo == 34:                             # binomial mod p: re-run binom_mod_pe_grade
+            _, nn, kk, pp = entry.key
+            return str(NT.binom_mod_pe_grade(nn, kk, pp, 1).result) == entry.value
         if entry.algo == 9:                              # Faulhaber: closed form must match the brute sum at a sample
             p = entry.key[1]
             n = sp.Symbol("n")
