@@ -394,6 +394,14 @@ double sums (e.g. Σ_iΣ_{j≤i} j → n(n²+3n+2)/6), each closed form INDEPEND
 loop. Sound: an accumulator-dependent body, triple nesting, an extra outer statement, and a non-identity
 initializer are all correctly REJECTED. `test_haran_nested_loop_collapse`.
 
+**MEASURED code-shape reach (§3 deepen).** `algo50_coverage.measure_code_shapes()` quantifies the CODE recognizer's
+collapse breadth, with NO padding — a collapse counts only if `dispatch`→OFFLOADED AND the emitted closed form matches
+a brute-force evaluation on fresh inputs. Measured: **30/30** (six Σ-targets — Σk, Σk², Σk³, Σ(2k−1), Σk(k+1),
+Σ(3k²−k) — × five shapes) single-fold collapses, all six targets fully SHAPE-INVARIANT (each target's five shapes
+agree on ONE closed form); **4/4** nested O(n²)→O(1); **34 total** execution-verified code collapses; and **6/6**
+adversarial code shapes correctly REJECTED. This MEASURES the recognizer's reach — it is NOT a claim that arbitrary
+code collapses (unstructured code declines — the honest majority). `test_haran_code_shape_coverage`.
+
 ### §4 — TIER ROUTING for the 50: fast / normal / extend + broth short-circuit (`algo50_router.py`)
 
 The operational glue tying §1 (each algorithm's tier) + §2 (broth) + the `pillar3/mode.py` contract. `route(algo,

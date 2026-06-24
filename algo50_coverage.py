@@ -104,6 +104,117 @@ def _adversarial() -> List[Tuple[str, object]]:
     ]
 
 
+def _code_shape_corpus() -> List[Tuple[str, str, str]]:
+    """(target, summand h(k), n-th term h(n)) — single-fold Σ_{k=1}^{n} h(k) targets, each rendered in five code
+    shapes (for / counter-while / comprehension / recursion / functools.reduce) by `_render_shapes`."""
+    return [
+        ("Σk", "k", "n"),
+        ("Σk²", "k*k", "n*n"),
+        ("Σk³", "k*k*k", "n*n*n"),
+        ("Σ(2k−1)", "2*k-1", "2*n-1"),
+        ("Σk(k+1)", "k*(k+1)", "n*(n+1)"),
+        ("Σ(3k²−k)", "3*k*k-k", "3*n*n-n"),
+    ]
+
+
+def _render_shapes(h: str, h_n: str) -> Dict[str, str]:
+    """The SAME accumulation Σ_{k=1}^{n} h(k) written as five code shapes — all must collapse to one closed form."""
+    return {
+        "for": f"def f(n):\n s=0\n for k in range(1,n+1):\n  s+=({h})\n return s",
+        "while": f"def f(n):\n s=0\n k=1\n while k<=n:\n  s+=({h})\n  k+=1\n return s",
+        "comprehension": f"def f(n):\n return sum(({h}) for k in range(1,n+1))",
+        "recursion": f"def f(n):\n if n<1:\n  return 0\n return f(n-1)+({h_n})",
+        "reduce": f"def f(n):\n return reduce(lambda s,k: s+({h}), range(1,n+1), 0)",
+    }
+
+
+def _nested_code_corpus() -> List[Tuple[str, str, object]]:
+    """(label, source, brute-force reference) — doubly-nested Σ_iΣ_j h(i,j) that collapse O(n²)→O(1)."""
+    return [
+        ("nested·triangular", "def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += j\n return acc",
+         lambda n: sum(sum(range(1, i + 1)) for i in range(1, n + 1))),
+        ("nested·rectangular", "def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,n+1):\n   acc += i*j\n return acc",
+         lambda n: sum(i * j for i in range(1, n + 1) for j in range(1, n + 1))),
+        ("nested·coupled", "def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += i+j\n return acc",
+         lambda n: sum(i + j for i in range(1, n + 1) for j in range(1, i + 1))),
+        ("nested·0based", "def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   acc += i*i+j\n return acc",
+         lambda n: sum(i * i + j for i in range(n) for j in range(n))),
+    ]
+
+
+def _adversarial_code_shapes() -> List[Tuple[str, str]]:
+    """(label, source) — code shapes that MUST NOT collapse (the recognizer/gate can only DECLINE on a misread)."""
+    return [
+        ("acc-dependent for-body", "def f(n):\n s=1\n for k in range(1,n+1):\n  s+=s\n return s"),
+        ("non-counter while", "def f(x):\n while x>1:\n  x=x//2\n return x"),
+        ("binary recursion (Fibonacci)", "def f(n):\n if n<2:\n  return n\n return f(n-1)+f(n-2)"),
+        ("acc-in-reduce-summand", "def f(n):\n return reduce(lambda s,k: s+s, range(1,n+1), 0)"),
+        ("triple nesting", "def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   for k in range(n):\n    acc += i\n return acc"),
+        ("acc-dependent nested body", "def f(n):\n acc=1\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += acc+j\n return acc"),
+    ]
+
+
+def measure_code_shapes() -> Dict[str, object]:
+    """HARAN §3 (code-shape mapping) — MEASURED reach of the CODE-side recognizer: how many (target × code-shape)
+    pairs collapse to a VERIFIED O(1)/closed form via `structure_recognizer.dispatch`, plus nested O(n²)→O(1). A
+    collapse counts ONLY if dispatch returns OFFLOADED AND the emitted closed form independently matches a brute-force
+    evaluation on fresh inputs (NO padding). Per target, all five shapes must agree on ONE closed form (shape
+    invariance). Adversarial code shapes MUST NOT collapse. This is a measured CODE-collapse count, NOT a claim that
+    arbitrary code collapses — unstructured code declines (the honest majority)."""
+    import sympy
+    import structure_recognizer as SR
+
+    SHAPES = ["for", "while", "comprehension", "recursion", "reduce"]
+    collapses = 0
+    fully_invariant = 0
+    per_shape = {s: 0 for s in SHAPES}
+    targets = _code_shape_corpus()
+    for _tgt, h, h_n in targets:
+        cforms = set()
+        rendered = _render_shapes(h, h_n)
+        offloaded_here = 0
+        for sh in SHAPES:
+            d = SR.dispatch(rendered[sh], "f")
+            if d.status != "OFFLOADED" or not d.closed_form:
+                continue
+            F = sympy.sympify(d.closed_form)
+            psym = next(iter(F.free_symbols), sympy.Symbol("n"))
+            ref = SR._make_callable(rendered[sh], "f")
+            if all(abs(float(F.subs(psym, N)) - ref(N)) < 1e-6 for N in (3, 6, 9, 14, 20)):
+                collapses += 1
+                offloaded_here += 1
+                per_shape[sh] += 1
+                cforms.add(str(sympy.simplify(F)))
+        if offloaded_here == len(SHAPES) and len(cforms) == 1:
+            fully_invariant += 1
+
+    nested_ok = 0
+    for _lbl, src, ref in _nested_code_corpus():
+        d = SR.dispatch(src, "f")
+        if d.status == "OFFLOADED" and d.closed_form:
+            F = sympy.sympify(d.closed_form)
+            psym = next(iter(F.free_symbols), sympy.Symbol("n"))
+            if all(abs(float(F.subs(psym, N)) - ref(N)) < 1e-6 for N in (4, 7, 11, 16, 25)):
+                nested_ok += 1
+
+    adv = _adversarial_code_shapes()
+    adv_rejected = sum(1 for _lbl, src in adv if SR.dispatch(src, "f").status != "OFFLOADED")
+    return {
+        "single_fold_targets": len(targets),
+        "code_shapes": len(SHAPES),
+        "single_fold_collapses": collapses,            # (target × shape) pairs that VERIFIABLY collapse
+        "single_fold_max": len(targets) * len(SHAPES),
+        "fully_invariant_targets": fully_invariant,    # targets whose 5 shapes all agree on ONE closed form
+        "per_shape_collapses": per_shape,
+        "nested_collapses": nested_ok,
+        "nested_total": len(_nested_code_corpus()),
+        "total_code_collapses": collapses + nested_ok,
+        "adversarial_total": len(adv),
+        "adversarial_rejected": adv_rejected,
+        "adversarial_correct": adv_rejected == len(adv),
+    }
+
+
 def measure() -> Dict[str, object]:
     """Run the corpus through the REAL algorithms and MEASURE the collapse coverage (DOMAIN-CONDITIONAL)."""
     structured = _structured()

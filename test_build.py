@@ -9815,6 +9815,34 @@ def test_haran_nested_loop_collapse():
           "REJECTED — sound, CAS-proposed + execution-gated)")
 
 
+def test_haran_code_shape_coverage():
+    """HARAN §3 — MEASURED reach of the CODE-side code-shape collapse: every (Σ-target × code-shape) pair and every
+    nested form that VERIFIABLY collapses to a closed form (dispatch→OFFLOADED AND the emitted closed form matches a
+    brute-force evaluation on fresh inputs — NO padding). Six single-fold targets × five shapes (for / counter-while
+    / comprehension / recursion / functools.reduce) = 30, all fully shape-invariant (each target's five shapes agree
+    on ONE closed form); + four nested O(n²)→O(1) = 34 measured collapses. The adversarial code shapes MUST NOT
+    collapse. This MEASURES the CODE recognizer's breadth; it is NOT a claim that arbitrary code collapses
+    (unstructured code declines — the honest majority)."""
+    import algo50_coverage as C
+
+    m = C.measure_code_shapes()
+    # every single-fold (target × shape) pair collapses, and every target is fully shape-invariant
+    assert m["single_fold_collapses"] == m["single_fold_max"] == 30, m
+    assert m["fully_invariant_targets"] == m["single_fold_targets"] == 6, m
+    assert all(v == 6 for v in m["per_shape_collapses"].values()), m          # all 5 shapes reach all 6 targets
+    # every nested form collapses O(n²)→O(1)
+    assert m["nested_collapses"] == m["nested_total"] == 4, m
+    assert m["total_code_collapses"] == 34, m
+    # ★ soundness: every adversarial code shape is correctly REJECTED (no false collapse) ★
+    assert m["adversarial_correct"] and m["adversarial_rejected"] == m["adversarial_total"] == 6, m
+
+    print(f"PASS test_haran_code_shape_coverage (§3 code-shape reach: {m['single_fold_collapses']}/{m['single_fold_max']} "
+          f"(target × shape) single-fold collapses across {m['code_shapes']} shapes, all {m['fully_invariant_targets']} "
+          f"targets shape-invariant; {m['nested_collapses']}/{m['nested_total']} nested O(n²)→O(1); "
+          f"{m['total_code_collapses']} total execution-verified code collapses; {m['adversarial_rejected']}/"
+          f"{m['adversarial_total']} adversarial shapes correctly REJECTED — MEASURED, not a general-code claim)")
+
+
 def test_haran_coverage():
     """HARAN §3 — MEASURED collapse coverage of the 50 algorithms over a structured corpus, DOMAIN-CONDITIONAL.
     Every structured item is dispatched to the REAL algorithm and must certify (EXACT/PROBABILISTIC); a
