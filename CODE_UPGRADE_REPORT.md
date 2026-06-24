@@ -335,6 +335,19 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   (Buchberger built; F4 matrix acceleration not added — same ideal, faster). EXACT. `test_haran_groebner_membership`.
   (**41 CONFIRMED — §1 COMPLETE: all 50 named algorithms present.**)
 
+### §2 — the cross-algorithm BROTH: pre-prove common instantiations offline → O(1) lookup (`haran_broth.py`)
+
+The "instant" mechanism widened beyond the existing sum/recurrence broth (3,772 entries) to span SEVERAL of the
+50 named algorithms. `haran_broth.py` brews **642 pre-proven instantiations** OFFLINE — **#9 Faulhaber** Σk^p
+closed forms (p=1..12), **#10 named C-finite** sequences (Fibonacci/Lucas/Pell/Jacobsthal/Tribonacci/Padovan/
+Perrin), **#45 Jacobi** symbols (174 small (a|n)), **#49 Wigner 3j** symbols (449 small integer arguments) — and
+serves them by an **O(1) hash lookup measured at ≈ 0.077 µs (size-independent, all-hit)**. The certificate
+discipline is the strongest possible: **every cached entry RE-VERIFIES by RE-RUNNING the real algorithm**
+(`reverify`) — a corrupted cache is caught (a tampered Faulhaber closed form is rejected), never served on its
+say-so. **§0-B honesty (verbatim):** this is PRECOMPUTED-LOOKUP-FAST, NOT execution-O(1) — a MISS returns `None`
+and the caller runs the algorithm at its TRUE complexity; widening coverage = pre-proving more common cases, NOT
+making any algorithm instant. `test_haran_broth_lookup`.
+
 ---
 
 ## §X — WHAT WE MUST NOT CLAIM (verbatim)

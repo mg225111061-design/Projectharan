@@ -9424,6 +9424,42 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_broth_lookup():
+    """HARAN §2 — the cross-algorithm BROTH: common instantiations of SEVERAL of the 50 algorithms pre-proven
+    OFFLINE → O(1) hash lookup at runtime. The certificate discipline is the strongest possible: EVERY cached
+    entry re-verifies by RE-RUNNING the real algorithm (a corrupted cache is caught, never silently served).
+    §0-B honesty: this is precomputed-lookup-fast (O(1) on a HIT), NOT execution-O(1) — a MISS returns None and
+    the caller runs the algorithm at its true complexity."""
+    import haran_broth as HB
+    import dataclasses
+
+    m = HB.measure(probes=50000)
+    assert m["entries"] >= 500 and m["all_hit"], m
+    assert set(m["by_algo"]) == {9, 10, 45, 49}, m["by_algo"]      # 4 of the 50 covered (cross-algorithm)
+    assert m["lookup_us"] < 1.0, f"O(1) lookup must be sub-µs (size-independent): {m['lookup_us']}"
+
+    # ★ SOUNDNESS: every stored entry reproduces when the REAL algorithm is re-run (the cache cannot lie) ★
+    idx = HB.index()
+    assert all(HB.reverify(e) for e in idx.values()), "every broth entry must re-verify by re-execution"
+
+    # spot HITS return the pre-proven exact result instantly
+    assert HB.lookup(("cfinite", "fibonacci")).value == "([1, 1], [0, 1])"
+    assert HB.lookup(("wigner3j", 1, 1, 2, 0, 0, 0)).value == "sqrt(30)/15"
+    assert HB.lookup(("jacobi", 2, 7)).value == "1"                # (2|7) = +1 (7 ≡ 7 mod 8)
+
+    # MISS → None (honest: the algorithm would run; broth does NOT fabricate an O(1) answer)
+    assert HB.lookup(("faulhaber", 999)) is None and HB.lookup(("cfinite", "nope")) is None
+
+    # a TAMPERED entry is REJECTED by the re-execution recheck (trusted only because re-running agrees)
+    tampered = dataclasses.replace(HB.lookup(("faulhaber", 5)), value="n + 1")
+    assert HB.reverify(tampered) is False
+
+    print(f"PASS test_haran_broth_lookup (§2: {m['entries']} pre-proven instantiations across 4 of the 50 "
+          f"[#9 Faulhaber/#10 C-finite/#45 Jacobi/#49 Wigner3j]; O(1) lookup {m['lookup_us']}µs all-hit; EVERY "
+          f"entry re-verifies by re-running the real algorithm; miss→None; tampered→rejected — precomputed-lookup-"
+          f"fast, NOT execution-O(1))")
+
+
 def test_mode_budget_roles():
     """§1 (CORE) — fast/normal/extend are DISTINCT roles with DISTINCT, ENFORCED wall-clock budgets, not speed
     presets. The headline guarantee: extend is BOUNDED at ~8 min — NOT unlimited; at the deadline it returns the
