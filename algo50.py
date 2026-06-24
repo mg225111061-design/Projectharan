@@ -171,10 +171,10 @@ _C: List[Algo] = [
     Algo(35, "Extended Euclid / Bézout + CRT (Garner)", "C", "mathmode.number_theory", "crt_grade", KV.EXACT,
          "Bézout a·x+b·y=g verified; CRT residue x ≡ rᵢ (mod mᵢ) verified", "egcd O(log min); CRT O(k²)", False,
          FAST, False),
-    Algo(36, "Miller–Rabin (deterministic, bounded) + BPSW", "C", "mathmode.number_theory", "is_prime_grade",
-         KV.EXACT, "12 fixed bases proven deterministic < 3.317e24; else one-sided witness", "EXACT<bound, "
-         "PROBABILISTIC(δ=4⁻ᵏ) above", True, NORMAL, False, PARTIAL, "deterministic MR + probabilistic present; "
-         "the BPSW Lucas component not yet"),
+    Algo(36, "Miller–Rabin (deterministic, bounded) + BPSW", "C", "mathmode.number_theory", "bpsw_grade",
+         KV.EXACT, "deterministic MR < 3.317e24; above: BPSW = MR-2 ∧ strong-Lucas (no known counterexample); a "
+         "failed test is a proven-composite witness", "EXACT < 3.317e24, PROBABILISTIC above", True, NORMAL, True,
+         note="deterministic MR + BPSW (strong MR-2 ∧ strong Lucas) present; disjoint-liar property tested"),
     Algo(37, "Lucas–Lehmer (Mersenne)", "C", "mathmode.fastkernels", "lucas_lehmer", KV.EXACT,
          "known-Mersenne cross-check; (s²−2) mod M iteration", "O(p)-ITERATION — real ceiling (p≲20000 here); "
          "astronomical p → DECLINE, never O(1), never a hang", True, EXTEND, False,

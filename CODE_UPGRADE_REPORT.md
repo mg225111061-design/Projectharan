@@ -265,8 +265,8 @@ eligibility, and a status.
 **Status (MEASURED, honest — never rounded up to "50 done"):** **44 CONFIRMED + 6 PARTIAL + 0 GAP** — §1 COMPLETE:
 every one of the 50 named algorithms resolves to a real, certificate-bearing implementation (Groups A/B/C/D all
 done; the 8 original gaps were each built one-per-commit, and PARTIALS are being closed too — #44 Euler-φ gained
-Möbius μ, #42 gained the Stern–Brocot tree, #29 gained fast multipoint evaluation). The 6 PARTIALS are NOT gaps —
-each names only a missing SUB-variant (e.g.
+Möbius μ, #42 gained the Stern–Brocot tree, #29 gained fast multipoint evaluation, #36 gained the BPSW strong-Lucas
+component). The 5 PARTIALS are NOT gaps — each names only a missing SUB-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
 #27 — NEVER marked EXACT). Tiers: fast 10 / normal 30 / extend 10. The honest-complexity caveats are RECORDED and

@@ -9424,6 +9424,44 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_bpsw():
+    """HARAN #36 (Group C) — BAILLIE–PSW primality = strong Miller–Rabin base 2 ∧ strong Lucas PRP (Selfridge D
+    via the in-house Jacobi symbol). EXACT/deterministic below the proven MR bound; above it, a BPSW pass is a
+    PROBABILISTIC 'probable prime' (no known counterexample, not a proof) and a failure is a PROVEN-composite
+    witness (EXACT). The headline is the DISJOINT-LIAR property: numbers that fool ONE test are caught by the
+    OTHER. Closes the BPSW Lucas-component partial."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+    import sympy as sp
+
+    # (a) exhaustive 2..8000 == sympy.isprime, all EXACT (deterministic regime)
+    for n in range(2, 8001):
+        v = NT.bpsw_grade(n)
+        assert v.result == sp.isprime(n) and v.status == KV.EXACT, (n, v.result, v.status)
+
+    # (b) ★ disjoint-liar property ★ — Carmichael numbers (Fermat liars) are PROVEN composite
+    for c in (561, 1105, 1729, 2465, 41041, 825265):
+        assert NT.bpsw_grade(c).result is False and NT.bpsw_grade(c).status == KV.EXACT, c
+    # strong pseudoprimes base 2 (they FOOL MR-2) are caught by the strong LUCAS test ⇒ composite
+    for c in (2047, 3277, 4033, 4681):
+        assert NT.bpsw_grade(c).result is False, c
+
+    # (c) above the deterministic bound: a prime is a BPSW PROBABILISTIC; a composite is a PROVEN witness (EXACT)
+    mp = 2 ** 127 - 1                                          # M127, a prime
+    v = NT.bpsw_grade(mp)
+    assert v.result is True and v.status == KV.PROBABILISTIC and v.certificate.kind == "bpsw_probable_prime"
+    comp = (2 ** 127 - 1) * (2 ** 89 - 1)                      # composite, above bound
+    cv = NT.bpsw_grade(comp)
+    assert cv.result is False and cv.status == KV.EXACT       # failed test ⇒ proven composite
+
+    # (d) n<2 ⇒ DECLINE
+    assert NT.bpsw_grade(1).status == KV.DECLINE
+
+    print("PASS test_haran_bpsw (#36: Baillie–PSW = strong MR-2 ∧ strong Lucas (Selfridge D via in-house Jacobi); "
+          "2..8000 == sympy.isprime; DISJOINT-LIAR property — Carmichael + MR-2 strong-pseudoprimes all caught; "
+          "M127 → PROBABILISTIC above bound, composite → EXACT witness; n<2 → DECLINE — closes the BPSW partial)")
+
+
 def test_haran_multipoint_eval():
     """HARAN #29 (Group B) — fast multipoint polynomial EVALUATION by the subproduct/remainder tree (O(M(n) log n)),
     EXACT over ℚ, certified against direct Horner at every point (an independent O(n²) oracle). Closes the

@@ -261,6 +261,90 @@ def euler_phi_grade(n: int) -> KV.Verdict:
     return KV.exact(phi, "number_theory.euler_phi", "via factorization", cert)
 
 
+def _lucas_uv(k: int, P: int, Q: int, D: int, n: int):
+    """Lucas sequences (U_k, V_k, Q^k) mod n by binary expansion of k (half-mod-n via (x+n)//2, n odd)."""
+    U, V, Qk = 1 % n, P % n, Q % n
+    for d in bin(k)[3:]:                                      # bits below the leading 1
+        U = (U * V) % n
+        V = (V * V - 2 * Qk) % n
+        Qk = (Qk * Qk) % n
+        if d == "1":
+            U2, V2 = (P * U + V), (D * U + P * V)
+            U = (U2 + (n if U2 & 1 else 0)) // 2 % n          # halve mod n
+            V = (V2 + (n if V2 & 1 else 0)) // 2 % n
+            Qk = (Qk * Q) % n
+    return U % n, V % n, Qk
+
+
+def _strong_lucas_prp(n: int) -> bool:
+    """Strong Lucas probable-prime test with Selfridge parameters (D the first of 5,−7,9,… with (D|n)=−1)."""
+    from math import isqrt
+    if n % 2 == 0 or isqrt(n) ** 2 == n:                     # Lucas test needs odd, non-square n
+        return n == 2
+    D, sign = 5, 1
+    while True:
+        j = _jacobi_reciprocity(D % n, n)
+        if j == -1:
+            break
+        if j == 0:
+            return n == abs(D)                               # gcd(D,n)>1 ⇒ composite unless n=|D|
+        sign = -sign
+        D = sign * (abs(D) + 2)                              # 5,−7,9,−11,13,…
+        if abs(D) > 10 ** 7:
+            return False
+    P, Q = 1, (1 - D) // 4
+    d, s = n + 1, 0
+    while d % 2 == 0:
+        d //= 2
+        s += 1
+    U, V, Qk = _lucas_uv(d, P, Q, D, n)
+    if U == 0 or V == 0:
+        return True
+    for _ in range(1, s):                                    # V_{d·2^r} ≡ 0 for some r ⇒ strong Lucas PRP
+        V = (V * V - 2 * Qk) % n
+        Qk = (Qk * Qk) % n
+        if V == 0:
+            return True
+    return False
+
+
+def bpsw_grade(n: int) -> KV.Verdict:
+    """Primality by BAILLIE–PSW = strong Miller–Rabin base 2 + strong Lucas PRP (Selfridge D). EXACT and
+    DETERMINISTIC below the proven Miller–Rabin bound (3.317e24, via is_prime_grade); above it, BPSW has NO known
+    counterexample but is not a proof ⇒ PROBABILISTIC ('BPSW probable prime', honest). A failure of either test
+    is a PROVEN composite (a witness) ⇒ EXACT. Cross-checked against the deterministic engine where both apply."""
+    if n < 2:
+        return KV.decline(f"bpsw: n={n} < 2 not prime-testable ⇒ DECLINE", "number_theory.bpsw")
+    small = [2, 3, 5, 7, 11, 13]
+    if n in small:
+        return KV.exact(True, "number_theory.bpsw", "small prime",
+                        KV.Cert(KV.EXACT, "bpsw_small", passed=True, check_cost="O(1)", detail=f"{n} is a small prime"))
+    if any(n % p == 0 for p in small):
+        return KV.exact(False, "number_theory.bpsw", "small factor",
+                        KV.Cert(KV.EXACT, "bpsw_small_factor", passed=True, check_cost="O(1)",
+                                detail=f"{n} divisible by a small prime ⇒ composite"))
+    mr2 = not _mr_composite(n, 2)                            # strong Fermat/MR base 2
+    lucas = _strong_lucas_prp(n)
+    is_prp = mr2 and lucas
+    if n < _DET_BOUND:                                       # below the bound, fold into the DETERMINISTIC verdict
+        det = _is_prime_det(n)
+        if det != is_prp:
+            return KV.decline(f"bpsw: BPSW({is_prp}) ≠ deterministic({det}) ⇒ DECLINE (would be a BPSW counterexample!)",
+                              "number_theory.bpsw")
+        cert = KV.Cert(KV.EXACT, "bpsw_deterministic", passed=True, check_cost="MR-2 + strong Lucas (+ det bound)",
+                       detail=f"{n} is {'PRIME' if det else 'COMPOSITE'} — BPSW (MR-2 ∧ strong-Lucas) agrees with "
+                              f"the deterministic test (n < 3.317e24)")
+        return KV.exact(det, "number_theory.bpsw", "BPSW (deterministic below bound)", cert)
+    if not is_prp:                                          # a failed test is a PROVEN composite (witness)
+        cert = KV.Cert(KV.EXACT, "bpsw_composite_witness", passed=True, check_cost="MR-2 / strong Lucas",
+                       detail=f"{n} fails {'MR base 2' if not mr2 else 'the strong Lucas test'} ⇒ PROVEN composite")
+        return KV.exact(False, "number_theory.bpsw", "BPSW composite witness", cert)
+    cert = KV.Cert(KV.PROBABILISTIC, "bpsw_probable_prime", passed=True, check_cost="MR-2 + strong Lucas",
+                   delta=0.0, detail=f"{n} passes BPSW (MR base 2 ∧ strong Lucas) — a BPSW probable prime; NO known "
+                                     f"counterexample exists, but above the deterministic bound this is not a proof")
+    return KV.probabilistic(True, "number_theory.bpsw", "BPSW probable prime", cert)
+
+
 def _sb_path(p: int, q: int) -> str:
     """The Stern–Brocot L/R path of p/q (p,q ≥ 1, gcd=1) by the subtractive (Euclidean) walk from the root 1/1."""
     out = []
@@ -807,4 +891,6 @@ def solve(problem: dict) -> KV.Verdict:
         return mobius_grade(problem["n"])
     if op == "stern_brocot":
         return stern_brocot_grade(problem["num"], problem["den"], problem.get("max_denom"))
+    if op == "bpsw":
+        return bpsw_grade(problem["n"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")
