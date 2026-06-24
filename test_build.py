@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {13, 14, 19, 28}, gaps   # #45 Jacobi, #43 sieve, #32 power-towers, #34 Lucas now CONFIRMED
+    assert set(gaps) == {13, 19, 28}, gaps   # #45,#43,#32,#34 + #14 Newton-series now CONFIRMED
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9255,6 +9255,49 @@ def test_haran_lucas_granville():
     print("PASS test_haran_lucas_granville (#34: C(n,k) mod p^e via Lucas/Granville; exhaustive n<60 across 9 "
           "(p,e) incl. prime powers == math.comb; astronomical C(10^18,10^9) mod p + C(10^18,12345) mod 3^7 with "
           "mod-p Lucas cross-check; k>n→0; non-prime/p^e>10^6/negatives → DECLINE; EXACT certificate re-checkable)")
+
+
+def test_haran_newton_series():
+    """HARAN #14 (Group A) — NEWTON ITERATION on formal power series (inv/sqrt/exp/log), EXACT over ℚ with
+    quadratic convergence. Each result is certified by its defining identity verified exactly to the truncation
+    order (A·B≡1 / S²≡A / exp∘log≡A / log∘exp≡A); preconditions (A(0)=0 for inv/sqrt, ≠1 for log, ≠0 for exp,
+    non-square A(0) for sqrt) are honest DECLINEs. Cross-checked against the closed-form Taylor coefficients."""
+    import newton_series as NS
+    import kernel_verdict as KV
+    import math
+    from fractions import Fraction as Fr
+    N = 14
+
+    # (a) inverse: 1/(1−x) = Σ xᵏ; and A·B ≡ 1 for an arbitrary A(0)≠0
+    assert NS.newton_series_grade("inv", [1, -1], N).result == [Fr(1)] * N
+    A = [3, 1, -2, 5, 7]
+    B = NS.newton_series_grade("inv", A, N)
+    assert B.status == KV.EXACT and NS._mul(NS._f(A), B.result, N) == [Fr(1)] + [Fr(0)] * (N - 1)
+
+    # (b) exp(x) = Σ xᵏ/k!  and  log(1+x) = Σ (−1)^{k+1} xᵏ/k — exact rational Taylor coefficients
+    assert NS.newton_series_grade("exp", [0, 1], N).result == [Fr(1, math.factorial(k)) for k in range(N)]
+    assert NS.newton_series_grade("log", [1, 1], N).result == [Fr(0)] + [Fr((-1) ** (k + 1), k) for k in range(1, N)]
+
+    # (c) sqrt: S² ≡ A exactly (1+x and a non-trivial A(0)=4 perfect square)
+    for a in ([1, 1], [4, 8, 1, -3]):
+        S = NS.newton_series_grade("sqrt", a, N)
+        assert S.status == KV.EXACT and NS._mul(S.result, S.result, N) == NS._trunc(NS._f(a), N)
+        assert S.certificate.kind == "newton_series_sqrt" and S.certificate.passed
+
+    # (d) exp∘log round-trip: log(exp A) ≡ A for A(0)=0 (the cert path), and the verdict is EXACT
+    e = NS.newton_series_grade("exp", [0, 2, Fr(1, 3), -1], N)
+    assert e.status == KV.EXACT and NS.newton_series_grade("log", [1] + e.result[1:], N).status == KV.EXACT
+
+    # (e) honest DECLINE on precondition violations (undefined operation), never a fabricated series
+    assert NS.newton_series_grade("inv", [0, 1], N).status == KV.DECLINE      # A(0)=0
+    assert NS.newton_series_grade("exp", [1, 1], N).status == KV.DECLINE      # A(0)≠0
+    assert NS.newton_series_grade("log", [2, 1], N).status == KV.DECLINE      # A(0)≠1
+    assert NS.newton_series_grade("sqrt", [2, 1], N).status == KV.DECLINE     # A(0) not a perfect square
+    assert NS.newton_series_grade("bogus", [1], N).status == KV.DECLINE       # unknown op
+
+    print("PASS test_haran_newton_series (#14: Newton inv/sqrt/exp/log EXACT over ℚ, quadratic convergence; "
+          "1/(1−x)=Σxᵏ, exp(x)=Σxᵏ/k!, log(1+x)=Σ(−1)^{k+1}xᵏ/k, S²≡A; each certified by its defining identity to "
+          "order 14; precondition violations → honest DECLINE)")
 
 
 def test_mode_budget_roles():

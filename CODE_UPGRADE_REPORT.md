@@ -262,9 +262,9 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **37 CONFIRMED + 9 PARTIAL + 4 GAP** (gaps close
-one-per-commit as they are built; **Group C number-theory is now complete**). The 4 remaining GAPS are NAMED, not
-padded over: #13 Bostan–Mori, #14 Newton-iteration, #19 Gröbner, #28 autodiff. The 9 PARTIALS
+**Status (MEASURED, honest — never rounded up to "50 done"):** **38 CONFIRMED + 9 PARTIAL + 3 GAP** (gaps close
+one-per-commit as they are built; **Group C number-theory complete**). The 3 remaining GAPS are NAMED, not
+padded over: #13 Bostan–Mori, #19 Gröbner, #28 autodiff. The 9 PARTIALS
 name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
@@ -303,6 +303,13 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   9 (p,e) incl. prime powers); astronomical C(10^18,10^9) mod p + C(10^18,12345) mod 3^7 cross-checked. Non-prime
   p / p^e>10^6 / negatives → DECLINE. EXACT, tier fast, broth-eligible. `test_haran_lucas_granville`. (37 CONFIRMED;
   **Group C complete.**)
+- **#14 Newton iteration on power series** → `newton_series.newton_series_grade`. inv / sqrt / exp / log of a
+  formal power series by Newton's method (quadratic convergence — precision doubles each step), EXACT over ℚ
+  (`Fraction` coefficients). Each result is certified by its DEFINING IDENTITY verified exactly to the truncation
+  order: A·B≡1 (inv), S²≡A (sqrt), exp∘log≡A (log), log∘exp≡A (exp). Cross-checked against the closed-form Taylor
+  coefficients (1/(1−x)=Σxᵏ, exp(x)=Σxᵏ/k!, log(1+x)=Σ(−1)^{k+1}xᵏ/k). Precondition violations (A(0)=0 for
+  inv/sqrt, ≠1 for log, ≠0 for exp, non-square A(0) for sqrt) are honest DECLINEs. This is the verified series-
+  arithmetic core the GF kernels build on. `test_haran_newton_series`. (38 CONFIRMED now.)
 
 ---
 
