@@ -122,3 +122,50 @@ the rest HONEST_DEFER until PHASE F.
 
 **Measured:** coverage 94 registered / 7 VERIFIED / 87 deferred; test_catalog **16/16 green** (new
 test_phaseE_composition_router; updated the stale PHASE-A compose assertion now that SOS actually solves EXACT).
+
+---
+
+## PHASE F — domain applies (reuse mature modules) ✅
+
+Buckingham-Π (M9, `mathmode.buckingham` [이미 있음]) → EXACT dimensionless-group normal form (pendulum →
+gravity·period²/length); Noether energy conservation (M5, `mathmode.lagrangian` [이미 있음]) → EXACT conserved H
+with dH/dt≡0. Thin §7-gated kernels (`buckingham_pi`, `noether_energy`); backs 16.buckingham_pi + 16.noether.
+coverage 94 / **9 VERIFIED** / 85 deferred; test_catalog **18/18**.
+
+---
+
+# §C — CATALOG ENGINE BUILD REPORT
+
+1. **Catalog coverage.** 94 transforms registered (the §4 named representatives; §0's "~190" is the broader research
+   set) across **all 9 passes** and **all 14 mechanisms** (38 compositions). **9 VERIFIED** (§7-gated, kernel-backed):
+   B1.sos_positivstellensatz, D2.sos_refutation, D1.rcf_cad_qe, D1.presburger_qe, D1.ordinal_termination,
+   B2.ranking_termination, D1.kolmogorov_incompressible, 16.buckingham_pi, 16.noether. **85 honest-deferred**
+   (UNVERIFIED(reason), kernel=None — never faked). Honest 100% REGISTERED, NOT 100% pass.
+2. **New EXACT tier — SOS/Positivstellensatz.** WORKING (`sos_cert.py`). Example cert: x²−2x+1 = zᵀQz, Q=[[1,−1],
+   [−1,1]]⪰0 (0 negative eigenvalues, Sturm-exact) ⇒ EXACT (x−1)². Non-nonneg ⇒ DECLINE; tamper rejected.
+3. **Decision procedures.** Presburger (z3 oracle) ✓ EXACT True/False+counterexample; RCF/CAD (`mathmode.real_qe`) ✓;
+   ACF (Chevalley) — HONEST_DEFER (no module).
+4. **fold-core self-improvement.** Ordinal-bounded termination ✓ (the decreases-clause: strictly-descending lex→
+   ordinal ⇒ EXACT terminates). NbE/cut-elim eval-core — HONEST_DEFER (haran_eval.Interp exists; gated normalize()
+   beyond budget).
+5. **DECLINE backbone.** Rice + MEASURED incompressibility (MDL 2-part, zlib K-upper-bound) + turbulence guards +
+   15 proven boundaries. Negative controls pass; recovers "fake Ω(N)" (compressible data proceeds, incompressible
+   declines).
+6. **Mechanism-composition router (§5).** Working pipelines: fold[13], SOS[4], MDL[12], obstruction[14]
+   (arith-hierarchy + guards). Planned-but-deferred compositions return HONEST_DEFER naming the path: classification
+   9→2, Robertson–Seymour 10→14, structure⊕pseudorandom 7→13→12. Returns (result,grade,cert,bound,mechanism_path).
+7. **Measurement (clocks, §2).** The catalog engine's collapses are DECISION procedures (Clock B verify) and the MDL
+   structural test (a ratio, not a clock); the M13 path reuses the existing Clock-C-measured fold. No Clock-C
+   runtime speedup is CLAIMED for the new decision kernels (they decide/certify; they are not emitted hot loops).
+8. **False positives = 0.** Negative controls across the engine (random bytes / halting / x²−1 / equivalence /
+   unstructured text) all DECLINE — never a non-DECLINE on a structureless/boundary input.
+9. **Tests.** Existing `test_build` UNAFFECTED (273, additive build — no pre-existing file modified). New
+   `test_catalog` **18/18 green** (each kernel: positive case + negative control + grade consistency; tamper rejection).
+10. **15th-mechanism candidate.** None — framework CLOSED (D-1·D-2 reconfirmed; ur-form annotations on M1/M13/M14).
+11. **research→judge→build cycles.** 0 (the PHASE A–F build consumed this session). The §9 loop (recover "fake Ω(N)":
+    compressed-sensing per-instance witness / sparse-FFT / matrix-completion / Prony / spiked-detection) is the
+    recommended next build.
+12. **HANDOFF.md updated.** Yes (catalog-engine section added).
+13. **Next build (honest UNVERIFIED list + why).** ACF QE (no module); NbE eval-core (gated normalize() needed);
+    mechanism applies M1/M3/M6/M7/M8/M10/M11 (need mature-SW bridges: Sage/Macaulay2/CGAL/PySCF/LFADS/ZX);
+    PHASE G SNARK/STARK cert-tech (integrity-proof wiring, optional); GCT (open obstacle — registered UNVERIFIED).

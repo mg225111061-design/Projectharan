@@ -14,7 +14,12 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M5.conservation", "Noether/Lax conserved-quantity applies land in PHASE F")
+    """Mechanism 5: a conserved quantity. Noether energy conservation is wired (PHASE F) for a Lagrangian given as
+    {'L':expr,'q':Function,'t':Symbol}; Lax-pair/other first integrals are deferred."""
+    if isinstance(x, dict) and "L" in x and "q" in x and "t" in x:
+        import mathmode.lagrangian as L
+        return L.energy_conservation(x["L"], x["q"], x["t"])
+    return honest_defer("M5.conservation", "non-Lagrangian conserved-quantity instances (Lax pairs) gated in a later PHASE")
 
 
 MECHANISM = Mechanism(

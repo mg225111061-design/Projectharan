@@ -19,7 +19,12 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M9.complete_invariant", "complete-invariant applies land in PHASE F (Cartan–Karlhede/Petrov already exist; wire+gate)")
+    """Mechanism 9: a complete invariant. Buckingham-Π (dimensionless-group normal form) is wired (PHASE F); other
+    complete-invariant instances (Cartan–Karlhede, Petrov, …) exist as modules and are deferred until wired+gated."""
+    if isinstance(x, dict) and x and all(isinstance(v, dict) and all(isinstance(e, int) for e in v.values()) for v in x.values()):
+        import mathmode.buckingham as B
+        return B.buckingham_pi(x)
+    return honest_defer("M9.complete_invariant", "non-Buckingham complete-invariant instances gated in a later PHASE")
 
 
 MECHANISM = Mechanism(

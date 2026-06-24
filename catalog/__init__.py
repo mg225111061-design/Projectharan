@@ -21,6 +21,7 @@ assert len(TRANSFORMS) == len({t.tid for t in TRANSFORMS}), "duplicate transform
 from catalog import kernels_phaseB  # noqa: F401,E402
 from catalog import kernels_phaseC  # noqa: F401,E402
 from catalog import kernels_phaseD  # noqa: F401,E402
+from catalog import kernels_phaseF  # noqa: F401,E402
 
 
 def by_mechanism(num: int) -> List[Transform]:

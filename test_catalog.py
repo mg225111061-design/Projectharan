@@ -326,6 +326,55 @@ def test_phaseE_composition_router():
           "fake pass, no 1:1 discipline decomposition)")
 
 
+def test_phaseF_domain_applies():
+    """PHASE F — domain applies reusing mature [이미 있음] modules (reinforce+register, never reimplement):
+    Buckingham-Π (M9, dimensionless-group normal form) and Noether energy conservation (M5, conserved Hamiltonian
+    with dH/dt≡0). Both EXACT via gated kernels; backs 16.buckingham_pi + 16.noether."""
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    import sympy as sp
+    # Buckingham-Π: pendulum quantities → EXACT dimensionless group(s)
+    q = {"period": {"T": 1}, "length": {"L": 1}, "gravity": {"L": 1, "T": -2}, "mass": {"M": 1}}
+    v = KR.dispatch(q)
+    assert v.status == KV.EXACT and v.certificate.passed, v        # routed to buckingham_pi (delegates to mathmode)
+    # Noether energy conservation: L = ½m q̇² − ½q² → EXACT conserved H
+    t = sp.Symbol("t"); qf = sp.Function("q"); m = sp.Symbol("m", positive=True)
+    Lexpr = sp.Rational(1, 2) * m * qf(t).diff(t)**2 - qf(t)**2 / 2
+    v2 = KR.dispatch({"noether": True, "L": Lexpr, "q": qf, "t": t})
+    assert v2.status == KV.EXACT and v2.certificate.passed, v2
+    tids = {tt.tid: tt for tt in catalog.TRANSFORMS}
+    assert tids["16.buckingham_pi"].verified and tids["16.noether"].verified
+    print("PASS test_phaseF_domain_applies (Buckingham-Π pendulum → EXACT Π-group; Noether L=½mq̇²−½q² → EXACT "
+          "conserved H; 16.buckingham_pi + 16.noether VERIFIED [reuse mathmode.buckingham/lagrangian])")
+
+
+def test_catalog_engine_report():
+    """§C — the integrated catalog-engine report is HONEST: registered/verified/deferred accounting is consistent,
+    every VERIFIED transform is backed by a VERIFIED router kernel, the framework is closed (14 mechanisms, no 15th),
+    and false-positive = 0 (negative controls across the engine never produce a non-DECLINE)."""
+    import catalog
+    import mechanisms as M
+    import kernel_router as KR
+    import catalog.compose as C
+    import kernel_verdict as KV
+    import os
+    cov = catalog.coverage()
+    assert cov["registered"] == cov["verified"] + cov["deferred"] == 94
+    assert cov["all_14_mechanisms_have_a_transform"] and M.closure_report()["framework_closed"]
+    # every VERIFIED transform → a VERIFIED router kernel (no UNVERIFIED auto-select)
+    vk = set(KR.registered(verified_only=True))
+    assert all((t.kernel in vk) for t in catalog.TRANSFORMS if t.verified)
+    # ★ FALSE-POSITIVE = 0: structureless / boundary inputs NEVER yield a non-DECLINE through the engine ★
+    negatives = [os.urandom(600), "does f halt on every input?", "x**2 - 1 nonneg sos",
+                 "is this program semantically equivalent", "totally unstructured glue text with no math"]
+    for neg in negatives:
+        assert C.route(neg).grade == KV.DECLINE, neg
+    print(f"PASS test_catalog_engine_report (§C: {cov['registered']} registered / {cov['verified']} VERIFIED / "
+          f"{cov['deferred']} deferred [consistent]; every VERIFIED transform backed by a VERIFIED kernel; framework "
+          f"closed [14, no 15th]; false-positive = 0 on {len(negatives)} negative controls)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
