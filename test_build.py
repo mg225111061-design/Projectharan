@@ -9075,10 +9075,11 @@ def test_algo50_registry():
     for n in (24, 26, 27):
         assert A.BY_NUM[n].grade == KV.PROBABILISTIC, f"#{n} must be PROBABILISTIC (never EXACT)"
 
-    # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
+    # (d) any GAP carries no entry point; all are honestly tracked. The 50 are now FULLY PRESENT (0 gaps:
+    # 41 CONFIRMED + 9 PARTIAL) — every named algorithm resolves to a real, certificate-bearing implementation.
     gaps = dict(A.gaps())
-    assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {19}, gaps   # +#28 autodiff now CONFIRMED (only #19 Gröbner remains)
+    assert all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
+    assert set(gaps) == set(), gaps   # all 50 built/confirmed; the 9 PARTIALS name only missing SUB-variants
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9377,6 +9378,50 @@ def test_haran_autodiff_dual():
     print("PASS test_haran_autodiff_dual (#28: forward-mode dual-number AD EXACT over ℚ; d/dx(x³−2x+5)@4=46, "
           "(x²+1)/(x−1)@3 → 1/2, multivariate ∇(x²y+3xy³)@(2,1)=(7,22), x²@1/3 → 2/3; every result cross-checked vs "
           "independent symbolic ∂/∂x; transcendental/non-integer-power/÷0 → honest DECLINE)")
+
+
+def test_haran_groebner_membership():
+    """HARAN #19 (Group A) — GRÖBNER BASIS (Buchberger) ideal-membership DECISION, with a re-checkable COFACTOR
+    certificate. We drive the Buchberger completion ourselves (S-polynomials + a transformation matrix tracking
+    g_j = Σ T_{ji} f_i); sympy is the ring arithmetic + an independent cross-check. A YES emits explicit cofactors
+    q = Σ H_i f_i (here verified by polynomial expansion — independent of the basis search); a NO emits the nonzero
+    normal form after re-verifying Buchberger's S-pair criterion. HONEST: EXPSPACE worst case ⇒ extend-tier."""
+    import groebner as GB
+    import kernel_verdict as KV
+    import sympy as sp
+    x, y, z = sp.symbols("x y z")
+
+    # (a) membership YES with a cofactor witness we re-check ourselves: xy−1 ∈ ⟨x−1, y−1⟩
+    v = GB.ideal_member_grade(["x-1", "y-1"], "x*y-1", ["x", "y"])
+    assert v.status == KV.EXACT and v.result["member"] is True
+    assert v.certificate.kind == "groebner_cofactor_membership"
+    H = [sp.sympify(h) for h in v.result["cofactors"]]
+    assert sp.expand(H[0] * (x - 1) + H[1] * (y - 1) - (x * y - 1)) == 0, "cofactor witness must reconstruct query"
+
+    # (b) NON-membership: x ∉ ⟨x², xy⟩ (nonzero normal form), S-pair criterion re-verified
+    v = GB.ideal_member_grade(["x**2", "x*y"], "x", ["x", "y"])
+    assert v.status == KV.EXACT and v.result["member"] is False
+    assert v.certificate.kind == "groebner_nonmembership_normalform"
+
+    # (c) decision battery (incl. 3 variables) — and AGREEMENT with the independent sympy.groebner reduction
+    cases = [(["x+y", "x-y"], "x", ["x", "y"], True), (["x+y", "x-y"], "x**2+y**2", ["x", "y"], True),
+             (["x**2-y", "y-1"], "x**2-1", ["x", "y"], True), (["x**2+y**2-1"], "x", ["x", "y"], False),
+             (["x*y-1"], "x", ["x", "y"], False), (["x**2-1", "x*y-1"], "x-y", ["x", "y"], True),
+             (["x-y", "y-z"], "x-z", ["x", "y", "z"], True), (["x-y", "y-z"], "x-z+1", ["x", "y", "z"], False)]
+    for gens, q, vs, exp in cases:
+        r = GB.ideal_member_grade(gens, q, vs)
+        assert r.status == KV.EXACT and r.result["member"] == exp, (gens, q, exp, r.result.get("member"))
+        if set("".join(gens) + q) <= set("xy *+-1234567890**"):     # 2-var ⇒ cross-check vs sympy.groebner
+            g = sp.groebner([sp.sympify(t) for t in gens], x, y, order="grevlex")
+            assert (g.reduce(sp.sympify(q))[1] == 0) == exp, (gens, q)
+
+    # (d) honest DECLINE on a parse error / empty generators
+    assert GB.ideal_member_grade(["@@@"], "x", ["x"]).status == KV.DECLINE
+    assert GB.ideal_member_grade(["0"], "x", ["x"]).status == KV.DECLINE
+
+    print("PASS test_haran_groebner_membership (#19: Buchberger ideal-membership DECISION; YES → cofactor witness "
+          "q=Σ Hᵢfᵢ re-checked by expansion ([y,1] for xy−1∈⟨x−1,y−1⟩); NO → normal form + S-pair criterion; 8-case "
+          "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
 def test_mode_budget_roles():

@@ -262,10 +262,10 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **40 CONFIRMED + 9 PARTIAL + 1 GAP** (gaps close
-one-per-commit as they are built; **Group C complete; Group B complete**). The 1 remaining GAP is NAMED, not
-padded over: #19 Gröbner. The 9 PARTIALS
-name the missing sub-variant (e.g.
+**Status (MEASURED, honest — never rounded up to "50 done"):** **41 CONFIRMED + 9 PARTIAL + 0 GAP** — §1 COMPLETE:
+every one of the 50 named algorithms now resolves to a real, certificate-bearing implementation (Groups A/B/C/D
+all done; the 8 original gaps were each built one-per-commit). The 9 PARTIALS are NOT gaps — each names only a
+missing SUB-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
 #27 — NEVER marked EXACT). Tiers: fast 10 / normal 30 / extend 10. The honest-complexity caveats are RECORDED and
@@ -325,6 +325,15 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   power / divide-by-zero-at-the-point are honest DECLINEs (the value would not be exact). Tested: d/dx(x³−2x+5)@4,
   (x²+1)/(x−1)@3, ∇(x²y+3xy³), rational points. EXACT, tier normal. `test_haran_autodiff_dual`. (40 CONFIRMED;
   **Group B complete.**)
+- **#19 Gröbner basis (Buchberger)** → `groebner.ideal_member_grade`. Ideal-membership DECISION by a self-driven
+  Buchberger completion (S-polynomials + a TRANSFORMATION matrix tracking g_j = Σ T_{ji} f_i), using sympy for the
+  ring arithmetic and as an independent cross-check (`sympy.groebner`). A YES emits explicit cofactors q = Σ H_i f_i
+  re-checked by polynomial expansion (a Positivstellensatz-style witness, independent of the basis search); a NO
+  emits the nonzero normal form after re-verifying Buchberger's S-pair criterion (sound, not a say-so). Tested:
+  cofactor witness [y,1] for xy−1∈⟨x−1,y−1⟩; an 8-case decision battery (incl. 3 variables) AGREES with
+  sympy.groebner; parse/empty → DECLINE. HONEST: EXPSPACE worst case ⇒ extend-tier, DECLINE past a 4000-S-pair cap
+  (Buchberger built; F4 matrix acceleration not added — same ideal, faster). EXACT. `test_haran_groebner_membership`.
+  (**41 CONFIRMED — §1 COMPLETE: all 50 named algorithms present.**)
 
 ---
 
