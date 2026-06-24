@@ -84,6 +84,28 @@ extractor). It is ADDITIVE — it complements `dispatch`'s fold-offload without 
 
 ---
 
+## §3 (STREAM EVERY STEP) — the live CODE process trace
+
+The UI must show EVERY step of what CODE is doing, live — not just the final result. `code_stream.iter_code_trace`
+is a GENERATOR that yields ordered phase records AS each real step completes, mirroring MATH mode's
+ROUTE / RECOGNIZE / KERNEL / 증명서 transparency:
+
+> `ANALYZE` 분석 중… → `RECOGNIZE` 구조 인식 중… → `APPLY` fold/결정 절차 적용 중… → `CERTIFY` 증명서 생성 중… →
+> `VERIFY` 검증 중 (in-house SMT / 차분 등가성)… → `RESULT` grade + 증명서
+
+Each record carries the **live tier + budget line** (`extend · 3:12 / 8:00` — the BOUNDED ~8 min, never
+"unlimited"), and the §2 decision is surfaced live (a harmonic loop streams `결정 절차… 닫힌형 없음 증명 → PROVEN
+DECLINE`). The SSE frames reuse the frontend's existing `data:` event channel, so the steps render progressively.
+
+**Honesty invariant (tested).** The displayed grade EQUALS the engine's actual grade — `test_code_stream`
+re-derives the real verdict and asserts the streamed RESULT grade/certificate match it verbatim (the harmonic
+loop's PROVEN-DECLINE grade is the EXACT decision; the list-as-set win's grade is the engine's real PROBABILISTIC).
+Never fabricated progress: an undecided step says so (`아직 닫히지 않음`) rather than inventing a result.
+`code_stream.py`, `test_code_stream`. (Next: wire the SSE endpoint + frontend rendering — the visual half, HUMAN
+review.)
+
+---
+
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
 
 The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general

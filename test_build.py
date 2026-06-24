@@ -9137,6 +9137,57 @@ def test_loop_decision():
           "harmonic]; Σ(2ᵏ+3ᵏ) → honest UNDECIDED [out of class]; differential gate rejects a wrong closed form)")
 
 
+def test_code_stream():
+    """§3 (STREAM EVERY STEP) — the live CODE process trace: ordered, human-readable phase records the UI renders
+    progressively (mirroring MATH's ROUTE/RECOGNIZE/KERNEL/증명서). The honesty invariant: every record reflects
+    the REAL tier+budget, the REAL decision/fold, and the REAL grade+certificate — the displayed grade EQUALS the
+    engine's actual grade (re-derived here), never fabricated progress; extend's budget line shows the BOUNDED
+    ~8 min, fast's shows ~1 s."""
+    import code_stream as CS
+    from webapi import engine_bridge as EB
+    import structure_recognizer as SR
+    import json
+
+    harm = "def f(n):\n    acc = 0\n    for k in range(1, n+1):\n        acc += 1/k\n    return acc"
+    waste = "def f(xs):\n    out = []\n    for x in xs:\n        if x in out:\n            continue\n        out.append(x)\n    return out"
+
+    # (a) ordered, complete phase spine: ANALYZE first, RESULT last, RECOGNIZE+CERTIFY+VERIFY present
+    th = CS.build_code_trace(harm, "extend")
+    phases = [e.phase for e in th]
+    assert phases[0] == CS.ANALYZE and phases[-1] == CS.RESULT
+    assert {CS.RECOGNIZE, CS.APPLY, CS.CERTIFY, CS.VERIFY} <= set(phases)
+    # every record carries the tier and the BOUNDED extend budget line (~8 min) — never 'unlimited'
+    assert all(e.tier == "extend" and e.budget.endswith("/ 8:00") for e in th)
+
+    # (b) the §2 decision is surfaced LIVE and the displayed grade/cert EQUAL the real verdict (no fabrication)
+    real = SR.decide_loop(harm)
+    assert real is not None and real.status == "NO_CLOSED_FORM"
+    res_graded = [e for e in th if e.phase == CS.RESULT and e.grade]
+    assert res_graded and res_graded[0].grade == real.verdict.status        # displayed grade == engine grade
+    assert res_graded[0].certificate == real.certificate                    # displayed cert == engine cert (verbatim)
+    assert "닫힌형이 없음" in res_graded[0].message and "PROVEN DECLINE" in res_graded[0].message
+
+    # (c) for a shipped win, the RESULT grade EQUALS run_optimize's ACTUAL shipped grade (displayed == engine)
+    tw = CS.build_code_trace(waste, "fast")
+    eng = EB.run_optimize(waste, "fast")
+    assert eng["shipped"], "fast ships the differential win"
+    rw = [e for e in tw if e.phase == CS.RESULT and e.grade]
+    assert rw and rw[0].grade == eng["shipped"][0]["grade"].upper(), "displayed grade must equal the engine's grade"
+    assert all(e.budget.endswith("/ 0:01") for e in tw)                     # fast budget ~1 s
+
+    # (d) SSE frames are well-formed and JSON-decodable (the frontend's existing live event channel)
+    frames = CS.to_sse(th)
+    assert frames and all(f.startswith("data: ") and f.endswith("\n\n") for f in frames)
+    for f in frames:
+        obj = json.loads(f[len("data: "):].strip())
+        assert obj["phase"] and obj["message"] and obj["tier"] == "extend"
+
+    print("PASS test_code_stream (live CODE process ANALYZE→RECOGNIZE→APPLY→CERTIFY→VERIFY→RESULT, ordered; extend "
+          "budget line BOUNDED '· / 8:00'; the §2 PROVEN DECLINE surfaced live; displayed grade == engine grade "
+          f"[harmonic {real.verdict.status} decision; list-as-set {eng['shipped'][0]['grade'].upper()}] — no "
+          "fabricated progress; SSE frames JSON-valid)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
