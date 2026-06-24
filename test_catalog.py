@@ -98,10 +98,89 @@ def test_no_unverified_autoselect():
     import catalog
     vc = KR.verify_contracts()
     assert vc["all_well_formed"], vc                           # every registered kernel has a well-formed contract
-    # at PHASE A no catalog transform claims a backing kernel yet (honest)
-    assert all(t.kernel is None for t in catalog.TRANSFORMS), "PHASE A registers no backing kernels yet"
-    print(f"PASS test_no_unverified_autoselect ({vc['n_kernels']} router kernels, contracts well-formed; "
-          f"catalog transforms carry kernel=None at PHASE A — no UNVERIFIED auto-select)")
+    # the invariant (§2/§7): a VERIFIED transform is backed by a kernel that is a VERIFIED router kernel; an
+    # UNVERIFIED transform carries kernel=None (never auto-selected). And the router auto-select list is all VERIFIED.
+    verified_kernels = set(KR.registered(verified_only=True))
+    for t in catalog.TRANSFORMS:
+        if t.verified:
+            assert t.kernel is not None and t.kernel in verified_kernels, (t.tid, t.kernel)
+        else:
+            assert t.kernel is None, (t.tid, t.kernel)
+    assert all(KR.REGISTRY[n].status == "VERIFIED" for n in verified_kernels)
+    print(f"PASS test_no_unverified_autoselect ({vc['n_kernels']} router kernels, contracts well-formed; every "
+          f"VERIFIED transform backed by a VERIFIED kernel, every UNVERIFIED transform kernel=None — no UNVERIFIED "
+          f"auto-select)")
+
+
+def test_phaseB_sos_exact_tier():
+    """PHASE B (★) — SOS/Positivstellensatz EXACT tier: a global SOS gets an EXACT rational-PSD-Gram certificate
+    (zᵀQz≡p exact + Q⪰0 Sturm-exact); non-nonneg polynomials DECLINE (no overclaim); the cert re-checks and a
+    tampered cert is rejected. Backs catalog transforms B1.sos_positivstellensatz + D2.sos_refutation."""
+    import sos_cert as S
+    import sympy as sp
+    import kernel_verdict as KV
+    import catalog
+    x, y = sp.symbols("x y")
+    # positive: EXACT SOS + the certificate re-verifies exactly
+    for e in (x**2 - 2*x + 1, x**2 + y**2 - 2*x*y, x**4 + 1, 2*x**2 + 2*y**2 + 2*x*y):
+        v = S.sos_grade(e)
+        assert v.status == KV.EXACT and v.certificate.passed, (e, v)
+        assert S.verify_sos(e, v.result["gram"], v.result["basis"]), e          # cert re-checks
+    # ★ negative controls: not globally nonneg ⇒ DECLINE (never a fake pass) ★
+    for e in (x**2 - 1, x**3, x*y, x**4 - x**2, -x**2):
+        assert S.sos_grade(e).status == KV.DECLINE, e
+    # tamper: a wrong Gram is rejected by the exact re-check
+    good = S.sos_grade(x**2 - 2*x + 1)
+    assert not S.verify_sos(x**2 - 1, good.result["gram"], good.result["basis"])
+    # transforms flipped to VERIFIED with the backing kernel
+    tids = {t.tid: t for t in catalog.TRANSFORMS}
+    assert tids["B1.sos_positivstellensatz"].verified and tids["B1.sos_positivstellensatz"].kernel == "sos_positivstellensatz"
+    assert tids["D2.sos_refutation"].verified
+    print("PASS test_phaseB_sos_exact_tier (global SOS → EXACT rational-PSD-Gram cert [re-checks; tamper rejected]; "
+          "x²-1/x³/xy/x⁴-x²/-x² → DECLINE; B1.sos + D2.sos_refutation transforms VERIFIED)")
+
+
+def test_phaseB_rcf_qe():
+    """PHASE B — RCF/CAD quantifier elimination (reuse mathmode.real_qe) via a gated catalog kernel: ∀x.x²+1>0 is
+    True, ∀x.x²-1>0 is False — EXACT decisions, routed through kernel_router with a structured RCF query."""
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    import sympy as sp
+    x = sp.Symbol("x")
+    v = KR.dispatch({"rcf": True, "quantifier": "forall", "formula": x**2 + 1 > 0, "x": x})
+    assert v.status == KV.EXACT and v.result is True, v          # routed to the RCF kernel (delegates to real_qe)
+    v2 = KR.dispatch({"rcf": True, "quantifier": "forall", "formula": x**2 - 1 > 0, "x": x})
+    assert v2.status == KV.EXACT and v2.result is False, v2
+    assert {t.tid: t for t in catalog.TRANSFORMS}["D1.rcf_cad_qe"].verified
+    print("PASS test_phaseB_rcf_qe (∀x.x²+1>0 → EXACT True; ∀x.x²-1>0 → EXACT False; via gated kernel_router; "
+          "D1.rcf_cad_qe VERIFIED)")
+
+
+def test_phaseB_presburger_qe():
+    """PHASE B — Presburger / linear integer arithmetic via direct z3 (trusted oracle): a valid ∀-formula → EXACT
+    True (¬φ UNSAT), an invalid one → EXACT False with a counterexample model; garbage → DECLINE."""
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    v = KR.dispatch({"presburger": True, "goal": "2*(x+y) == 2*x + 2*y", "int_vars": ["x", "y"]})
+    assert v.status == KV.EXACT and v.result is True and v.kernel == "presburger_qe", v
+    v2 = KR.dispatch({"presburger": True, "goal": "x + y == x", "int_vars": ["x", "y"]})
+    assert v2.status == KV.EXACT and v2.result is False and "counterexample" in v2.certificate.detail.lower(), v2
+    import presburger_qe as P
+    assert P.presburger_decide("foo(bar", ["x"]).status == KV.DECLINE                  # negative control
+    assert {t.tid: t for t in catalog.TRANSFORMS}["D1.presburger_qe"].verified
+    print("PASS test_phaseB_presburger_qe (∀x,y. 2(x+y)=2x+2y → EXACT True; x+y=x → EXACT False+counterexample; "
+          "garbage → DECLINE; D1.presburger_qe VERIFIED [z3 oracle])")
+
+
+def test_phaseB_acf_honest_defer():
+    """PHASE B — ACF (algebraically-closed-field QE / Chevalley) is HONESTLY DEFERRED (§1.6): no existing module,
+    constructible-set projection beyond budget. Its transform stays UNVERIFIED with a precise reason — NOT faked."""
+    import catalog
+    t = {x.tid: x for x in catalog.TRANSFORMS}["D1.acf_qe"]
+    assert not t.verified and t.status.startswith("UNVERIFIED") and t.kernel is None
+    print("PASS test_phaseB_acf_honest_defer (D1.acf_qe HONEST_DEFER — UNVERIFIED, kernel=None, not faked)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

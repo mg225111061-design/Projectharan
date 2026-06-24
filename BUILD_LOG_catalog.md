@@ -38,3 +38,27 @@ collects 273; new packages import cleanly alongside it.
 C: ordinal/NbE/arith-hierarchy; D: DECLINE guards; E: composition; F: domain applies). No gateless kernel registered.
 
 **15th-mechanism candidate:** none — framework closed (D-1·D-2 reconfirmed).
+
+---
+
+## PHASE B — mature decision procedures (EXACT tier) ✅
+
+- **★ SOS / Positivstellensatz (`sos_cert.py`, mechanism 4) — NEW EXACT tier.** Prove p ≥ 0 globally by a RATIONAL
+  PSD Gram matrix Q with p = zᵀQz; both checks EXACT (zᵀQz≡p over ℚ; Q⪰0 via Sturm-exact negative-eigenvalue count
+  of the characteristic polynomial — no floating SDP, no eigen-solve). Complete for quadratics (unique Gram); for
+  higher even degree the particular Gram is tried and DECLINEs honestly if not PSD (no SDP cone search → no
+  overclaim). Verified: (x-1)², (x-y)², x⁴+1, 2x²+2y²+2xy → EXACT SOS; x²-1/x³/xy/x⁴-x²/-x² → DECLINE; cert
+  re-checks; tampered cert rejected. Bug found+fixed: PSD test mis-handled a repeated 0 eigenvalue (count_roots is
+  distinct-count) → fixed.
+- **RCF/CAD QE (`rcf_cad_qe` kernel) — reuse `mathmode.real_qe.decide` ([이미 있음]).** ∀x.x²+1>0 → EXACT True;
+  ∀x.x²-1>0 → EXACT False. Routed through kernel_router with a structured RCF query.
+- **Presburger QE (`presburger_qe.py`, direct z3 4.16.0 — the trusted oracle).** ∀(x∈ℤⁿ).φ valid ⟺ ¬φ UNSAT; a
+  counterexample model is the witness otherwise. ∀x,y.2(x+y)=2x+2y → EXACT True; x+y=x → EXACT False+cex; garbage →
+  DECLINE. (Bypassed the finicky `z3_adapter` string parser — "could not encode" on simple goals — per §1.6.)
+- **ACF (Chevalley) — HONEST_DEFER:** no existing module; constructible-set projection beyond this PHASE's budget.
+  D1.acf_qe stays UNVERIFIED(reason), kernel=None — registered honestly, not faked.
+
+**Measured:** 3 §7-gated kernels registered into kernel_router.REGISTRY (all VERIFIED, contracts well-formed);
+catalog coverage 94 registered / **4 VERIFIED** (B1.sos, D2.sos_refutation, D1.rcf_cad_qe, D1.presburger_qe) / 90
+deferred. test_catalog **10/10 green** (4 new PHASE B tests incl. negative controls + tamper rejection).
+**Deferred (K):** ACF (no module). All three clocks separated; SOS/QE are decision procedures (Clock B verify, not C).

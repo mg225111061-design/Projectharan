@@ -16,6 +16,10 @@ from catalog import pass_1to6, pass_A, pass_B, pass_C, pass_D  # noqa: F401,E402
 # unique transform ids enforced by base.register; mechanisms must all be in 1..14 (+0/-1 primitives)
 assert len(TRANSFORMS) == len({t.tid for t in TRANSFORMS}), "duplicate transform ids"
 
+# PHASE B+ : registering §7-gated kernels into kernel_router.REGISTRY + flipping their transforms to VERIFIED.
+# (imported AFTER the passes so the transforms exist to be flipped.)
+from catalog import kernels_phaseB  # noqa: F401,E402
+
 
 def by_mechanism(num: int) -> List[Transform]:
     return [t for t in TRANSFORMS if num in t.mechanisms]

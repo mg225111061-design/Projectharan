@@ -17,8 +17,40 @@ def _probe(x):
     return min(1.0, s)
 
 
+def _to_poly_expr(x):
+    """Best-effort extraction of a polynomial expression from x (sympy Expr passthrough; or a string, stripping a
+    trailing `>= 0` / `≥ 0` / SOS phrasing)."""
+    import sympy as sp
+    if isinstance(x, (sp.Expr, sp.Poly)):
+        return sp.sympify(x)
+    if isinstance(x, str):
+        s = x
+        for cut in (">=", "≥", "is sos", "is nonneg", "by sos", "via sos", "by sum", "is psd"):
+            i = s.lower().find(cut)
+            if i >= 0:
+                s = s[:i]
+        # drop leading non-math words (verbs like "prove"/"show"/"that") until a token with a digit/operator/var
+        toks = s.replace("^", "**").split()
+        while toks and not any(ch.isdigit() or ch in "+-*/().=" for ch in toks[0]) and len(toks[0]) > 1:
+            toks.pop(0)
+        cand = " ".join(toks).strip().rstrip("=").strip()
+        if not cand:
+            return None
+        try:
+            return sp.sympify(cand)
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
 def _apply(x, **kw):
-    return honest_defer("M4.relax_dualize", "SOS/Positivstellensatz EXACT-tier lands in PHASE B (★ priority)")
+    """Mechanism 4: prove p ≥ 0 by an EXACT SOS/Positivstellensatz certificate (rational PSD Gram). EXACT or
+    honest DECLINE — never overclaims (no SDP cone search here)."""
+    import sos_cert
+    expr = _to_poly_expr(x)
+    if expr is None:
+        return honest_defer("M4.relax_dualize", "could not extract a polynomial from the input")
+    return sos_cert.sos_grade(expr, kw.get("gens"))
 
 
 MECHANISM = Mechanism(
