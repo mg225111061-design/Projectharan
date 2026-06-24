@@ -52,6 +52,7 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
     record is derived from real engine/verdict data — no fabricated progress."""
     from webapi import engine_bridge as EB                    # lazy: keep import light
     import structure_recognizer as SR
+    import loop_decision as LD
 
     m = _mode(mode)
     budget = MB.start_budget(m)                               # the live deadline (elapsed/remaining for the UI)
@@ -75,6 +76,12 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
                      detail=f"닫힌형 = {dec.closed_form} ({dec.complexity})")
             yield ev(CERTIFY, "증명서 생성 중… (차분 등가성 게이트로 닫힌형 검증)",
                      grade=dec.verdict.status, certificate=dec.certificate)
+            # §4: MEASURE the O(n) loop → O(1) collapse and stream the Amdahl-honest result (real timing)
+            sp_meas = LD.measure_collapse_speedup(dec.summand, dec.var, dec.lo, n=20000, trials=3)
+            if sp_meas.status == "MEASURED":
+                yield ev(VERIFY, f"속도향상 실측 중… O(n) 루프 → O(1) 닫힌형 (n={sp_meas.n})",
+                         detail=f"측정 {sp_meas.ratio:.0f}× · f=1 · Amdahl 천장 이하 · domain-conditional · n에 따라 O(n) 증가",
+                         grade=sp_meas.verdict.status, certificate=sp_meas.verdict.certificate.detail)
         elif dec.status == "NO_CLOSED_FORM":
             yield ev(APPLY, f"결정 절차 적용 중: Σ {dec.summand} 의 닫힌형 존재 여부 판정 중…")
             yield ev(CERTIFY, "증명서 생성 중… (Gosper 결정 — 닫힌형 없음 증명; 루프는 기약)",
@@ -96,6 +103,9 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
         yield ev(RESULT, f"결과: 검증된 수정 {len(shipped)}건 출하 (grade={s0['grade'].upper()})",
                  grade=s0["grade"].upper(),
                  certificate=f"ratio={s0['ratio']} · ceiling={s0.get('ceiling')} (whole-program; Amdahl 천장 이하)")
+    elif dec is not None and dec.status == "CLOSED_FORM":
+        yield ev(RESULT, f"결과: O(n) 루프 → O(1) 닫힌형 {dec.closed_form} — 증명된 붕괴 (차분 등가성 검증)",
+                 grade=dec.verdict.status, certificate=dec.certificate)
     elif dec is not None and dec.status == "NO_CLOSED_FORM":
         yield ev(RESULT, "결과: 이 루프는 닫힌형이 없음 — PROVEN DECLINE (루프를 그대로 유지)",
                  grade=dec.verdict.status, certificate=dec.certificate)

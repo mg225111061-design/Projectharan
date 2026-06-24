@@ -126,6 +126,11 @@ AT the measured n (a mismatch DECLINEs — never a wrong "speedup"); the harmoni
 honestly DECLINEs (nothing to measure). Per C6 the magnitude is `perf_obs` (informational), not a hard gate — the
 gate is soundness + the honest-limit certificate. `test_loop_speedup`.
 
+**Surfaced live (§3 tie-in).** `code_stream` streams the collapse end-to-end: a closed-form loop now emits a live
+`속도향상 실측 중… O(n) 루프 → O(1) 닫힌형 (n=…)` step with the measured ratio + the §X limits, and the RESULT
+reports the proven O(1) collapse (`O(n) 루프 → O(1) 닫힌형 n(n+1)(2n+1)/6 — 증명된 붕괴`, grade EXACT) rather than
+"no fix". So the user watches the proof AND the measured speedup unfold live.
+
 ---
 
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID

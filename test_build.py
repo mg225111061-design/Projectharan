@@ -9182,6 +9182,17 @@ def test_code_stream():
         obj = json.loads(f[len("data: "):].strip())
         assert obj["phase"] and obj["message"] and obj["tier"] == "extend"
 
+    # (e) §4 tie-in: a CLOSED_FORM loop streams a LIVE MEASURED speedup step (O(n)→O(1)) with the honest limits
+    sqloop = "def g(n):\n    s = 0\n    for k in range(1, n+1):\n        s += k*k\n    return s"
+    tq = CS.build_code_trace(sqloop, "normal")
+    meas = [e for e in tq if "속도향상 실측" in e.message]
+    assert meas, "a closed-form loop must stream a measured O(n)→O(1) speedup step"
+    assert "domain-conditional" in meas[0].detail and "Amdahl" in meas[0].detail, "the live speedup must state its limits"
+    assert meas[0].grade == "EXACT" and meas[0].certificate, "the measured collapse is EXACT (closed form verified)"
+    # and the RESULT honestly reports the proven O(1) collapse (not 'no fix') with the EXACT grade
+    rq = [e for e in tq if e.phase == CS.RESULT and e.grade]
+    assert rq and rq[0].grade == "EXACT" and "닫힌형" in rq[0].message and "증명된 붕괴" in rq[0].message
+
     print("PASS test_code_stream (live CODE process ANALYZE→RECOGNIZE→APPLY→CERTIFY→VERIFY→RESULT, ordered; extend "
           "budget line BOUNDED '· / 8:00'; the §2 PROVEN DECLINE surfaced live; displayed grade == engine grade "
           f"[harmonic {real.verdict.status} decision; list-as-set {eng['shipped'][0]['grade'].upper()}] — no "
