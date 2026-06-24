@@ -22,6 +22,7 @@ from catalog import kernels_phaseB  # noqa: F401,E402
 from catalog import kernels_phaseC  # noqa: F401,E402
 from catalog import kernels_phaseD  # noqa: F401,E402
 from catalog import kernels_phaseF  # noqa: F401,E402
+from catalog import kernels_loop    # noqa: F401,E402  (§9 research→judge→build recoveries)
 
 
 def by_mechanism(num: int) -> List[Transform]:

@@ -17,7 +17,16 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M1.diagonalize", "spectral apply lands in PHASE F (eigendecomp residual / companion replay cert)")
+    """Mechanism 1: spectral structure. Sylvester inertia (a complete congruence invariant of a symmetric matrix)
+    is wired (EXACT via exact eigenvalue signs); other spectral instances (Hecke, R-transform) are deferred."""
+    try:
+        import sympy as sp
+        if isinstance(x, sp.MatrixBase) or (isinstance(x, (list, tuple)) and x and all(isinstance(r, (list, tuple)) for r in x)):
+            import sos_cert
+            return sos_cert.inertia_grade(x)
+    except Exception:  # noqa: BLE001
+        pass
+    return honest_defer("M1.diagonalize", "non-inertia spectral instances (Hecke / R-transform) gated in a later cycle")
 
 
 MECHANISM = Mechanism(

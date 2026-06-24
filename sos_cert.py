@@ -135,6 +135,53 @@ def squares_from_gram(Q: sp.Matrix, basis: List[sp.Expr]) -> List[sp.Expr]:
         return []
 
 
+def inertia(Q: sp.Matrix):
+    """Sylvester INERTIA (n₊, n₀, n₋) of a symmetric rational matrix — a complete invariant of its congruence class
+    (mechanism 1/9). EXACT via eigenvalue signs (symmetric ⇒ real eigenvalues; sympy decides the sign of each
+    algebraic eigenvalue). Returns None if not symmetric or a sign is undecidable."""
+    Q = sp.Matrix(Q)
+    if not Q.is_symmetric():
+        return None
+    try:
+        ev = Q.eigenvals()
+    except Exception:  # noqa: BLE001
+        return None
+    pos = zero = neg = 0
+    for v, m in ev.items():
+        vs = sp.simplify(v)
+        if vs == 0:
+            zero += m
+        elif vs.is_positive:
+            pos += m
+        elif vs.is_negative:
+            neg += m
+        else:
+            return None
+    return (int(pos), int(zero), int(neg))
+
+
+def inertia_grade(Q) -> KV.Verdict:
+    """EXACT spectral signature (Sylvester inertia) of a symmetric rational matrix — a complete congruence invariant.
+    Definiteness falls out: (n,0,0)=PD, (·,·,0)=PSD, (0,·,·)≤0, mixed=indefinite. Non-symmetric → DECLINE."""
+    try:
+        M = sp.Matrix(Q)
+    except Exception as e:  # noqa: BLE001
+        return KV.decline(f"inertia: not a matrix ({type(e).__name__})", "spectral_inertia")
+    if not M.is_symmetric():
+        return KV.decline("inertia: matrix not symmetric — congruence inertia needs a symmetric matrix", "spectral_inertia")
+    inr = inertia(M)
+    if inr is None:
+        return KV.decline("inertia: an eigenvalue sign was undecidable (exact spectrum unavailable)", "spectral_inertia")
+    pos, zero, neg = inr
+    kind = ("positive-definite" if (zero == 0 and neg == 0) else "positive-semidefinite" if neg == 0
+            else "negative-definite" if (zero == 0 and pos == 0) else "negative-semidefinite" if pos == 0
+            else "indefinite")
+    cert = KV.Cert(KV.EXACT, "sylvester_inertia", passed=True, check_cost="exact eigenvalue signs (charpoly)",
+                   detail=f"inertia (n₊,n₀,n₋) = {inr} — {kind}; complete congruence invariant (Sylvester's law)")
+    return KV.exact({"inertia": inr, "definiteness": kind}, "spectral_inertia",
+                    "Sylvester inertia (EXACT complete invariant)", cert)
+
+
 def sos_grade(expr, gens: Optional[Tuple[sp.Symbol, ...]] = None) -> KV.Verdict:
     """EXACT SOS verdict for p ≥ 0 globally. EXACT (Gram PSD + identity verified) else honest DECLINE."""
     try:

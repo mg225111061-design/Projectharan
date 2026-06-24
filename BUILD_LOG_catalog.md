@@ -169,3 +169,13 @@ coverage 94 / **9 VERIFIED** / 85 deferred; test_catalog **18/18**.
 13. **Next build (honest UNVERIFIED list + why).** ACF QE (no module); NbE eval-core (gated normalize() needed);
     mechanism applies M1/M3/M6/M7/M8/M10/M11 (need mature-SW bridges: Sage/Macaulay2/CGAL/PySCF/LFADS/ZX);
     PHASE G SNARK/STARK cert-tech (integrity-proof wiring, optional); GCT (open obstacle — registered UNVERIFIED).
+
+---
+
+## §9 research→judge→build loop
+
+**Cycle 1 — mechanism 1 (diagonalize): Sylvester inertia.** JUDGE: M1 spectral was deferred. RESEARCH: the inertia
+(n₊,n₀,n₋) is a COMPLETE congruence invariant, computable EXACTLY from eigenvalue signs (symmetric ⇒ real spectrum)
+— reuses the spectral theme. BUILD: `sos_cert.inertia/inertia_grade` + the `spectral_inertia` kernel; recovers
+16.spectral_svd_pca (deferred→VERIFIED). EXACT on PD/indefinite/zero-diagonal/PSD incl. [[0,1],[1,0]]→(1,0,1);
+non-symmetric → DECLINE. coverage 94 / **10 VERIFIED** / 84 deferred; test_catalog **19/19**.

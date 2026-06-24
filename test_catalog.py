@@ -375,6 +375,31 @@ def test_catalog_engine_report():
           f"closed [14, no 15th]; false-positive = 0 on {len(negatives)} negative controls)")
 
 
+def test_loop_cycle1_spectral_inertia():
+    """§9 loop cycle 1 — mechanism 1 (diagonalize): Sylvester INERTIA (n₊,n₀,n₋), a complete congruence invariant of
+    a symmetric rational matrix, EXACT via exact eigenvalue signs. Recovers 16.spectral_svd_pca (was deferred).
+    Negative control: a non-symmetric matrix → DECLINE."""
+    import sympy as sp
+    import sos_cert as S
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    # exact inertia incl. the zero-diagonal indefinite case [[0,1],[1,0]] → (1,0,1)
+    assert S.inertia(sp.eye(3)) == (3, 0, 0)                          # PD
+    assert S.inertia(sp.diag(1, 0, -2)) == (1, 1, 1)                  # indefinite, rank-deficient
+    assert S.inertia(sp.Matrix([[0, 1], [1, 0]])) == (1, 0, 1)        # zero-diagonal indefinite
+    assert S.inertia(sp.Matrix([[1, -1], [-1, 1]])) == (1, 1, 0)      # PSD rank-1
+    # via the gated kernel: EXACT signature + definiteness
+    v = KR.dispatch({"inertia": True, "matrix": sp.diag(2, 3)})
+    assert v.status == KV.EXACT and v.result["inertia"] == (2, 0, 0) and v.result["definiteness"] == "positive-definite", v
+    # ★ negative control: non-symmetric → DECLINE ★
+    assert S.inertia_grade(sp.Matrix([[1, 2], [3, 4]])).status == KV.DECLINE
+    assert {t.tid: t for t in catalog.TRANSFORMS}["16.spectral_svd_pca"].verified
+    print("PASS test_loop_cycle1_spectral_inertia (§9: Sylvester inertia (n₊,n₀,n₋) EXACT — PD/indefinite/zero-"
+          "diagonal/PSD; gated kernel gives signature+definiteness; non-symmetric → DECLINE; 16.spectral_svd_pca "
+          "RECOVERED [deferred→VERIFIED])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
