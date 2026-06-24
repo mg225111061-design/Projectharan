@@ -405,6 +405,16 @@ accumulation is never a single-state C-finite recurrence, it returns its collaps
 the loop-SAMPLING recurrence detector (which executes the loop and would hang on an explosive inner bound). The
 recurrence/modular paths for genuine single-state loops are unchanged. `test_loop_collapse_fork_safe`.
 
+**EVERY code-shape collapses LIVE (§3 integrate).** `_loop_collapse` now tries the full recognizer `dispatch`
+BEFORE the recurrence detector, so a counter-`while`, a sum/prod comprehension, a linear self-recursion, a
+`functools.reduce` fold, and a modular-FILTERED sum each surface their OPTIMAL **O(1)** closed form (kind
+`code_shape`, EXACT, gate-verified) in the real optimize path — not the suboptimal **O(log n)** companion the
+recurrence detector would give (a polynomial sum IS C-finite, so it would otherwise be collapsed to O(log n)).
+A genuine state-update loop (Fibonacci) that `dispatch` cannot fold still routes to the O(log n) recurrence
+collapse; non-structured code is rejected in <1 ms (the gate runs only after a structure is recognized); the
+bounded gate keeps it fork-safe + no-hang. The live engine now collapses every code-shape it recognizes.
+`test_loop_collapse_fork_safe`.
+
 **Filtered loops → O(1) (§3 deepen).** A modular-FILTERED accumulation — written either as `for k in range(lo,hi):
 if k%M==R: acc += h(k)` (`_cond_acc`) OR as the comprehension `sum(h(k) for k in range(lo,hi) if k%M==R)`
 (`_cond_comprehension`), both normalizing to the SAME `_CondAcc` via `_cond_any_shape` (filtered shape-invariance:

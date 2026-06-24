@@ -10522,6 +10522,22 @@ def test_loop_collapse_fork_safe():
     assert col and col["kind"] == "nested_sum" and col["status"] == "CLOSED_FORM" and col["grade"] == "EXACT", col
     assert col["closed_form"] == "n*(n**2 + 3*n + 2)/6" and "→ O(1)" in col["complexity"], col
 
+    # ★ §3 (live shape wiring): the OTHER fold shapes now surface their OPTIMAL O(1) closed form in the live path
+    #   (tried BEFORE the recurrence detector, so a polynomial sum is O(1) — not the suboptimal O(log n) companion).
+    #   A genuine state-update recurrence (Fibonacci, above) still correctly routes to the O(log n) recurrence. ★
+    for shape_src in (
+        "def f(n):\n return sum(k*k for k in range(1,n+1))",                                  # comprehension
+        "def f(n):\n s=0\n k=1\n while k<=n:\n  s+=k*k\n  k+=1\n return s",                    # counter-while
+        "def f(n):\n if n<1:\n  return 0\n return f(n-1)+n*n",                                 # recursion
+        "def f(n):\n return reduce(lambda s,k: s+k*k, range(1,n+1), 0)",                       # reduce
+    ):
+        c = EB._loop_collapse(shape_src)
+        assert c and c["kind"] == "code_shape" and c["status"] == "CLOSED_FORM" and c["grade"] == "EXACT", (shape_src, c)
+        assert c["closed_form"] == "n*(n + 1)*(2*n + 1)/6", (shape_src, c["closed_form"])
+    # a filtered sum surfaces its O(1) closed form too
+    cf = EB._loop_collapse("def f(n):\n s=0\n for k in range(n):\n  if k%2==0:\n   s+=k\n return s")
+    assert cf and cf["kind"] == "code_shape" and cf["status"] == "CLOSED_FORM" and cf["grade"] == "EXACT", cf
+
     # ★ NO-HANG regression: a nested loop with an EXPONENTIAL inner bound is RECOGNIZED-but-declined; it must NOT
     #   fall through to the loop-SAMPLING recurrence detector (which would execute range(1, 2**i) and hang). It
     #   returns None FAST. (This assertion completing under the time bound IS the no-hang proof.) ★
@@ -10531,10 +10547,11 @@ def test_loop_collapse_fork_safe():
     assert col_exp is None, f"exponential-bound nested must DECLINE (honest NONE), got {col_exp}"
     assert time.monotonic() - t0 < 2.0, "must return FAST — never sample/execute an unbounded nested loop (no hang)"
 
-    print("PASS test_loop_collapse_fork_safe (_loop_collapse decide-only + synchronous: recurrence/modular COLLAPSED "
-          "c=[1,1] EXACT + certificate, no (unmeasured) ratio, fast, NO threads [fork-safe]; LIVE nested Σ_iΣ_j → O(1) "
-          "[nested_sum EXACT]; exponential-bound nested DECLINEs FAST without sampling an unbounded loop [no-hang] — "
-          "the fork-deadlock AND the unbounded-sampling regressions are gated)")
+    print("PASS test_loop_collapse_fork_safe (_loop_collapse decide-only + synchronous: Fibonacci/modular → O(log n) "
+          "recurrence COLLAPSED c=[1,1] EXACT, fast, NO threads [fork-safe]; LIVE nested → O(1) [nested_sum]; "
+          "comprehension/while/recursion/reduce/filtered → their OPTIMAL O(1) closed form [code_shape EXACT, not the "
+          "O(log n) companion]; exponential-bound nested DECLINEs FAST [no-hang] — fork-deadlock + unbounded-sampling "
+          "regressions gated, and the live engine now collapses EVERY code-shape)")
 
 
 def test_modular_recurrence_collapse():

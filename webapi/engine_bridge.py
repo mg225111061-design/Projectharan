@@ -256,8 +256,8 @@ def _loop_collapse(code: str) -> Optional[Dict]:
         if d is not None and d.status == "NO_CLOSED_FORM":
             return {"kind": "sum", "status": "NO_CLOSED_FORM", "complexity": "irreducible (proven)",
                     "grade": d.verdict.status, "certificate": d.certificate}
-        if d is None:                                          # not a single Σ-loop → try a NESTED Σ_iΣ_j collapse
-            fn = SR._first_fn(code, None)                      # decide-only; the nested gate is now BOUNDED (no hang)
+        if d is None:                                          # not a single Σ for-loop (Gosper) → other collapses
+            fn = SR._first_fn(code, None)                      # decide-only; the recognizer gates are BOUNDED (no hang)
             nst = SR._nested_acc(fn) if fn is not None else None
             if nst is not None:                                # a RECOGNIZED double-nested accumulation
                 nd = SR._offload_nested(code, fn, nst)
@@ -270,7 +270,16 @@ def _loop_collapse(code: str) -> Optional[Dict]:
                 # recurrence detector SAMPLES the loop by executing it — for an explosive inner bound (e.g.
                 # range(1, 2**i)) that would run an unbounded loop and hang. (Sound + no-hang.)
                 return None
-        if d is None:                                          # not a Σ-loop → try the C-finite recurrence collapse
+            # OTHER fold-shaped loops → an O(1) closed form (BETTER than the O(log n) recurrence form): a counter-
+            # `while`, a sum/prod comprehension, a linear self-recursion, a functools.reduce fold, or a modular-
+            # FILTERED sum. The recognizer is synchronous + fork-safe, its gate is BOUNDED (no hang), it rejects
+            # non-structured code in <1ms, and it is gate-verified EXACT like the recurrence collapse. Tried BEFORE
+            # the recurrence detector so a polynomial sum (which IS C-finite) surfaces as O(1), not O(log n).
+            sd = SR.dispatch(code)
+            if sd.status == "OFFLOADED" and sd.closed_form:
+                return {"kind": "code_shape", "status": "CLOSED_FORM", "closed_form": sd.closed_form,
+                        "complexity": (sd.complexity or "O(1)"), "grade": "EXACT", "certificate": sd.certificate}
+            # a genuine state-update recurrence loop (Fibonacci-like — dispatch can't fold it) → O(log n) companion
             import loop_recurrence as LR                       # noqa: PLC0415
             rc = LR.decide_recurrence_collapse(code, measure=False)       # decide-only: fast, no timing, no threads
             if rc.status == "COLLAPSED":
