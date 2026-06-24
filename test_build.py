@@ -7884,12 +7884,13 @@ def test_native_s1_rust_core():
 def test_native_s2_bitblast_smt():
     """§2 — ZERO-DEPENDENCY bit-blasting SMT (in-house DPLL SAT + bit-blaster + independent certificate checker;
     no coqc/cvc5/Bitwuzla/Lean/Z3). It DECIDES fixed-width QF-bitvector obligations the CODE engine actually
-    generates (add/sub/mul-by-const/general-mul/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt) so those proofs need
-    no external solver. Honest scope (§X): a validity result is EXACT *within the stated width* (bound = 2^width),
-    DETERMINISTIC (same input ⇒ same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT model is
-    re-checked by a tiny independent checker; ∀-validity is UNSAT of the negation over the whole w-bit domain). It
-    is NOT cvc5/Z3 parity — no division, no variable-amount shift, no ite-mux, no arrays/reals/unbounded ints — and
-    we never imply it (signed compare, general multiply, and right-shift ARE in-house; sections g–h decide them)."""
+    generates (add/sub/mul-by-const/general-mul/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt/ite-mux) so those proofs
+    need no external solver. Honest scope (§X): a validity result is EXACT *within the stated width* (bound =
+    2^width), DETERMINISTIC (same input ⇒ same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT
+    model is re-checked by a tiny independent checker; ∀-validity is UNSAT of the negation over the whole w-bit
+    domain). It is NOT cvc5/Z3 parity — no division, no variable-amount shift, no arrays/reals/unbounded ints — and
+    we never imply it (signed compare, general multiply, right-shift, AND ite-mux ARE in-house; sections g–h decide
+    them — incl. branchless abs ≡ x<0?−x:x and the in-house refutation of the overflow-unsafe (x+1)>ₛx)."""
     import bitblast_smt as S
     from pillar3 import bv_validate as BV
 
@@ -7954,6 +7955,15 @@ def test_native_s2_bitblast_smt():
     # and the general multiplier produces a REAL refutation, not a false VALID: x·x == x is false (e.g. x=2 ⇒ 4≠2)
     sq = S.prove_bv_identity(lambda bb: (lambda x: (bb.mul(x, x), x))(bb.var("x")), 4)
     assert sq.status == "INVALID" and (sq.model["x"] ** 2) % 16 != sq.model["x"], sq
+    # ★ ite-mux now in-house: a BRANCHLESS conditional trick is verified ≡ its if-then-else spec (branchless abs
+    # (x^ashr)−ashr ≡ x<0?−x:x is in the VALID catalog), AND the overflow-unsafe conditional (x+1)>ₛx is REFUTED
+    # in-house — no Z3 ite needed ★
+    assert "branchless_abs=cond_abs" in sr and sr["branchless_abs=cond_abs"].status == "VALID"
+    def _unsound_cond(bb):
+        x = bb.var("x"); s = bb.sgt_lit(bb.add(x, bb.const(1)), x)   # (x+1) >ₛ x
+        return (bb.mux(s, bb.const(1), bb.const(0)), bb.const(1))    # claim it is ALWAYS 1 — FALSE at INT_MAX
+    uc = S.prove_bv_identity(_unsound_cond, 8)
+    assert uc.status == "INVALID" and uc.model["x"] == 127, uc      # refuted in-house at INT_MAX(w8)=127 via mux
     # determinism extends to the new theory: identical status + certificate across independent runs
     assert {n: r.certificate for n, r in S.prove_strength_reductions().items()} == \
            {n: r.certificate for n, r in sr.items()}, "strength-reduction proofs must be deterministic"
@@ -7961,9 +7971,10 @@ def test_native_s2_bitblast_smt():
     print(f"PASS test_native_s2_bitblast_smt (ZERO-DEP in-house SMT: {len(cc['rows'])} sound peepholes decided VALID "
           f"and AGREEING with Z3 at matched width; INVALID x+1==x with checked cex x={xc}; SAT 3x≡9→x={sat.model['x']} "
           f"+ UNSAT 2x≡1; SIGNED compare now in-house [(x+1)>ₛx false at INT_MAX=127, found w/o Z3]; EXPANDED theory: "
-          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift: sign-mask, bit round-trips, "
-          f"mul↔shift, × commutes/associates/distributes] + REAL refutation x·x≠x cex x={sq.model['x']}; deterministic "
-          f"result+certificate; tamper-rejecting checker; still out-of-scope: division/variable-shift/ite — by design)")
+          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift + ite-mux: sign-mask, bit "
+          f"round-trips, mul↔shift, ×-ring laws, branchless-abs≡x<0?−x:x] + REAL refutations x·x≠x cex x={sq.model['x']} "
+          f"and in-house refutation of unsound (x+1)>ₛx via mux cex x={uc.model['x']}; deterministic result+certificate; "
+          f"tamper-rejecting checker; still out-of-scope: division/variable-shift — by design (ite-mux now in-house))")
 
 
 def test_native_s3_triage_layer():

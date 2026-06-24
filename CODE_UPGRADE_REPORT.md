@@ -178,13 +178,17 @@ ratio).
 
 The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general
 `w×w` multiply and logical/arithmetic right-shift, so the engine can now PROVE the strength-reduction transforms
-it wants to ACCEPT (not merely refute them), with zero external solver. `prove_strength_reductions()` decides 8
+it wants to ACCEPT (not merely refute them), with zero external solver. `prove_strength_reductions()` decides 11
 identities VALID (UNSAT of the negation over the whole w-bit domain, EXACT within stated width): `mul8 ↔ shl3`,
 `general_mul == mul_const`, the branchless sign-mask `ashr(x,w-1) == neg(lshr(x,w-1))`, the shift round-trips
-that clear low/high bits, and the ×-ring laws (commute / associate / distribute). The multiplier still produces a
-REAL refutation — `x·x == x` is INVALID with a checked counterexample — so it is never a false VALID. Honest
-scope unchanged: still NOT cvc5/Z3 parity — no division, no variable-amount shift, no ite-mux, no
-arrays/reals/unbounded ints (those stay on Z3).
+that clear low/high bits, the ×-ring laws (commute / associate / distribute), and — via the newly-added **ite-mux
+(bit-select)** — **branchless CONDITIONAL tricks verified ≡ their if-then-else spec**: branchless abs
+`(x ^ ashr(x,w-1)) − ashr(x,w-1) ≡ (x<0 ? −x : x)`, `mux(s,a,a) ≡ a`, `(x<0 ? −1 : 0) ≡ ashr`. The solver still
+produces REAL refutations — `x·x == x` is INVALID, and the overflow-unsafe `(x+1) >ₛ x` is REFUTED in-house at
+INT_MAX via ite-mux (previously this conditional needed Z3) — never a false VALID. Honest scope: still NOT cvc5/Z3
+parity — no division, no variable-amount shift, no arrays/reals/unbounded ints; the overflow-unsafe peepholes stay
+out of the SOUND cross-check (unsound / one needs division). Signed compare, general multiply, right-shift, and
+ite-mux ARE in-house now.
 
 ---
 
