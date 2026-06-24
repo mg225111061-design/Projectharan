@@ -262,9 +262,9 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **39 CONFIRMED + 9 PARTIAL + 2 GAP** (gaps close
-one-per-commit as they are built; **Group C complete**). The 2 remaining GAPS are NAMED, not
-padded over: #19 Gröbner, #28 autodiff. The 9 PARTIALS
+**Status (MEASURED, honest — never rounded up to "50 done"):** **40 CONFIRMED + 9 PARTIAL + 1 GAP** (gaps close
+one-per-commit as they are built; **Group C complete; Group B complete**). The 1 remaining GAP is NAMED, not
+padded over: #19 Gröbner. The 9 PARTIALS
 name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
@@ -317,6 +317,14 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   Killer test: F(10^6) (a 208988-digit Fibonacci number) extracted by halving == the direct iteration; also
   geometric/rational/tribonacci. Q(0)=0 / n<0 → DECLINE. EXACT, tier normal, broth-eligible.
   `test_haran_bostan_mori`. (39 CONFIRMED now.)
+- **#28 Automatic differentiation (exact dual)** → `autodiff.autodiff_grade`. Forward-mode AD via DUAL NUMBERS
+  (a+bε, ε²=0) over `Fraction`: evaluating a polynomial/rational expression on duals propagates (value,
+  derivative) by the chain rule EXACTLY — no finite-difference error. We own the forward pass (a `Dual` class
+  walking the sympy tree); sympy's symbolic ∂/∂x is the INDEPENDENT cross-check (a different algorithm). EXACT for
+  polynomial/rational functions at a rational point, multivariate gradients supported; transcendental / non-integer
+  power / divide-by-zero-at-the-point are honest DECLINEs (the value would not be exact). Tested: d/dx(x³−2x+5)@4,
+  (x²+1)/(x−1)@3, ∇(x²y+3xy³), rational points. EXACT, tier normal. `test_haran_autodiff_dual`. (40 CONFIRMED;
+  **Group B complete.**)
 
 ---
 

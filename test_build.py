@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {19, 28}, gaps   # +#13 Bostan–Mori now CONFIRMED (only Gröbner, autodiff remain)
+    assert set(gaps) == {19}, gaps   # +#28 autodiff now CONFIRMED (only #19 Gröbner remains)
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9341,6 +9341,42 @@ def test_haran_bostan_mori():
     print("PASS test_haran_bostan_mori (#13: [x^n] P/Q via Bostan–Mori O(M(d) log n); Fibonacci/geometric/rational/"
           "tribonacci exact; F(10^6) [208988 digits] extracted by halving == direct iteration; GF-recurrence + "
           "series cross-checks; Q(0)=0 / n<0 → DECLINE)")
+
+
+def test_haran_autodiff_dual():
+    """HARAN #28 (Group B) — EXACT forward-mode automatic differentiation via DUAL NUMBERS over ℚ. We own the
+    forward pass (a Dual class walking the expression tree); sympy's symbolic ∂/∂x is used ONLY as an independent
+    cross-check (a different algorithm). EXACT for polynomial/rational functions at a rational point; transcendental
+    / non-integer power / divide-by-zero-at-the-point are honest DECLINEs (the value would not be exact)."""
+    import autodiff as AD
+    import kernel_verdict as KV
+    from fractions import Fraction as Fr
+
+    # (a) univariate polynomial: d/dx (x³−2x+5) = 3x²−2; at x=4 ⇒ value 61, derivative 46
+    v = AD.autodiff_grade("x**3 - 2*x + 5", {"x": 4})
+    assert v.status == KV.EXACT and v.result["value"] == 61 and v.result["grad"]["x"] == 46
+    assert v.certificate.kind == "autodiff_dual_vs_symbolic"
+
+    # (b) rational function (x²+1)/(x−1) at x=3 ⇒ value 5, derivative 1/2 (quotient rule, exact)
+    v = AD.autodiff_grade("(x**2+1)/(x-1)", {"x": 3})
+    assert v.result["value"] == 5 and v.result["grad"]["x"] == Fr(1, 2)
+
+    # (c) MULTIVARIATE gradient x²y+3xy³ at (2,1): value 10, ∂x=7, ∂y=22
+    v = AD.autodiff_grade("x**2*y + 3*x*y**3", {"x": 2, "y": 1})
+    assert v.result["value"] == 10 and v.result["grad"]["x"] == 7 and v.result["grad"]["y"] == 22
+
+    # (d) rational POINT: x² at x=1/3 ⇒ 1/9, derivative 2/3 (exact over ℚ, no float)
+    v = AD.autodiff_grade("x**2", {"x": Fr(1, 3)})
+    assert v.result["value"] == Fr(1, 9) and v.result["grad"]["x"] == Fr(2, 3)
+
+    # (e) honest DECLINE outside the exact scope: transcendental, non-integer power, divide-by-zero at the point
+    assert AD.autodiff_grade("sin(x)", {"x": 1}).status == KV.DECLINE
+    assert AD.autodiff_grade("x**(1/2)", {"x": 4}).status == KV.DECLINE
+    assert AD.autodiff_grade("1/(x-3)", {"x": 3}).status == KV.DECLINE
+
+    print("PASS test_haran_autodiff_dual (#28: forward-mode dual-number AD EXACT over ℚ; d/dx(x³−2x+5)@4=46, "
+          "(x²+1)/(x−1)@3 → 1/2, multivariate ∇(x²y+3xy³)@(2,1)=(7,22), x²@1/3 → 2/3; every result cross-checked vs "
+          "independent symbolic ∂/∂x; transcendental/non-integer-power/÷0 → honest DECLINE)")
 
 
 def test_mode_budget_roles():
