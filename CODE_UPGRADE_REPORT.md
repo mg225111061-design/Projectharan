@@ -405,9 +405,11 @@ accumulation is never a single-state C-finite recurrence, it returns its collaps
 the loop-SAMPLING recurrence detector (which executes the loop and would hang on an explosive inner bound). The
 recurrence/modular paths for genuine single-state loops are unchanged. `test_loop_collapse_fork_safe`.
 
-**Filtered loops → O(1) (§3 deepen).** A modular-FILTERED accumulation `for k in range(lo,hi): if k%M==R: acc +=
-h(k)` (O(n)) — one of the most common real-world loop shapes (sum of evens/odds, multiples, strided sums) — now
-collapses to an O(1) closed form (`_cond_acc` + `_offload_cond`). The mechanism is the EXACT reindex k = M·t + r₀
+**Filtered loops → O(1) (§3 deepen).** A modular-FILTERED accumulation — written either as `for k in range(lo,hi):
+if k%M==R: acc += h(k)` (`_cond_acc`) OR as the comprehension `sum(h(k) for k in range(lo,hi) if k%M==R)`
+(`_cond_comprehension`), both normalizing to the SAME `_CondAcc` via `_cond_any_shape` (filtered shape-invariance:
+one key, one closed form however written) — one of the most common real-world loop shapes (sum of evens/odds,
+multiples, strided sums) — now collapses to an O(1) closed form (`_offload_cond`). The mechanism is the EXACT reindex k = M·t + r₀
 (r₀ = the least k ≥ lo with k ≡ R mod M), summing over t with `sympy.summation`; the closed form (with `floor`,
 still O(1) to evaluate, e.g. Σ_{k<n} evens → (⌊n/2−½⌋+1)⌊n/2−½⌋) is authoritative ONLY after DIFFERENTIAL
 EQUIVALENCE against the ORIGINAL executed loop on affordable samples (the same bounded gate). Verified on Σ evens,

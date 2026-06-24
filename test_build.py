@@ -9881,13 +9881,23 @@ def test_haran_filtered_loop_collapse():
         "def f(n):\n s=0\n for k in range(n):\n  if k%1==0:\n   s += k\n return s",            # degenerate M=1
     ]
     for src in advs:
-        assert SR._cond_acc(SR._first_fn(src, "f")) is None, src
+        assert SR._cond_any_shape(SR._first_fn(src, "f")) is None, src
         assert SR.dispatch(src, "f").status != "OFFLOADED", src
+
+    # ★ FILTERED shape-invariance: the SAME filtered sum written as a for-loop and as a comprehension normalizes to
+    #   ONE `_CondAcc` key and OFFLOADS to the SAME closed form (a filtered sum collapses identically however written) ★
+    f_for = "def f(n):\n s=0\n for k in range(n):\n  if k%2==0:\n   s += k*k\n return s"
+    f_comp = "def f(n):\n return sum(k*k for k in range(n) if k%2==0)"
+    ka, kb = SR._cond_any_shape(SR._first_fn(f_for, "f")), SR._cond_any_shape(SR._first_fn(f_comp, "f"))
+    assert ka is not None and kb is not None
+    assert (ka.var, ka.lo, ka.hi, ka.mod, ka.rem, ka.op, ka.body) == (kb.var, kb.lo, kb.hi, kb.mod, kb.rem, kb.op, kb.body)
+    da, db = SR.dispatch(f_for, "f"), SR.dispatch(f_comp, "f")
+    assert da.status == db.status == "OFFLOADED" and da.closed_form == db.closed_form, (da.closed_form, db.closed_form)
 
     print("PASS test_haran_filtered_loop_collapse (§3 filtered code-shape: Σ evens / odd-squares / multiples-of-3 / "
           "k≡1(mod 4) all OFFLOAD O(n)→O(1) via the exact reindex k=M·t+r₀, each floor-form independently re-checked "
-          "vs a brute-force filtered loop; non-modular predicate, if/else, non-loop-var summand & degenerate M=1 "
-          "correctly REJECTED — sound, CAS-proposed + bounded-execution-gated)")
+          "vs a brute-force filtered loop; the filtered for-loop ≡ the filtered comprehension [ONE key, ONE closed "
+          "form]; non-modular predicate, if/else, non-loop-var summand & degenerate M=1 correctly REJECTED — sound)")
 
 
 def test_haran_code_shape_coverage():

@@ -550,6 +550,64 @@ def _cond_acc(fnnode: ast.FunctionDef) -> Optional[_CondAcc]:
                     op=b[0], algebra=b[1], body=hsrc)
 
 
+def _cond_comprehension(fnnode: ast.FunctionDef) -> Optional[_CondAcc]:
+    """CODE-SHAPE NORMALIZATION (filtered, comprehension form): `return sum(h(k) for k in range(lo,hi) if k%M==R)`
+    ⇒ the SAME `_CondAcc` the filtered for-loop yields — a filtered sum collapses identically however it is written.
+    Conservative — sum/prod over ONE range generator with EXACTLY one `k%M==R` filter (constants M≥2, 0≤R<M); the
+    summand depends only on the loop var. Else None."""
+    if _for_loops(fnnode) or any(isinstance(n, ast.While) for n in ast.walk(fnnode)):
+        return None
+    if len(fnnode.args.args) != 1 or fnnode.args.vararg or fnnode.args.kwarg or fnnode.args.kwonlyargs:
+        return None
+    rets = [n for n in ast.walk(fnnode) if isinstance(n, ast.Return)]
+    if len(rets) != 1 or not isinstance(rets[0].value, ast.Call) or len(rets[0].value.args) != 1:
+        return None
+    call = rets[0].value
+    fname = call.func.id if isinstance(call.func, ast.Name) else (
+        call.func.attr if isinstance(call.func, ast.Attribute) else None)
+    if fname == "sum":
+        op, algebra = "+", "monoid"
+    elif fname == "prod":
+        op, algebra = "*", "monoid"
+    else:
+        return None
+    gen = call.args[0]
+    if not (isinstance(gen, ast.GeneratorExp) and len(gen.generators) == 1):
+        return None
+    comp = gen.generators[0]
+    if not (len(comp.ifs) == 1 and isinstance(comp.iter, ast.Call) and isinstance(comp.iter.func, ast.Name)
+            and comp.iter.func.id == "range" and isinstance(comp.target, ast.Name)):
+        return None
+    var = comp.target.id
+    test = comp.ifs[0]                                       # the single filter must be `k % M == R` (constants)
+    if not (isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq)
+            and isinstance(test.left, ast.BinOp) and isinstance(test.left.op, ast.Mod)
+            and isinstance(test.left.left, ast.Name) and test.left.left.id == var
+            and isinstance(test.left.right, ast.Constant) and isinstance(test.comparators[0], ast.Constant)):
+        return None
+    M, R = test.left.right.value, test.comparators[0].value
+    if not (isinstance(M, int) and isinstance(R, int) and M >= 2 and 0 <= R < M):
+        return None
+    args = comp.iter.args
+    if len(args) == 1:
+        lo, hi = "0", ast.unparse(args[0])
+    elif len(args) == 2:
+        lo, hi = ast.unparse(args[0]), ast.unparse(args[1])
+    else:
+        return None
+    body = ast.unparse(gen.elt)
+    hnames = _names_used(ast.parse(body, mode="eval"))
+    if hnames - {var} or var not in hnames:
+        return None
+    return _CondAcc(var=var, lo=_canon_expr(lo), hi=_canon_expr(hi), mod=M, rem=R, op=op, algebra=algebra, body=body)
+
+
+def _cond_any_shape(fnnode: ast.FunctionDef) -> Optional[_CondAcc]:
+    """A filtered accumulation Σ_{k%M==R} h(k) written as a for-loop OR a sum/prod comprehension normalizes to the
+    SAME `_CondAcc` key ⇒ the same collapse + the same verified closed form (shape invariance for filtered sums)."""
+    return _cond_acc(fnnode) or _cond_comprehension(fnnode)
+
+
 @dataclass
 class _Join:
     a_iter: str
@@ -645,7 +703,7 @@ def recognize(source: str, fn_name: Optional[str] = None) -> Structure:
     if nst is not None:
         return Structure(CLOSED_FORM_LOOP, nst.algebra,
                          f"reduce('{nst.op}', f({nst.vi},{nst.vj})) over range×range (nested)", name)
-    cnd = _cond_acc(fn)                                       # filtered Σ_{k%M==R} h(k)
+    cnd = _cond_any_shape(fn)                                # filtered Σ_{k%M==R} h(k) — for-loop OR comprehension
     if cnd is not None:
         return Structure(CLOSED_FORM_LOOP, cnd.algebra,
                          f"reduce('{cnd.op}', f({cnd.var}) where {cnd.var}%{cnd.mod}=={cnd.rem})", name)
@@ -1010,7 +1068,7 @@ def dispatch(source: str, fn_name: Optional[str] = None) -> Dispatch:
         nst = _nested_acc(fn)                                # doubly-nested Σ_i Σ_j h(i,j) → O(1) closed form
         if nst is not None:
             return _offload_nested(source, fn, nst)
-        cnd = _cond_acc(fn)                                  # filtered Σ_{k%M==R} h(k) → O(1) closed form (reindex)
+        cnd = _cond_any_shape(fn)                            # filtered Σ_{k%M==R} h(k) — for-loop OR comprehension
         if cnd is not None:
             return _offload_cond(source, fn, cnd)
         s = recognize(source, fn_name)
