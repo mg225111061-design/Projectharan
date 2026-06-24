@@ -215,7 +215,7 @@ const SAMPLES = [
   ["리스트에 스칼라 수학 연산","import math\n\ndef features(samples):\n    out = []\n    for x in samples:\n        out.append(math.sqrt(x) * 2 + math.sin(x))\n    energy = sum(v ** 2 for v in out)\n    return out, energy"],
   ["깔끔한 코드 (보류 예상)","def total(prices):\n    return sum(prices)"],
 ];
-const S = { topMode:"code", screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null,
+const S = { topMode:"code", screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null, codeSteps:[],
   mathMode:"normal", mathInput:"", mathResult:null, mathBusy:false, attachments:[],
   live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
 let TOAST_T = null;
@@ -270,6 +270,32 @@ async function runOptimize(){
     ran_complexity_sweep:run.ran_complexity_sweep, latency_ms:run.latency_ms, policy,
     proposer:{used:false,mode:"deterministic",note:"정적 빌드(서버 없음): 탐지는 당신 코드에 대한 휴리스틱이며, 각 행은 "+mode+" 계약 아래 탐지된 낭비 유형에 대한 엔진의 실제 측정 표준 결과입니다. 당신 코드에 대한 라이브 AST 실행(과 키를 통한 LLM 제안)은 FastAPI 서버로 여세요."},
     note:"정적 빌드 — 내장 엔진 실행의 대표 측정 결과입니다. 코드별 라이브 실행은 webapi.app으로 서빙하세요." };
+}
+
+// ── §3: STREAM EVERY STEP — open the live CODE process trace (SSE) and render each phase as it arrives ──
+// Each frame is a real engine step (분석 → 구조 인식 → fold/결정 적용 → 증명서 → 검증 → 결과) carrying the live
+// tier·예산 line and the REAL grade+증명서. Never fabricated: the steps come straight from the engine's trace.
+async function runOptimizeStream(){
+  if(!S.live) return;
+  const mode=activeMode(); const code=S.code;
+  let resp;
+  try{ resp=await fetch("/api/optimize/stream",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,mode})}); }
+  catch(e){ return; }
+  if(!resp.ok||!resp.body) return;
+  const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf="";
+  while(true){
+    let chunk; try{ chunk=await reader.read(); }catch(e){ break; }
+    if(chunk.done) break;
+    buf+=dec.decode(chunk.value,{stream:true});
+    let i;
+    while((i=buf.indexOf("\n\n"))>=0){
+      const frame=buf.slice(0,i); buf=buf.slice(i+2);
+      const line=frame.split("\n").find(l=>l.startsWith("data:")); if(!line) continue;
+      let obj; try{ obj=JSON.parse(line.slice(5).trim()); }catch(_){ continue; }
+      if(obj.type==="done") continue;
+      S.codeSteps.push(obj); render();                       // live incremental render — the user watches it unfold
+    }
+  }
 }
 
 // ── MATH mode: send the problem to the certified solver (fold → broth → arsenal) and get the graded trace ──
@@ -464,7 +490,7 @@ function scrCode(){
   const up=$("label",{class:"upload"},[".py 업로드 ↑"]);
   const fi=$("input",{type:"file",accept:".py,.txt"}); fi.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.code=String(r.result||"");render();};r.readAsText(f);e.target.value="";});
   up.appendChild(fi); samples.appendChild(up);
-  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; runBtn.disabled=true; runBtn.textContent="실행 중…"; S.result=await runOptimize(); const n=S.result.shipped.length; setScreen("verify"); showToast(n>0?`최적화 완료 — 검증된 수정 ${n}건 출하`:"최적화 완료 — 안전하게 출하할 게 없습니다 (정직한 보류)"); }},`${mode} 검증 실행 →`);
+  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; runBtn.disabled=true; runBtn.textContent="실행 중…"; S.codeSteps=[]; S.result=null; if(S.live){ setScreen("verify"); try{ await runOptimizeStream(); }catch(e){} } S.result=await runOptimize(); const n=S.result.shipped.length; setScreen("verify"); showToast(n>0?`최적화 완료 — 검증된 수정 ${n}건 출하`:"최적화 완료 — 안전하게 출하할 게 없습니다 (정직한 보류)"); }},`${mode} 검증 실행 →`);
   return $("div",{"data-mode":mode},[
     $("div",{class:"eyebrow"},"3단계 · 당신의 코드"),$("h2",{},"함수를 붙여넣으세요. 진짜로 프로파일링합니다."),
     $("p",{class:"lead"},S.live?"탐지는 당신 소스에 대한 진짜 AST 분석입니다(서버). 각 낭비 유형마다 엔진이 검증된 수정을 실행하고 "+mode+" 계약 아래 측정된 전체 프로그램 결과를 보고합니다.":"정적 빌드: 탐지는 당신 코드에 대한 휴리스틱이며, 결과는 탐지된 각 낭비 유형에 대한 엔진의 실제 측정 표준 실행입니다. 코드별 라이브 실행은 FastAPI 백엔드로 서빙하세요."),
@@ -474,7 +500,17 @@ function scrCode(){
 }
 
 function scrVerify(){
-  const r=S.result; if(!r) return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("code")},"코드로 가기")]);
+  const r=S.result; const steps=S.codeSteps||[];
+  function processPanel(){                                    // §3: the LIVE process — every step, tier·예산, 등급·증명서
+    if(!steps.length) return null;
+    const box=$("div",{class:"card mt"},[$("div",{class:"eyebrow"},"라이브 과정 · 매 단계 (티어·예산 · 등급·증명서) — 위조 없음")]);
+    steps.forEach(e=>{
+      const g=e.grade?$("span",{class:"grade "+String(e.grade).toLowerCase()},[$("span",{class:"gd"}),gradeLabel(String(e.grade).toLowerCase())]):$("span",{class:"muted",style:"font-size:11px"},"…");
+      box.appendChild($("div",{class:"vrow"},[$("div",{},[$("div",{class:"v-name"},(e.phase||"")+" · "+(e.message||"")),$("div",{class:"v-sub"},(e.detail||"")+(e.certificate?(" — "+e.certificate):""))]),$("span",{class:"pill"},e.budget||e.tier||""),g]));
+    });
+    return box;
+  }
+  if(!r){ const pp=processPanel(); if(pp) return $("div",{},[$("div",{class:"eyebrow"},"4단계 · 검증 패널 · 실행 중…"),$("h2",{},"과정을 실시간으로 — 매 단계를 보여줍니다."),pp]); return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("code")},"코드로 가기")]); }
   const wrap=$("div",{"data-mode":r.mode},[
     $("div",{class:"eyebrow"},"4단계 · 검증 패널 · "+r.mode+" 계약"),$("h2",{},"검증기가 통과시킨 것."),
     $("div",{class:"grid cols-3 mt"},[
@@ -483,6 +519,7 @@ function scrVerify(){
       $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"당신 코드에서 탐지됨"),(r.detected&&r.detected.length)?$("div",{class:"tags mt"},r.detected.map(d=>$("span",{class:"tag",title:d.evidence},d.waste_type))):$("p",{class:"muted",style:"margin:0"},"알려진 낭비 패턴을 찾지 못했습니다.")]),
     ]),
   ]);
+  const _pp=processPanel(); if(_pp) wrap.appendChild(_pp);    // §3: the live process panel, with the final result
   if(r.proposer) wrap.appendChild($("div",{class:"card mt"},[$("div",{class:"eyebrow"},"제안자 "+(r.proposer.used?"· "+r.proposer.provider:"· 결정론적")),$("div",{class:"row",style:"align-items:flex-start"},[$("span",{class:"badge-free",style:"background:var(--track);color:var(--ink-2)"},r.proposer.used?"LLM 사용":"결정론적 디텍터"),$("span",{class:"muted",style:"flex:1"},r.proposer.note)])]));
   if(r.shipped.length){
     const stack=$("div",{class:"slab-stack"}); r.shipped.forEach(s=>stack.appendChild(speedupSlab(s,r.mode)));

@@ -101,8 +101,14 @@ DECLINE`). The SSE frames reuse the frontend's existing `data:` event channel, s
 re-derives the real verdict and asserts the streamed RESULT grade/certificate match it verbatim (the harmonic
 loop's PROVEN-DECLINE grade is the EXACT decision; the list-as-set win's grade is the engine's real PROBABILISTIC).
 Never fabricated progress: an undecided step says so (`아직 닫히지 않음`) rather than inventing a result.
-`code_stream.py`, `test_code_stream`. (Next: wire the SSE endpoint + frontend rendering — the visual half, HUMAN
-review.)
+`code_stream.py`, `test_code_stream`.
+
+**Wired end-to-end.** `server.py` exposes `POST /api/optimize/stream` — an SSE endpoint that yields each phase
+frame as `iter_code_trace` produces it (the route is registered and the frame stream verified). `mrjeffrey.html`
+opens it over `fetch`+`ReadableStream` (`runOptimizeStream`) and renders a **live process panel** that fills in
+step-by-step as the engine works — phase · message, the tier·예산 pill (`extend · 0:03 / 8:00`), and the
+grade+증명서 — mirroring MATH mode's reasoning display. The frontend JS passes `node --check`; the visual is HUMAN
+review per §X. So the user now watches the real CODE process unfold live, not just the final number.
 
 ---
 

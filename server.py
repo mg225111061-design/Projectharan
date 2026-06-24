@@ -411,6 +411,25 @@ def create_app():
         return JSONResponse(_ENGINE.run_optimize(p.get("code", ""), p.get("mode", "normal"),
                                                  p.get("provider"), p.get("model"), p.get("key")))
 
+    @app.post("/api/optimize/stream")                          # §3: the LIVE CODE process trace (SSE)
+    async def api_optimize_stream(req: Request):               # noqa: ANN202
+        import json                                            # noqa: PLC0415
+        import code_stream as CS                               # noqa: PLC0415 (lazy: keeps server import light)
+        p = await req.json()
+        code, mode = p.get("code", ""), p.get("mode", "normal")
+
+        def gen():                                             # yield each phase AS the real work completes
+            try:
+                for ev in CS.iter_code_trace(code, mode):
+                    yield CS.to_sse([ev])[0]
+            except Exception as e:                             # noqa: BLE001 — never crash the stream
+                yield "data: " + json.dumps({"phase": "RESULT", "message": f"오류: {type(e).__name__}",
+                                             "tier": mode, "budget": "", "grade": "DECLINE"},
+                                            ensure_ascii=False) + "\n\n"
+            yield "data: " + json.dumps({"type": "done"}) + "\n\n"
+        return StreamingResponse(gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
     @app.post("/api/key/validate")
     async def api_key_validate(req: Request):                  # noqa: ANN202
         if _ENGINE is None:
