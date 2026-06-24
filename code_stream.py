@@ -72,6 +72,7 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
     dec = SR.decide_loop(code)
     rc = None
     mc = None
+    sd = None                                                # a code-shape dispatch collapse (while/comp/recursion/…)
     if dec is not None:
         if dec.status == "CLOSED_FORM":
             yield ev(APPLY, f"fold 적용 중: 결정 절차로 멱합/누적 루프 접는 중… Σ {dec.summand}",
@@ -92,23 +93,41 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
             yield ev(APPLY, f"결정 절차: Σ {dec.summand} — 이 클래스 밖이라 판정 보류(정직, 아직 닫히지 않음)",
                      detail=dec.certificate)
     else:
-        # §4 ceiling-breaker: a C-finite state-update loop (Fibonacci-like) → O(log n) companion collapse
+        # §3 (other code-shapes): a nested Σ_iΣ_j, or a counter-while / comprehension / recursion / reduce /
+        # filtered fold → an O(1) closed form. Tried BEFORE the recurrence detector (consistent with the optimize
+        # RESULT in engine_bridge._loop_collapse), so a polynomial sum surfaces as O(1) — not the O(log n) companion.
+        is_nested = False
         try:
-            import loop_recurrence as LR2
-            rc = LR2.decide_recurrence_collapse(code, n=20000, trials=2)
-            if rc is None or rc.status != "COLLAPSED":         # exact declined → try the genuine-win modular case
-                mc = LR2.decide_modular_recurrence_collapse(code, n=20000, trials=2)
+            sd = SR.dispatch(code)                            # handles nested + all fold shapes (bounded gate, no hang)
+            fn2 = SR._first_fn(code, None)
+            is_nested = fn2 is not None and SR._nested_acc(fn2) is not None
         except Exception:                                    # noqa: BLE001 — analysis must never crash the stream
-            rc = None
-        if rc is not None and rc.status == "COLLAPSED":
-            yield ev(APPLY, f"선형 점화식 인식 중: O(n) 상태-갱신 루프 → O(log n) 동반행렬 (order={rc.order}, c={rc.c})")
-            _win = "측정 win" if rc.measured_win else "검증됨 (이 n에선 측정 win 아님 — 정직)"
-            yield ev(CERTIFY, f"증명서 생성 중… (동반형 ≡ 루프, held-out n 검증) · {rc.ratio:.1f}× {_win}",
-                     grade=rc.verdict.status, certificate=rc.verdict.certificate.detail)
-        elif mc is not None and mc.status == "COLLAPSED":
-            yield ev(APPLY, f"모듈러 선형 점화식 인식 중: O(n) 루프 → O(log n) 동반행렬 mod M (order={mc.order}, c={mc.c})")
-            yield ev(CERTIFY, f"증명서 생성 중… (동반형-mod ≡ 루프, wrap된 held-out n 검증) · {mc.ratio:.1f}× 측정 win "
-                     f"[경계 정수 ⇒ 진짜 O(log n)]", grade=mc.verdict.status, certificate=mc.verdict.certificate.detail)
+            sd = None
+        if sd is not None and sd.status == "OFFLOADED" and sd.closed_form:
+            yield ev(APPLY, "코드형태 인식 중: O(n)+ 루프 → O(1) 닫힌형 접는 중… (for/while/comprehension/recursion/reduce/filtered/nested)",
+                     detail=f"닫힌형 = {sd.closed_form} ({sd.complexity})")
+            yield ev(CERTIFY, "증명서 생성 중… (차분 등가성 게이트로 닫힌형 검증; CAS 제안·실행 게이트가 권위)",
+                     grade="EXACT", certificate=sd.certificate)
+        elif not is_nested:
+            # §4 ceiling-breaker: a C-finite state-update loop (Fibonacci-like) → O(log n) companion collapse. (A
+            # recognized nested that did NOT collapse is SKIPPED here — the recurrence detector samples by executing
+            # the loop, which could hang on an explosive inner bound; sound + no-hang, matching _loop_collapse.)
+            try:
+                import loop_recurrence as LR2
+                rc = LR2.decide_recurrence_collapse(code, n=20000, trials=2)
+                if rc is None or rc.status != "COLLAPSED":     # exact declined → try the genuine-win modular case
+                    mc = LR2.decide_modular_recurrence_collapse(code, n=20000, trials=2)
+            except Exception:                                # noqa: BLE001 — analysis must never crash the stream
+                rc = None
+            if rc is not None and rc.status == "COLLAPSED":
+                yield ev(APPLY, f"선형 점화식 인식 중: O(n) 상태-갱신 루프 → O(log n) 동반행렬 (order={rc.order}, c={rc.c})")
+                _win = "측정 win" if rc.measured_win else "검증됨 (이 n에선 측정 win 아님 — 정직)"
+                yield ev(CERTIFY, f"증명서 생성 중… (동반형 ≡ 루프, held-out n 검증) · {rc.ratio:.1f}× {_win}",
+                         grade=rc.verdict.status, certificate=rc.verdict.certificate.detail)
+            elif mc is not None and mc.status == "COLLAPSED":
+                yield ev(APPLY, f"모듈러 선형 점화식 인식 중: O(n) 루프 → O(log n) 동반행렬 mod M (order={mc.order}, c={mc.c})")
+                yield ev(CERTIFY, f"증명서 생성 중… (동반형-mod ≡ 루프, wrap된 held-out n 검증) · {mc.ratio:.1f}× 측정 win "
+                         f"[경계 정수 ⇒ 진짜 O(log n)]", grade=mc.verdict.status, certificate=mc.verdict.certificate.detail)
 
     # 5) VERIFY — run the REAL engine UNDER the mode's enforced budget (§1)
     res = EB.run_optimize(code, m.value)
@@ -126,6 +145,9 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
     elif dec is not None and dec.status == "CLOSED_FORM":
         yield ev(RESULT, f"결과: O(n) 루프 → O(1) 닫힌형 {dec.closed_form} — 증명된 붕괴 (차분 등가성 검증)",
                  grade=dec.verdict.status, certificate=dec.certificate)
+    elif sd is not None and sd.status == "OFFLOADED" and sd.closed_form:
+        yield ev(RESULT, f"결과: 루프 → O(1) 닫힌형 {sd.closed_form} — 증명된 붕괴 ({sd.complexity}; 차분 등가성 검증)",
+                 grade="EXACT", certificate=sd.certificate)
     elif rc is not None and rc.status == "COLLAPSED":
         yield ev(RESULT, f"결과: O(n) 점화식 루프 → O(log n) 동반형 — 증명된 붕괴 (held-out n 검증, {rc.ratio:.1f}×)",
                  grade=rc.verdict.status, certificate=rc.verdict.certificate.detail)

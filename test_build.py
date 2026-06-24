@@ -10297,6 +10297,17 @@ def test_code_stream():
     assert appm and "O(log n)" in appm[0].message, "a modular recurrence loop must stream the O(log n) mod-M collapse"
     assert rmres and rmres[0].grade == "EXACT" and "증명된 붕괴" in rmres[0].message
 
+    # (h) §3 STREAM↔RESULT consistency: a NON-for fold shape (a comprehension of Σk²) streams its O(1) code-shape
+    #     collapse (not the O(log n) recurrence) — the live trace agrees with engine_bridge._loop_collapse's RESULT
+    compsum = "def f(n):\n return sum(k*k for k in range(1, n+1))"
+    tc = CS.build_code_trace(compsum, "normal")
+    appc = [e for e in tc if e.phase == CS.APPLY and "코드형태" in e.message]
+    rcc = [e for e in tc if e.phase == CS.RESULT and "닫힌형" in e.message]
+    assert appc, "a comprehension fold must stream the O(1) code-shape collapse (not the O(log n) companion)"
+    assert rcc and rcc[0].grade == "EXACT" and "n*(n + 1)*(2*n + 1)/6" in rcc[0].message, rcc
+    live_cf = EB._loop_collapse(compsum)                                   # the engine RESULT the UI also surfaces
+    assert live_cf and live_cf["kind"] == "code_shape" and live_cf["closed_form"] in rcc[0].message, "stream == result"
+
     print("PASS test_code_stream (live CODE process ANALYZE→RECOGNIZE→APPLY→CERTIFY→VERIFY→RESULT, ordered; extend "
           "budget line BOUNDED '· / 8:00'; the §2 PROVEN DECLINE surfaced live; displayed grade == engine grade "
           f"[harmonic {real.verdict.status} decision; list-as-set {eng['shipped'][0]['grade'].upper()}] — no "
