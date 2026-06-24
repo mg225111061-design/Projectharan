@@ -9761,6 +9761,17 @@ def test_haran_code_shape_invariance():
     except ImportError:
         pass
 
+    # ★ NO-HANG (bounded gate): a super-linear upper bound `for j in range(2**n)` would make the gate execute ~2^64
+    #   iterations. The per-sample iteration budget skips unaffordable samples, so dispatch returns FAST — and here
+    #   it even OFFLOADS via the affordable small samples to the correct closed form (an O(2ⁿ) loop → O(1)). ★
+    import time as _t
+    _t0 = _t.monotonic()
+    _dexp = SR.dispatch("def f(n):\n s=0\n for j in range(2**n):\n  s += j\n return s", "f")
+    assert _t.monotonic() - _t0 < 2.0, "bounded gate must return fast — never execute an unbounded loop (no hang)"
+    if _dexp.status == "OFFLOADED":                          # affordable samples sufficed → correct closed form
+        _F = __import__("sympy").sympify(_dexp.closed_form); _p = next(iter(_F.free_symbols))
+        assert all(int(_F.subs(_p, N)) == sum(range(2 ** N)) for N in (3, 6, 9)), _dexp.closed_form
+
     print("PASS test_haran_code_shape_invariance (§3 code-shape mapping: for-loop / counter-while / sum-comprehension "
           "/ linear self-recursion / functools.reduce fold of Σk² all normalize to ONE byte-identical structural key "
           "[+ verified to the same O(1) closed form n(n+1)(2n+1)/6, the recursion & reduce gates executing real code]; "

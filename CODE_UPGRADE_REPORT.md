@@ -405,6 +405,13 @@ accumulation is never a single-state C-finite recurrence, it returns its collaps
 the loop-SAMPLING recurrence detector (which executes the loop and would hang on an explosive inner bound). The
 recurrence/modular paths for genuine single-state loops are unchanged. `test_loop_collapse_fork_safe`.
 
+**Bounded single-fold gate (§3 harden).** The same no-hang discipline now protects the single-fold OFFLOAD gate
+(`_offload_closed_form`): the gate EXECUTES the user's loop, so it NEVER runs a sample whose iteration count exceeds
+`_GATE_ITER_BUDGET` (2 M) — a super-linear upper bound like `for j in range(2**n)` would otherwise loop ~2⁶⁴ times
+and hang. Unaffordable samples are skipped; the affordable small samples still verify the closed form. Bonus: a
+`range(2**n)` sum now OFFLOADS via the small samples to `(2ⁿ−1)·2ⁿ/2` — a genuine O(2ⁿ)-loop → O(1)-closed-form win
+(the power is one bigint op, never the loop). `test_haran_code_shape_invariance` (no-hang regression).
+
 **MEASURED code-shape reach (§3 deepen).** `algo50_coverage.measure_code_shapes()` quantifies the CODE recognizer's
 collapse breadth, with NO padding — a collapse counts only if `dispatch`→OFFLOADED AND the emitted closed form matches
 a brute-force evaluation on fresh inputs. Measured: **30/30** (six Σ-targets — Σk, Σk², Σk³, Σ(2k−1), Σk(k+1),

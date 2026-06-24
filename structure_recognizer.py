@@ -604,6 +604,10 @@ _SAFE_BUILTINS = {"range": range, "min": min, "max": max, "abs": abs, "sum": sum
                   "map": map, "filter": filter, "bool": bool, "int": int, "float": float, "str": str,
                   "round": round, "divmod": divmod, "reduce": _functools.reduce, "__import__": _safe_import}
 _SAMPLE_N = [1, 2, 3, 5, 8, 13, 20, 37, 64]
+# the equivalence gate EXECUTES the user's loop; NEVER run a sample whose iteration count exceeds this budget (a
+# super-linear upper bound like range(2**n) would loop ~2^64 times and hang). Affordable samples still verify the
+# closed form — a high-degree-polynomial or exponential bound just uses the smaller samples (sound, no-hang).
+_GATE_ITER_BUDGET = 2_000_000
 # nested gate uses SMALL bounded samples: with degree-≤2 polynomial loop bounds the real double loop runs ≤ N²
 # iterations per sample, so the gate is always cheap (never hangs); 12 points over-determine the low-degree
 # polynomial closed forms these nested loops produce.
@@ -661,11 +665,19 @@ def _offload_closed_form(source: str, fn: ast.FunctionDef, acc: _AccLoop) -> Dis
     ok = checked = 0
     for val in _SAMPLE_N:
         try:
-            want = ref(val)
             n_eval = int(hi_fn(val)) - 1            # Python range exclusivity → inclusive fold upper
         except Exception:  # noqa: BLE001
             continue
         if n_eval < lo_val:                          # empty range → skip (closed form may extrapolate)
+            continue
+        # ★ BOUNDED-GATE GUARD (no-hang): the iteration count is (n_eval − lo_val + 1). NEVER execute the real loop
+        #   when that exceeds a budget — a super-linear upper bound like range(2**n) would run ~2^64 iterations and
+        #   hang. Skip the unaffordable sample; affordable samples still verify the closed form (sound, no-hang). ★
+        if n_eval - lo_val + 1 > _GATE_ITER_BUDGET:
+            continue
+        try:
+            want = ref(val)
+        except Exception:  # noqa: BLE001
             continue
         checked += 1
         if abs(float(cf.subs(u, n_eval)) - float(want)) <= 1e-6:
