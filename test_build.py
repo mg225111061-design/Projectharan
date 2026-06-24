@@ -9193,6 +9193,14 @@ def test_code_stream():
     rq = [e for e in tq if e.phase == CS.RESULT and e.grade]
     assert rq and rq[0].grade == "EXACT" and "닫힌형" in rq[0].message and "증명된 붕괴" in rq[0].message
 
+    # (f) §4 ceiling-breaker tie-in: a C-finite state-update loop (Fibonacci) streams the O(n)→O(log n) collapse
+    fibloop = "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
+    tf = CS.build_code_trace(fibloop, "normal")
+    appf = [e for e in tf if e.phase == CS.APPLY and "점화식" in e.message]
+    rcres = [e for e in tf if e.phase == CS.RESULT and "동반형" in e.message]
+    assert appf and "O(log n)" in appf[0].message, "a recurrence loop must stream the O(log n) companion collapse"
+    assert rcres and rcres[0].grade == "EXACT" and "증명된 붕괴" in rcres[0].message, "RESULT reports the proven collapse"
+
     print("PASS test_code_stream (live CODE process ANALYZE→RECOGNIZE→APPLY→CERTIFY→VERIFY→RESULT, ordered; extend "
           "budget line BOUNDED '· / 8:00'; the §2 PROVEN DECLINE surfaced live; displayed grade == engine grade "
           f"[harmonic {real.verdict.status} decision; list-as-set {eng['shipped'][0]['grade'].upper()}] — no "

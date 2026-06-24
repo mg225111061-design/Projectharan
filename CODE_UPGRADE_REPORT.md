@@ -151,6 +151,11 @@ loop IS the function (f = 1) ⇒ whole-program FOR THIS FUNCTION; embed it in a 
 the **Amdahl** ceiling; **DOMAIN-CONDITIONAL** — C-finite sequences only. Per C6 the magnitude is `perf_obs`; the
 hard gate is the verified equivalence + the honest-limit certificate. `loop_recurrence.py`, `test_loop_recurrence`.
 
+**Surfaced live (§3 tie-in).** `code_stream` streams the recurrence collapse too: a Fibonacci-style loop shows
+`선형 점화식 인식 중: O(n) 상태-갱신 루프 → O(log n) 동반행렬 (order=2, c=[1,1])`, a CERTIFY step
+`동반형 ≡ 루프, held-out n 검증 · 3.8× 측정 win`, and a RESULT `O(n) 점화식 루프 → O(log n) 동반형 — 증명된 붕괴`
+(grade EXACT). So both the §2 sum-collapse and the §4 recurrence-collapse unfold live in the UI.
+
 ---
 
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
