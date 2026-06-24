@@ -194,8 +194,9 @@ _C: List[Algo] = [
     Algo(44, "Euler φ / Möbius / multiplicative functions", "C", "mathmode.number_theory", "euler_phi_grade",
          KV.EXACT, "φ(n)=∏(p−1)p^(e−1) via verified factorization (multiplicativity)", "factorization-bound", False,
          NORMAL, False, PARTIAL, "Euler φ present; Möbius μ / general multiplicative eval not yet"),
-    Algo(45, "Quadratic reciprocity / Jacobi symbol", "C", "", "", KV.EXACT,
-         "reciprocity law; (a|p) ≡ a^((p−1)/2) cross-check at primes", "O(log a · log m)", False, FAST, True, GAP),
+    Algo(45, "Quadratic reciprocity / Jacobi symbol", "C", "mathmode.number_theory", "jacobi_grade", KV.EXACT,
+         "reciprocity-law value ≡ ∏ Legendre (Euler criterion) over factorization — two algorithms agree",
+         "O(log a · log n)", True, FAST, True),
 ]
 
 # ── GROUP D — QUANTUM / RELATIVITY (5): the exact ALGEBRAIC layer only (never generic spectra/PDE) ────────

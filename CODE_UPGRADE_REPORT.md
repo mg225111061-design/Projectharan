@@ -262,9 +262,10 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **33 CONFIRMED + 9 PARTIAL + 8 GAP.** The 8 GAPS
-are NAMED, not padded over: #13 Bostan–Mori, #14 Newton-iteration, #19 Gröbner, #28 autodiff, #32 power-towers,
-#34 Lucas-theorem+lifting, #43 sieve, #45 Jacobi/reciprocity. The 9 PARTIALS name the missing sub-variant (e.g.
+**Status (MEASURED, honest — never rounded up to "50 done"):** **34 CONFIRMED + 9 PARTIAL + 7 GAP** (gaps close
+one-per-commit as they are built). The 7 remaining GAPS are NAMED, not padded over: #13 Bostan–Mori, #14
+Newton-iteration, #19 Gröbner, #28 autodiff, #32 power-towers, #34 Lucas-theorem+lifting, #43 sieve. The 9 PARTIALS
+name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
 #27 — NEVER marked EXACT). Tiers: fast 10 / normal 30 / extend 10. The honest-complexity caveats are RECORDED and
@@ -274,6 +275,14 @@ ALGEBRAIC layer only, each EXACT with a recorded exact-only caveat. The heavy de
 Risch, CAD, Gröbner, Kovacic) are extend-tier — fast never hosts them. Broth measured live: **3,772 entries,
 O(1) lookup ≈ 0.05 µs, all-hit** (the precomputed-lookup-fast mechanism — it does NOT make execution O(1)).
 The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_registry`.
+
+**Gap-fills (one per commit, each general + certificate-bearing + graded + adversarially tested):**
+- **#45 Jacobi symbol / quadratic reciprocity** → `mathmode.number_theory.jacobi_grade`. The O(log) reciprocity-
+  flip value is CROSS-CHECKED against the independent definition ∏ Legendre(a|pᵢ) by Euler's criterion over the
+  factorization (prime n ⇒ a single O(log) Euler check; composite n ⇒ the product) — two different algorithms must
+  agree ⇒ EXACT, mismatch ⇒ DECLINE (a correctness-bug guard). Adversarially tested vs a brute-force quadratic-
+  residue scan at 7 primes, full multiplicativity + period-n, the (2|n) supplement law, (1001|9907)=−1, gcd>1→0,
+  even/invalid n→DECLINE. EXACT, tier fast, broth-eligible. `test_haran_jacobi_reciprocity`. (34 CONFIRMED now.)
 
 ---
 

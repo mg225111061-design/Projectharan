@@ -358,6 +358,72 @@ def pell_grade(N: int) -> KV.Verdict:
     return KV.exact((h1, k1), "number_theory.pell", "O(period) CF", cert)
 
 
+def _jacobi_reciprocity(a: int, n: int) -> int:
+    """Jacobi symbol (a|n) for ODD n ≥ 1 via the quadratic-reciprocity flip algorithm (O(log) steps). Returns
+    ±1, or 0 iff gcd(a,n) > 1. This is the FAST value; jacobi_grade re-checks it against the definition."""
+    a %= n
+    result = 1
+    while a:
+        while a % 2 == 0:                                     # pull out factors of 2: (2|n) = (−1)^((n²−1)/8)
+            a //= 2
+            if n % 8 in (3, 5):
+                result = -result
+        a, n = n, a                                           # reciprocity flip (a,n both odd here)
+        if a % 4 == 3 and n % 4 == 3:                         # (a|n)(n|a) = (−1)^((a−1)/2·(n−1)/2)
+            result = -result
+        a %= n
+    return result if n == 1 else 0                            # n>1 left ⇒ gcd(a,n)>1 ⇒ symbol is 0
+
+
+def _legendre_euler(a: int, p: int) -> int:
+    """Legendre symbol (a|p) for an ODD PRIME p via Euler's criterion a^((p−1)/2) mod p ∈ {0, 1, p−1}. This is the
+    INDEPENDENT definition jacobi_grade cross-checks the reciprocity value against (a different algorithm)."""
+    a %= p
+    if a == 0:
+        return 0
+    r = pow(a, (p - 1) // 2, p)
+    return 1 if r == 1 else -1                                # r == p−1 ⇒ non-residue (p prime ⇒ no other value)
+
+
+def jacobi_grade(a: int, n: int) -> KV.Verdict:
+    """Jacobi symbol (a|n) by QUADRATIC RECIPROCITY in O(log·log) — CROSS-CHECKED against the independent
+    definition ∏ Legendre(a|pᵢ)^eᵢ (Euler's criterion over the factorization of n). When n is prime the check is
+    the single O(log) Euler criterion; when composite it is the product over the verified factorization. EXACT iff
+    the two independent algorithms AGREE and the factorization is exact; a mismatch ⇒ DECLINE (it would be a
+    correctness bug). n must be ODD ≥ 1 (the Jacobi symbol is undefined for even n) ⇒ otherwise DECLINE."""
+    if n < 1 or n % 2 == 0:
+        return KV.decline(f"jacobi: n={n} must be odd ≥ 1 (symbol undefined for even n) ⇒ DECLINE",
+                          "number_theory.jacobi")
+    fast = _jacobi_reciprocity(a, n)
+    # ── independent re-check: ∏ Legendre over the factorization (Euler's criterion) ──
+    if n == 1:
+        defn, exact_primality, src = 1, True, "n=1 ⇒ (a|1)=1"
+    elif n < _DET_BOUND and _is_prime_det(n):
+        defn, exact_primality, src = _legendre_euler(a, n), True, f"n={n} prime ⇒ Euler a^((n−1)/2) mod n"
+    else:
+        fv = factorize_grade(n)
+        if fv.status == KV.DECLINE:
+            return KV.decline(f"jacobi: cannot factor n={n} to certify the symbol ⇒ DECLINE", "number_theory.jacobi")
+        factors = fv.result
+        defn = 1
+        for p, e in factors.items():
+            defn *= _legendre_euler(a, p) ** e
+        exact_primality, src = fv.status == KV.EXACT, f"∏ Legendre(a|p)^e over {factors}"
+    if fast != defn:                                          # ★ two independent algorithms MUST agree ★
+        return KV.decline(f"jacobi: reciprocity {fast} ≠ definition {defn} ⇒ DECLINE (correctness-bug guard)",
+                          "number_theory.jacobi")
+    if not exact_primality:
+        cert = KV.Cert(KV.PROBABILISTIC, "jacobi_reciprocity_vs_legendre", passed=True, delta=4.0 ** -40,
+                       check_cost="O(log) compute + factorization cross-check",
+                       detail=f"({a}|{n})={fast}; reciprocity ≡ {src}; a factor's primality is PROBABILISTIC "
+                              f"(exceeds the deterministic bound)")
+        return KV.probabilistic(fast, "number_theory.jacobi", "quadratic reciprocity O(log)", cert)
+    cert = KV.Cert(KV.EXACT, "jacobi_reciprocity_vs_legendre", passed=True,
+                   check_cost="O(log) compute + independent Legendre/Euler cross-check",
+                   detail=f"({a}|{n})={fast}; the reciprocity-law value ≡ {src} — two independent algorithms agree")
+    return KV.exact(fast, "number_theory.jacobi", "quadratic reciprocity O(log)", cert)
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
     """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
@@ -384,4 +450,6 @@ def solve(problem: dict) -> KV.Verdict:
         return modular_sqrt_grade(problem["a"], problem["p"])
     if op == "pell":
         return pell_grade(problem["N"])
+    if op == "jacobi":
+        return jacobi_grade(problem["a"], problem["n"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

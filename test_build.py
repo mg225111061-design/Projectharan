@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {13, 14, 19, 28, 32, 34, 43, 45}, gaps
+    assert set(gaps) == {13, 14, 19, 28, 32, 34, 43}, gaps   # #45 Jacobi/reciprocity now CONFIRMED
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9096,6 +9096,50 @@ def test_algo50_registry():
 
     print(f"PASS test_algo50_registry ({A.summary()}; all {c['present']} non-gap entry points resolve; "
           f"{c['gap']} gaps NAMED not padded {sorted(gaps)}; CAD doubly-exp + Lucas–Lehmer O(p) caveats recorded)")
+
+
+def test_haran_jacobi_reciprocity():
+    """HARAN #45 (Group C) — the Jacobi symbol (a|n) by QUADRATIC RECIPROCITY (O(log)), with an INDEPENDENT
+    certificate: the reciprocity-law value is cross-checked against ∏ Legendre(a|pᵢ) by Euler's criterion over the
+    factorization (two different algorithms must agree ⇒ EXACT, mismatch ⇒ DECLINE). The adversarial ground truth
+    here is a brute-force quadratic-residue SCAN at primes — independent of BOTH algorithms inside jacobi_grade."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    def qr_bruteforce(a, p):                          # independent ground truth at a prime p: scan for x² ≡ a
+        a %= p
+        if a == 0:
+            return 0
+        return 1 if any((x * x) % p == a for x in range(p)) else -1
+
+    # (a) at primes: jacobi == brute-force Legendre, EXACT, with a re-checkable certificate
+    for p in (3, 5, 7, 11, 13, 31, 101):
+        for a in range(-3, 2 * p):
+            v = NT.jacobi_grade(a, p)
+            assert v.status == KV.EXACT and v.result == qr_bruteforce(a, p), (a, p, v.result)
+            assert v.certificate.kind == "jacobi_reciprocity_vs_legendre" and v.certificate.passed
+
+    # (b) composite odd n: full multiplicativity (a|n)(b|n) = (ab|n) AND period-n (a|n) = (a+n|n)
+    for n in (9, 15, 21, 45, 91, 105):
+        for a in range(0, 12):
+            for b in range(0, 12):
+                ja, jb, jab = (NT.jacobi_grade(x, n).result for x in (a, b, a * b))
+                assert ja * jb == jab, (a, b, n, ja, jb, jab)
+            assert NT.jacobi_grade(a, n).result == NT.jacobi_grade(a + n, n).result
+
+    # (c) the (2|n) supplement law (−1)^((n²−1)/8) and a classic value
+    for n in (3, 5, 7, 9, 11, 15, 17):
+        assert NT.jacobi_grade(2, n).result == (1 if n % 8 in (1, 7) else -1)
+    assert NT.jacobi_grade(1001, 9907).result == -1
+
+    # (d) gcd(a,n)>1 ⇒ symbol 0; even/invalid n ⇒ honest DECLINE (the Jacobi symbol is undefined there)
+    assert NT.jacobi_grade(6, 15).result == 0 and NT.jacobi_grade(0, 9).result == 0
+    for bad in (2, 8, 100, 0, -5):
+        assert NT.jacobi_grade(3, bad).status == KV.DECLINE
+
+    print("PASS test_haran_jacobi_reciprocity (#45: Jacobi via quadratic reciprocity O(log), cross-checked vs "
+          "∏ Legendre/Euler over factorization; matches brute-force QR at 7 primes; multiplicative + period-n; "
+          "(2|n) supplement + (1001|9907)=−1; gcd>1→0; even/invalid n→DECLINE; EXACT certificate re-checkable)")
 
 
 def test_mode_budget_roles():
