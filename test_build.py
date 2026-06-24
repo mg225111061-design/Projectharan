@@ -9728,9 +9728,11 @@ def test_haran_code_shape_invariance():
     whilesrc = "def f(n):\n s=0; k=1\n while k<=n:\n  s+=k*k; k+=1\n return s"
     compsrc = "def f(n):\n return sum(k*k for k in range(1,n+1))"
     recursrc = "def f(n):\n if n<1:\n  return 0\n return f(n-1)+n*n"           # linear self-recursion of Σk²
+    reducesrc = "def f(n):\n return reduce(lambda s,k: s+k*k, range(1,n+1), 0)"            # bare reduce fold
+    reduceftsrc = "def f(n):\n import functools\n return functools.reduce(lambda s,k: s+k*k, range(1,n+1), 0)"  # functools.reduce
 
     keys, forms = set(), set()
-    for src in (forsrc, whilesrc, compsrc, recursrc):
+    for src in (forsrc, whilesrc, compsrc, recursrc, reducesrc, reduceftsrc):
         acc = SR._acc_loop_any_shape(SR._first_fn(src, "f"))
         assert acc is not None, src
         keys.add((acc.var, acc.lo, acc.hi, acc.op, acc.algebra, acc.body))   # FULL key incl. bounds
@@ -9738,7 +9740,7 @@ def test_haran_code_shape_invariance():
         d = SR.dispatch(src, "f")
         assert d.status == "OFFLOADED", (src, d.status)
         forms.add(d.closed_form)
-    assert len(keys) == 1, keys                              # ONE byte-identical key across ALL 4 code shapes
+    assert len(keys) == 1, keys                              # ONE byte-identical key across ALL 6 code shapes
     assert len(forms) == 1 and "n*(n + 1)*(2*n + 1)/6" in forms.pop()   # SAME verified Σk² closed form
 
     # a product comprehension normalizes to the same shape with op '*' (recognizer level, no exec needed)
@@ -9750,11 +9752,20 @@ def test_haran_code_shape_invariance():
     assert SR.recognize("def f(n):\n s=1\n for k in range(1,n+1):\n  s+=s\n return s", "f").kind != "CLOSED_FORM_LOOP"  # acc-dependent body
     assert SR._recursion_acc(SR._first_fn("def f(n):\n if n<2:\n  return n\n return f(n-1)+f(n-2)", "f")) is None  # Fibonacci: binary recursion
     assert SR._recursion_acc(SR._first_fn("def f(n):\n if n<1:\n  return 5\n return f(n-1)+n", "f")) is None        # base ≠ monoid identity
+    assert SR._reduce_acc(SR._first_fn("def f(n):\n return reduce(lambda s,k: s+s, range(1,n+1), 0)", "f")) is None  # accumulator in summand
+    assert SR._reduce_acc(SR._first_fn("def f(n):\n return reduce(lambda s,k: s+k, range(1,n+1), 5)", "f")) is None  # init ≠ identity
+    # ★ sandbox soundness: the equivalence gate may import the pure whitelist (functools) but NEVER os/sys/… ★
+    try:
+        SR._make_callable("def h(n):\n import os\n return os.getpid()", "h")(3)
+        raise AssertionError("sandbox failed to block `import os`")
+    except ImportError:
+        pass
 
     print("PASS test_haran_code_shape_invariance (§3 code-shape mapping: for-loop / counter-while / sum-comprehension "
-          "/ linear self-recursion of Σk² all normalize to ONE byte-identical structural key [+ verified to the same "
-          "O(1) closed form n(n+1)(2n+1)/6, the recursion gate executing real self-calls]; prod-comprehension → op "
-          "'*'; non-counter-while, accumulator-dependent body & BINARY recursion [Fibonacci] correctly REJECTED — sound)")
+          "/ linear self-recursion / functools.reduce fold of Σk² all normalize to ONE byte-identical structural key "
+          "[+ verified to the same O(1) closed form n(n+1)(2n+1)/6, the recursion & reduce gates executing real code]; "
+          "prod-comprehension → op '*'; non-counter-while, acc-dependent body, BINARY recursion [Fibonacci], "
+          "acc-in-reduce-summand & non-identity init correctly REJECTED; gate blocks `import os` — sound)")
 
 
 def test_haran_coverage():

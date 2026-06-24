@@ -329,12 +329,65 @@ def _recursion_acc(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
     return _AccLoop(var=idx, lo=str(lo), hi=_canon_expr(f"{p} + 1"), op=b[0], algebra=b[1], body=body_idx)
 
 
+def _reduce_acc(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
+    """CODE-SHAPE NORMALIZATION: `return reduce(lambda a,k: a OP h(k), range(lo,hi), ID)` (functools.reduce /
+    bare reduce) ⇒ the SAME `_AccLoop`. Conservative — a 2-arg lambda whose body is `acc OP h(k)` with acc = the
+    accumulator param appearing as exactly one (bare-Name) operand, h(k) depending ONLY on the element param (NOT
+    the accumulator), a range iterable, and a monoid-identity initializer; else None."""
+    if _for_loops(fnnode) or any(isinstance(n, ast.While) for n in ast.walk(fnnode)):
+        return None
+    rets = [n for n in ast.walk(fnnode) if isinstance(n, ast.Return)]
+    if len(rets) != 1 or not isinstance(rets[0].value, ast.Call):
+        return None
+    call = rets[0].value
+    f = call.func
+    is_reduce = (isinstance(f, ast.Name) and f.id == "reduce") or (isinstance(f, ast.Attribute) and f.attr == "reduce")
+    if not is_reduce or len(call.args) != 3:                 # require the explicit initializer (the identity)
+        return None
+    func, iterable, init = call.args
+    if not isinstance(func, ast.Lambda):
+        return None
+    la = func.args
+    if len(la.args) != 2 or la.vararg or la.kwarg or la.kwonlyargs or la.defaults:
+        return None
+    accname, elname = la.args[0].arg, la.args[1].arg
+    if accname == elname:
+        return None
+    lb = func.body
+    if not (isinstance(lb, ast.BinOp) and type(lb.op).__name__ in _MONOID_BIN):
+        return None
+    b = _MONOID_BIN[type(lb.op).__name__]
+    is_acc = lambda nd: isinstance(nd, ast.Name) and nd.id == accname   # noqa: E731
+    if is_acc(lb.left) and not is_acc(lb.right):
+        h = lb.right
+    elif is_acc(lb.right) and not is_acc(lb.left):
+        h = lb.left
+    else:
+        return None                                          # accumulator must be exactly one operand
+    hnames = _names_used(h)
+    if accname in hnames or elname not in hnames:
+        return None                                          # h(k) must depend on the element, never the accumulator
+    if not (isinstance(iterable, ast.Call) and isinstance(iterable.func, ast.Name) and iterable.func.id == "range"):
+        return None
+    rargs = iterable.args
+    if len(rargs) == 1:
+        lo, hi = "0", ast.unparse(rargs[0])
+    elif len(rargs) == 2:
+        lo, hi = ast.unparse(rargs[0]), ast.unparse(rargs[1])
+    else:
+        return None                                          # step ≠ 1 not lifted here (honest)
+    if not (isinstance(init, ast.Constant) and ((b[0] == "+" and init.value == 0)
+                                                or (b[0] == "*" and init.value == 1))):
+        return None                                          # initializer must be the monoid identity
+    return _AccLoop(var=elname, lo=_canon_expr(lo), hi=_canon_expr(hi), op=b[0], algebra=b[1], body=ast.unparse(h))
+
+
 def _acc_loop_any_shape(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
-    """Code-shape invariance: a for-loop, a counter-while, a sum/prod comprehension, and a linear self-recursion
-    computing the same accumulation all NORMALIZE to the same `_AccLoop` structural key (same op/algebra/body) ⇒
-    the same algorithm + the same verified closed form."""
+    """Code-shape invariance: a for-loop, a counter-while, a sum/prod comprehension, a linear self-recursion, and a
+    functools.reduce fold computing the same accumulation all NORMALIZE to the same `_AccLoop` structural key (same
+    var/bounds/op/algebra/body) ⇒ the same algorithm + the same verified closed form."""
     return (_closed_form_loop(fnnode) or _while_acc_loop(fnnode) or _comprehension_acc(fnnode)
-            or _recursion_acc(fnnode))
+            or _recursion_acc(fnnode) or _reduce_acc(fnnode))
 
 
 @dataclass
@@ -440,13 +493,27 @@ def recognize(source: str, fn_name: Optional[str] = None) -> Structure:
 
 
 # ── action 1: OFFLOAD a closed-form loop to the fold solver (verified lifting) ──────────────────────
-# a pure, side-effect-free builtin set: arithmetic + collections, but NO __import__ / open / eval / exec
-# (so executing the user's analyzed code for the equivalence gate cannot touch files, the network, or import).
+# a pure, side-effect-free builtin set: arithmetic + collections, but NO open / eval / exec and only a
+# TIGHTLY-WHITELISTED __import__ (functools/operator/math — all pure, no I/O) so common functional idioms
+# (functools.reduce folds) execute in the gate. Executing the analyzed code still cannot touch files/network.
+import functools as _functools
+import operator as _operator
+import math as _math
+_SAFE_MODULES = {"functools": _functools, "operator": _operator, "math": _math}
+
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
+    """A sandbox __import__ permitting ONLY the pure-module whitelist (no os/sys/subprocess/socket/…)."""
+    if level == 0 and name in _SAFE_MODULES:
+        return _SAFE_MODULES[name]
+    raise ImportError(f"import of '{name}' is not permitted in the equivalence-gate sandbox")
+
+
 _SAFE_BUILTINS = {"range": range, "min": min, "max": max, "abs": abs, "sum": sum, "pow": pow, "len": len,
                   "list": list, "dict": dict, "tuple": tuple, "set": set, "frozenset": frozenset,
                   "enumerate": enumerate, "sorted": sorted, "reversed": reversed, "zip": zip,
                   "map": map, "filter": filter, "bool": bool, "int": int, "float": float, "str": str,
-                  "round": round, "divmod": divmod}
+                  "round": round, "divmod": divmod, "reduce": _functools.reduce, "__import__": _safe_import}
 _SAMPLE_N = [1, 2, 3, 5, 8, 13, 20, 37, 64]
 
 
