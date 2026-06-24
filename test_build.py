@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {13, 19, 28}, gaps   # #45,#43,#32,#34 + #14 Newton-series now CONFIRMED
+    assert set(gaps) == {19, 28}, gaps   # +#13 Bostan–Mori now CONFIRMED (only Gröbner, autodiff remain)
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9298,6 +9298,49 @@ def test_haran_newton_series():
     print("PASS test_haran_newton_series (#14: Newton inv/sqrt/exp/log EXACT over ℚ, quadratic convergence; "
           "1/(1−x)=Σxᵏ, exp(x)=Σxᵏ/k!, log(1+x)=Σ(−1)^{k+1}xᵏ/k, S²≡A; each certified by its defining identity to "
           "order 14; precondition violations → honest DECLINE)")
+
+
+def test_haran_bostan_mori():
+    """HARAN #13 (Group A) — Bostan–Mori GF coefficient extraction [x^n] P(x)/Q(x) in O(M(d) log n), EXACT over ℚ,
+    handling ASTRONOMICAL n. Certified two ways: a direct P·Q⁻¹ series cross-check for small n, and the GF
+    defining equation Σ_j Q[j]·a_{n−j}=P[n] re-checked at any n from independently-extracted neighbours. The killer
+    test extracts F(10^6) (a 208988-digit Fibonacci number) by halving and matches the direct iteration."""
+    import newton_series as NS
+    import kernel_verdict as KV
+    from fractions import Fraction as Fr
+
+    def fib(n):
+        a, b = 0, 1
+        for _ in range(n):
+            a, b = b, a + b
+        return a
+
+    # (a) Fibonacci GF x/(1−x−x²): [x^n] == F(n), EXACT, recurrence-certified
+    for n in range(0, 40):
+        v = NS.bostan_mori_grade([0, 1], [1, -1, -1], n)
+        assert v.status == KV.EXACT and v.result == fib(n), (n, v.result)
+        assert v.certificate.kind == "bostan_mori_gf" and v.certificate.passed
+
+    # (b) ASTRONOMICAL n: [x^10^6] x/(1−x−x²) extracted by O(log n) halving == the direct iteration F(10^6)
+    big = NS.bostan_mori_grade([0, 1], [1, -1, -1], 10 ** 6)
+    assert big.status == KV.EXACT and big.result == fib(10 ** 6)
+
+    # (c) geometric + rational-coefficient GFs: 1/(1−x)=1, 1/(1−2x)=2^n, 1/(1−x/2)=(1/2)^n
+    assert all(NS.bostan_mori_grade([1], [1, -1], n).result == 1 for n in range(20))
+    assert all(NS.bostan_mori_grade([1], [1, -2], n).result == 2 ** n for n in range(20))
+    assert all(NS.bostan_mori_grade([1], [1, Fr(-1, 2)], n).result == Fr(1, 2 ** n) for n in range(15))
+
+    # (d) degree-3 denominator (tribonacci x²/(1−x−x²−x³)): first terms 0,0,1,1,2,4,7,13,24,44
+    trib = [NS.bostan_mori_grade([0, 0, 1], [1, -1, -1, -1], n).result for n in range(10)]
+    assert trib == [Fr(x) for x in (0, 0, 1, 1, 2, 4, 7, 13, 24, 44)], trib
+
+    # (e) honest DECLINE: Q(0)=0 (not a power series) and n<0
+    assert NS.bostan_mori_grade([1], [0, 1], 3).status == KV.DECLINE
+    assert NS.bostan_mori_grade([1], [1, -1], -1).status == KV.DECLINE
+
+    print("PASS test_haran_bostan_mori (#13: [x^n] P/Q via Bostan–Mori O(M(d) log n); Fibonacci/geometric/rational/"
+          "tribonacci exact; F(10^6) [208988 digits] extracted by halving == direct iteration; GF-recurrence + "
+          "series cross-checks; Q(0)=0 / n<0 → DECLINE)")
 
 
 def test_mode_budget_roles():

@@ -262,9 +262,9 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **38 CONFIRMED + 9 PARTIAL + 3 GAP** (gaps close
-one-per-commit as they are built; **Group C number-theory complete**). The 3 remaining GAPS are NAMED, not
-padded over: #13 Bostan–Mori, #19 Gröbner, #28 autodiff. The 9 PARTIALS
+**Status (MEASURED, honest — never rounded up to "50 done"):** **39 CONFIRMED + 9 PARTIAL + 2 GAP** (gaps close
+one-per-commit as they are built; **Group C complete**). The 2 remaining GAPS are NAMED, not
+padded over: #19 Gröbner, #28 autodiff. The 9 PARTIALS
 name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
@@ -310,6 +310,13 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   coefficients (1/(1−x)=Σxᵏ, exp(x)=Σxᵏ/k!, log(1+x)=Σ(−1)^{k+1}xᵏ/k). Precondition violations (A(0)=0 for
   inv/sqrt, ≠1 for log, ≠0 for exp, non-square A(0) for sqrt) are honest DECLINEs. This is the verified series-
   arithmetic core the GF kernels build on. `test_haran_newton_series`. (38 CONFIRMED now.)
+- **#13 Bostan–Mori (GF coefficient extraction)** → `newton_series.bostan_mori_grade`. [x^n] P(x)/Q(x) by the
+  halving recurrence (multiply by Q(−x) ⇒ even denominator ⇒ take even/odd numerator part, halve n) in
+  O(M(d) log n) — astronomical n. EXACT over ℚ, certified two ways: a direct P·Q⁻¹ series cross-check (small n)
+  and the GF defining equation Σ_j Q[j]·a_{n−j}=P[n] re-checked at ANY n from independently-extracted neighbours.
+  Killer test: F(10^6) (a 208988-digit Fibonacci number) extracted by halving == the direct iteration; also
+  geometric/rational/tribonacci. Q(0)=0 / n<0 → DECLINE. EXACT, tier normal, broth-eligible.
+  `test_haran_bostan_mori`. (39 CONFIRMED now.)
 
 ---
 
