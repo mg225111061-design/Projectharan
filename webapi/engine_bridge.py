@@ -31,6 +31,7 @@ from pillar3 import canonical as C
 from pillar3 import corpus_runner as CR
 from pillar3 import engine as E
 from pillar3.mode import Mode, ModePolicy
+import mode_budget as MB
 import pillar3_studio_gen as STUDIO
 from corpus import ai_todo_app, log_analyzer, csv_stats, template_render, json_pipeline
 
@@ -156,11 +157,30 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         return {
             "mode": m.value, "detected": detected, "shipped": [], "declined": [],
             "cumulative_ratio": 1.0, "z3_calls": 0, "ran_complexity_sweep": False, "proposer": proposer,
+            "budget": _budget_info(m, 0.0, "WITHIN_BUDGET"),
             "note": ("이 엔진이 검증된 수정을 가진 알려진 낭비 패턴을 붙여넣은 코드에서 찾지 못했습니다 — "
                      "안전하게 출하할 게 없습니다. (탐지는 당신 소스에 대한 진짜 AST 분석입니다.)"),
             "policy": _mode_contract(m),
         }
-    rep = E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
+    # ★ §1: run the REAL engine UNDER the mode's ENFORCED wall-clock budget (fast ~1s / normal ~30s / extend
+    # ~8min BOUNDED). The hard watchdog (mode_budget → latency_budget.run_with_budget, daemon thread) means the
+    # call never hangs past budget; on overrun we return the best CERTIFIED result reached, never a faked one. ★
+    def _work(budget, partial):
+        rep = E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
+        partial.offer(rep, "shipped")          # the engine closed; each shipped row is individually certified
+        return rep
+    run = MB.run_under_mode_budget(m, _work)
+    rep = run.result                            # None only if the engine was abandoned at the budget (no fake)
+    if run.deferred and rep is None:
+        return {
+            "mode": m.value, "detected": detected, "shipped": [], "declined": [], "cumulative_ratio": 1.0,
+            "z3_calls": 0, "ran_complexity_sweep": False, "latency_ms": round(run.elapsed_s * 1e3, 1),
+            "proposer": proposer, "budget": _budget_info(m, run.elapsed_s, run.status),
+            "note": ("{} 예산(~{:.0f}s) 안에 닫지 못했습니다 — 정직한 부분 결과입니다 (시간을 채우려고 결과를 위조하지 "
+                     "않고, 빨리 가려고 등급을 낮추지도 않습니다). 더 깊은 티어로 올리거나 다시 시도하세요.").format(
+                m.value, MB.budget_for_mode(m)),
+            "policy": _mode_contract(m),
+        }
     return {
         "mode": m.value,
         "detected": detected,
@@ -171,9 +191,10 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         "ran_complexity_sweep": rep.ran_complexity_sweep,
         "latency_ms": round(rep.latency_s * 1e3, 1),
         "proposer": proposer,
-        "note": ("{} 계약 아래 전체 프로그램을 실측했습니다. 탐지는 당신 코드에 대한 진짜 AST 분석이며, "
-                 "측정된 행은 탐지된 각 낭비 유형에 대해 대표 워크로드에서 엔진이 검증한 결과입니다. "
-                 "LLM은(키가 설정된 경우) 제안만 하고, 판정은 검증기가 합니다.").format(m.value),
+        "budget": _budget_info(m, run.elapsed_s, run.status),
+        "note": ("{} 계약 아래 전체 프로그램을 ~{:.0f}s 예산 안에서 실측했습니다. 탐지는 당신 코드에 대한 진짜 AST "
+                 "분석이며, 측정된 행은 탐지된 각 낭비 유형에 대해 대표 워크로드에서 엔진이 검증한 결과입니다. "
+                 "LLM은(키가 설정된 경우) 제안만 하고, 판정은 검증기가 합니다.").format(m.value, MB.budget_for_mode(m)),
         "policy": _mode_contract(m),
     }
 
@@ -195,6 +216,21 @@ def _mode_contract(m: Mode) -> Dict:
         "detectors": len(p.enabled_detectors), "acceptable_grades": sorted(g.lower() for g in p.acceptable_grades),
         "max_hotspots": p.max_hotspots, "runs_complexity_sweep": p.runs_complexity_sweep,
         "latency_budget_s": p.latency_budget_s, "risk_posture": p.risk_posture, "stop_condition": p.stop_condition,
+    }
+
+
+def _budget_info(m: Mode, elapsed_s: float, status: str) -> Dict:
+    """The ENFORCED tier+budget this run executed under — the live line the UI (§3) renders ('extend · 0:03 /
+    8:00'). extend is BOUNDED ~8 min, never unlimited; `status` is WITHIN_BUDGET or DEFERRED_PARTIAL (honest)."""
+    b = MB.budget_for_mode(m)
+
+    def _fmt(sec: float) -> str:
+        sec = int(max(0.0, sec))
+        return f"{sec // 60}:{sec % 60:02d}"
+
+    return {
+        "tier": m.value, "budget_s": b, "elapsed_s": round(elapsed_s, 3), "status": status, "bounded": True,
+        "label": MB.tier_label(m), "display": f"{m.value} · {_fmt(elapsed_s)} / {_fmt(b)}",
     }
 
 

@@ -30,7 +30,7 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 p
 # … 237 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
-`test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
+`test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트(`test_phaseD2_structural_detectors` SoA ~1.3× 등) — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
 (§0.5 C6에서 perf 게이트를 정확성 게이트와 분리하는 중.)
 
 ---

@@ -9059,6 +9059,20 @@ def test_mode_budget_roles():
     assert 0.0 <= b.fraction_used() <= 1.0 and abs(b.fraction_used() - 0.4) < 0.02
     assert b.remaining_s() > 0 and "BOUNDED" in MB.tier_label(Mode.EXTEND) and "8 min" in MB.tier_label(Mode.EXTEND)
 
+    # (g) the REAL engine path runs UNDER the enforced budget and surfaces it — and grades differ by tier on it:
+    # the list-as-set fix is a differential/PROBABILISTIC win → SHIPPED in fast, but extend (EXACT-or-DECLINE)
+    # DECLINEs it. So the same code yields a shipped win in fast and a proven decline in extend — distinct roles.
+    from webapi import engine_bridge as EB
+    waste = "def f(xs):\n    out = []\n    for x in xs:\n        if x in out:\n            continue\n        out.append(x)\n    return out\n"
+    rf, rn, re_ = (EB.run_optimize(waste, mm) for mm in ("fast", "normal", "extend"))
+    for rr, want_b in ((rf, 1.0), (rn, 30.0), (re_, 480.0)):
+        bd = rr["budget"]
+        assert bd["budget_s"] == want_b and bd["bounded"] is True and bd["status"] == "WITHIN_BUDGET"
+        assert bd["elapsed_s"] <= want_b, "the run must respect (stay within) its mode budget"
+    assert re_["budget"]["display"] == "extend · 0:00 / 8:00" or re_["budget"]["display"].endswith("/ 8:00")
+    assert len(rf["shipped"]) >= 1, "fast ships the honest differential/PROBABILISTIC win"
+    assert len(re_["shipped"]) == 0, "extend is EXACT-or-DECLINE — the PROBABILISTIC-only fix is NOT shipped"
+
     print(f"PASS test_mode_budget_roles (fast/normal/extend = {bf:.0f}s/{bn:.0f}s/{be:.0f}s ENFORCED & ordered; "
           f"extend BOUNDED ~8min NOT unlimited; fast(MICRO) never calls the solver; budget overrun → DEFERRED_PARTIAL "
           f"in {elapsed:.2f}s [no hang], best-so-far grade={r2.grade} kept honest [not faked/weakened to EXACT]; "

@@ -114,7 +114,7 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
 ## Known flakes (load-induced, NOT regressions — pass in isolation)
 `test_round2_sublinear_sketches` (HLL ε near boundary), `test_pillar3_stage2_compounding_loop` (timing),
 absolute-threshold perf gates (`test_v40_phase2_structured_matrices`, `test_foldext2_stage*`),
-`test_native_s3_triage_layer` (cache-regression margin ~0.1s), `test_s12_structure_offload` (JOIN hash-rewrite timing), `test_phaseInfinity_D5_detectors` (45× timing), noisy under load, and
+`test_native_s3_triage_layer` (cache-regression margin ~0.1s), `test_s12_structure_offload` (JOIN hash-rewrite timing), `test_phaseInfinity_D5_detectors` (45× timing), `test_phaseD2_structural_detectors` (razor-thin SoA ~1.3× perf ratio), noisy under load, and
 `test_phaseV_equivalence_coverage` (couples a measured win-floor to the EXACT grade ⇒ noisy under parallel load;
 PROVEN-equivalence itself is stable — pass in isolation). C6 splits perf assertions out of the correctness suite so
 "0 regression" holds on any hardware; these remaining win-floor/threshold couplings are the next C6 candidates.

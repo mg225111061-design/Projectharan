@@ -1,0 +1,86 @@
+# CODE TOTAL UPGRADE — running log
+
+CODE is the total focus: absorb the MATH engine as optimization+verification weaponry, enforce strict
+fast/normal/extend roles with concrete TIME BUDGETS, stream every step to the UI, and upgrade CODE's substance
+by orders of magnitude — measured, certificate-bearing, honest. This is a running log (not a stop signal); each
+entry is a shipped, suite-green, pushed item on branch `claude/charming-brahmagupta-q4wwgh`.
+
+Builds on the completed MATH work (G1–G4, P1–P9, transforms, decision procedures, in-house SMT, broth) — that
+work is NOT deleted; it is the engine CODE now wields.
+
+---
+
+## §1 (CORE) — fast / normal / extend as ENFORCED TIME-BUDGET roles
+
+The three tiers are DISTINCT roles with DISTINCT wall-clock budgets and DISTINCT guarantees — not speed presets.
+
+| tier   | budget (TOTAL wall-clock) | role | solver | grade contract |
+|--------|---------------------------|------|--------|----------------|
+| fast   | **~1 s**                  | one safe win now; quick, may defer | NEVER calls the heavy solver (MICRO tier) | EXACT or honest fast PROBABILISTIC |
+| normal | **~30 s**                 | standard verified within budget | differential + small-region Z3 (CHEAP_CERT) | EXACT-or-DECLINE within budget |
+| extend | **~8 min (BOUNDED)**      | deepest work that fits in 8 min | full Z3/SMT + in-house SMT (FULL_CERT) | EXACT-or-DECLINE; best certified within budget |
+
+**The headline change: extend is BOUNDED at ~8 minutes (480 s), NOT unlimited.** It was previously
+`latency_budget_s=None` ("unbounded / overnight"). Now, when the 8-minute budget is spent, extend returns the
+BEST CERTIFIED result it reached (or an honest partial — "couldn't close within the extend budget; here is what
+is proven + what remains"). It NEVER runs past the budget, NEVER fakes a result to fill the time, and NEVER
+weakens a grade to go faster.
+
+**Contract vs runtime.** `pillar3/mode.py` (`ModePolicy`) is the executable contract — the source of truth for
+each mode's `latency_budget_s`. `mode_budget.py` is the enforcement runtime:
+- `TimeBudget` — a live deadline (elapsed / remaining / fraction) plus a `display()` line the UI renders
+  (`extend · 3:12 / 8:00`).
+- `run_under_mode_budget(mode, work)` — runs `work` under the mode's TOTAL budget with the existing
+  `latency_budget.run_with_budget` daemon-thread watchdog as the HARD backstop (the pipeline can never hang past
+  budget). Returns `WITHIN_BUDGET`, or `DEFERRED_PARTIAL` carrying the best CERTIFIED result `work` actually
+  offered (a `Partial` holder) — an honest partial, never fabricated, never relabeled EXACT.
+
+**Wired into the real engine path.** `webapi/engine_bridge.run_optimize` now runs `pillar3.engine.optimize`
+UNDER the mode budget and surfaces a `budget` block (tier, budget_s, elapsed_s, status, `display`) in its
+response — the data the live UI (§3) shows. Measured: the engine closes in ~44 ms (fast) / ~61 ms (normal) /
+~122 ms (extend) on a representative wasteful input, all far within budget; the watchdog only fires on a
+pathological hang.
+
+**Enforced as per-commit tests** (`test_mode_budget_roles`, `test_phaseM1_mode_policy`):
+- the three budgets are 1 / 30 / 480 s, strictly ordered, all bounded (extend is **not** `None`);
+- fast (MICRO) provably never invokes the solver (`tier_allows_certificate(MICRO,·) is False`);
+- a runaway task that would `sleep(5)` is abandoned at a 0.2 s budget in < 1.5 s (no hang) and returns its
+  honest best-so-far partial WITHOUT being relabeled EXACT (grade not weakened to look complete);
+- grades differ by tier on the REAL engine: the list-as-set fix (a differential/PROBABILISTIC win) is SHIPPED
+  in fast but DECLINEd in extend (EXACT-or-DECLINE) — the same code, distinct roles;
+- the live UI line renders `extend · 3:12 / 8:00`.
+
+---
+
+## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
+
+The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general
+`w×w` multiply and logical/arithmetic right-shift, so the engine can now PROVE the strength-reduction transforms
+it wants to ACCEPT (not merely refute them), with zero external solver. `prove_strength_reductions()` decides 8
+identities VALID (UNSAT of the negation over the whole w-bit domain, EXACT within stated width): `mul8 ↔ shl3`,
+`general_mul == mul_const`, the branchless sign-mask `ashr(x,w-1) == neg(lshr(x,w-1))`, the shift round-trips
+that clear low/high bits, and the ×-ring laws (commute / associate / distribute). The multiplier still produces a
+REAL refutation — `x·x == x` is INVALID with a checked counterexample — so it is never a false VALID. Honest
+scope unchanged: still NOT cvc5/Z3 parity — no division, no variable-amount shift, no ite-mux, no
+arrays/reals/unbounded ints (those stay on Z3).
+
+---
+
+## §X — WHAT WE MUST NOT CLAIM (verbatim)
+
+- fast/normal/extend are distinct roles with TIME BUDGETS (~1s/~30s/~8min); extend is BOUNDED at ~8 minutes,
+  NOT unlimited — never described as "time doesn't matter"; it returns the best certified result within budget or
+  an honest partial, never fakes to fill time, never weakens a grade to go faster; fast never calls the heavy
+  solver.
+- EXACT only with a machine-checked certificate / decision procedure; a verified-equivalence speedup ships EXACT
+  only with its certificate; otherwise UNVERIFIED or DECLINE; a wrong "proven" is a correctness bug.
+- Coverage gains are DOMAIN-CONDITIONAL (near-zero on general/control-flow/graph code) and the ceiling is a
+  CEILING not a guarantee (Amdahl p per kernel); never imply a general-purpose accelerator.
+- Whole-program/measured for EVERY speed claim; kernel ≠ whole-program; no average 50–100× claims; ratio ≤
+  Amdahl ceiling.
+- The UI shows the REAL process (actual tier, actual fold, actual proof step, actual budget elapsed) — never
+  fabricated progress.
+- Reuse of a verified backend is fine but the certificate is ours and co-generated; never imply a
+  formal-verification level the implementation lacks; decision-procedure-correct ≠ proof-assistant-verified.
+- Never "smarter/faster than a model"; wraps LLMs and adds proven correctness + speedup where structure
+  genuinely exists.
