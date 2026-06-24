@@ -9424,6 +9424,35 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_multipoint_eval():
+    """HARAN #29 (Group B) — fast multipoint polynomial EVALUATION by the subproduct/remainder tree (O(M(n) log n)),
+    EXACT over ℚ, certified against direct Horner at every point (an independent O(n²) oracle). Closes the
+    multipoint sub-variant of the fast-eval/interpolation algorithm (sparse Ben-Or–Tiwari interpolation already
+    present)."""
+    import newton_series as NS
+    import kernel_verdict as KV
+    from fractions import Fraction as Fr
+
+    # (a) battery: assorted polynomials at assorted point sets == direct Horner, all EXACT
+    for P in ([1, 2, 3], [0, 0, 0, 1], [5, -3, 0, 2, 7], [1], [2, Fr(1, 2), -1, 3, Fr(-2, 3), 1]):
+        for npts in (1, 2, 3, 5, 8, 13):
+            pts = [Fr(i) - 3 for i in range(npts)]
+            v = NS.multipoint_eval_grade(P, pts)
+            assert v.status == KV.EXACT and v.result == [NS._poly_eval(NS._f(P), x) for x in pts], (P, npts)
+            assert v.certificate.kind == "multipoint_subproduct_tree"
+
+    # (b) known: x²+1 at 0..3 ⇒ 1,2,5,10; and a rational-coefficient case with a root at 1/2
+    assert NS.multipoint_eval_grade([1, 0, 1], [0, 1, 2, 3]).result == [Fr(1), Fr(2), Fr(5), Fr(10)]
+    assert NS.multipoint_eval_grade([-1, Fr(3, 2), 1], [Fr(1, 2), -2, 5]).result == [Fr(0), Fr(0), Fr(63, 2)]
+
+    # (c) honest DECLINE: no evaluation points
+    assert NS.multipoint_eval_grade([1, 2], []).status == KV.DECLINE
+
+    print("PASS test_haran_multipoint_eval (#29: subproduct/remainder-tree multipoint eval O(M(n) log n), EXACT "
+          "over ℚ; battery == direct Horner; x²+1@0..3=[1,2,5,10]; rational coeffs/points; empty points → DECLINE "
+          "— closes the multipoint sub-variant)")
+
+
 def test_haran_stern_brocot():
     """HARAN #42 (Group C) — the Stern–Brocot tree for positive rationals: the EXACT L/R path encoding (certified
     by RECONSTRUCTING p/q from the path — the path IS the witness), and best rational approximation under a

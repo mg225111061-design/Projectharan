@@ -146,9 +146,11 @@ _B: List[Algo] = [
     Algo(28, "Automatic differentiation (exact dual)", "B", "autodiff", "autodiff_grade", KV.EXACT,
          "forward-mode dual-number gradient ≡ independent symbolic ∂/∂x (sympy), exact over ℚ",
          "O(nodes·vars) forward", False, NORMAL, False),
-    Algo(29, "Fast multipoint eval + interpolation", "B", "benortiwari", "interpolate", KV.EXACT,
-         "interpolation identity (Schwartz–Zippel on fresh points)", "O(n log² n) general", False, NORMAL, False,
-         PARTIAL, "sparse Ben-Or–Tiwari interpolation present; general O(n log²n) multipoint not yet"),
+    Algo(29, "Fast multipoint eval + interpolation", "B", "newton_series", "multipoint_eval_grade", KV.EXACT,
+         "subproduct/remainder-tree eval ≡ direct Horner at every point (+ sparse Ben-Or–Tiwari interpolation)",
+         "O(M(n) log n) eval", False, NORMAL, False,
+         note="fast multipoint EVALUATION (subproduct tree) + sparse interpolation present; a fast O(n log²n) "
+              "dense interpolation not yet"),
     Algo(30, "Walsh–Hadamard / NTT (general)", "B", "kernels_symbolic", "measure_wht", KV.EXACT,
          "involution WHT∘WHT(x) = n·x (exact integers)", "O(n²)→O(n log n)", False, NORMAL, False),
 ]

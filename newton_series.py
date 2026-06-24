@@ -180,6 +180,73 @@ def bostan_mori_grade(p: Sequence, q: Sequence, n: int) -> KV.Verdict:
     return KV.exact(val, "newton_series.bostan_mori", "Bostan–Mori O(M(d) log n)", cert)
 
 
+def _strip(p: Coef) -> Coef:
+    p = list(p)
+    while len(p) > 1 and p[-1] == 0:
+        p.pop()
+    return p or [Fr(0)]
+
+
+def _polydivmod(a: Coef, b: Coef) -> Tuple[Coef, Coef]:
+    """Exact polynomial division a = q·b + r over ℚ, deg r < deg b."""
+    a, b = _strip(a), _strip(b)
+    db, lb = len(b) - 1, b[-1]
+    r = a[:]
+    q = [Fr(0)] * max(1, len(a) - db)
+    while True:
+        r = _strip(r)
+        if len(r) - 1 < db or r == [Fr(0)]:
+            break
+        coef, shift = r[-1] / lb, (len(r) - 1) - db
+        q[shift] = coef
+        for i in range(len(b)):
+            r[shift + i] -= coef * b[i]
+    return _strip(q), _strip(r)
+
+
+def _poly_eval(coeffs: Coef, x: Fr) -> Fr:
+    acc = Fr(0)
+    for c in reversed(coeffs):
+        acc = acc * x + c
+    return acc
+
+
+def _subproduct(points: List[Fr]) -> Coef:
+    prod: Coef = [Fr(1)]
+    for x in points:
+        prod = _polymul(prod, [-x, Fr(1)])                   # ·(x − xᵢ)
+    return prod
+
+
+def _eval_tree(P: Coef, points: List[Fr]) -> List[Fr]:
+    """Fast multipoint evaluation by the subproduct/remainder tree: P mod ∏(x−xᵢ) descends, halving the point set,
+    until each leaf is P mod (x−xᵢ) = P(xᵢ)."""
+    if len(points) == 1:
+        return [_poly_eval(_strip(P), points[0])]
+    mid = len(points) // 2
+    left, right = points[:mid], points[mid:]
+    _, rl = _polydivmod(P, _subproduct(left))
+    _, rr = _polydivmod(P, _subproduct(right))
+    return _eval_tree(rl, left) + _eval_tree(rr, right)
+
+
+def multipoint_eval_grade(coeffs: Sequence, points: Sequence) -> KV.Verdict:
+    """Evaluate a polynomial at MANY points by the subproduct-tree remainder algorithm (O(M(n) log n)), EXACT
+    over ℚ, CERTIFIED against direct Horner at every point (an independent O(n²) oracle). Empty points ⇒ DECLINE."""
+    pts = _f(points)
+    if not pts:
+        return KV.decline("multipoint_eval: no evaluation points ⇒ DECLINE", "newton_series.multipoint")
+    P = _f(coeffs)
+    fast = _eval_tree(P, pts)
+    direct = [_poly_eval(P, x) for x in pts]                  # ★ independent Horner cross-check ★
+    if fast != direct:
+        return KV.decline("multipoint_eval: tree result ≠ direct Horner ⇒ DECLINE (bug guard)", "newton_series.multipoint")
+    cert = KV.Cert(KV.EXACT, "multipoint_subproduct_tree", passed=True, check_cost="O(M(n) log n) + Horner recheck",
+                   detail=f"P evaluated at {len(pts)} points via the subproduct/remainder tree ≡ direct Horner "
+                          f"(exact over ℚ)")
+    return KV.exact(fast, "newton_series.multipoint", "subproduct tree O(M(n) log n)", cert)
+
+
 _OPS = {"inv": inv, "sqrt": sqrt, "exp": exp, "log": log}
 
 
