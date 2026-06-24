@@ -342,11 +342,12 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
 ### §2 — the cross-algorithm BROTH: pre-prove common instantiations offline → O(1) lookup (`haran_broth.py`)
 
 The "instant" mechanism widened beyond the existing sum/recurrence broth (3,772 entries) to span SEVERAL of the
-50 named algorithms. `haran_broth.py` brews **717 pre-proven instantiations** OFFLINE across **8 of the 50** —
-**#9 Faulhaber** Σk^p closed forms, **#10 named C-finite** sequences, **#31 fast modexp**, **#33 fast-doubling
-Fibonacci**, **#34 binomial mod p** (incl. astronomical n), **#41 Pell** fundamental solutions, **#45 Jacobi**
-symbols, **#49 Wigner 3j** symbols — and serves them by an **O(1) hash lookup measured at ≈ 0.073 µs
-(size-independent, all-hit)**. The certificate
+50 named algorithms. `haran_broth.py` brews **1,367 pre-proven instantiations** OFFLINE across **13 of the 50** —
+**#9 Faulhaber** Σk^p closed forms, **#10 named C-finite** sequences, **#31 fast modexp**, **#32 power towers**
+(generalized-Euler), **#33 fast-doubling Fibonacci**, **#34 binomial mod p** (incl. astronomical n),
+**#38 integer factorization**, **#39 Cipolla modular √**, **#40 discrete logarithm**, **#41 Pell** fundamental
+solutions, **#44 Möbius μ**, **#45 Jacobi** symbols, **#49 Wigner 3j** symbols — and serves them by an **O(1) hash
+lookup measured at ≈ 0.07 µs (size-independent, all-hit)**. The certificate
 discipline is the strongest possible: **every cached entry RE-VERIFIES by RE-RUNNING the real algorithm**
 (`reverify`) — a corrupted cache is caught (a tampered Faulhaber closed form is rejected), never served on its
 say-so. **§0-B honesty (verbatim):** this is PRECOMPUTED-LOOKUP-FAST, NOT execution-O(1) — a MISS returns `None`

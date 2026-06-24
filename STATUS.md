@@ -76,9 +76,10 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   and all 9 partials (#44 Möbius, #42 Stern–Brocot, #29 multipoint-eval, #36 BPSW, #39 Cipolla, #40 Pollard-rho-dlog,
   #38 Pollard p−1, #17 Hermite, #25 exact-CP-rank1) were built/closed one-per-commit. A per-commit test
   (`test_algo50_registry`) IMPORTS every entry point so "we have algorithm N" is re-checked. §2 BROTH widened
-  (`haran_broth.py`, 642 cross-algorithm instantiations @ ~0.08 µs O(1), each re-verified by re-execution); §3
-  measured coverage (`algo50_coverage.py`: 34 cases / 12 algorithms certified, 6/6 adversarial DECLINE, domain-
-  conditional); §4 tier routing (`algo50_router.py`: broth-hit short-circuits any mode, fast never hosts the heavy
+  (`haran_broth.py`, 1,367 cross-algorithm instantiations across 13 of the 50 @ ~0.07 µs O(1), each re-verified by
+  re-execution); §3 measured coverage (`algo50_coverage.py`: MATH 43 cases / 21 algorithms certified + CODE-side
+  code-shape reach 34 execution-verified collapses [6 Σ-targets × 5 shapes + 4 nested], 6/6 adversarial DECLINE,
+  domain-conditional); §4 tier routing (`algo50_router.py`: broth-hit short-circuits any mode, fast never hosts the heavy
   solver). §X honest caveats RECORDED + test-enforced: CAD doubly-exp, Lucas–Lehmer O(p)-iter, general CP/Tucker
   & ECM NP-hard ⇒ DECLINE; PROBABILISTIC never EXACT; 50 NAMED GENERAL algorithms ≈15 fundamental + specializations,
   NOT 50 distinct structures; broth = precomputed-lookup-fast, NOT execution-O(1).

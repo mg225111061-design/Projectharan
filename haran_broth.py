@@ -16,6 +16,15 @@ below is a precomputed-lookup-coverage number, NOT a claim that these algorithms
 Families brewed here (each entry keyed (algo, params) → value + re-checkable cert):
   • #9  Faulhaber power sums   Σ_{k=1}^n k^p  (closed form, p = 1..12)
   • #10 named C-finite seqs    Fibonacci/Lucas/Pell/Jacobsthal/Tribonacci/Padovan/Perrin (companion closed form)
+  • #31 modular exponentiation a^b mod m  (common bases/exponents/moduli)
+  • #32 power towers           a^(b^c) mod m  (generalized-Euler, small towers)
+  • #33 fast-doubling Fibonacci f(n) mod m
+  • #34 binomial mod p (Lucas)  C(n,k) mod p, incl. astronomical n
+  • #38 integer factorization  n → ∏ pᵢ^eᵢ  (small n)
+  • #39 Cipolla modular sqrt    √a mod p  (a a quadratic residue, small odd primes)
+  • #40 discrete logarithm      x: gˣ ≡ h (mod p)  (small prime groups)
+  • #41 Pell fundamental soln   x²−D y² = 1  (non-square D)
+  • #44 Möbius function         μ(n)  (small n)
   • #45 Jacobi symbols         (a|n) for common small a and odd moduli
   • #49 Wigner 3j symbols      exact rational×√rational for small integer (j₁j₂j₃ m₁m₂m₃)
 """
@@ -103,6 +112,43 @@ def _brew() -> Dict[Tuple, BrothEntry]:
             idx[("binom", nn, kk, pp)] = BrothEntry(34, ("binom", nn, kk, pp), str(bv.result), "Lucas mod p",
                                                     "number-theory")
 
+    # #44 Möbius μ(n) for small n (the factorization is the offline cost)
+    for nn in range(1, 201):
+        mv = NT.mobius_grade(nn)
+        if mv.status == KV.EXACT:
+            idx[("mobius", nn)] = BrothEntry(44, ("mobius", nn), str(mv.result),
+                                             "μ from verified factorization; Dirichlet Σ_{d|n}μ(d)=[n=1]", "number-theory")
+    # #32 power towers a^(b^c) mod m (generalized Euler — the λ/Carmichael ladder is the offline cost)
+    for a in (2, 3, 5):
+        for b in (2, 3):
+            for c in (2, 3, 4):
+                for mm in (1000000007, 998244353):
+                    tv = NT.power_tower_grade(a, b, c, mm)
+                    if tv.status == KV.EXACT:
+                        idx[("power_tower", a, b, c, mm)] = BrothEntry(32, ("power_tower", a, b, c, mm),
+                                                                       str(tv.result), "generalized-Euler tower re-check",
+                                                                       "number-theory")
+    # #38 integer factorization n → ∏ pᵢ^eᵢ (small n)
+    for nn in range(2, 201):
+        fv = NT.factorize_grade(nn)
+        if fv.status == KV.EXACT:
+            idx[("factorize", nn)] = BrothEntry(38, ("factorize", nn), str(fv.result),
+                                                "∏ pᵢ^eᵢ == n and each pᵢ prime", "number-theory")
+    # #39 Cipolla modular square roots √a mod p (a a QR; small odd primes) — non-residues correctly decline
+    for pp in (7, 11, 13, 17, 19, 23, 29, 31, 37, 41):
+        for a in range(1, pp):
+            cv = NT.cipolla_sqrt_grade(a, pp)
+            if cv.status == KV.EXACT:
+                idx[("cipolla", a, pp)] = BrothEntry(39, ("cipolla", a, pp), str(cv.result),
+                                                     "x² ≡ a (mod p) by re-squaring", "number-theory")
+    # #40 discrete logarithm x: gˣ ≡ h (mod p) over small prime groups (h ∉ ⟨g⟩ correctly declines)
+    for (g, pp) in ((2, 11), (2, 13), (2, 19), (3, 17), (2, 29), (5, 23)):
+        for h in range(1, pp):
+            dv = NT.pollard_rho_dlog_grade(g, h, pp)
+            if dv.status == KV.EXACT:
+                idx[("dlog", g, h, pp)] = BrothEntry(40, ("dlog", g, h, pp), str(dv.result),
+                                                     "gˣ ≡ h (mod p) by re-exponentiation", "number-theory")
+
     # #49 Wigner 3j for small integer arguments (the Racah factorial sum is the offline cost)
     for j1 in range(0, 4):
         for j2 in range(0, 4):
@@ -164,6 +210,21 @@ def reverify(entry: BrothEntry) -> bool:
         if entry.algo == 10:                             # C-finite: companion ≡ naive at a sample n
             c, init = eval(entry.value)
             return all(CF.companion_nth(c, init, N) == CF.naive_nth(c, init, N) for N in (10, 25))
+        if entry.algo == 44:                             # Möbius: re-run mobius_grade
+            _, nn = entry.key
+            return str(NT.mobius_grade(nn).result) == entry.value
+        if entry.algo == 32:                             # power tower: re-run power_tower_grade
+            _, a, b, c, mm = entry.key
+            return str(NT.power_tower_grade(a, b, c, mm).result) == entry.value
+        if entry.algo == 38:                             # factorization: re-run factorize_grade
+            _, nn = entry.key
+            return str(NT.factorize_grade(nn).result) == entry.value
+        if entry.algo == 39:                             # Cipolla modular sqrt: re-run cipolla_sqrt_grade
+            _, a, pp = entry.key
+            return str(NT.cipolla_sqrt_grade(a, pp).result) == entry.value
+        if entry.algo == 40:                             # discrete log: re-run pollard_rho_dlog_grade
+            _, g, h, pp = entry.key
+            return str(NT.pollard_rho_dlog_grade(g, h, pp).result) == entry.value
         if entry.algo == 45:                             # Jacobi: re-run jacobi_grade
             _, a, nn = entry.key
             return str(NT.jacobi_grade(a, nn).result) == entry.value
