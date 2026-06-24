@@ -72,8 +72,15 @@ def plan_pipeline(x: Any) -> Tuple[List[int], List[float], str]:
 
 
 def route(x: Any) -> CatalogResult:
-    """Top-level chaos→structure entry. Order (§5): DECLINE guards → existing fold → mechanism composition."""
-    # §6 cheapest: proven DECLINE boundary
+    """Top-level chaos→structure entry. Order (§5): arithmetic-hierarchy placement → DECLINE guards → existing
+    fold → mechanism composition."""
+    # §5 cheapest: arithmetic-hierarchy placement (a Σ⁰₁/Π⁰₁-complete semantic-program-property → DECLINE, Rice)
+    import arith_hierarchy as AH
+    place = AH.classify(x)
+    if place.route == "DECLINE":
+        v = KV.decline(f"OBSTRUCTION[arith_hierarchy {place.level}]: {place.reason} (mechanism 14)", "catalog.compose")
+        return CatalogResult(v, mechanism_path=[14], probe=MECH.probe_vector(x), note=f"hierarchy {place.level}")
+    # §6: proven DECLINE boundary (incompressibility / turbulence; Rice also caught above)
     ob = DB.check(x)
     if ob is not None:
         return CatalogResult(ob, mechanism_path=[14], probe=MECH.probe_vector(x), note="obstruction boundary")

@@ -183,6 +183,56 @@ def test_phaseB_acf_honest_defer():
     print("PASS test_phaseB_acf_honest_defer (D1.acf_qe HONEST_DEFER — UNVERIFIED, kernel=None, not faked)")
 
 
+def test_phaseC_ordinal_termination():
+    """PHASE C — ordinal-bounded termination (the fold decreases-clause): a lex measure mapping to a strictly
+    DESCENDING ordinal sequence → EXACT termination (well-founded); a non-decreasing measure → DECLINE (no false
+    termination claim). Backs D1.ordinal_termination + B2.ranking_termination, routed via kernel_router."""
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    # strictly descending lex measures (e.g. Ackermann-like (m,n)): (3,0) > (2,5) > (2,4) > (1,9) → terminates
+    v = KR.dispatch({"ordinal_termination": True, "measures": [(3, 0), (2, 5), (2, 4), (1, 9), (0, 0)]})
+    assert v.status == KV.EXACT and v.result is True and v.kernel == "ordinal_termination", v
+    # single step decrease (decreases-clause): (2,5) → (2,4) EXACT
+    v2 = KR.dispatch({"ordinal_termination": True, "before": (2, 5), "after": (2, 4)})
+    assert v2.status == KV.EXACT and v2.result is True, v2
+    # ★ negative control: measure does NOT decrease (ascending / equal) → DECLINE (no false termination) ★
+    import ordinal_cert as OC
+    assert OC.descent_witness([(1, 0), (2, 0)]).status == KV.DECLINE      # ascending
+    assert OC.descent_witness([(2, 2), (2, 2)]).status == KV.DECLINE      # equal
+    tids = {t.tid: t for t in catalog.TRANSFORMS}
+    assert tids["D1.ordinal_termination"].verified and tids["B2.ranking_termination"].verified
+    print("PASS test_phaseC_ordinal_termination (strictly-descending lex measure → EXACT termination [well-founded]; "
+          "ascending/equal → DECLINE [no false claim]; D1.ordinal_termination + B2.ranking_termination VERIFIED)")
+
+
+def test_phaseC_arith_hierarchy_probe():
+    """PHASE C — arithmetic-hierarchy routing probe (§5-first): a Σ⁰₁/Π⁰₁-complete semantic-program-property is
+    placed undecidable → DECLINE; a bounded/decidable query → PROCEED; routed at the TOP of catalog.compose."""
+    import arith_hierarchy as AH
+    import catalog.compose as C
+    import kernel_verdict as KV
+    assert AH.classify("does f halt on all inputs?").route == "DECLINE"
+    assert AH.classify("are these two programs semantically equivalent?").route == "DECLINE"
+    assert AH.classify("decide this Presburger / linear arithmetic formula").route == "PROCEED"
+    assert AH.classify("x**2 - 2*x + 1 sum of squares").route == "PROCEED"
+    # compose places it FIRST: an undecidable query short-circuits to an obstruction DECLINE (mechanism 14)
+    r = C.route("prove this arbitrary program always terminates on every input")
+    assert r.grade == KV.DECLINE and r.mechanism_path == [14] and "hierarchy" in r.note, r
+    print("PASS test_phaseC_arith_hierarchy_probe (Σ⁰₁/Π⁰₁ semantic-program-property → DECLINE; decidable → PROCEED; "
+          "wired §5-first in compose — undecidable query short-circuits to obstruction [14])")
+
+
+def test_phaseC_nbe_honest_defer():
+    """PHASE C — NbE / cut-elimination as the evaluation core is HONESTLY DEFERRED (§1.6): haran_eval.Interp exists
+    but a gated normalize() fold-core entry is beyond this PHASE's budget. The transforms stay UNVERIFIED, not faked."""
+    import catalog
+    tids = {t.tid: t for t in catalog.TRANSFORMS}
+    for tid in ("D1.cut_elimination", "D2.nbe", "D2.hott_canonicity"):
+        assert not tids[tid].verified and tids[tid].kernel is None, tid
+    print("PASS test_phaseC_nbe_honest_defer (cut-elim/NbE/HoTT-canonicity eval-core HONEST_DEFER — UNVERIFIED, not faked)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -19,6 +19,7 @@ assert len(TRANSFORMS) == len({t.tid for t in TRANSFORMS}), "duplicate transform
 # PHASE B+ : registering §7-gated kernels into kernel_router.REGISTRY + flipping their transforms to VERIFIED.
 # (imported AFTER the passes so the transforms exist to be flipped.)
 from catalog import kernels_phaseB  # noqa: F401,E402
+from catalog import kernels_phaseC  # noqa: F401,E402
 
 
 def by_mechanism(num: int) -> List[Transform]:

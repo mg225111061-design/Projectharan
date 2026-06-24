@@ -62,3 +62,24 @@ C: ordinal/NbE/arith-hierarchy; D: DECLINE guards; E: composition; F: domain app
 catalog coverage 94 registered / **4 VERIFIED** (B1.sos, D2.sos_refutation, D1.rcf_cad_qe, D1.presburger_qe) / 90
 deferred. test_catalog **10/10 green** (4 new PHASE B tests incl. negative controls + tamper rejection).
 **Deferred (K):** ACF (no module). All three clocks separated; SOS/QE are decision procedures (Clock B verify, not C).
+
+---
+
+## PHASE C — fold-core self-improvement ✅
+
+- **Ordinal-bounded termination (`ordinal_cert.py`, mechanism 14/ordinal) — the fold decreases-clause.** A
+  lexicographic measure (tuple of naturals) that maps to a strictly DESCENDING ordinal sequence (CNF) certifies
+  termination (well-founded ⇒ finite). Reuses the existing [이미 있음] `ordinal.check_descent`/`lex_measure_to_ordinal`.
+  EXACT on descending measures (e.g. (3,0)>(2,5)>(2,4)>(1,9)), DECLINE on ascending/equal (no false termination
+  claim). Registered as the `ordinal_termination` kernel; backs D1.ordinal_termination + B2.ranking_termination.
+- **Arithmetic-hierarchy routing probe (`arith_hierarchy.py`, mechanism 9) — §5-FIRST signal.** Heuristic placement:
+  a Σ⁰₁/Π⁰₁-complete semantic-program-property (Rice) → DECLINE; a bounded/quantifier-free/decision-procedure query
+  → PROCEED. Wired at the TOP of `catalog.compose.route` (before the mechanism probe vector). Honest: the hierarchy
+  itself is undecidable, so this is a routing PROBE, not a decision kernel — D1.arithmetic_hierarchy stays
+  UNVERIFIED (functional + wired, but not a gated decision kernel; declines are always sound).
+- **NbE / cut-elimination as the eval core — HONEST_DEFER:** `haran_eval.Interp` exists but a gated `normalize()`
+  fold-core entry is beyond this PHASE's budget (§1.6). D1.cut_elimination / D2.nbe / D2.hott_canonicity stay
+  UNVERIFIED — not faked.
+
+**Measured:** 1 new §7-gated kernel (`ordinal_termination`); catalog coverage 94 registered / **6 VERIFIED** / 88
+deferred. test_catalog **13/13 green** (3 new PHASE C tests with negative controls + the §5-first short-circuit).
