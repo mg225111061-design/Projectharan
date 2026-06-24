@@ -11,7 +11,8 @@ with real tests (Kolmogorov 2-part code / index-set analysis / E₀ reduction).
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
+import zlib
+from typing import Dict, List, Optional, Tuple
 
 import kernel_verdict as KV
 from mechanisms.base import feats
@@ -54,8 +55,62 @@ def rice_guard(x) -> Optional[KV.Verdict]:
     return None
 
 
+_MDL_MIN_BYTES = 64          # below this, zlib overhead makes the test meaningless → don't over-decline
+_MDL_MARGIN = 0.90           # compresses iff Lc < 0.90·L0 (a model beats the literal by ≥10%)
+
+
+def _serialize(data) -> Optional[bytes]:
+    """Best-effort bytes view of `data` for the MDL test (bytes/str/list-of-numbers/array). None if not data-like."""
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data)
+    if isinstance(data, str):
+        return data.encode("utf-8", "replace")
+    if isinstance(data, (list, tuple)) and data and all(isinstance(v, (int, float)) for v in data):
+        import struct
+        try:
+            return b"".join(struct.pack("<d", float(v)) for v in data)
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
+def mdl_two_part(data) -> Optional[Dict[str, object]]:
+    """MEASURED MDL 2-part code: literal length L0 vs a compressed length Lc (zlib level 9 — a SOUND upper bound on
+    Kolmogorov complexity). `compresses` ⟺ a model beats the literal by the margin. None if `data` isn't data-like /
+    too small to test. HONEST: failing to compress is NOT a proof of Kolmogorov-randomness (uncomputable) — it is a
+    per-instance 'no model in the MDL/zlib class beats the literal'."""
+    b = _serialize(data)
+    if b is None or len(b) < _MDL_MIN_BYTES:
+        return None
+    l0 = len(b)
+    lc = len(zlib.compress(b, 9))
+    return {"literal_bytes": l0, "compressed_bytes": lc, "ratio": round(lc / l0, 4),
+            "compresses": lc < _MDL_MARGIN * l0}
+
+
+def mdl_grade(data) -> KV.Verdict:
+    """Grade the MDL test: EXACT code-length (a model beats the literal) or DECLINE (no model in the class beats it
+    — per-instance, honest; NOT a Kolmogorov-randomness claim)."""
+    m = mdl_two_part(data)
+    if m is None:
+        return KV.decline("mdl: input not data-like or too small (<64B) to test", "mdl_incompressibility")
+    if m["compresses"]:
+        cert = KV.Cert(KV.EXACT, "mdl_two_part", passed=True, check_cost="O(n) zlib (sound K-complexity upper bound)",
+                       detail=f"compressible: {m['literal_bytes']}B → {m['compressed_bytes']}B (ratio {m['ratio']}) "
+                              "— a model beats the literal ⇒ hidden structure present")
+        return KV.exact(m, "mdl_incompressibility", "MDL 2-part code (EXACT length)", cert)
+    return KV.decline(f"mdl: no model beats the literal ({m['literal_bytes']}B → {m['compressed_bytes']}B, ratio "
+                      f"{m['ratio']}) — incompressible in the MDL/zlib class ⇒ honest per-instance DECLINE", "mdl_incompressibility")
+
+
 def incompressibility_guard(x) -> Optional[KV.Verdict]:
-    """Explicitly-random / incompressible input → DECLINE (PHASE D: real Kolmogorov 2-part code test)."""
+    """§6 incompressibility: a REAL MDL 2-part test on data-like input (DECLINE iff no model beats the literal), OR
+    an explicitly-declared-random marker. Compressible data (hidden structure) passes through (proceed)."""
+    m = mdl_two_part(x)
+    if m is not None and not m["compresses"]:
+        return _decline("kolmogorov_random_string",
+                        f"MDL: no model beats the literal ({m['literal_bytes']}B→{m['compressed_bytes']}B, "
+                        f"ratio {m['ratio']}) — incompressible in the MDL/zlib class")
     if _INCOMP_RE.search(feats(x).text):
         return _decline("kolmogorov_random_string", "declared incompressible/random — no model beats the literal")
     return None

@@ -16,7 +16,11 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M12.algorithmic_statistics", "MDL / coding / kernelization applies land in PHASE F (+ incompressibility→M14)")
+    """Mechanism 12: a measured MDL 2-part code (zlib = a sound Kolmogorov-complexity upper bound). EXACT
+    code-length when a model beats the literal; else DECLINE (incompressible in the MDL class — per-instance,
+    NOT a Kolmogorov-randomness claim → composes into M14)."""
+    from catalog.decline_boundary import mdl_grade
+    return mdl_grade(x)
 
 
 MECHANISM = Mechanism(

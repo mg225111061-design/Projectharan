@@ -83,3 +83,24 @@ deferred. test_catalog **10/10 green** (4 new PHASE B tests incl. negative contr
 
 **Measured:** 1 new §7-gated kernel (`ordinal_termination`); catalog coverage 94 registered / **6 VERIFIED** / 88
 deferred. test_catalog **13/13 green** (3 new PHASE C tests with negative controls + the §5-first short-circuit).
+
+---
+
+## PHASE D — DECLINE backbone (mechanism 12/14) ✅
+
+- **MEASURED incompressibility (MDL 2-part code, `decline_boundary.mdl_*` + `mdl_incompressibility` kernel).**
+  Replaces PHASE A's keyword heuristic with a real test: literal length L0 vs zlib-compressed length Lc (a SOUND
+  upper bound on Kolmogorov complexity). Data with hidden structure COMPRESSES → EXACT code-length (PROCEED — this
+  RECOVERS the "fake Ω(N)" cases); incompressible data → DECLINE, honestly framed as "no model in the MDL/zlib class
+  beats the literal" (per-instance — NOT a Kolmogorov-randomness proof, which is uncomputable). Measured: os.urandom
+  → ratio ≈1.0 DECLINE; `abcd`×200 → ratio 0.02 EXACT; range(1000) → ratio 0.17 EXACT. Backs D1.kolmogorov_incompressible
+  + mechanism 12 apply.
+- **Guards + proven boundaries (complete).** Rice / incompressibility / turbulence guards + the 15-entry proven-
+  boundary list (Kolmogorov-random, halting/Rice, stat-comp gap, irreversibility, Galois/Liouville, volume-law,
+  turbulence, crypto-PRG, MIP*=RE, natural/relativization/algebrization, MRDP, chaos, PPAD, CH, ordinal-limit).
+- **Negative controls (central to the backbone):** every guard DECLINEs on its boundary marker; ordinary foldable
+  code (`def f`, comprehensions, SOS polynomials) trips NO guard (`DB.check`→None) — no over-decline. A DECLINE is
+  a POSITIVE absence-proof (a win).
+
+**Measured:** 1 new §7-gated kernel (`mdl_incompressibility`); coverage 94 registered / **7 VERIFIED** / 87 deferred.
+test_catalog **15/15 green** (2 new PHASE D tests). MDL is a structural test (not a clock — reported as ratio).

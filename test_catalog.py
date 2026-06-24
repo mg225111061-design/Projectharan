@@ -233,6 +233,57 @@ def test_phaseC_nbe_honest_defer():
     print("PASS test_phaseC_nbe_honest_defer (cut-elim/NbE/HoTT-canonicity eval-core HONEST_DEFER — UNVERIFIED, not faked)")
 
 
+def test_phaseD_mdl_incompressibility():
+    """PHASE D — MEASURED incompressibility (MDL 2-part code, mechanism 12/14): data with hidden structure
+    COMPRESSES → EXACT code-length (proceed); incompressible data → DECLINE (per-instance, honest — NOT a
+    Kolmogorov-randomness proof). This RECOVERS the 'fake Ω(N)' distinction: structured-looking data that
+    compresses is kept, not declined. Backs D1.kolmogorov_incompressible."""
+    import os
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    import catalog.decline_boundary as DB
+    # ★ negative control: genuinely-random bytes → incompressible → DECLINE ★
+    rnd = os.urandom(1024)
+    vr = KR.dispatch(rnd)
+    assert vr.status == KV.DECLINE, vr
+    assert DB.mdl_two_part(rnd)["compresses"] is False
+    # structured data → EXACT code-length (a model beats the literal) — recovered, NOT declined
+    vs = KR.dispatch(b"abcdabcd" * 200)
+    assert vs.status == KV.EXACT and vs.result["compresses"] is True and vs.kernel == "mdl_incompressibility", vs
+    # an arithmetic numeric sequence compresses (hidden structure) → EXACT
+    assert KR.dispatch(list(range(1000))).status == KV.EXACT
+    # the incompressibility GUARD: random declines, structured/code passes through (no over-decline)
+    assert DB.incompressibility_guard(rnd).status == KV.DECLINE
+    assert DB.incompressibility_guard(b"abcdabcd" * 200) is None
+    assert DB.incompressibility_guard("def f(n):\n return sum(k*k for k in range(n))") is None
+    assert {t.tid: t for t in catalog.TRANSFORMS}["D1.kolmogorov_incompressible"].verified
+    print("PASS test_phaseD_mdl_incompressibility (random→DECLINE [ratio≥1]; repeated/range→EXACT code-length; "
+          "guard: random declines, structured/code proceed — recovers 'fake Ω(N)'; D1.kolmogorov_incompressible VERIFIED)")
+
+
+def test_phaseD_decline_backbone_complete():
+    """PHASE D — the DECLINE backbone is complete: Rice + incompressibility + turbulence guards + the proven-
+    boundary list. Negative controls: every guard DECLINEs on its boundary marker; ordinary structured code passes
+    through every guard (no over-decline). A DECLINE is a POSITIVE absence-proof (a win, §6)."""
+    import catalog.decline_boundary as DB
+    import kernel_verdict as KV
+    assert DB.rice_guard("does this program halt on every input?").status == KV.DECLINE
+    assert DB.turbulence_guard("classify with no complete invariant — E0 / turbulence").status == KV.DECLINE
+    assert len(DB.PROVEN_BOUNDARIES) >= 15 and len(DB.boundary_names()) == len(set(DB.boundary_names()))
+    # ordinary foldable code trips NO guard (DB.check returns None)
+    for ok in ("def f(n):\n s=0\n for k in range(n): s+=k\n return s",
+               "sum(k*k for k in range(n))", "x**2 - 2*x + 1 sum of squares"):
+        assert DB.check(ok) is None, ok
+    # the boundary list names the un-recoverable proven boundaries (sanity of a few)
+    names = set(DB.boundary_names())
+    assert {"undecidable_halting_rice", "kolmogorov_random_string", "turbulence_closure",
+            "mip_star_re", "ppad_hard_equilibrium"} <= names
+    print(f"PASS test_phaseD_decline_backbone_complete (Rice/incompressibility/turbulence guards + "
+          f"{len(DB.PROVEN_BOUNDARIES)} proven boundaries; every guard fires on its marker, ordinary code passes "
+          f"all guards [no over-decline] — DECLINE = positive absence-proof)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
