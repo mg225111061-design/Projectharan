@@ -83,12 +83,12 @@ def test_compose_router():
     # Rice boundary → DECLINE, mechanism 14
     r = C.route("is this arbitrary program semantically equivalent to that one?")
     assert r.grade == KV.DECLINE and r.mechanism_path == [14], r
-    # SOS plan → honest DECLINE (not a fake pass) with composition path 4→14
-    r = C.route("prove x**2 - 2*x + 1 >= 0 by sum of squares positivstellensatz")
-    assert r.grade == KV.DECLINE and r.mechanism_path == [4, 14] and "HONEST_DEFER" in r.verdict.reason, r
+    # an UNBUILT composition (classification 9→2) → honest DEFER naming the path (not a fake pass)
+    r = C.route("classify the curvature complete invariant")
+    assert r.grade == KV.DECLINE and r.mechanism_path == [9, 2] and "HONEST_DEFER" in r.verdict.reason, r
     assert len(r.probe) == 14
-    print("PASS test_compose_router (fold→EXACT[13]; Rice→DECLINE[14]; SOS→honest-DEFER plan [4→14] with probe "
-          "vector + mechanism_path — no fake pass)")
+    print("PASS test_compose_router (fold→EXACT[13]; Rice→DECLINE[14]; unbuilt composition [9→2]→honest-DEFER with "
+          "probe vector + mechanism_path — no fake pass)")
 
 
 def test_no_unverified_autoselect():
@@ -282,6 +282,48 @@ def test_phaseD_decline_backbone_complete():
     print(f"PASS test_phaseD_decline_backbone_complete (Rice/incompressibility/turbulence guards + "
           f"{len(DB.PROVEN_BOUNDARIES)} proven boundaries; every guard fires on its marker, ordinary code passes "
           f"all guards [no over-decline] — DECLINE = positive absence-proof)")
+
+
+def test_phaseE_composition_router():
+    """PHASE E — the §5 mechanism-composition router EXECUTES the built gated applies along the planned pipeline
+    and returns (result, grade, certificate, bound, mechanism_path). Built: M4 (SOS), M12 (MDL), M13 (fold via the
+    existing engine), M14 (DECLINE guards). Unbuilt mechanism paths return an HONEST DEFER naming the planned path
+    — never a fake result. NO single-discipline 1:1 decomposition: routing is by mechanism composition."""
+    import catalog.compose as C
+    import os
+    import kernel_verdict as KV
+    # M13 existing fold
+    r = C.route("def f(n):\n s=0\n for k in range(1,n+1): s+=k*k\n return s")
+    assert r.grade == KV.EXACT and r.mechanism_path == [13]
+    res, grade, cert, bound, path = r.as_tuple()                 # the §5.6 output tuple
+    assert grade == KV.EXACT and cert is not None and path == [13]
+    # M4 SOS (executed inline along [4,…])
+    r = C.route("prove x**2 - 2*x + 1 >= 0 by sos")
+    assert r.grade == KV.EXACT and r.mechanism_path == [4] and r.verdict.certificate.passed
+    # M4 declines a non-SOS → composition [4,14] honest DECLINE (not a fake pass)
+    r = C.route("is x**2 - 1 nonneg sos")
+    assert r.grade == KV.DECLINE and r.mechanism_path == [4, 14]
+    # M12 MDL: incompressible random → DECLINE[14]; structured data → EXACT[12]
+    assert C.route(os.urandom(800)).grade == KV.DECLINE
+    rs = C.route(b"abcd" * 200)
+    assert rs.grade == KV.EXACT and rs.mechanism_path == [12]
+    assert C.route(list(range(800))).grade == KV.EXACT
+    # M14 obstruction (undecidable) and DECLINE backbone
+    assert C.route("does this program halt on all inputs?").grade == KV.DECLINE
+    # unbuilt composition → HONEST DEFER naming the planned path (e.g. classification 9→2, RS 10→14)
+    r = C.route("classify the curvature complete invariant")
+    assert r.grade == KV.DECLINE and r.mechanism_path == [9, 2] and "HONEST_DEFER" in r.verdict.reason
+    r = C.route("is this graph minor-closed forbidden-minors")
+    assert r.mechanism_path == [10, 14] and "HONEST_DEFER" in r.verdict.reason
+    # every non-DECLINE result carries a passed certificate (no fake pass)
+    for q in ("prove x**2+1 >= 0 sos", "def g(n):\n return sum(k for k in range(n))"):
+        rr = C.route(q)
+        if rr.grade != KV.DECLINE:
+            assert rr.verdict.certificate and rr.verdict.certificate.passed
+    print("PASS test_phaseE_composition_router (executes built applies along the pipeline: fold→EXACT[13], "
+          "SOS→EXACT[4], SOS-fail→DECLINE[4,14], random→DECLINE[14], structured-data→EXACT[12], halt→DECLINE[14]; "
+          "unbuilt paths [9→2], [10→14] → HONEST_DEFER naming the path; returns (result,grade,cert,bound,path) — no "
+          "fake pass, no 1:1 discipline decomposition)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

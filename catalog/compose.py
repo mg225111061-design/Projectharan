@@ -31,6 +31,21 @@ class CatalogResult:
     def grade(self) -> str:
         return self.verdict.status
 
+    @property
+    def bound(self):
+        """The certificate's bound/ε (the §5 output tuple's `bound` slot), if any."""
+        c = self.verdict.certificate
+        return None if c is None else (c.bound if c.bound is not None else c.epsilon)
+
+    def as_tuple(self):
+        """The §5.6 output: (result, grade, certificate, bound, mechanism_path)."""
+        return (self.verdict.result, self.grade, self.verdict.certificate, self.bound, self.mechanism_path)
+
+
+# mechanisms whose `apply` is a real §7-gated procedure (others HONEST_DEFER until their PHASE).
+# M13 is reached via the existing-fold short-circuit; M14 via the DECLINE guards; M4/M12 execute inline.
+_BUILT_APPLY = frozenset({4, 12})
+
 
 # research-confirmed composition pipelines: (predicate on top-mechanism set) → ordered mechanism path
 _COMPOSITIONS: List[Tuple[frozenset, Tuple[int, ...], str]] = [
@@ -84,14 +99,33 @@ def route(x: Any) -> CatalogResult:
     ob = DB.check(x)
     if ob is not None:
         return CatalogResult(ob, mechanism_path=[14], probe=MECH.probe_vector(x), note="obstruction boundary")
-    # §5.1 existing fold
+    # §5.1 existing fold (M13)
     fold = _existing_fold(x)
     if fold is not None:
         return CatalogResult(fold, mechanism_path=[13], probe=MECH.probe_vector(x), note="existing fold")
-    # §5.2-5.4 mechanism composition (PHASE E wires real gated apply; PHASE A returns honest DECLINE w/ the plan)
+    # data-like (bytes / numeric sequence) that survived the incompressibility guard ⇒ M12 (MDL) recovers structure
+    if isinstance(x, (bytes, bytearray)) or (isinstance(x, (list, tuple)) and x and all(isinstance(v, (int, float)) for v in x)):
+        v = MECH.MECHANISMS[12].apply(x)
+        return CatalogResult(v, mechanism_path=[12], probe=MECH.probe_vector(x), note="MDL code-length")
+    # §5.2-5.4 mechanism composition: EXECUTE the built gated applies along the planned pipeline, gate each
     path, probe, why = plan_pipeline(x)
     if not path:
         v = KV.decline("no mechanism probe above threshold — honest DECLINE (no hidden structure detected)", "catalog.compose")
         return CatalogResult(v, mechanism_path=[], probe=probe, note="no-fit")
-    v = KV.decline(f"HONEST_DEFER[compose]: pipeline {path} planned ({why}) — gated apply lands in PHASE E", "catalog.compose")
+    attempted: List[int] = []
+    for m in path:
+        if m in _BUILT_APPLY:
+            attempted.append(m)
+            v = MECH.MECHANISMS[m].apply(x, **{})
+            if v.status != KV.DECLINE:                       # a gated success ends the pipeline (§5.4)
+                return CatalogResult(v, mechanism_path=attempted, probe=probe, note=why)
+        elif m == 14:                                        # obstruction tail: the prior step couldn't certify
+            attempted.append(14)
+    # no built stage produced a non-DECLINE result
+    if attempted and set(attempted) - {14}:
+        v = KV.decline(f"composition {path} executed [{attempted}] — no stage certified ({why}); honest DECLINE "
+                       f"(e.g. no SOS / not the recoverable case)", "catalog.compose")
+        return CatalogResult(v, mechanism_path=attempted, probe=probe, note=why)
+    v = KV.decline(f"HONEST_DEFER[compose]: pipeline {path} planned ({why}) — these mechanism applies are gated in "
+                   f"PHASE F (built so far: {sorted(_BUILT_APPLY)} + fold[13] + guards[14])", "catalog.compose")
     return CatalogResult(v, mechanism_path=path, probe=probe, note=why)

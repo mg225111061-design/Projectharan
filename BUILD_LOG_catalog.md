@@ -104,3 +104,21 @@ deferred. test_catalog **13/13 green** (3 new PHASE C tests with negative contro
 
 **Measured:** 1 new §7-gated kernel (`mdl_incompressibility`); coverage 94 registered / **7 VERIFIED** / 87 deferred.
 test_catalog **15/15 green** (2 new PHASE D tests). MDL is a structural test (not a clock — reported as ratio).
+
+---
+
+## PHASE E — mechanism-composition router (§5) ✅
+
+`catalog.compose.route` now EXECUTES the built gated applies along the planned pipeline (no single-discipline 1:1
+decomposition — routing is by mechanism composition) and returns the §5.6 output `(result, grade, certificate,
+bound, mechanism_path)` via `CatalogResult.as_tuple()`. Order: arithmetic-hierarchy placement → DECLINE guards →
+existing fold (M13) → data-like MDL (M12) → composition pipeline executing M4 (SOS) etc.
+
+Working compositions (measured): fold Σk²→EXACT[13]; SOS (x-1)²→EXACT[4]; non-SOS x²-1→DECLINE[4,14] (M4 declines,
+composition honest); random bytes→DECLINE[14]; structured data/range→EXACT[12]; halt-query→DECLINE[14]
+(arith-hierarchy obstruction). Unbuilt compositions (classification 9→2, Robertson–Seymour 10→14) return an HONEST
+DEFER naming the planned path — never a fake result. Built apply set: {M4, M12} inline + M13 (fold) + M14 (guards);
+the rest HONEST_DEFER until PHASE F.
+
+**Measured:** coverage 94 registered / 7 VERIFIED / 87 deferred; test_catalog **16/16 green** (new
+test_phaseE_composition_router; updated the stale PHASE-A compose assertion now that SOS actually solves EXACT).
