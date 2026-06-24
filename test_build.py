@@ -9424,6 +9424,31 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_pollard_pm1():
+    """HARAN #38 (Group C) — Pollard's p−1 factorization: a method DISTINCT from trial/rho that cracks n when a
+    prime factor p has p−1 smooth (a ← a^j accumulates j!; gcd(a−1,n) reveals p). EXACT with a re-checkable
+    proper-factor witness (d·cofactor = n, 1<d<n). Closes the p−1 branch of the factorization partial (ECM still
+    honestly noted not-yet)."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    # (a) semiprimes with a smooth-(p−1) factor ⇒ a re-checkable proper factor (gcd checked every step so a single
+    # factor is caught before a co-factor also collapses)
+    for n in (101 * 103, 541 * 1009, 1009 * 9973, 9973 * 101, 1299709 * 1300003):
+        v = NT.pollard_pm1_grade(n)
+        assert v.status == KV.EXACT, (n, v.status)
+        d, cof = v.result["factor"], v.result["cofactor"]
+        assert d * cof == n and n % d == 0 and 1 < d < n, (n, d, cof)   # proper-factor witness, re-checked
+        assert v.certificate.kind == "pollard_pm1_factor"
+
+    # (b) prime / too-small ⇒ honest DECLINE (no proper factor exists)
+    assert NT.pollard_pm1_grade(10007).status == KV.DECLINE and NT.pollard_pm1_grade(3).status == KV.DECLINE
+
+    print("PASS test_haran_pollard_pm1 (#38: Pollard p−1 factorization; 5 semiprimes with smooth-(p−1) factors → "
+          "re-checkable proper-factor witnesses (d·cof=n, 1<d<n); gcd-every-step avoids simultaneous collapse; "
+          "prime/too-small → DECLINE — closes the p−1 branch (ECM still noted not-yet))")
+
+
 def test_haran_pollard_rho_dlog():
     """HARAN #40 (Group C) — discrete log by POLLARD'S RHO (O(√n) time, O(1) SPACE — a random-walk + Floyd cycle
     detection; collision ⇒ x·(B−D)≡(C−A) mod ord g), CROSS-CHECKED against baby-step/giant-step. Two INDEPENDENT

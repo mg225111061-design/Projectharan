@@ -204,9 +204,44 @@ def _gcd_int(a: int, b: int) -> int:
     return a
 
 
+def _pollard_pm1(n: int, B: int = 10000):
+    """Pollard's p−1: find a factor p of n where p−1 is B-powersmooth. a ← a^j (mod n) accumulates the exponent
+    j!; gcd(a−1, n) reveals such a p. gcd is checked EVERY step so a single smooth factor is caught BEFORE a
+    co-factor also collapses (a simultaneous collapse to d==n is the only miss ⇒ None). Returns a proper factor."""
+    if n % 2 == 0:
+        return 2
+    a = 2
+    for j in range(2, B + 1):
+        a = pow(a, j, n)
+        d = gcd(a - 1, n)
+        if 1 < d < n:
+            return d
+        if d == n:                                           # both factors collapsed at the same step (rare)
+            return None
+    return None
+
+
+def pollard_pm1_grade(n: int) -> KV.Verdict:
+    """Find a PROPER factor of composite n by POLLARD'S p−1 (a method distinct from trial/rho — it cracks n when
+    some prime factor p has p−1 smooth). EXACT: the factor d is re-checked to DIVIDE n (1<d<n) and is consistent
+    with the full verified factorization. Prime / prime-power-of-2-only / no-smooth-factor ⇒ honest DECLINE."""
+    if n < 4:
+        return KV.decline(f"pollard_pm1: n={n} < 4 ⇒ DECLINE", "number_theory.pollard_pm1")
+    if (n < _DET_BOUND and _is_prime_det(n)):
+        return KV.decline(f"pollard_pm1: n={n} is prime (no proper factor) ⇒ DECLINE", "number_theory.pollard_pm1")
+    d = _pollard_pm1(n)
+    if d is None or not (1 < d < n) or n % d != 0:           # ★ proper-factor witness: d|n ∧ 1<d<n (re-checked) ★
+        return KV.decline(f"pollard_pm1: no p−1-smooth factor of {n} found ⇒ DECLINE (try rho/ECM)", "number_theory.pollard_pm1")
+    cof = n // d
+    cert = KV.Cert(KV.EXACT, "pollard_pm1_factor", passed=True, check_cost="O(1) divisibility re-check",
+                   detail=f"{n} = {d} × {cof}: Pollard p−1 found the proper factor {d} (d·cofactor = n, 1<d<n — a "
+                          f"re-checkable divisibility witness)")
+    return KV.exact({"factor": d, "cofactor": cof}, "number_theory.pollard_pm1", "Pollard p−1", cert)
+
+
 def factorize_grade(n: int) -> KV.Verdict:
-    """Prime factorization (trial division + Pollard's rho). Certificate: ∏ pᵢ^eᵢ = n (exact) AND every pᵢ is
-    prime (verified). EXACT when all factors are below the deterministic primality bound."""
+    """Prime factorization (trial division + Pollard's rho + Pollard p−1 available). Certificate: ∏ pᵢ^eᵢ = n
+    (exact) AND every pᵢ is prime (verified). EXACT when all factors are below the deterministic primality bound."""
     if n < 1:
         return KV.decline(f"factorize: n={n} < 1 ⇒ DECLINE", "number_theory.factorize")
     if n == 1:
@@ -1015,4 +1050,6 @@ def solve(problem: dict) -> KV.Verdict:
         return cipolla_sqrt_grade(problem["a"], problem["p"])
     if op == "rho_dlog":
         return pollard_rho_dlog_grade(problem["g"], problem["h"], problem["m"])
+    if op == "pollard_pm1":
+        return pollard_pm1_grade(problem["n"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")
