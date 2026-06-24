@@ -9713,6 +9713,43 @@ def test_haran_tier_routing():
           f"runs fast+normal; extend runs all 50 within its bounded budget — fast/normal/extend contract enforced)")
 
 
+def test_haran_code_shape_invariance():
+    """HARAN §3 (code-shape mapping) — the SAME mathematical structure written as a for-loop, a counter-while, and
+    a sum/prod comprehension all NORMALIZE to the SAME structural key (CLOSED_FORM_LOOP, same op/algebra/body) AND
+    the verified lift produces the SAME O(1) closed form. One algorithm, many code shapes ⇒ coverage widens WITHOUT
+    inventing structures. Adversarial (soundness): a non-counter while and an accumulator-dependent body must NOT
+    be misclassified — the execution gate can only DECLINE on a misread, never ship a wrong collapse."""
+    import structure_recognizer as SR
+
+    forsrc = "def f(n):\n s=0\n for k in range(1,n+1):\n  s+=k*k\n return s"
+    whilesrc = "def f(n):\n s=0; k=1\n while k<=n:\n  s+=k*k; k+=1\n return s"
+    compsrc = "def f(n):\n return sum(k*k for k in range(1,n+1))"
+
+    keys, forms = set(), set()
+    for src in (forsrc, whilesrc, compsrc):
+        acc = SR._acc_loop_any_shape(SR._first_fn(src, "f"))
+        assert acc is not None, src
+        keys.add((acc.op, acc.algebra, acc.body))
+        assert SR.recognize(src, "f").kind == "CLOSED_FORM_LOOP", src
+        d = SR.dispatch(src, "f")
+        assert d.status == "OFFLOADED", (src, d.status)
+        forms.add(d.closed_form)
+    assert len(keys) == 1, keys                              # ONE structural key across the 3 code shapes
+    assert len(forms) == 1 and "n*(n + 1)*(2*n + 1)/6" in forms.pop()   # SAME verified Σk² closed form
+
+    # a product comprehension normalizes to the same shape with op '*' (recognizer level, no exec needed)
+    pacc = SR._acc_loop_any_shape(SR._first_fn("def g(n):\n import math\n return math.prod(k for k in range(1,n+1))", "g"))
+    assert pacc is not None and pacc.op == "*"
+
+    # ★ soundness: NON-canonical shapes must NOT be misclassified as a closed-form loop ★
+    assert SR.recognize("def f(x):\n while x>1:\n  x=x//2\n return x", "f").kind != "CLOSED_FORM_LOOP"   # not a counter
+    assert SR.recognize("def f(n):\n s=1\n for k in range(1,n+1):\n  s+=s\n return s", "f").kind != "CLOSED_FORM_LOOP"  # acc-dependent body
+
+    print("PASS test_haran_code_shape_invariance (§3 code-shape mapping: for-loop / counter-while / sum-comprehension "
+          "of Σk² all normalize to ONE structural key [+ verified to the same O(1) closed form n(n+1)(2n+1)/6]; prod-"
+          "comprehension → op '*'; non-counter-while & accumulator-dependent body correctly REJECTED — sound)")
+
+
 def test_haran_coverage():
     """HARAN §3 — MEASURED collapse coverage of the 50 algorithms over a structured corpus, DOMAIN-CONDITIONAL.
     Every structured item is dispatched to the REAL algorithm and must certify (EXACT/PROBABILISTIC); a

@@ -366,6 +366,14 @@ corpus, near-zero on general/control-flow/graph/I/O code; NOT a general-purpose 
 adversarial DECLINEs are correct behaviour; a "family" is a generalized recognizer family (algorithm × sub-pattern),
 NOT a fundamentally-distinct structure. `test_haran_coverage`.
 
+**Code-shape mapping (§3 deepen).** `structure_recognizer.py` now NORMALIZES three code shapes computing the same
+accumulation — a `for`-loop, a counter-`while`, and a `sum`/`prod` comprehension — to the SAME `_AccLoop`
+structural key (`_acc_loop_any_shape`), so all three route to the SAME algorithm and the SAME verified O(1) closed
+form (Σk² → n(n+1)(2n+1)/6 for all three, lift verified against each shape's REAL execution). This widens coverage
+WITHOUT inventing structures — one algorithm, many code shapes. Sound: a non-counter `while` and an
+accumulator-dependent body are correctly REJECTED (the execution gate can only DECLINE on a misread, never ship a
+wrong collapse). `test_haran_code_shape_invariance`.
+
 ### §4 — TIER ROUTING for the 50: fast / normal / extend + broth short-circuit (`algo50_router.py`)
 
 The operational glue tying §1 (each algorithm's tier) + §2 (broth) + the `pillar3/mode.py` contract. `route(algo,

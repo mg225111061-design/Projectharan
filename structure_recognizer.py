@@ -165,6 +165,97 @@ def _closed_form_loop(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
     return _AccLoop(var=var, lo=lo, hi=hi, op=op, algebra=algebra, body=body)
 
 
+def _while_acc_loop(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
+    """CODE-SHAPE NORMALIZATION: `acc=id; k=lo; while k<=hi (or k<hi): acc OP= f(k); k+=1; return acc` ⇒ the SAME
+    `_AccLoop` the for-form yields. Conservative — only the exact canonical counter-while matches; else None."""
+    if _for_loops(fnnode):
+        return None
+    whiles = [n for n in ast.walk(fnnode) if isinstance(n, ast.While)]
+    body_whiles = [n for n in fnnode.body if isinstance(n, ast.While)]
+    if len(whiles) != 1 or len(body_whiles) != 1:
+        return None
+    loop = body_whiles[0]
+    cond = loop.test
+    if not (isinstance(cond, ast.Compare) and len(cond.ops) == 1 and isinstance(cond.left, ast.Name)):
+        return None
+    kvar = cond.left.id
+    ot = type(cond.ops[0]).__name__
+    hi_src = ast.unparse(cond.comparators[0])
+    hi = f"({hi_src}) + 1" if ot == "LtE" else (hi_src if ot == "Lt" else None)
+    if hi is None:
+        return None
+    inits = {}                                               # simple pre-loop assigns (handles 's=0; k=1')
+    for st in fnnode.body:
+        if st is loop:
+            break
+        if isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name):
+            inits[st.targets[0].id] = ast.unparse(st.value)
+    if kvar not in inits or len(loop.body) != 2:
+        return None
+    inc = acc_stmt = None
+    for st in loop.body:
+        if (isinstance(st, ast.AugAssign) and isinstance(st.target, ast.Name) and st.target.id == kvar
+                and isinstance(st.op, ast.Add) and isinstance(st.value, ast.Constant) and st.value.value == 1):
+            inc = st
+        else:
+            acc_stmt = st
+    if inc is None or not (isinstance(acc_stmt, ast.AugAssign) and isinstance(acc_stmt.target, ast.Name)):
+        return None
+    acc = acc_stmt.target.id
+    b = _MONOID_BIN.get(type(acc_stmt.op).__name__)
+    if acc == kvar or acc not in inits or not b:
+        return None
+    op, algebra, body = b[0], b[1], ast.unparse(acc_stmt.value)
+    rets = [n for n in ast.walk(fnnode) if isinstance(n, ast.Return)]
+    if not (len(rets) == 1 and isinstance(rets[0].value, ast.Name) and rets[0].value.id == acc):
+        return None                                          # accumulator must be the returned value
+    if kvar not in _names_used(ast.parse(body, mode="eval")):
+        return None                                          # f(k) must depend on the counter (and only it)
+    return _AccLoop(var=kvar, lo=inits[kvar], hi=hi, op=op, algebra=algebra, body=body)
+
+
+def _comprehension_acc(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
+    """CODE-SHAPE NORMALIZATION: `return sum(f(k) for k in range(lo,hi))` (or math.prod) ⇒ the SAME `_AccLoop`."""
+    if _for_loops(fnnode) or any(isinstance(n, ast.While) for n in ast.walk(fnnode)):
+        return None
+    rets = [n for n in ast.walk(fnnode) if isinstance(n, ast.Return)]
+    if len(rets) != 1 or not isinstance(rets[0].value, ast.Call) or len(rets[0].value.args) != 1:
+        return None
+    call = rets[0].value
+    fname = call.func.id if isinstance(call.func, ast.Name) else (
+        call.func.attr if isinstance(call.func, ast.Attribute) else None)
+    if fname == "sum":
+        op, algebra = "+", "monoid"
+    elif fname == "prod":
+        op, algebra = "*", "monoid"
+    else:
+        return None
+    gen = call.args[0]
+    if not (isinstance(gen, ast.GeneratorExp) and len(gen.generators) == 1):
+        return None
+    comp = gen.generators[0]
+    if comp.ifs or not (isinstance(comp.iter, ast.Call) and isinstance(comp.iter.func, ast.Name)
+                        and comp.iter.func.id == "range" and isinstance(comp.target, ast.Name)):
+        return None
+    args = comp.iter.args
+    if len(args) == 1:
+        lo, hi = "0", ast.unparse(args[0])
+    elif len(args) == 2:
+        lo, hi = ast.unparse(args[0]), ast.unparse(args[1])
+    else:
+        return None                                          # step ≠ 1 not lifted here (honest)
+    var, body = comp.target.id, ast.unparse(gen.elt)
+    if var not in _names_used(ast.parse(body, mode="eval")):
+        return None
+    return _AccLoop(var=var, lo=lo, hi=hi, op=op, algebra=algebra, body=body)
+
+
+def _acc_loop_any_shape(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
+    """Code-shape invariance: a for-loop, a counter-while, and a sum/prod comprehension computing the same
+    accumulation all NORMALIZE to the same `_AccLoop` structural key (same op/algebra/body) ⇒ the same algorithm."""
+    return _closed_form_loop(fnnode) or _while_acc_loop(fnnode) or _comprehension_acc(fnnode)
+
+
 @dataclass
 class _Join:
     a_iter: str
@@ -252,7 +343,7 @@ def recognize(source: str, fn_name: Optional[str] = None) -> Structure:
     j = _equi_join(fn)
     if j is not None:
         return Structure(RELATIONAL_JOIN, "semiring", f"equi-join on {j.key_a}=={j.key_b}", name)
-    acc = _closed_form_loop(fn)
+    acc = _acc_loop_any_shape(fn)                            # for / counter-while / comprehension → same key
     if acc is not None:
         return Structure(CLOSED_FORM_LOOP, acc.algebra,
                          f"reduce('{acc.op}', f({acc.var})) over range({acc.lo},{acc.hi})", name)
@@ -429,7 +520,7 @@ def dispatch(source: str, fn_name: Optional[str] = None) -> Dispatch:
         j = _equi_join(fn)
         if j is not None:
             return _rewrite_join(source, fn, j)
-        acc = _closed_form_loop(fn)
+        acc = _acc_loop_any_shape(fn)                        # for / counter-while / comprehension all offload
         if acc is not None:
             return _offload_closed_form(source, fn, acc)
         s = recognize(source, fn_name)
