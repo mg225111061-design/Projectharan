@@ -149,6 +149,7 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
     detected = detect_in_source(code)
     det_types = {d["waste_type"] for d in detected}
     proposer = _proposer_block(provider, model, key, detected, m)
+    collapse = _loop_collapse(code)                            # §2/§4: the PROVEN loop collapse (if any) — first-class
 
     # the canonical candidates whose waste class was detected in the user's code (engine vocabulary)
     cands = [c for c in C.build_candidates() if c.waste_type in det_types]
@@ -157,7 +158,7 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         return {
             "mode": m.value, "detected": detected, "shipped": [], "declined": [],
             "cumulative_ratio": 1.0, "z3_calls": 0, "ran_complexity_sweep": False, "proposer": proposer,
-            "budget": _budget_info(m, 0.0, "WITHIN_BUDGET"),
+            "budget": _budget_info(m, 0.0, "WITHIN_BUDGET"), "collapse": collapse,
             "note": ("이 엔진이 검증된 수정을 가진 알려진 낭비 패턴을 붙여넣은 코드에서 찾지 못했습니다 — "
                      "안전하게 출하할 게 없습니다. (탐지는 당신 소스에 대한 진짜 AST 분석입니다.)"),
             "policy": _mode_contract(m),
@@ -175,7 +176,7 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         return {
             "mode": m.value, "detected": detected, "shipped": [], "declined": [], "cumulative_ratio": 1.0,
             "z3_calls": 0, "ran_complexity_sweep": False, "latency_ms": round(run.elapsed_s * 1e3, 1),
-            "proposer": proposer, "budget": _budget_info(m, run.elapsed_s, run.status),
+            "proposer": proposer, "budget": _budget_info(m, run.elapsed_s, run.status), "collapse": collapse,
             "note": ("{} 예산(~{:.0f}s) 안에 닫지 못했습니다 — 정직한 부분 결과입니다 (시간을 채우려고 결과를 위조하지 "
                      "않고, 빨리 가려고 등급을 낮추지도 않습니다). 더 깊은 티어로 올리거나 다시 시도하세요.").format(
                 m.value, MB.budget_for_mode(m)),
@@ -192,6 +193,7 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
         "latency_ms": round(rep.latency_s * 1e3, 1),
         "proposer": proposer,
         "budget": _budget_info(m, run.elapsed_s, run.status),
+        "collapse": collapse,
         "note": ("{} 계약 아래 전체 프로그램을 ~{:.0f}s 예산 안에서 실측했습니다. 탐지는 당신 코드에 대한 진짜 AST "
                  "분석이며, 측정된 행은 탐지된 각 낭비 유형에 대해 대표 워크로드에서 엔진이 검증한 결과입니다. "
                  "LLM은(키가 설정된 경우) 제안만 하고, 판정은 검증기가 합니다.").format(m.value, MB.budget_for_mode(m)),
@@ -232,6 +234,32 @@ def _budget_info(m: Mode, elapsed_s: float, status: str) -> Dict:
         "tier": m.value, "budget_s": b, "elapsed_s": round(elapsed_s, 3), "status": status, "bounded": True,
         "label": MB.tier_label(m), "display": f"{m.value} · {_fmt(elapsed_s)} / {_fmt(b)}",
     }
+
+
+def _loop_collapse(code: str) -> Optional[Dict]:
+    """The PROVEN algorithmic collapse for an accumulation/recurrence loop in the user's code, if any — the §2/§4
+    decision the canonical-fix engine does NOT cover: a Σ-loop → O(1) closed form (or a PROVEN-irreducible loop),
+    or a C-finite state-update loop → O(log n) companion form (measured, held-out-verified). None when no collapse
+    is proven (honest — never a fabricated one). Each carries its grade + certificate, sound/conservative."""
+    try:
+        import structure_recognizer as SR                      # noqa: PLC0415
+        d = SR.decide_loop(code)
+        if d is not None and d.status == "CLOSED_FORM":
+            return {"kind": "sum", "status": "CLOSED_FORM", "closed_form": d.closed_form,
+                    "complexity": "O(n) → O(1)", "grade": d.verdict.status, "certificate": d.certificate}
+        if d is not None and d.status == "NO_CLOSED_FORM":
+            return {"kind": "sum", "status": "NO_CLOSED_FORM", "complexity": "irreducible (proven)",
+                    "grade": d.verdict.status, "certificate": d.certificate}
+        if d is None:                                          # not a Σ-loop → try the C-finite recurrence collapse
+            import loop_recurrence as LR                       # noqa: PLC0415
+            rc = LR.decide_recurrence_collapse(code, n=10000, trials=2)
+            if rc.status == "COLLAPSED":
+                return {"kind": "recurrence", "status": "COLLAPSED", "order": rc.order, "c": rc.c,
+                        "complexity": "O(n) → O(log n)", "ratio": round(rc.ratio, 1), "measured_win": rc.measured_win,
+                        "grade": rc.verdict.status, "certificate": rc.verdict.certificate.detail}
+    except Exception:                                          # noqa: BLE001 — analysis must never break the response
+        return None
+    return None
 
 
 def modes() -> List[Dict]:

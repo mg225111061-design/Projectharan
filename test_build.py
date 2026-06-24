@@ -9337,6 +9337,34 @@ def test_loop_collapse_adversarial():
           "never falsely claims irreducible — the dominant failure mode, spec fragility, is gated)")
 
 
+def test_run_optimize_collapse():
+    """§2/§4 — the optimize RESULT (not only the live stream) surfaces the PROVEN loop collapse the canonical-fix
+    engine does NOT cover: a Σ-loop → O(1) closed form (or PROVEN-irreducible), a C-finite state-update loop →
+    O(log n) companion. Each carries its grade + certificate; absent ⇒ collapse=None (honest, never fabricated)."""
+    from webapi import engine_bridge as EB
+
+    sq = "def g(n):\n    s = 0\n    for k in range(1, n + 1):\n        s += k * k\n    return s"
+    c = EB.run_optimize(sq, "normal")["collapse"]
+    assert c and c["kind"] == "sum" and c["status"] == "CLOSED_FORM" and c["grade"] == "EXACT"
+    assert "n" in c["closed_form"] and c["complexity"] == "O(n) → O(1)" and c["certificate"]
+
+    harm = "def f(n):\n    s = 0\n    for k in range(1, n + 1):\n        s += 1 / k\n    return s"
+    ch = EB.run_optimize(harm, "normal")["collapse"]
+    assert ch and ch["status"] == "NO_CLOSED_FORM" and ch["grade"] == "EXACT", ch    # proven irreducible
+
+    fib = "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
+    cf = EB.run_optimize(fib, "normal")["collapse"]
+    assert cf and cf["kind"] == "recurrence" and cf["status"] == "COLLAPSED"
+    assert cf["complexity"] == "O(n) → O(log n)" and cf["c"] == [1, 1] and cf["grade"] == "EXACT" and cf["certificate"]
+
+    # no loop / glue code ⇒ no fabricated collapse (honest None)
+    assert EB.run_optimize("def h(c):\n    return c.get('a', 1)", "normal")["collapse"] is None
+
+    print("PASS test_run_optimize_collapse (the optimize RESULT surfaces the PROVEN collapse: Σk² → O(1) closed form, "
+          "harmonic → PROVEN irreducible, Fibonacci → O(log n) companion [c=[1,1]], glue → None — each with grade + "
+          "certificate, never fabricated; the canonical-fix engine alone misses these)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

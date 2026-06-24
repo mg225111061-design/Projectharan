@@ -520,6 +520,20 @@ function scrVerify(){
     ]),
   ]);
   const _pp=processPanel(); if(_pp) wrap.appendChild(_pp);    // §3: the live process panel, with the final result
+  if(r.collapse){                                            // §2/§4: the PROVEN loop collapse (decision procedure)
+    const co=r.collapse;
+    const head = co.status==="CLOSED_FORM" ? "증명된 붕괴: O(n) 루프 → O(1) 닫힌형"
+               : co.status==="NO_CLOSED_FORM" ? "증명된 기약: 이 루프는 닫힌형이 없음 — 루프 유지"
+               : "증명된 붕괴: O(n) 점화식 루프 → O(log n) 동반형";
+    const body = co.closed_form ? ("= "+co.closed_form)
+               : (co.c ? ("order="+co.order+", c="+JSON.stringify(co.c)+(co.ratio?(" · 측정 "+co.ratio+"×"):"")) : "");
+    wrap.appendChild($("div",{class:"card mt"},[
+      $("div",{class:"eyebrow"},"루프 붕괴 (결정 절차) · "+(co.complexity||"")),
+      $("div",{class:"row",style:"align-items:flex-start"},[
+        $("span",{class:"grade "+String(co.grade).toLowerCase()},[$("span",{class:"gd"}),gradeLabel(String(co.grade).toLowerCase())]),
+        $("div",{style:"flex:1"},[$("div",{class:"v-name"},head),$("div",{class:"v-sub"},body),
+          $("div",{class:"muted",style:"font-size:11px;margin-top:6px"},co.certificate||"")])])]));
+  }
   if(r.proposer) wrap.appendChild($("div",{class:"card mt"},[$("div",{class:"eyebrow"},"제안자 "+(r.proposer.used?"· "+r.proposer.provider:"· 결정론적")),$("div",{class:"row",style:"align-items:flex-start"},[$("span",{class:"badge-free",style:"background:var(--track);color:var(--ink-2)"},r.proposer.used?"LLM 사용":"결정론적 디텍터"),$("span",{class:"muted",style:"flex:1"},r.proposer.note)])]));
   if(r.shipped.length){
     const stack=$("div",{class:"slab-stack"}); r.shipped.forEach(s=>stack.appendChild(speedupSlab(s,r.mode)));

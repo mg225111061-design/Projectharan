@@ -156,6 +156,13 @@ hard gate is the verified equivalence + the honest-limit certificate. `loop_recu
 `동반형 ≡ 루프, held-out n 검증 · 3.8× 측정 win`, and a RESULT `O(n) 점화식 루프 → O(log n) 동반형 — 증명된 붕괴`
 (grade EXACT). So both the §2 sum-collapse and the §4 recurrence-collapse unfold live in the UI.
 
+**First-class in the optimize RESULT (not only the stream).** `engine_bridge.run_optimize` now carries a structured
+`collapse` field — the PROVEN loop collapse the canonical-fix engine doesn't cover: a Σ-loop → O(1) closed form
+(or PROVEN-irreducible), a C-finite state-update loop → O(log n) companion (with the measured ratio), each with
+its grade + certificate, or `None` when none is proven (honest, never fabricated). The static verify panel renders
+it as a "루프 붕괴 (결정 절차)" card. `test_run_optimize_collapse`. So the proven collapse is part of the actual
+result, programmatically consumable, not just narrated in the live trace.
+
 ---
 
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
