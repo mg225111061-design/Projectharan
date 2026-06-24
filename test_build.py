@@ -9391,6 +9391,33 @@ def test_loop_collapse_coverage():
           f"decided rows EXACT-certified — never a general-purpose-accelerator claim, the honest structured-corpus share)")
 
 
+def test_loop_collapse_budget_bounded():
+    """§1/§4 — the loop-collapse analysis EXECS and TIMES the user's loop (sampling, f(n)), so it is
+    BUDGET-BOUNDED: a pathological loop whose VALUE is C-finite (the fit succeeds) but whose per-call COST is slow
+    must NOT hang the optimize response — the daemon-thread watchdog returns None within budget (fast never blocks;
+    never fabricates a result). A normal fast loop still collapses within a generous budget (no false negative)."""
+    from webapi import engine_bridge as EB
+    import time
+
+    # f(n) = 1000n: linear (C-finite ⇒ the fit succeeds) but O(1000n) per call ⇒ f(10000) is slow (~0.6s)
+    slow = ("def f(n):\n    x = 0\n    for i in range(n):\n        for j in range(1000):\n            x += 1\n"
+            "    return x")
+    t0 = time.monotonic()
+    col = EB._loop_collapse(slow, budget_s=0.1)
+    dt = time.monotonic() - t0
+    assert dt < 0.9, f"the bounded analysis must NOT hang (took {dt:.2f}s)"
+    assert col is None, "a slow loop exceeding the budget returns None (honest — never a fabricated collapse)"
+
+    # a normal Fibonacci loop still COLLAPSES well within a generous budget (the bound creates no false negative)
+    fib = "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
+    cf = EB._loop_collapse(fib, budget_s=5.0)
+    assert cf and cf["status"] == "COLLAPSED" and cf["kind"] == "recurrence", cf
+
+    print(f"PASS test_loop_collapse_budget_bounded (a C-finite-but-SLOW loop [f(n)=1000n, O(n) per call] is "
+          f"budget-bounded → None in {dt:.2f}s [no hang, no fabricated collapse]; a normal Fibonacci loop still "
+          f"COLLAPSES within budget [no false negative from the bound] — fast never blocks on user code)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -149,7 +149,7 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
     detected = detect_in_source(code)
     det_types = {d["waste_type"] for d in detected}
     proposer = _proposer_block(provider, model, key, detected, m)
-    collapse = _loop_collapse(code)                            # §2/§4: the PROVEN loop collapse (if any) — first-class
+    collapse = _loop_collapse(code, budget_s={Mode.FAST: 0.5, Mode.NORMAL: 2.0, Mode.EXTEND: 5.0}.get(m, 2.0))
 
     # the canonical candidates whose waste class was detected in the user's code (engine vocabulary)
     cands = [c for c in C.build_candidates() if c.waste_type in det_types]
@@ -236,12 +236,18 @@ def _budget_info(m: Mode, elapsed_s: float, status: str) -> Dict:
     }
 
 
-def _loop_collapse(code: str) -> Optional[Dict]:
+def _loop_collapse(code: str, budget_s: float = 2.0) -> Optional[Dict]:
     """The PROVEN algorithmic collapse for an accumulation/recurrence loop in the user's code, if any — the §2/§4
     decision the canonical-fix engine does NOT cover: a Σ-loop → O(1) closed form (or a PROVEN-irreducible loop),
     or a C-finite state-update loop → O(log n) companion form (measured, held-out-verified). None when no collapse
-    is proven (honest — never a fabricated one). Each carries its grade + certificate, sound/conservative."""
-    try:
+    is proven (honest — never a fabricated one). Each carries its grade + certificate, sound/conservative.
+
+    ★ BUDGET-BOUNDED ★: the recurrence path EXECS and TIMES the user's loop (sampling, f(n)), so a pathological /
+    slow loop is bounded by `budget_s` via the daemon-thread watchdog — on overrun it returns None rather than
+    hang the optimize response (fast never blocks; tier-aware budget passed by run_optimize)."""
+    import latency_budget as LB                                # noqa: PLC0415
+
+    def _analyze():
         import structure_recognizer as SR                      # noqa: PLC0415
         d = SR.decide_loop(code)
         if d is not None and d.status == "CLOSED_FORM":
@@ -257,9 +263,13 @@ def _loop_collapse(code: str) -> Optional[Dict]:
                 return {"kind": "recurrence", "status": "COLLAPSED", "order": rc.order, "c": rc.c,
                         "complexity": "O(n) → O(log n)", "ratio": round(rc.ratio, 1), "measured_win": rc.measured_win,
                         "grade": rc.verdict.status, "certificate": rc.verdict.certificate.detail}
+        return None
+
+    try:
+        r = LB.run_with_budget(_analyze, budget_s * 1000.0)
+        return r.value if r.status == "OK" else None          # DEFERRED/ERROR ⇒ None (never hang, never fabricate)
     except Exception:                                          # noqa: BLE001 — analysis must never break the response
         return None
-    return None
 
 
 def modes() -> List[Dict]:

@@ -163,6 +163,12 @@ its grade + certificate, or `None` when none is proven (honest, never fabricated
 it as a "루프 붕괴 (결정 절차)" card. `test_run_optimize_collapse`. So the proven collapse is part of the actual
 result, programmatically consumable, not just narrated in the live trace.
 
+**Budget-bounded (§1 enforcement extended).** The collapse analysis EXECS and TIMES the user's loop (sampling,
+`f(n)`), so it is bounded by the mode budget (fast 0.5 s / normal 2 s / extend 5 s) via the daemon-thread watchdog:
+a pathological loop whose VALUE is C-finite (the fit succeeds) but whose per-call COST is slow returns `None`
+within budget rather than hanging the response — fast never blocks on user code, and a partial is never fabricated.
+A normal loop still collapses well within budget (no false negative). `test_loop_collapse_budget_bounded`.
+
 ---
 
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
