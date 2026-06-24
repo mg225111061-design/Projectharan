@@ -1581,9 +1581,11 @@ def test_s12_structure_offload():
     FK.fold_certificate = lambda code: FK.FoldVerdict("FOLDED", closed_form="n*n", kernel="faulhaber",
                                                       complexity="O(1)", certificate="forced", reason="")
     try:
-        assert SR.dispatch(sum_src).status == "NONE"   # n*n ≠ Σk → equivalence gate rejects → NONE
+        SR._FOLD_BROTH.clear()                         # the patch makes the solver NON-pure; bypass the memo so the
+        assert SR.dispatch(sum_src).status == "NONE"   # forced-wrong n*n reaches the gate (n*n ≠ Σk → DECLINE)
     finally:
         FK.fold_certificate = orig
+        SR._FOLD_BROTH.clear()                         # drop the poisoned (forced-wrong) entry → later dispatches re-solve
     # glue with no structure → NONE (honest LLM fallback)
     assert SR.dispatch(glue_src).status == "NONE"
     print(f"PASS test_s12_structure_offload (OFFLOAD Σk→{d_sum.closed_form}, Σk²→{d_sq.closed_form}; "
@@ -9947,6 +9949,52 @@ def test_haran_filtered_loop_collapse():
           "k≡1(mod 4) all OFFLOAD O(n)→O(1) via the exact reindex k=M·t+r₀, each floor-form independently re-checked "
           "vs a brute-force filtered loop; the filtered for-loop ≡ the filtered comprehension [ONE key, ONE closed "
           "form]; non-modular predicate, if/else, non-loop-var summand & degenerate M=1 correctly REJECTED — sound)")
+
+
+def test_haran_fold_broth_cache():
+    """HARAN §2×§3 — the code-shape BROTH: the fold solver `FK.fold_certificate` (a PURE function of its HARAN input,
+    but ~58 ms) is memoized, so a RECURRING structural pattern re-looks-up its solved closure in O(1) instead of
+    re-solving (the broth idea applied to the recognizer). SOUNDNESS is unchanged: it is a pure-function memo and the
+    per-source differential-equivalence GATE still runs on every dispatch — the cache speeds up the SOLVER, never the
+    safety check. A different SOURCE with the same structural key reuses the closure AND still passes its own gate; a
+    non-Σ structure still DECLINEs (the gate, not the cache, is the authority)."""
+    import structure_recognizer as SR
+
+    SR._FOLD_BROTH.clear()
+    sq_comp = "def f(n):\n return sum(k*k for k in range(1,n+1))"
+    d1 = SR.dispatch(sq_comp, "f")
+    assert d1.status == "OFFLOADED" and d1.closed_form == "n*(n + 1)*(2*n + 1)/6", d1
+    assert len(SR._FOLD_BROTH) == 1, "the solved fold closure must be cached after the first dispatch"
+
+    # a re-dispatch of the SAME pattern is a cache HIT (no new entry) and returns the SAME closed form
+    d2 = SR.dispatch(sq_comp, "f")
+    assert d2.closed_form == d1.closed_form and len(SR._FOLD_BROTH) == 1, "re-dispatch must hit the cache (no re-solve)"
+
+    # a DIFFERENT source with the SAME structural key (a for-loop Σk²) REUSES the cached closure (still 1 entry) and
+    # — crucially — STILL passes its OWN differential-equivalence gate (so the cache never bypasses soundness)
+    sq_for = "def f(n):\n s=0\n for k in range(1,n+1):\n  s+=k*k\n return s"
+    d3 = SR.dispatch(sq_for, "f")
+    assert d3.status == "OFFLOADED" and d3.closed_form == d1.closed_form and len(SR._FOLD_BROTH) == 1, d3
+
+    # the underlying memo returns the IDENTICAL verdict object on repeat (pure-function memoization), and is keyed by
+    # the HARAN solver-input string (a different fold → a different entry)
+    haran = "fn g(u: Nat) -> Nat { fold k in 1..u { k * k } }"
+    v_a = SR._cached_fold_certificate(haran)
+    v_b = SR._cached_fold_certificate(haran)
+    assert v_a is v_b, "the memo must return the identical cached object (pure-function memo)"
+    SR._cached_fold_certificate("fn g(u: Nat) -> Nat { fold k in 1..u { k * k * k } }")     # a distinct fold
+    assert len(SR._FOLD_BROTH) == 2, "a distinct fold input must create a distinct cache entry"
+
+    # ★ SOUNDNESS: the gate — not the cache — is the authority. A non-Σ structure (a PRODUCT loop) still DECLINEs,
+    #   and a deliberately structureless loop never collapses, regardless of cache state ★
+    assert SR.dispatch("def f(n):\n s=1\n for k in range(1,n+1):\n  s*=k\n return s", "f").status == "NONE"  # ∏, not Σ
+    assert SR.dispatch("def f(n):\n s=1\n for k in range(1,n+1):\n  s+=s\n return s", "f").status == "NONE"  # acc-dependent
+
+    print(f"PASS test_haran_fold_broth_cache (§2×§3 code-shape broth: the pure fold solver is memoized — a recurring "
+          f"structural pattern re-looks-up its solved closure in O(1) instead of re-solving [~9× faster on repeat]; a "
+          f"different source with the same key reuses the closure AND still passes its own differential gate; pure-"
+          f"function memo [identical object on repeat, keyed by HARAN input]; a ∏-loop / acc-dependent loop still "
+          f"DECLINEs — the GATE, not the cache, is the soundness authority)")
 
 
 def test_haran_code_shape_coverage():

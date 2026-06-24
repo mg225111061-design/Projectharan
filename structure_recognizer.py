@@ -38,6 +38,21 @@ from typing import List, Optional, Tuple
 
 import fold_kernels as FK
 
+# ── code-shape BROTH (§2 pattern × §3): the fold solver `FK.fold_certificate` is a PURE function of its HARAN input
+#    string but costs ~58 ms; memoize solved fold closures so a RECURRING structural pattern re-looks-up in O(1)
+#    instead of re-solving (the broth idea — pre-prove/cache common instantiations → instant lookup — applied to the
+#    recognizer). SOUND: pure-function memo (the verdict object is only ever READ downstream); the per-source
+#    differential-equivalence GATE still runs on every dispatch, so caching the solver never weakens soundness.
+_FOLD_BROTH: dict = {}
+
+
+def _cached_fold_certificate(haran: str):
+    v = _FOLD_BROTH.get(haran)
+    if v is None:
+        v = FK.fold_certificate(haran)
+        _FOLD_BROTH[haran] = v
+    return v
+
 # ── shape classes + algebraic objects (the unified algebra of §0.4) ─────────────────────────────────
 CLOSED_FORM_LOOP = "CLOSED_FORM_LOOP"
 TENSOR_LA = "TENSOR_LA"
@@ -791,7 +806,7 @@ def _offload_closed_form(source: str, fn: ast.FunctionDef, acc: _AccLoop) -> Dis
     import sympy
     u = sympy.Symbol("u")
     haran = f"fn g(u: Nat) -> Nat {{ fold {acc.var} in {lo_val}..u {{ {acc.body} }} }}"
-    verdict = FK.fold_certificate(haran)
+    verdict = _cached_fold_certificate(haran)               # code-shape broth: O(1) re-lookup of a solved fold
     if verdict.status != "FOLDED":
         return Dispatch(NONE, struct, detail=f"fold solver did not close this form ({verdict.status}: "
                         f"{verdict.reason}) → LLM fallback")
