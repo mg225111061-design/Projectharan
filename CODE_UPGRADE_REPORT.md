@@ -267,8 +267,9 @@ every one of the 50 named algorithms resolves to a real, certificate-bearing imp
 done; the 8 original gaps were each built one-per-commit, and PARTIALS are being closed too — #44 Euler-φ gained
 Möbius μ, #42 gained the Stern–Brocot tree, #29 gained fast multipoint evaluation, #36 gained the BPSW strong-Lucas
 component, #39 gained Cipolla cross-checking Tonelli, #40 gained Pollard-rho cross-checking BSGS, #38 gained
-Pollard p−1 — **Group C is now fully CONFIRMED**). The 2 remaining PARTIALS (#17 Hermite [subsumed in Risch],
-#25 CP/Tucker tensor decomposition) are NOT gaps — each names only a missing SUB-variant (e.g.
+Pollard p−1, #17 gained a standalone Hermite/Horowitz reduction — **Groups A, C, D are now fully CONFIRMED**).
+The 1 remaining PARTIAL (#25 CP/Tucker tensor decomposition — canonicalization present, exact CP/Tucker not yet)
+is NOT a gap — it names only a missing SUB-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
 #27 — NEVER marked EXACT). Tiers: fast 10 / normal 30 / extend 10. The honest-complexity caveats are RECORDED and

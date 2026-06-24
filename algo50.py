@@ -104,9 +104,10 @@ _A: List[Algo] = [
     Algo(16, "Risch (elementary integration)", "A", "mathmode.decision_integration", "risch_elementary", KV.EXACT,
          "differentiate-and-check F′ ≡ f / proven non-elementary (Liouville)", "decision (transcendental case)",
          True, EXTEND, False, note="algebraic case PARTIAL — honest (transcendental case complete)"),
-    Algo(17, "Hermite reduction (rational integration)", "A", "mathmode.decision_integration", "risch_elementary",
-         KV.EXACT, "derivative check F′ ≡ f (subsumed by the Risch decision)", "exact rational integration", False,
-         EXTEND, False, PARTIAL, "no standalone Hermite step — subsumed inside Risch (decision_integration)"),
+    Algo(17, "Hermite reduction (rational integration)", "A", "hermite", "hermite_reduce_grade", KV.EXACT,
+         "Horowitz–Ostrogradsky split; (rational)′ + reduced ≡ integrand verified by differentiation; reduced "
+         "denom squarefree", "O(poly) linear solve", False, NORMAL, False,
+         note="standalone Hermite/Horowitz reduction (rational part) + the Risch decision both present"),
     Algo(18, "CAD (cylindrical algebraic decomposition)", "A", "mathmode.real_qe", "decide", KV.EXACT,
          "per-cell sample-point sign conditions + Sturm real-root cross-check", "DOUBLY-EXPONENTIAL — NEVER O(1)",
          True, EXTEND, False, note="doubly-exponential; univariate/low-dim within the extend budget, else DECLINE"),

@@ -9424,6 +9424,38 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_hermite():
+    """HARAN #17 (Group A) — HERMITE / Horowitz–Ostrogradsky reduction of ∫ A/B dx into a RATIONAL part + a
+    transcendental part with a SQUAREFREE denominator, WITHOUT factoring B. EXACT, certified by DIFFERENTIATION:
+    (rational)′ + reduced ≡ integrand as a rational-function identity. Closes the standalone-Hermite partial
+    (Group A → 20/20)."""
+    import hermite as H
+    import kernel_verdict as KV
+    import sympy as sp
+    x = sp.Symbol("x")
+
+    for nu, de in [("1", "x**2*(x+1)"), ("1", "(x-1)**3"), ("x", "(x**2+1)**2"),
+                   ("3*x+2", "(x+1)**2*(x-2)"), ("5", "(x**2+x+1)**2")]:
+        v = H.hermite_reduce_grade(nu, de)
+        assert v.status == KV.EXACT, (nu, de, v.status)
+        rp = sp.sympify(v.result["rational_part"]); rn = sp.sympify(v.result["reduced_num"])
+        rd = sp.sympify(v.result["reduced_den"])
+        # ★ independent differentiation re-check of the Hermite identity ★
+        assert sp.simplify(sp.diff(rp, x) + rn / rd - sp.sympify(nu) / sp.sympify(de)) == 0, (nu, de)
+        assert v.result["squarefree_reduced_denom"] is True and v.certificate.kind == "hermite_differentiation"
+
+    # spot: ∫ 1/(x²(x+1)) has rational part −1/x
+    assert sp.simplify(sp.sympify(H.hermite_reduce_grade("1", "x**2*(x+1)").result["rational_part"]) - (-1 / x)) == 0
+
+    # honest DECLINE: non-rational integrand, zero denominator
+    assert H.hermite_reduce_grade("sin(x)", "1").status == KV.DECLINE
+    assert H.hermite_reduce_grade("1", "0").status == KV.DECLINE
+
+    print("PASS test_haran_hermite (#17: Horowitz–Ostrogradsky reduction of ∫A/B — rational part + squarefree-denom "
+          "remainder; 5-case battery with (rational)′+reduced ≡ integrand verified by differentiation; "
+          "∫1/(x²(x+1)) rational=−1/x; non-rational/zero-denom → DECLINE — Group A now 20/20)")
+
+
 def test_haran_pollard_pm1():
     """HARAN #38 (Group C) — Pollard's p−1 factorization: a method DISTINCT from trial/rho that cracks n when a
     prime factor p has p−1 smooth (a ← a^j accumulates j!; gcd(a−1,n) reveals p). EXACT with a re-checkable
