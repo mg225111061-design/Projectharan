@@ -73,8 +73,14 @@ either way — whether `Σ_{k=lo}^{n} f(k)` collapses to a closed form:
 This is the moat: "this loop cannot be collapsed" is PROVEN by a complete decision procedure, not guessed; and a
 collapse ships EXACT only behind our own differential certificate. A wrong closed form is never emitted (the gate
 rejects it — tested with a deliberately-wrong `n³` vs Σk²); a wrong "irreducible" would be a correctness bug.
-`loop_decision.py`, `test_loop_decision`. (Next: wire this into `structure_recognizer` so a non-folding loop gets
-this PROVEN verdict in the live CODE path, and stream it to the UI per §3.)
+`loop_decision.py`, `test_loop_decision`.
+
+**Wired into the live CODE source-analysis layer.** `structure_recognizer.decide_loop(source)` runs this decision
+on a recognized Σ-accumulation loop in the user's actual code (it reuses the existing `_closed_form_loop`
+extractor). It is ADDITIVE — it complements `dispatch`'s fold-offload without changing it (so the harmonic loop
+`for k in range(1,n): acc += 1/k` is decided PROVEN-irreducible, and `acc += k*k` collapses to the verified
+`n(n+1)(2n+1)/6`), and returns None outside the Σ-class (a product loop, glue code) — never a false verdict.
+(Next: stream this verdict to the UI per §3.)
 
 ---
 

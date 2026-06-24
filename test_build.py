@@ -9120,6 +9120,18 @@ def test_loop_decision():
     okr, chkr = LD._differential_ok(sp.sympify("k**2"), sp.sympify("n*(n+1)*(2*n+1)/6"), k, n, 1)    # correct
     assert chkr >= 3 and okr == chkr, "the gate must accept the correct closed form"
 
+    # ── ABSORBED INTO THE LIVE CODE PATH: the decision runs on real Python SOURCE (structure_recognizer) ──
+    import structure_recognizer as SR
+    harm = "def f(n):\n    acc = 0\n    for k in range(1, n+1):\n        acc += 1/k\n    return acc"   # harmonic
+    sqs  = "def g(n):\n    s = 0\n    for k in range(1, n+1):\n        s += k*k\n    return s"            # Σk²
+    prod = "def p(n):\n    r = 1\n    for k in range(1, n+1):\n        r *= k\n    return r"              # product
+    dh, dq = SR.decide_loop(harm), SR.decide_loop(sqs)
+    assert dh is not None and dh.status == LD.NO_CLOSED_FORM, dh        # the harmonic loop is PROVEN irreducible
+    assert dq is not None and dq.status == LD.CLOSED_FORM and dq.verdict.status == KV.EXACT
+    qcf = sp.sympify(dq.closed_form)                                    # and the emitted form is correct
+    assert sp.simplify(qcf.subs(n, 9) - sum(j * j for j in range(1, 10))) == 0
+    assert SR.decide_loop(prod) is None, "a product loop is outside the Σ-decision scope (honest None)"
+
     print("PASS test_loop_decision (decision-procedures-as-analysis: Σk²/Σk³/Σk·2ᵏ/Σ1/(k(k+1))/Σ7 → CLOSED_FORM O(1), "
           "each re-verified vs brute force; Σ1/k & Σ1/k! → PROVEN NO_CLOSED_FORM [Gosper complete; Abramov confirms "
           "harmonic]; Σ(2ᵏ+3ᵏ) → honest UNDECIDED [out of class]; differential gate rejects a wrong closed form)")

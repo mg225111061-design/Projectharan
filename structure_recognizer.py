@@ -440,3 +440,29 @@ def dispatch(source: str, fn_name: Optional[str] = None) -> Dispatch:
     except Exception as e:  # noqa: BLE001 — recognition/offload must never crash the pipeline
         return Dispatch(NONE, Structure(NONE, detail=f"recognizer error: {type(e).__name__}"),
                         detail="recognizer raised — safe NONE (LLM fallback)")
+
+
+# ── §2 (ABSORB MATH): decision-procedures-as-analysis on a recognized Σ-accumulation loop ───────────────
+def decide_loop(source: str, fn_name: Optional[str] = None):
+    """Run the absorbed MATH decision procedures on a Σ-accumulation loop in the user's SOURCE: DECIDE whether
+    Σ_{k=lo}^{n} f(k) collapses to a closed form (Gosper — COMPLETE on hypergeometric terms). Returns a
+    `loop_decision.LoopDecision`: CLOSED_FORM (an O(1) form, differential-gated) / NO_CLOSED_FORM (a PROVEN
+    'this loop is irreducible' — keep it) / UNDECIDED (outside the class — no false claim). This COMPLEMENTS
+    `dispatch`'s fold-offload: where the fold solver can't close a form, the decision procedure can still PROVE
+    the loop has no closed form (a first-class result), or find one the fold missed. Returns None when the
+    function is not a single-symbol Σ-accumulation loop with a concrete lower bound (honest: outside this
+    analysis — never a false verdict). It NEVER mutates code; it only decides and certifies."""
+    import loop_decision as LD                                # lazy: keeps recognizer import light
+    fn = _first_fn(source, fn_name)
+    if fn is None:
+        return None
+    acc = _closed_form_loop(fn)
+    if acc is None or acc.op != "+":                          # only Σ-summation is in this analysis's scope
+        return None
+    if _names_used(ast.parse(acc.body, mode="eval")) - {acc.var}:   # body must be a pure f(k) (loop var only)
+        return None
+    try:                                                     # lower bound must be a concrete integer
+        lo = int(eval(compile(ast.parse(acc.lo, mode="eval"), "<lo>", "eval"), {"__builtins__": {}}))  # noqa: S307
+    except Exception:                                        # noqa: BLE001
+        return None
+    return LD.decide_sum_collapse(acc.body, acc.var, lo)
