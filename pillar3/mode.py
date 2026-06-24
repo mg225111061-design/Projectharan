@@ -24,14 +24,17 @@ normal — "compound real wins until it stops being worth it."
     ten verified medium wins than one unverified huge one. Its contract: every shipped fix is either EXACT or a
     well-tested PROBABILISTIC with a real measured whole-program gain.
 
-extend — "find every reachable win, prove it, and I'll wait as long as it takes."
-    extend optimises Clock C (emitted speed) and sacrifices Clock A entirely — the overnight mode for a hot
-    service. It runs the full multi-size complexity sweep, algorithm recognition, verified lifting, egg
-    superoptimisation, GPU/SIMD offload, and cross-cutting global transforms. It uses full Z3/SMT equivalence
-    and is EXACT-or-DECLINE: it ships nothing it cannot prove. extend would rather DECLINE a real 1000× win
-    than ship it on differential evidence alone. Its contract is the strongest — every shipped fix carries a
-    machine-checked equivalence certificate. This is where the moat lives: the bigger the change, the more the
-    proof is worth, and extend is the mode that always pays for the proof.
+extend — "find every reachable win, prove it — within a BOUNDED ~8-minute budget, then return the best proven."
+    extend optimises Clock C (emitted speed) and sacrifices Clock A — but it is NOT unlimited. It runs the full
+    multi-size complexity sweep, algorithm recognition, verified lifting, egg superoptimisation, GPU/SIMD offload,
+    and cross-cutting global transforms under a HARD ~8-minute (480 s) wall-clock budget. It uses full Z3/SMT
+    equivalence and is EXACT-or-DECLINE: it ships nothing it cannot prove. extend would rather DECLINE a real
+    1000× win than ship it on differential evidence alone. Its contract is the strongest — every shipped fix
+    carries a machine-checked equivalence certificate. When the 8-minute budget is spent it returns the BEST
+    CERTIFIED result reached so far, or an honest partial ("couldn't close within the extend budget — here is what
+    is proven + what remains"). It NEVER runs past the budget, NEVER fakes a result to fill the time, and NEVER
+    weakens a grade to go faster. This is where the moat lives: the bigger the change, the more the proof is worth
+    — and extend pays for the proof until the budget runs out, then stops honestly.
 """
 from __future__ import annotations
 
@@ -97,7 +100,8 @@ class ModePolicy:
     acceptable_grades: FrozenSet[str]       # which shipped grades are allowed (the grade floor)
     stop_condition: str                     # human-readable stop rule
     marginal_floor: float                   # stop when the next marginal whole-program gain drops below this
-    latency_budget_s: Optional[float]       # soft latency budget (None = unbounded / overnight)
+    latency_budget_s: Optional[float]       # TOTAL wall-clock budget per run — ENFORCED (fast ~1s / normal ~30s /
+                                            # extend ~8min BOUNDED); none hangs past it (mode_budget.run_under_mode_budget)
     risk_posture: str
     deep_search: bool                       # extend searches deeply over candidate fixes
     stop_on_first_win: bool                 # fast: return after the first accepted win
@@ -161,10 +165,11 @@ _POLICIES = {
         max_hotspots=None,                           # entire profile
         max_iterations=64,
         acceptable_grades=frozenset({KV.EXACT}),     # ★ EXACT-or-DECLINE — PROBABILISTIC-only fixes REJECTED ★
-        stop_condition="every enabled detector tried; floor or Clock-B budget reached",
-        marginal_floor=0.0,                          # do not stop early — find every reachable win
-        latency_budget_s=None,                       # unbounded / overnight
-        risk_posture="DECLINE-a-real-win OK; ship-unproven NEVER",
+        stop_condition="every enabled detector tried, OR the ~8-min extend budget is spent — then return the "
+                       "best CERTIFIED result reached (or an honest partial); never past budget, never faked",
+        marginal_floor=0.0,                          # do not stop early — find every reachable win within budget
+        latency_budget_s=480.0,                      # ★ BOUNDED ~8 min — NOT unlimited; best-proven-within-budget ★
+        risk_posture="DECLINE-a-real-win OK; ship-unproven NEVER; run-past-budget NEVER",
         deep_search=True,
         stop_on_first_win=False,
         samples=5,

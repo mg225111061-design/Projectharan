@@ -8,7 +8,7 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **236 passed / 236** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
+| Tests | **237 passed / 237** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
@@ -22,7 +22,12 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 
 ## CODE mode (pillar3 / webapi / server)
 - OMEGA Rounds 1–3 fully dispositioned (90/90). EXACT-share ≈ **68%** of graded capabilities (`exact_share.py`).
-- Recognizers + verified lifting + e-graph + superopt + sound static analyses; fast/normal/extend mode separation.
+- Recognizers + verified lifting + e-graph + superopt + sound static analyses; fast/normal/extend mode separation
+  with **ENFORCED wall-clock budgets** (~1 s / ~30 s / ~8 min) — `pillar3/mode.py` is the contract,
+  `mode_budget.run_under_mode_budget` is the runtime. **extend is BOUNDED at ~8 min, NOT unlimited**: at the
+  deadline it returns the best CERTIFIED result reached (or an honest partial), never runs past budget, never
+  fakes to fill time, never weakens a grade to go faster; fast (MICRO tier) NEVER calls the heavy solver; the hard
+  watchdog (`latency_budget.run_with_budget`, daemon thread) means no tier ever hangs. `test_mode_budget_roles`.
 
 ## MATH mode (`mathmode/`, 22 modules)
 - Center: **`fold`** — recognize structure → closed form + co-generated certificate, or honest DECLINE.

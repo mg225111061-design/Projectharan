@@ -4258,7 +4258,10 @@ def test_phaseM1_mode_policy():
     assert fast.max_hotspots == 3 and fast.stop_on_first_win and not fast.runs_complexity_sweep
     assert normal.max_hotspots is None and normal.marginal_floor >= 0.10
     assert extend.max_hotspots is None and extend.runs_complexity_sweep and extend.deep_search
-    assert extend.latency_budget_s is None and fast.latency_budget_s is not None        # extend unbounded
+    # ★ extend is BOUNDED ~8 min (480 s) — NOT unlimited; all three budgets are bounded and strictly ordered ★
+    assert fast.latency_budget_s == 1.0 and normal.latency_budget_s == 30.0 and extend.latency_budget_s == 480.0
+    assert fast.latency_budget_s < normal.latency_budget_s < extend.latency_budget_s
+    assert extend.latency_budget_s is not None, "extend must be time-BOUNDED (~8 min), never unbounded/overnight"
 
     # the Z3 counter (the instrument that makes separation checkable) works
     V.reset_z3_checks(); assert V.z3_check_count() == 0
@@ -4268,7 +4271,7 @@ def test_phaseM1_mode_policy():
     print(f"PASS test_phaseM1_mode_policy (verifier-tier ladder MICRO<CHEAP_CERT<FULL_CERT, fast NEVER certifies; "
           f"grade floor mode-dependent: extend=EXACT-or-DECLINE (PROBABILISTIC rejected); detector sets strictly "
           f"monotone fast⊂normal⊂extend ({len(FAST_DETECTORS)}⊂{len(NORMAL_DETECTORS)}⊂{len(EXTEND_DETECTORS)}); "
-          f"fast top-{fast.max_hotspots} first-win no-sweep, extend unbounded full-sweep deep-search — contract enforced)")
+          f"fast top-{fast.max_hotspots} first-win no-sweep ~1s, extend ~8min-BOUNDED full-sweep deep-search — contract enforced)")
 
 
 def test_phaseM2_mode_distinctness():
@@ -8995,6 +8998,71 @@ def test_docs_not_stale():
         assert a == n and b == n, f"{fname} claims {a}/{b} tests but the suite has {n} — update the doc (anti-drift)"
     print(f"PASS test_docs_not_stale (STATUS.md & HANDOFF.md both state the real test count = {n}; "
           f"onboarding docs cannot silently drift from reality)")
+
+
+def test_mode_budget_roles():
+    """§1 (CORE) — fast/normal/extend are DISTINCT roles with DISTINCT, ENFORCED wall-clock budgets, not speed
+    presets. The headline guarantee: extend is BOUNDED at ~8 min — NOT unlimited; at the deadline it returns the
+    BEST CERTIFIED result reached (or an honest partial), never runs past budget, never fakes a result to fill the
+    time, never weakens a grade to go faster; and fast NEVER calls the heavy solver. Each claim is a CHECKED
+    invariant here, so the role separation cannot silently drift back into 'same thing, slower/faster'."""
+    import time
+    import mode_budget as MB
+    import kernel_verdict as KV
+    from pillar3.mode import Mode, ModePolicy
+    from pillar3 import verifier as V
+
+    # (a) the three TOTAL budgets are bounded and strictly ordered — extend is ~8 min, NOT unlimited
+    bf, bn, be = (MB.budget_for_mode(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND))
+    assert (bf, bn, be) == (1.0, 30.0, 480.0), (bf, bn, be)
+    assert bf < bn < be and be == 480.0, "extend BOUNDED ~8min"
+    for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND):
+        assert ModePolicy.for_mode(m).latency_budget_s is not None, f"{m} must be time-bounded (never None/overnight)"
+
+    # (b) fast NEVER calls the heavy solver — its verifier tier provably excludes Z3 (a code-path guarantee)
+    assert ModePolicy.for_mode(Mode.FAST).verifier_tier == V.VerifierTier.MICRO
+    assert V.tier_allows_certificate(V.VerifierTier.MICRO, 1) is False, "fast (MICRO) must never invoke the solver"
+    assert V.tier_allows_certificate(V.VerifierTier.FULL_CERT, 1) is True   # extend may
+
+    # (c) WITHIN_BUDGET: work that completes returns its result + real grade
+    def quick(budget, partial):
+        partial.offer({"v": 42}, KV.EXACT)
+        return KV.exact({"v": 42}, "kern", "demo", KV.Cert(KV.EXACT, "k", True))
+    r1 = MB.run_under_mode_budget(Mode.NORMAL, quick)
+    assert r1.status == "WITHIN_BUDGET" and r1.grade == KV.EXACT and not r1.deferred
+
+    # (d) NEVER hangs past budget + returns the BEST CERTIFIED partial WITHOUT faking/weakening. A task that
+    # ignores the cooperative deadline and would sleep 5 s is abandoned by the watchdog at a tiny 0.2 s budget.
+    def runaway(budget, partial):
+        partial.offer("best-so-far", KV.PROBABILISTIC)     # the strongest certified result it reached
+        while not budget.expired():
+            pass
+        time.sleep(5.0)                                    # would hang the pipeline without enforcement
+        return KV.exact("FAKED", "k", "x", KV.Cert(KV.EXACT, "k", True))  # must NEVER surface (faked-to-fill)
+    t0 = time.monotonic()
+    r2 = MB.run_under_mode_budget(Mode.EXTEND, runaway, budget_s=0.2)
+    elapsed = time.monotonic() - t0
+    assert elapsed < 1.5, f"must not hang past budget (took {elapsed:.2f}s)"
+    assert r2.status == "DEFERRED_PARTIAL" and r2.deferred
+    assert r2.grade == KV.PROBABILISTIC and r2.result == "best-so-far", "must return the honest best-so-far partial"
+    assert r2.grade != KV.EXACT, "a DEFERRED partial is NEVER relabeled EXACT (grade not weakened/faked to look done)"
+
+    # (e) GRADES DIFFER BY TIER: extend is EXACT-or-DECLINE (PROBABILISTIC rejected); fast/normal accept the
+    # honest fast PROBABILISTIC — so the SAME probabilistic fix is acceptable in fast/normal but NOT in extend
+    fast_p, ext_p = ModePolicy.for_mode(Mode.FAST), ModePolicy.for_mode(Mode.EXTEND)
+    assert ext_p.acceptable_grades == frozenset({KV.EXACT}), "extend ships only EXACT (or DECLINEs)"
+    assert fast_p.grade_acceptable(KV.PROBABILISTIC) and not ext_p.grade_acceptable(KV.PROBABILISTIC)
+
+    # (f) the live UI line (§3): 'mode · m:ss / m:ss' + a fraction in [0,1] that advances with elapsed time
+    b = MB.TimeBudget(Mode.EXTEND, 480.0, time.monotonic() - 192.0)     # 3:12 into an 8:00 budget
+    assert b.display() == "extend · 3:12 / 8:00", b.display()
+    assert 0.0 <= b.fraction_used() <= 1.0 and abs(b.fraction_used() - 0.4) < 0.02
+    assert b.remaining_s() > 0 and "BOUNDED" in MB.tier_label(Mode.EXTEND) and "8 min" in MB.tier_label(Mode.EXTEND)
+
+    print(f"PASS test_mode_budget_roles (fast/normal/extend = {bf:.0f}s/{bn:.0f}s/{be:.0f}s ENFORCED & ordered; "
+          f"extend BOUNDED ~8min NOT unlimited; fast(MICRO) never calls the solver; budget overrun → DEFERRED_PARTIAL "
+          f"in {elapsed:.2f}s [no hang], best-so-far grade={r2.grade} kept honest [not faked/weakened to EXACT]; "
+          f"grades differ by tier (extend EXACT-or-DECLINE, PROBABILISTIC rejected); live UI line '{b.display()}')")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

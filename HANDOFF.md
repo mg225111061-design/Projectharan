@@ -14,7 +14,7 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **236 통과 / 236** (`test_build.py`, 결정론 실행; 아래 명령) |
+| 테스트 | **237 통과 / 237** (`test_build.py`, 결정론 실행; 아래 명령) |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
@@ -27,7 +27,7 @@
 ```bash
 cd /home/user/Projectharan
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py
-# … 236 passed, 0 failed
+# … 237 passed, 0 failed
 ```
 부하(전체 동시 실행) 하에서만 흔들리는 알려진 flake: HyperLogLog(`test_round2_sublinear_sketches`),
 `test_pillar3_stage2_compounding_loop`, 일부 절대-임계 perf 게이트 — **전부 단독 실행 시 통과**(부하 flake, 회귀 아님).
@@ -41,6 +41,9 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 p
 - **LLM은 제안만, 검증기가 결정한다.** 틀린 "증명됨"은 정정대상 correctness 버그. 가짜 통과보다 정직한 UNVERIFIED.
 - **No Lean/Coq/Isabelle 런타임 의존(=0).** Z3는 허용(+자체 bit-blaster 구축 중, §2). phone-home=0(제공자 API 제외). 키는 세션 전용.
 - **fast/normal/extend** 분리를 CODE와 MATH 둘 다 안에서 보존(커밋마다 불변식). 디자인 승인됨 — 확장만, 재설계 금지.
+  세 티어는 **강제되는 벽시계 예산**의 별개 역할: fast ≈ 1초(무거운 솔버 호출 금지) · normal ≈ 30초 · **extend ≈ 8분 BOUNDED(무제한 아님)**.
+  extend는 예산 소진 시 도달한 최선의 **증명된** 결과(또는 정직한 부분결과)를 반환 — 예산 초과 실행 금지, 시간 채우려 결과 위조 금지, 빨리 가려고 등급 약화 금지.
+  계약=`pillar3/mode.py`, 런타임=`mode_budget.run_under_mode_budget`, 하드 워치독=`latency_budget.run_with_budget`(데몬 스레드 — 어떤 티어도 멈춰 매달리지 않음). `test_mode_budget_roles`.
 
 ## 2. 두 최상위 모드
 - **CODE**(`server.py`+`pillar3/`+`webapi/`): 코드 붙여넣기 → 더 빠른 *검증된* 코드 → 등급. OMEGA 라운드 1–3 완료, EXACT-share ~68%.
