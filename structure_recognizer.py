@@ -391,6 +391,91 @@ def _acc_loop_any_shape(fnnode: ast.FunctionDef) -> Optional[_AccLoop]:
 
 
 @dataclass
+class _NestedAcc:
+    """A doubly-nested accumulation Σ_i Σ_j h(i,j): the OUTER loop var/bounds, the INNER loop var/bounds (whose
+    bounds MAY depend on the outer var — the triangular case), op/algebra, and the body h (in terms of i,j,param)."""
+    vi: str
+    lo1: str
+    hi1: str           # outer range upper bound (EXCLUSIVE), source
+    vj: str
+    lo2: str
+    hi2: str           # inner range upper bound (EXCLUSIVE), source — may reference the outer var
+    op: str            # "+" | "*"
+    algebra: str
+    body: str          # accumulated expression, source, in terms of vi/vj (and the param)
+
+
+def _nested_acc(fnnode: ast.FunctionDef) -> Optional[_NestedAcc]:
+    """CODE-SHAPE NORMALIZATION (nested): `acc=ID; for i in range(lo1,hi1): for j in range(lo2,hi2): acc OP= h(i,j);
+    return acc` ⇒ a `_NestedAcc` 2-D fold. Conservative & sound — EXACTLY two nested `for`s (the inner is the outer
+    body's only statement; the acc-update is the inner body's only statement), one accumulator initialised to the
+    monoid identity and returned, h depends only on {i, j, param} (NOT the accumulator / external state). Inner
+    bounds MAY reference the outer var (triangular sums); outer bounds reference only the param. Else None."""
+    if len(_for_loops(fnnode)) != 2 or any(isinstance(n, ast.While) for n in ast.walk(fnnode)):
+        return None
+    if len(fnnode.args.args) != 1 or fnnode.args.vararg or fnnode.args.kwarg or fnnode.args.kwonlyargs:
+        return None
+    param = fnnode.args.args[0].arg
+    body = fnnode.body
+    if not (len(body) == 3 and isinstance(body[0], ast.Assign) and isinstance(body[1], ast.For)
+            and isinstance(body[2], ast.Return)):
+        return None
+    init, outer, ret = body
+    if not (len(init.targets) == 1 and isinstance(init.targets[0], ast.Name) and isinstance(init.value, ast.Constant)):
+        return None
+    accname = init.targets[0].id
+    if not (isinstance(ret.value, ast.Name) and ret.value.id == accname):
+        return None
+    # outer loop: `for i in range(lo1,hi1):` whose body is exactly the inner `for`
+    if not (isinstance(outer.iter, ast.Call) and isinstance(outer.iter.func, ast.Name) and outer.iter.func.id == "range"
+            and isinstance(outer.target, ast.Name) and len(outer.body) == 1 and isinstance(outer.body[0], ast.For)):
+        return None
+    inner = outer.body[0]
+    if not (isinstance(inner.iter, ast.Call) and isinstance(inner.iter.func, ast.Name) and inner.iter.func.id == "range"
+            and isinstance(inner.target, ast.Name) and len(inner.body) == 1):
+        return None
+    vi, vj = outer.target.id, inner.target.id
+    if vi == vj or vi == param or vj == param or vi == accname or vj == accname:
+        return None
+    stmt = inner.body[0]
+    if isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == accname:
+        b = _MONOID_BIN.get(type(stmt.op).__name__)
+        hsrc = stmt.value
+    else:
+        return None
+    if b is None:
+        return None
+    if (b[0] == "+" and init.value.value != 0) or (b[0] == "*" and init.value.value != 1):
+        return None                                          # base accumulator must be the monoid identity
+
+    def _bounds(call):
+        a = call.args
+        if len(a) == 1:
+            return "0", ast.unparse(a[0])
+        if len(a) == 2:
+            return ast.unparse(a[0]), ast.unparse(a[1])
+        return None
+    ob, ib = _bounds(outer.iter), _bounds(inner.iter)
+    if ob is None or ib is None:                             # step ≠ 1 not lifted here (honest)
+        return None
+    lo1, hi1 = ob
+    lo2, hi2 = ib
+    # the accumulated body must reference only {i, j, param} and NOT the accumulator/other names
+    hnames = _names_used(ast.parse(ast.unparse(hsrc), mode="eval"))
+    if not hnames.issubset({vi, vj, param}) or not (hnames & {vi, vj}):
+        return None
+    # the OUTER bounds may reference only the param (not i/j); the INNER bounds may reference the param and i
+    if not (_names_used(ast.parse(lo1, mode="eval")).issubset({param})
+            and _names_used(ast.parse(hi1, mode="eval")).issubset({param})):
+        return None
+    if not (_names_used(ast.parse(lo2, mode="eval")).issubset({param, vi})
+            and _names_used(ast.parse(hi2, mode="eval")).issubset({param, vi})):
+        return None
+    return _NestedAcc(vi=vi, lo1=_canon_expr(lo1), hi1=_canon_expr(hi1), vj=vj, lo2=_canon_expr(lo2),
+                      hi2=_canon_expr(hi2), op=b[0], algebra=b[1], body=ast.unparse(hsrc))
+
+
+@dataclass
 class _Join:
     a_iter: str
     b_iter: str
@@ -481,6 +566,10 @@ def recognize(source: str, fn_name: Optional[str] = None) -> Structure:
     if acc is not None:
         return Structure(CLOSED_FORM_LOOP, acc.algebra,
                          f"reduce('{acc.op}', f({acc.var})) over range({acc.lo},{acc.hi})", name)
+    nst = _nested_acc(fn)                                    # doubly-nested Σ_i Σ_j h(i,j) (2-D fold)
+    if nst is not None:
+        return Structure(CLOSED_FORM_LOOP, nst.algebra,
+                         f"reduce('{nst.op}', f({nst.vi},{nst.vj})) over range×range (nested)", name)
     if _dataflow_fixpoint(fn):
         return Structure(DATAFLOW_FIXPOINT, "fixpoint", "while-to-convergence (lattice fixpoint)", name)
     if _has_call(fn, "re") or any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
@@ -594,6 +683,62 @@ def _offload_closed_form(source: str, fn: ast.FunctionDef, acc: _AccLoop) -> Dis
                     complexity=verdict.complexity, detail="offloaded to fold solver")
 
 
+def _offload_nested(source: str, fn: ast.FunctionDef, nst: _NestedAcc) -> Dispatch:
+    """OFFLOAD a doubly-nested Σ_i Σ_j h(i,j) loop (O(n²)) to an O(1) closed form: close the INNER fold to C(i),
+    substitute it as the outer summand, close the OUTER fold to F(param). The closed form is PROPOSED by the CAS
+    (sympy.summation — sound on these polynomial/hypergeometric sums) and is the AUTHORITY only after passing
+    DIFFERENTIAL EQUIVALENCE against the ORIGINAL executed nested loop on many inputs (★never a wrong closed form —
+    a bad proposal DECLINEs★). Σ only (the inner/outer are summations); a product/other monoid → honest NONE."""
+    struct = Structure(CLOSED_FORM_LOOP, nst.algebra,
+                       f"reduce('{nst.op}', f({nst.vi},{nst.vj})) over range×range", fn.name)
+    if nst.op != "+":
+        return Dispatch(NONE, struct, detail=f"'{nst.op}'-accumulation is not a Σ-fold (nested closer sums) "
+                        "→ LLM fallback (sound: not lifted to a wrong form)")
+    param = fn.args.args[0].arg
+    import sympy
+    try:
+        i, j, p = sympy.symbols(f"{nst.vi} {nst.vj} {param}", integer=True)
+        loc = {nst.vi: i, nst.vj: j, param: p}
+        h = sympy.sympify(nst.body, locals=loc)
+        lo2 = sympy.sympify(nst.lo2, locals=loc); hi2 = sympy.sympify(nst.hi2, locals=loc)
+        lo1 = sympy.sympify(nst.lo1, locals=loc); hi1 = sympy.sympify(nst.hi1, locals=loc)
+        c_i = sympy.summation(h, (j, lo2, hi2 - 1))          # inner inclusive upper = range-exclusive hi − 1
+        f_expr = sympy.summation(c_i, (i, lo1, hi1 - 1))     # outer inclusive upper
+        f_simpl = sympy.simplify(f_expr)
+    except Exception as e:  # noqa: BLE001
+        return Dispatch(NONE, struct, detail=f"nested CAS closer could not evaluate ({type(e).__name__}) → LLM fallback")
+    # the closed form must be FULLY closed: no residual loop var and no unevaluated Sum
+    if f_simpl.has(sympy.Sum) or (f_simpl.free_symbols - {p}):
+        return Dispatch(NONE, struct, detail=f"nested sum did not fully close (residual {f_simpl.free_symbols - {p}}"
+                        " / unevaluated Sum) → LLM fallback")
+    try:
+        ref = _make_callable(source, fn.name)
+    except Exception as e:  # noqa: BLE001
+        return Dispatch(NONE, struct, detail=f"could not build the equivalence gate ({type(e).__name__})")
+    if ref is None:
+        return Dispatch(NONE, struct, detail="original function not found after exec")
+    ok = checked = 0
+    for val in _SAMPLE_N:
+        try:
+            want = ref(val)
+            got = float(f_simpl.subs(p, val))
+        except Exception:  # noqa: BLE001
+            continue
+        checked += 1
+        if abs(got - float(want)) <= 1e-6:
+            ok += 1
+    if checked < 5 or ok != checked:
+        return Dispatch(NONE, struct, detail=f"nested closed form not equivalence-verified ({ok}/{checked}) → "
+                        "LLM fallback (sound: a wrong form is never emitted)")
+    cf = str(f_simpl)
+    cert = (f"OFFLOAD certificate (nested): double loop `{fn.name}` Σ_{nst.vi} Σ_{nst.vj} {nst.body} lifted by "
+            f"closing the inner fold to C({nst.vi})={c_i} then the outer fold → closed form {cf} (O(1), was O(n²) "
+            f"nested); differential-equivalence verified on {checked}/{checked} inputs vs the ORIGINAL executed "
+            f"nested loop (never a wrong closed form). The CAS proposed; the execution gate is the authority.")
+    return Dispatch("OFFLOADED", struct, certificate=cert, closed_form=cf,
+                    complexity="O(1) (was O(n²) nested)", detail="offloaded nested loop to closed form")
+
+
 # ── action 2: CERTIFIED REWRITE of an equi-join to a hash join (measured) ───────────────────────────
 def _synth_hash_join(j: _Join) -> str:
     # `__dd` (collections.defaultdict) is injected into the exec globals — the restricted builtins
@@ -674,6 +819,9 @@ def dispatch(source: str, fn_name: Optional[str] = None) -> Dispatch:
         acc = _acc_loop_any_shape(fn)                        # for / counter-while / comprehension all offload
         if acc is not None:
             return _offload_closed_form(source, fn, acc)
+        nst = _nested_acc(fn)                                # doubly-nested Σ_i Σ_j h(i,j) → O(1) closed form
+        if nst is not None:
+            return _offload_nested(source, fn, nst)
         s = recognize(source, fn_name)
         if s.kind == DATAFLOW_FIXPOINT:
             return Dispatch(NONE, s, detail="dataflow fixpoint recognized → abstract-interpretation path "

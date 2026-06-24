@@ -9768,6 +9768,53 @@ def test_haran_code_shape_invariance():
           "acc-in-reduce-summand & non-identity init correctly REJECTED; gate blocks `import os` — sound)")
 
 
+def test_haran_nested_loop_collapse():
+    """HARAN §3 (code-shape: NESTED) — a doubly-nested accumulation Σ_i Σ_j h(i,j) (O(n²)) is OFFLOADED to an O(1)
+    closed form by closing the inner fold to C(i), substituting it, then closing the outer fold. The closed form is
+    PROPOSED by the CAS and is authoritative ONLY after DIFFERENTIAL EQUIVALENCE against the ORIGINAL executed nested
+    loop. Covers the triangular (inner bound depends on the outer var), rectangular, coupled, and 0-based shapes —
+    each closed form INDEPENDENTLY re-checked against a brute-force double loop on fresh inputs. Adversarial
+    (soundness): an accumulator-dependent body, triple nesting, an extra outer statement, and a non-identity
+    initializer must NOT collapse — the gate can only DECLINE on a misread, never ship a wrong O(1) form."""
+    import structure_recognizer as SR
+    import sympy
+
+    cases = [
+        ("def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += j\n return acc",
+         lambda n: sum(sum(range(1, i + 1)) for i in range(1, n + 1))),                       # triangular
+        ("def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,n+1):\n   acc += i*j\n return acc",
+         lambda n: sum(i * j for i in range(1, n + 1) for j in range(1, n + 1))),             # rectangular
+        ("def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += i+j\n return acc",
+         lambda n: sum(i + j for i in range(1, n + 1) for j in range(1, i + 1))),             # coupled
+        ("def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   acc += i*i+j\n return acc",
+         lambda n: sum(i * i + j for i in range(n) for j in range(n))),                       # 0-based
+    ]
+    for src, ref in cases:
+        assert SR.recognize(src, "f").kind == "CLOSED_FORM_LOOP", src
+        d = SR.dispatch(src, "f")
+        assert d.status == "OFFLOADED" and "O(1)" in d.complexity and "n²" in d.complexity, (src, d.status, d.detail)
+        F = sympy.sympify(d.closed_form)
+        psym = next(iter(F.free_symbols), sympy.Symbol("n"))
+        for N in (4, 7, 11, 16, 25):                              # INDEPENDENT re-check vs brute force, fresh inputs
+            assert abs(float(F.subs(psym, N)) - ref(N)) < 1e-6, (src, N, d.closed_form, ref(N))
+
+    # ★ soundness: these nested shapes must NOT collapse (the recognizer rejects → honest NONE) ★
+    advs = [
+        "def f(n):\n acc=1\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += acc+j\n return acc",  # acc in body
+        "def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   for k in range(n):\n    acc += i\n return acc",  # triple
+        "def f(n):\n acc=0\n for i in range(n):\n  acc += i\n  for j in range(n):\n   acc += j\n return acc",  # extra outer stmt
+        "def f(n):\n acc=3\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += j\n return acc",      # init ≠ identity
+    ]
+    for src in advs:
+        assert SR._nested_acc(SR._first_fn(src, "f")) is None, src
+        assert SR.dispatch(src, "f").status != "OFFLOADED", src
+
+    print("PASS test_haran_nested_loop_collapse (§3 nested code-shape: triangular / rectangular / coupled / 0-based "
+          "double sums Σ_iΣ_j h(i,j) all OFFLOAD O(n²)→O(1), each closed form independently re-checked vs a brute-force "
+          "double loop; acc-dependent body, triple nesting, extra outer statement & non-identity init correctly "
+          "REJECTED — sound, CAS-proposed + execution-gated)")
+
+
 def test_haran_coverage():
     """HARAN §3 — MEASURED collapse coverage of the 50 algorithms over a structured corpus, DOMAIN-CONDITIONAL.
     Every structured item is dispatched to the REAL algorithm and must certify (EXACT/PROBABILISTIC); a

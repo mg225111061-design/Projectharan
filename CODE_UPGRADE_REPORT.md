@@ -382,6 +382,18 @@ Sound: a non-counter `while`, an accumulator-dependent body, BINARY recursion (t
 initializer ≠ the identity are all correctly REJECTED (the execution gate can only DECLINE on a misread, never ship
 a wrong collapse). `test_haran_code_shape_invariance`.
 
+**Nested loops → O(1) (§3 deepen).** Beyond the single-fold shapes, `structure_recognizer.py` now collapses a
+DOUBLY-NESTED accumulation `acc=ID; for i in range(…): for j in range(…): acc += h(i,j); return acc` (O(n²)) to an
+O(1) closed form (`_nested_acc` recognizer + `_offload_nested`). The mechanism: close the INNER fold to C(i),
+substitute it as the outer summand, close the OUTER fold — the inner bounds MAY depend on the outer var (the
+triangular case Σ_i Σ_{j≤i}). The closed form is PROPOSED by the CAS (`sympy.summation`, sound on these
+polynomial/hypergeometric sums) and becomes authoritative ONLY after passing DIFFERENTIAL EQUIVALENCE against the
+ORIGINAL executed nested loop on ≥5 inputs — exactly the module's propose-then-prove discipline, the execution gate
+the sole soundness authority (a bad proposal DECLINEs). Verified on triangular / rectangular / coupled / 0-based
+double sums (e.g. Σ_iΣ_{j≤i} j → n(n²+3n+2)/6), each closed form INDEPENDENTLY re-checked vs a brute-force double
+loop. Sound: an accumulator-dependent body, triple nesting, an extra outer statement, and a non-identity
+initializer are all correctly REJECTED. `test_haran_nested_loop_collapse`.
+
 ### §4 — TIER ROUTING for the 50: fast / normal / extend + broth short-circuit (`algo50_router.py`)
 
 The operational glue tying §1 (each algorithm's tier) + §2 (broth) + the `pillar3/mode.py` contract. `route(algo,
