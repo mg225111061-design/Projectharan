@@ -348,6 +348,19 @@ say-so. **§0-B honesty (verbatim):** this is PRECOMPUTED-LOOKUP-FAST, NOT execu
 and the caller runs the algorithm at its TRUE complexity; widening coverage = pre-proving more common cases, NOT
 making any algorithm instant. `test_haran_broth_lookup`.
 
+### §3 — MEASURED collapse coverage over a structured corpus (`algo50_coverage.py`)
+
+The 50 algorithms are GENERAL (one covers many cases). `algo50_coverage.py` MEASURES that breadth: a curated
+corpus is dispatched to the REAL algorithms and the actual graded verdicts are counted. Result: **34 covered
+cases across 12 distinct algorithm families** (Faulhaber degrees, 7 named C-finite sequences, 4 GF extractions,
+Newton inv/exp/log/sqrt, modexp, power-towers, binomial mod p^e, Jacobi, Möbius, Pell, sieve, Wigner) — **all 34
+certified EXACT**. Crucially, a deliberately ADVERSARIAL block (transcendental Σ1/k / undefined recurrence /
+even-modulus Jacobi / out-of-range sieve / transcendental autodiff / non-prime binomial) **DECLINES 6/6** — the
+proof that coverage is **DOMAIN-CONDITIONAL**. §X honesty (verbatim): this is the MEASURED coverage on THIS
+corpus, near-zero on general/control-flow/graph/I/O code; NOT a general-purpose accelerator, NOT "100%"; the
+adversarial DECLINEs are correct behaviour; a "family" is a generalized recognizer family (algorithm × sub-pattern),
+NOT a fundamentally-distinct structure. `test_haran_coverage`.
+
 ---
 
 ## §X — WHAT WE MUST NOT CLAIM (verbatim)

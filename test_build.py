@@ -9424,6 +9424,30 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_coverage():
+    """HARAN §3 — MEASURED collapse coverage of the 50 algorithms over a structured corpus, DOMAIN-CONDITIONAL.
+    Every structured item is dispatched to the REAL algorithm and must certify (EXACT/PROBABILISTIC); a
+    deliberately ADVERSARIAL block (transcendental Σ1/k / undefined recurrence / even-modulus Jacobi / out-of-range
+    sieve / transcendental autodiff / non-prime binomial) MUST DECLINE. The count is the measured coverage on THIS
+    corpus — NOT a general-purpose-accelerator claim, NOT 100% over arbitrary code; the DECLINEs are correct."""
+    import algo50_coverage as C
+    import kernel_verdict as KV
+
+    m = C.measure()
+    # every structured item certifies, across breadth (≥10 distinct algorithms of the 50)
+    assert m["covered_cases"] == m["corpus_structured"] >= 30, m
+    assert m["n_algorithms_covered"] >= 10 and m["families_covered"] >= 30, m
+    assert m["by_grade"][KV.EXACT] >= 30, m
+
+    # ★ DOMAIN-CONDITIONAL honesty: the adversarial/unstructured block declines IN FULL (structure absent) ★
+    assert m["adversarial_correct"] and m["adversarial_declined"] == m["adversarial_total"] == 6, m
+
+    print(f"PASS test_haran_coverage (§3: {m['covered_cases']} covered cases across {m['n_algorithms_covered']} of "
+          f"the 50 algorithms [{m['families_covered']} generalized families] — all certified; {m['adversarial_declined']}"
+          f"/{m['adversarial_total']} adversarial/unstructured inputs correctly DECLINE — DOMAIN-CONDITIONAL, NOT a "
+          f"general-purpose accelerator, NOT fake 100%)")
+
+
 def test_haran_mobius():
     """HARAN #44 (Group C) — the Möbius function μ(n) from the verified factorization (0 if squareful, else
     (−1)^#distinct-primes), EXACT, certified two INDEPENDENT ways: the Dirichlet identity Σ_{d|n} μ(d) = [n=1]
