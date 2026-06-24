@@ -52,6 +52,32 @@ pathological hang.
 
 ---
 
+## §2 (ABSORB MATH) — decision-procedures-as-analysis: prove whether a loop has a closed form
+
+The MATH decision procedures become CODE's loop-analysis weaponry. For an accumulation loop
+`for k in range(lo, n): acc += f(k)`, `loop_decision.decide_sum_collapse(f, k, lo)` DECIDES — with a certificate
+either way — whether `Σ_{k=lo}^{n} f(k)` collapses to a closed form:
+
+- **GOSPER is a COMPLETE decision procedure on hypergeometric terms** (rational functions included). A closed
+  form ⇒ the O(n) loop becomes an O(1) closed form, which we then DIFFERENTIAL-gate against the brute-force
+  partial sums (OUR certificate — a Gosper answer is never emitted unless it reproduces the real sum). Measured:
+  Σk² → `n(n+1)(2n+1)/6`, Σk³ → `n²(n+1)²/4`, Σk·2ᵏ → `2·2ⁿn − 2·2ⁿ + 2`, Σ1/(k(k+1)) → `n/(n+1)`, all
+  re-verified vs ground truth.
+- **A Gosper `None` on a hypergeometric term is a PROOF that no hypergeometric closed form exists** — so the loop
+  is genuinely irreducible: a FIRST-CLASS PROVEN DECLINE ("this loop has no closed form"), not a give-up. The
+  harmonic Σ1/k and Σ1/k! are decided irreducible (Σ1/k cross-checked by ABRAMOV — NOT_RATIONALLY_SUMMABLE —
+  for defense in depth). The loop correctly stays as-is.
+- **Outside the hypergeometric class** (e.g. Σ(2ᵏ+3ᵏ), not a single hypergeometric term) we return UNDECIDED and
+  make NO "no closed form" claim — honest scope.
+
+This is the moat: "this loop cannot be collapsed" is PROVEN by a complete decision procedure, not guessed; and a
+collapse ships EXACT only behind our own differential certificate. A wrong closed form is never emitted (the gate
+rejects it — tested with a deliberately-wrong `n³` vs Σk²); a wrong "irreducible" would be a correctness bug.
+`loop_decision.py`, `test_loop_decision`. (Next: wire this into `structure_recognizer` so a non-folding loop gets
+this PROVEN verdict in the live CODE path, and stream it to the UI per §3.)
+
+---
+
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
 
 The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general

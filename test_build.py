@@ -9079,6 +9079,52 @@ def test_mode_budget_roles():
           f"grades differ by tier (extend EXACT-or-DECLINE, PROBABILISTIC rejected); live UI line '{b.display()}')")
 
 
+def test_loop_decision():
+    """§2 (ABSORB MATH into CODE) — decision-procedures-as-analysis. DECIDE whether an accumulation loop
+    Σ_{k=lo}^n f(k) collapses to a closed form, with a certificate EITHER WAY. Gosper is COMPLETE on
+    hypergeometric terms: a closed form ⇒ the O(n) loop becomes O(1) (gated by OUR differential check vs the
+    brute-force sum); a Gosper None ⇒ a PROOF no hypergeometric closed form exists ⇒ the loop is irreducible (a
+    first-class PROVEN DECLINE — 'this loop has no closed form', the moat). Outside the class ⇒ honest UNDECIDED
+    (no false claim). A wrong closed form is NEVER emitted (the differential gate); a wrong 'irreducible' would be
+    a correctness bug — sound/conservative."""
+    import loop_decision as LD
+    import kernel_verdict as KV
+    import sympy as sp
+    n = sp.Symbol("n")
+
+    # CLOSED_FORM — each emitted closed form is INDEPENDENTLY re-verified vs the brute-force sum (ground truth)
+    for src, var, lo in [("k**2", "k", 1), ("k**3", "k", 1), ("k*2**k", "k", 0), ("1/(k*(k+1))", "k", 1), ("7", "k", 1)]:
+        d = LD.decide_sum_collapse(src, var, lo)
+        assert d.status == LD.CLOSED_FORM and d.verdict.status == KV.EXACT and d.closed_form, d
+        assert d.verdict.certificate is not None and d.verdict.certificate.passed
+        k = sp.Symbol(var); f = sp.sympify(src, locals={var: k}); cf = sp.sympify(d.closed_form)
+        for nv in (lo, lo + 2, lo + 6, lo + 11):
+            brute = sum(f.subs(k, j) for j in range(lo, nv + 1))
+            assert sp.simplify(cf.subs(n, nv) - brute) == 0, f"{src}: emitted closed form is WRONG at n={nv}"
+
+    # NO_CLOSED_FORM — PROVEN irreducible: the harmonic Σ1/k and Σ1/k! have no hypergeometric closed form
+    for src in ("1/k", "1/factorial(k)"):
+        d = LD.decide_sum_collapse(src, "k", 1)
+        assert d.status == LD.NO_CLOSED_FORM and d.verdict.status == KV.EXACT, d
+        assert "no hypergeometric closed form" in d.certificate.lower() and d.verdict.certificate.passed
+    assert "Abramov" in LD.decide_sum_collapse("1/k", "k", 1).certificate   # rational cross-check (defense in depth)
+
+    # UNDECIDED — outside the hypergeometric decision class: NO false 'no closed form' claim
+    d = LD.decide_sum_collapse("2**k + 3**k", "k", 0)
+    assert d.status == LD.UNDECIDED and not d.closed_form and d.verdict.status == KV.DECLINE
+
+    # ★ the differential GATE is real: a deliberately WRONG closed form is REJECTED; the correct one is accepted ★
+    k = sp.Symbol("k")
+    okw, chkw = LD._differential_ok(sp.sympify("k**2"), sp.sympify("n**3"), k, n, 1)                 # n^3 ≠ Σk^2
+    assert chkw >= 3 and okw < chkw, "the gate must reject a wrong closed form (never emitted)"
+    okr, chkr = LD._differential_ok(sp.sympify("k**2"), sp.sympify("n*(n+1)*(2*n+1)/6"), k, n, 1)    # correct
+    assert chkr >= 3 and okr == chkr, "the gate must accept the correct closed form"
+
+    print("PASS test_loop_decision (decision-procedures-as-analysis: Σk²/Σk³/Σk·2ᵏ/Σ1/(k(k+1))/Σ7 → CLOSED_FORM O(1), "
+          "each re-verified vs brute force; Σ1/k & Σ1/k! → PROVEN NO_CLOSED_FORM [Gosper complete; Abramov confirms "
+          "harmonic]; Σ(2ᵏ+3ᵏ) → honest UNDECIDED [out of class]; differential gate rejects a wrong closed form)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
