@@ -562,6 +562,49 @@ def modular_sqrt_grade(a: int, p: int) -> KV.Verdict:
     return KV.exact(x, "number_theory.modsqrt", "O(log²p)", cert)
 
 
+def _cipolla(a: int, p: int) -> int:
+    """Modular square root by CIPOLLA's algorithm: find t with t²−a a non-residue (DETERMINISTIC search — no
+    randomness), then (t+√(t²−a))^((p+1)/2) in F_p(√(t²−a)) is the root. p an odd prime, a a QR."""
+    a %= p
+    if a == 0:
+        return 0
+    t = 0
+    while pow((t * t - a) % p, (p - 1) // 2, p) != p - 1:     # t²−a must be a non-residue
+        t += 1
+    w = (t * t - a) % p
+
+    def mul(A, B):                                            # (x+y√w)(u+v√w) in F_p(√w)
+        return ((A[0] * B[0] + A[1] * B[1] % p * w) % p, (A[0] * B[1] + A[1] * B[0]) % p)
+
+    res, base, e = (1, 0), (t, 1), (p + 1) // 2
+    while e:
+        if e & 1:
+            res = mul(res, base)
+        base = mul(base, base)
+        e >>= 1
+    return res[0]                                             # the √w component is 0 for a true root
+
+
+def cipolla_sqrt_grade(a: int, p: int) -> KV.Verdict:
+    """Modular square root via CIPOLLA, CROSS-CHECKED against Tonelli–Shanks — two INDEPENDENT algorithms must
+    agree (up to ±). EXACT (r²≡a re-checked AND r ≡ ±Tonelli). Non-residue / non-prime ⇒ honest DECLINE (delegated
+    to the Tonelli grade for the residue decision)."""
+    ts = modular_sqrt_grade(a, p)
+    if ts.status == KV.DECLINE:
+        return ts                                            # non-prime p or a non-residue ⇒ same honest DECLINE
+    if p == 2:
+        return ts
+    r = _cipolla(a, p)
+    am = a % p
+    if r * r % p != am or {r % p, (-r) % p} != {ts.result % p, (-ts.result) % p}:  # ★ two algorithms agree ★
+        return KV.decline(f"cipolla: r={r} disagrees with Tonelli {ts.result} ⇒ DECLINE (correctness-bug guard)",
+                          "number_theory.cipolla")
+    cert = KV.Cert(KV.EXACT, "cipolla_vs_tonelli", passed=True, check_cost="O(log p) + Tonelli cross-check",
+                   detail=f"x² ≡ {am} (mod {p}) with x={r} (Cipolla) ≡ ±{ts.result} (Tonelli–Shanks) — two "
+                          f"independent sqrt algorithms agree")
+    return KV.exact(r, "number_theory.cipolla", "Cipolla O(log p)", cert)
+
+
 # ── Pell's equation x² − N·y² = 1 (fundamental solution via the continued fraction of √N) ─────────────────
 def pell_grade(N: int) -> KV.Verdict:
     """Fundamental solution (x,y) of x² − N·y² = 1 via the periodic continued fraction of √N. Certificate:
@@ -893,4 +936,6 @@ def solve(problem: dict) -> KV.Verdict:
         return stern_brocot_grade(problem["num"], problem["den"], problem.get("max_denom"))
     if op == "bpsw":
         return bpsw_grade(problem["n"])
+    if op == "cipolla":
+        return cipolla_sqrt_grade(problem["a"], problem["p"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

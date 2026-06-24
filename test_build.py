@@ -9424,6 +9424,34 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_cipolla():
+    """HARAN #39 (Group C) — modular square root by CIPOLLA's algorithm (deterministic non-residue search — no
+    randomness), CROSS-CHECKED against Tonelli–Shanks: two INDEPENDENT algorithms must agree (up to ±). Closes the
+    Cipolla branch of the modular-sqrt partial (each algorithm now verifies the other)."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    # (a) for several primes (incl. p ≡ 1 mod 4 where Cipolla shines), every QR's root satisfies r²≡a and agrees
+    # with Tonelli; every non-residue is an honest DECLINE
+    for p in (7, 13, 17, 41, 97, 1009):
+        for a in range(0, min(p, 30)):
+            v = NT.cipolla_sqrt_grade(a, p)
+            if a % p == 0 or pow(a, (p - 1) // 2, p) == 1:    # quadratic residue
+                assert v.status == KV.EXACT and (v.result * v.result - a) % p == 0, (a, p)
+                assert v.certificate.kind in ("cipolla_vs_tonelli", "modsqrt_check")
+            else:                                              # non-residue ⇒ DECLINE (delegated to the Euler test)
+                assert v.status == KV.DECLINE, (a, p)
+
+    # (b) spot values + honest DECLINE on a non-prime modulus and a non-residue
+    assert (NT.cipolla_sqrt_grade(2, 7).result ** 2) % 7 == 2
+    assert (NT.cipolla_sqrt_grade(10, 13).result ** 2) % 13 == 10
+    assert NT.cipolla_sqrt_grade(2, 15).status == KV.DECLINE and NT.cipolla_sqrt_grade(3, 7).status == KV.DECLINE
+
+    print("PASS test_haran_cipolla (#39: Cipolla modular sqrt (deterministic), cross-checked ≡ Tonelli–Shanks over "
+          "6 primes incl. p≡1 mod 4; r²≡a for every QR; non-residue/non-prime → DECLINE — closes the Cipolla "
+          "branch (two independent sqrt algorithms verify each other))")
+
+
 def test_haran_bpsw():
     """HARAN #36 (Group C) — BAILLIE–PSW primality = strong Miller–Rabin base 2 ∧ strong Lucas PRP (Selfridge D
     via the in-house Jacobi symbol). EXACT/deterministic below the proven MR bound; above it, a BPSW pass is a

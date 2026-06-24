@@ -182,9 +182,10 @@ _C: List[Algo] = [
     Algo(38, "Pollard rho / p−1 / ECM factorization", "C", "mathmode.number_theory", "factorize_grade", KV.EXACT,
          "∏ pᵢ^eᵢ = n + each factor primality-verified (divisibility)", "subexponential, NOT guaranteed", False,
          EXTEND, False, PARTIAL, "trial + Pollard rho present; p−1 and ECM not yet"),
-    Algo(39, "Tonelli–Shanks / Cipolla (modular sqrt)", "C", "mathmode.number_theory", "modular_sqrt_grade",
-         KV.EXACT, "r² ≡ a (mod p) re-checked; non-residue proven by Euler criterion", "O(log² p)", False, NORMAL,
-         False, PARTIAL, "Tonelli–Shanks present; Cipolla branch not yet"),
+    Algo(39, "Tonelli–Shanks / Cipolla (modular sqrt)", "C", "mathmode.number_theory", "cipolla_sqrt_grade",
+         KV.EXACT, "Cipolla ≡ Tonelli–Shanks (two independent algorithms agree ±); non-residue proven by Euler",
+         "O(log² p)", False, NORMAL, True,
+         note="Tonelli–Shanks AND Cipolla present; each cross-checks the other"),
     Algo(40, "Baby-step giant-step / rho (discrete log)", "C", "mathmode.number_theory", "discrete_log_grade",
          KV.EXACT, "g^x ≡ h verified; no-solution proven by exhaustive order search", "O(√m) time+space (honest "
          "size bound)", False, EXTEND, False, PARTIAL, "BSGS present; Pollard-rho dlog variant not yet"),
