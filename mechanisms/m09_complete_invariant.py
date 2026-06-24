@@ -24,7 +24,10 @@ def _apply(x, **kw):
     if isinstance(x, dict) and x and all(isinstance(v, dict) and all(isinstance(e, int) for e in v.values()) for v in x.values()):
         import mathmode.buckingham as B
         return B.buckingham_pi(x)
-    return honest_defer("M9.complete_invariant", "non-Buckingham complete-invariant instances gated in a later PHASE")
+    if isinstance(x, (list, tuple)) and len(x) == 5:                 # the 5 Weyl scalars [Ψ0..Ψ4] → Petrov type
+        import mathmode.petrov as P
+        return P.classify(list(x))
+    return honest_defer("M9.complete_invariant", "non-(Buckingham/Petrov) complete-invariant instances gated in a later cycle")
 
 
 MECHANISM = Mechanism(

@@ -179,3 +179,7 @@ coverage 94 / **9 VERIFIED** / 85 deferred; test_catalog **18/18**.
 — reuses the spectral theme. BUILD: `sos_cert.inertia/inertia_grade` + the `spectral_inertia` kernel; recovers
 16.spectral_svd_pca (deferred→VERIFIED). EXACT on PD/indefinite/zero-diagonal/PSD incl. [[0,1],[1,0]]→(1,0,1);
 non-symmetric → DECLINE. coverage 94 / **10 VERIFIED** / 84 deferred; test_catalog **19/19**.
+
+**Cycle 2 — mechanism 9 (complete invariant): Petrov.** Weyl scalars [Ψ0..Ψ4] → EXACT Petrov type (complete
+invariant of the Weyl tensor's algebraic type), reusing `mathmode.petrov`. Recovers C1.petrov. coverage 94 /
+**11 VERIFIED** / 83 deferred; test_catalog **20/20**. (Cartan–Karlhede SPI format pending — next cycle.)

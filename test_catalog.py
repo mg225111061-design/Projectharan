@@ -400,6 +400,25 @@ def test_loop_cycle1_spectral_inertia():
           "RECOVERED [deferred→VERIFIED])")
 
 
+def test_loop_cycle2_petrov():
+    """§9 loop cycle 2 — mechanism 9 (complete invariant): Petrov classification of the Weyl tensor (reuse
+    mathmode.petrov). The 5 Weyl scalars → EXACT Petrov type (a complete invariant of the algebraic type). Recovers
+    C1.petrov (deferred→VERIFIED)."""
+    import kernel_router as KR
+    import kernel_verdict as KV
+    import catalog
+    import mechanisms as M
+    v = KR.dispatch({"petrov": True, "psi": [0, 0, 1, 0, 0]})         # only Ψ2 ≠ 0 → Type D
+    assert v.status == KV.EXACT and v.result["type"] == "D", v
+    vO = KR.dispatch({"petrov": True, "psi": [0, 0, 0, 0, 0]})        # vacuum-flat → Type O
+    assert vO.status == KV.EXACT and vO.result["type"] == "O", vO
+    # mechanism 9 apply routes the bare 5-scalar list too
+    assert M.MECHANISMS[9].apply([0, 0, 1, 0, 0]).result["type"] == "D"
+    assert {t.tid: t for t in catalog.TRANSFORMS}["C1.petrov"].verified
+    print("PASS test_loop_cycle2_petrov (§9: Weyl scalars → EXACT Petrov type [D / O]; mechanism-9 apply routes the "
+          "5-scalar list; C1.petrov RECOVERED [deferred→VERIFIED])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

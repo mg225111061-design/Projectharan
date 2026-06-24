@@ -41,3 +41,22 @@ KR.register(KR.Kernel(
             "grade EXACT | DECLINE",
     detect=_inertia_detect, run=_inertia_run, status="VERIFIED"))
 _verify_transform("16.spectral_svd_pca", "spectral_inertia")
+
+
+# ── Cycle 2 — mechanism 9 (complete invariant): Petrov classification of the Weyl tensor (reuse mathmode.petrov) ──
+def _petrov_detect(data) -> bool:
+    return isinstance(data, dict) and data.get("petrov") is True and "psi" in data
+
+
+def _petrov_run(data, **kw) -> KV.Verdict:
+    import mathmode.petrov as P
+    return P.classify(data["psi"])
+
+
+KR.register(KR.Kernel(
+    num=109, name="petrov_classify", group="catalog",
+    contract="requires the 5 complex Weyl scalars [Ψ0..Ψ4]; ensures the EXACT Petrov type (I/II/D/III/N/O) — a "
+            "complete invariant of the Weyl tensor's algebraic type (root multiplicities of the characteristic "
+            "quartic); grade EXACT",
+    detect=_petrov_detect, run=_petrov_run, status="VERIFIED"))
+_verify_transform("C1.petrov", "petrov_classify")
