@@ -9290,6 +9290,53 @@ def test_loop_recurrence():
           f"cert states f=1 / Amdahl / domain-conditional / held-out-verified)")
 
 
+def test_loop_collapse_adversarial():
+    """§4 (soundness, adversarial) — spec fragility is the dominant failure mode, so ATTACK it: the loop-collapse
+    path must emit ZERO wrong collapses even when a fit is VALID ON THE SAMPLE WINDOW but WRONG beyond it. The
+    held-out verification (companion ≡ the ACTUAL loop on n PAST the fit window) is the real soundness authority —
+    not the fit; and a wrong closed form is never emitted (the differential gate). A wrong 'verified' here would be
+    a correctness bug; these are the gates that prevent it."""
+    import loop_recurrence as LR
+    import loop_decision as LD
+    import cfinite
+    import sympy as sp
+
+    # ★ headline attack ★: f == Fibonacci on the fit window (n<30) but DIVERGES beyond ⇒ the fit finds c=[1,1] yet
+    # held-out at n≥30 disagrees with the loop ⇒ DECLINE (NOT a wrong O(log n) collapse on a window-only fit)
+    trap = ("def f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n"
+            "    return a + (1 if n >= 30 else 0)")
+    r = LR.decide_recurrence_collapse(trap, sample=24, n=4000)
+    assert r.status == "DECLINE", "a fit valid only on the sample window MUST be rejected by held-out verification"
+    assert "held-out" in r.verdict.reason and "no wrong collapse" in r.verdict.reason
+
+    # no false negatives: a genuinely C-finite loop still COLLAPSES, and the companion ≡ a FRESH run of the loop
+    def lucas_like(nn):
+        a, b = 2, 3
+        for _ in range(nn):
+            a, b = b, a + b
+        return a
+    good = "def g(n):\n    a, b = 2, 3\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
+    rg = LR.decide_recurrence_collapse(good, n=3000)
+    assert rg.status == "COLLAPSED" and rg.c == [1, 1] and rg.init == [2, 3], rg
+    for nv in (41, 130, 777):
+        assert cfinite.companion_nth(rg.c, rg.init, nv) == lucas_like(nv), f"companion ≠ the loop at n={nv}"
+
+    # loop_decision: a real closed form is emitted, a non-summable is PROVEN irreducible (never a wrong claim)…
+    assert LD.decide_sum_collapse("k**2", "k", 1).status == LD.CLOSED_FORM
+    assert LD.decide_sum_collapse("1/k", "k", 1).status == LD.NO_CLOSED_FORM
+    # …and the differential gate rejects a deliberately WRONG closed form (n² ≠ Σk = n(n+1)/2), accepts the right one
+    k, n = sp.Symbol("k"), sp.Symbol("n")
+    okw, chkw = LD._differential_ok(sp.sympify("k"), sp.sympify("n*n"), k, n, 1)
+    okr, chkr = LD._differential_ok(sp.sympify("k"), sp.sympify("n*(n+1)/2"), k, n, 1)
+    assert chkw >= 3 and okw < chkw, "the gate must reject a wrong closed form"
+    assert chkr >= 3 and okr == chkr, "the gate must accept the correct closed form"
+
+    print("PASS test_loop_collapse_adversarial (held-out gate REJECTS a fit valid only on the sample window "
+          "[Fibonacci-then-diverge → DECLINE at n=33, no wrong O(log n) collapse]; a genuine C-finite loop still "
+          "COLLAPSES & companion ≡ a fresh run [no false negative]; loop_decision emits no wrong closed form and "
+          "never falsely claims irreducible — the dominant failure mode, spec fragility, is gated)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

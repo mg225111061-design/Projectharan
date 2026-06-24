@@ -172,6 +172,19 @@ arrays/reals/unbounded ints (those stay on Z3).
 
 ---
 
+## §4 (soundness, adversarial) — attack spec fragility: zero wrong collapses
+
+Spec fragility is the dominant failure mode, so we attack it directly. The headline attack: a loop that equals
+Fibonacci ON the fit window (n < 30) but DIVERGES beyond it. The Berlekamp fit happily finds `c=[1,1]` — but the
+collapse is **rejected** because `companion_nth ≠ the actual loop at held-out n=33` ⇒ DECLINE (no wrong O(log n)
+collapse). This proves the held-out verification — not the fit — is the soundness authority. Conversely a genuine
+C-finite loop still COLLAPSES (no false negative) and its companion form `≡` a fresh run of the loop. On the sum
+side, `loop_decision` emits no wrong closed form (the differential gate rejects a deliberately-wrong `n²` for Σk)
+and never falsely claims irreducible. `test_loop_collapse_adversarial`. A wrong "verified" would be a correctness
+bug — these gates are what prevent it.
+
+---
+
 ## §X — WHAT WE MUST NOT CLAIM (verbatim)
 
 - fast/normal/extend are distinct roles with TIME BUDGETS (~1s/~30s/~8min); extend is BOUNDED at ~8 minutes,
