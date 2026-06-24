@@ -72,7 +72,7 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   regression demonstrated + fixed in `proof_cache.measure_triage`; `test_native_s3_triage_layer`).
 - **§2 ✅** ZERO-DEPENDENCY bit-blasting SMT (`bitblast_smt.py`: in-house DPLL SAT + bit-blaster + independent
   certificate checker — no coqc/cvc5/Bitwuzla/Lean/Z3). Decides QF-bitvector (add/sub/neg/mul-by-const/general-mul/
-  udiv/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt/ite-mux), EXACT *within the stated width* (bound = 2^w), deterministic
+  udiv/and/or/xor/not/shl/lshr/ashr/shl_var/lshr_var/eq/ult/slt/sgt/ite-mux), EXACT *within the stated width* (bound = 2^w), deterministic
   (same result **and** certificate), every SAT model re-checked by a tiny TCB. Wired into
   `pillar3/bv_validate.bv_equiv_inhouse` and cross-checked against Z3 on the sound peepholes
   (`cross_check_inhouse_vs_z3` → all agree). The expanded theory decides a STRENGTH-REDUCTION catalog VALID in-house
@@ -80,11 +80,11 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   ×-ring commute/assoc/distrib, and **branchless conditional tricks verified ≡ their if-then-else spec** — e.g.
   branchless abs `(x^ashr)−ashr ≡ x<0?−x:x` via ite-mux) — so CODE can ACCEPT those speedups with zero external
   solver, EXACT within width; `test_native_s2_bitblast_smt`. **Honest scope (§X):** NOT cvc5/Z3 parity — no SIGNED
-  division (sdiv), no variable-amount shift, no arrays/reals/unbounded ints; the overflow-unsafe peepholes stay out
-  of the SOUND cross-check (they're unsound, and `mul2_div2_id` needs SIGNED division) — though the in-house solver
-  can now REFUTE the conditional ones (e.g. `(x+1)>ₛx` at INT_MAX) via ite-mux. Signed compare, general multiply,
-  right-shift, ite-mux, and UNSIGNED division (udiv — incl. the div→shift `x//2^k ≡ x>>k`) ARE in-house. Small TCB,
-  zero deps — that's the point.
+  division (sdiv), no arrays/reals/unbounded ints; the overflow-unsafe peepholes stay out of the SOUND cross-check
+  (they're unsound, and `mul2_div2_id` needs SIGNED division) — though the in-house solver can now REFUTE the
+  conditional ones (e.g. `(x+1)>ₛx` at INT_MAX) via ite-mux. Signed compare, general multiply, right-shift, ite-mux,
+  UNSIGNED division (udiv — incl. div→shift `x//2^k ≡ x>>k`), and VARIABLE-amount shift (barrel shifter — incl.
+  mul-by-power-of-two `x·2^k ≡ x<<k`) ARE in-house. Small TCB, zero deps — that's the point.
 - **§1 ✅** dependency-0 Rust core (`rust_core/` std-only cdylib via ctypes — no PyO3/maturin/cffi/flint/faer;
   `rust_core.py` bridge). Delivers the v34-deferred pieces: flat **arena AST** (one deterministic pass);
   **deterministic fixed-precision multimodular CRT ring** — Garner-combines residues over a fixed 4-prime basis

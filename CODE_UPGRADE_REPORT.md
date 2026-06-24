@@ -177,21 +177,25 @@ ratio).
 ## §4 (correctness) — in-house SMT broadened: prove strength reductions VALID
 
 The ZERO-DEPENDENCY in-house bit-blasting SMT (`bitblast_smt.py`, no coqc/cvc5/Bitwuzla/Lean/Z3) gained general
-`w×w` multiply, logical/arithmetic right-shift, ite-mux, AND a restoring **UNSIGNED divider** (`udiv`, shift/compare/
-subtract with the conditional subtract expressed as an ite-mux), so the engine can now PROVE the strength-reduction
+`w×w` multiply, logical/arithmetic right-shift, ite-mux, a restoring **UNSIGNED divider** (`udiv`, shift/compare/
+subtract with the conditional subtract expressed as an ite-mux), AND a **VARIABLE-amount shift** (barrel shifter,
+⌈log2 w⌉ ite-mux stages, total: a shift ≥ w is 0 — no UB), so the engine can now PROVE the strength-reduction
 transforms it wants to ACCEPT (not merely refute them), with zero external solver. `prove_strength_reductions()`
-decides 13 identities VALID (UNSAT of the negation over the whole w-bit domain, EXACT within stated width):
+decides 14 identities VALID (UNSAT of the negation over the whole w-bit domain, EXACT within stated width):
 `mul8 ↔ shl3`, `general_mul == mul_const`, the branchless sign-mask `ashr(x,w-1) == neg(lshr(x,w-1))`, the shift
 round-trips that clear low/high bits, the ×-ring laws (commute / associate / distribute), the classic **DIV→SHIFT**
-`x // 2^k ≡ x >> k` (`udiv4_to_lshr2`, `udiv2_to_lshr1` — now that the unsigned divider is in-house), and — via the
-**ite-mux (bit-select)** — **branchless CONDITIONAL tricks verified ≡ their if-then-else spec**: branchless abs
-`(x ^ ashr(x,w-1)) − ashr(x,w-1) ≡ (x<0 ? −x : x)`, `mux(s,a,a) ≡ a`, `(x<0 ? −1 : 0) ≡ ashr`. The solver still
-produces REAL refutations — `x·x == x` is INVALID, the divider is correct on a non-power-of-2 (`udiv(v,3) == v//3`)
-while `x // 3 ≠ x >> 1` is REFUTED (division by a non-power-of-2 is not a shift), and the overflow-unsafe
-`(x+1) >ₛ x` is REFUTED in-house at INT_MAX via ite-mux (previously this conditional needed Z3) — never a false VALID. Honest scope: still NOT cvc5/Z3
-parity — no SIGNED division (sdiv), no variable-amount shift, no arrays/reals/unbounded ints; the overflow-unsafe
-peepholes stay out of the SOUND cross-check (unsound / `mul2_div2_id` needs SIGNED division). Signed compare,
-general multiply, right-shift, ite-mux, and UNSIGNED division (udiv — incl. the div→shift `x//2^k ≡ x>>k`) ARE
+`x // 2^k ≡ x >> k` (`udiv4_to_lshr2`, `udiv2_to_lshr1` — now that the unsigned divider is in-house), the
+**MUL-BY-POWER-OF-TWO ↔ VARIABLE SHIFT** `x · 2^k ≡ x << k` for EVERY `k` (`shl_var=mul_pow2` — the barrel shifter
+cross-checked against the multiplier, overflow included), and — via the **ite-mux (bit-select)** — **branchless
+CONDITIONAL tricks verified ≡ their if-then-else spec**: branchless abs `(x ^ ashr(x,w-1)) − ashr(x,w-1) ≡
+(x<0 ? −x : x)`, `mux(s,a,a) ≡ a`, `(x<0 ? −1 : 0) ≡ ashr`. The solver still produces REAL refutations — `x·x == x`
+is INVALID, the divider is correct on a non-power-of-2 (`udiv(v,3) == v//3`) while `x // 3 ≠ x >> 1` is REFUTED
+(division by a non-power-of-2 is not a shift), `x << k ≠ x · k` is REFUTED (a shift is not multiply-by-the-amount),
+and the overflow-unsafe `(x+1) >ₛ x` is REFUTED in-house at INT_MAX via ite-mux (previously this conditional needed
+Z3) — never a false VALID. Honest scope: still NOT cvc5/Z3 parity — no SIGNED division (sdiv), no
+arrays/reals/unbounded ints; the overflow-unsafe peepholes stay out of the SOUND cross-check (unsound /
+`mul2_div2_id` needs SIGNED division). Signed compare, general multiply, right-shift, ite-mux, UNSIGNED division
+(udiv — incl. div→shift `x//2^k ≡ x>>k`), and VARIABLE-amount shift (barrel shifter — incl. `x·2^k ≡ x<<k`) ARE
 in-house now.
 
 ---

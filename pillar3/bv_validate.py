@@ -46,8 +46,8 @@ def bv_equiv_inhouse(build: Callable, bits: int = 8) -> Tuple[str, Optional[dict
     SMT (no Z3). `build(bb)` returns (lhs_BV, rhs_BV) over a `bitblast_smt.BitBlaster`. Same contract as bv_equiv —
     PROVEN (UNSAT of ≠) / REFUTED (a checked counterexample) — but EXACT only WITHIN `bits` (the bound is stated by
     the certificate) and only for this solver's QF-BV theory. Used to discharge in-scope obligations with no
-    external solver, and to cross-check Z3 where both apply. NOT Z3 parity (no SIGNED division (sdiv) or
-    variable-shift; signed compare, general multiply, right-shift, ite-mux, and UNSIGNED division ARE in-house)."""
+    external solver, and to cross-check Z3 where both apply. NOT Z3 parity (no SIGNED division (sdiv); signed
+    compare, general multiply, right-shift, ite-mux, UNSIGNED division, AND variable-amount shift ARE in-house)."""
     import os
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root → bitblast_smt

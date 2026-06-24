@@ -12,13 +12,14 @@ with ZERO external solver. It is:
     validity claim (∀x. P), UNSAT of ¬P is the proof (decided exhaustively over the w-bit domain by the SAT core).
 Honest scope: bitvector add / sub / neg / mul-by-constant / general w×w multiply / unsigned division (udiv,
 restoring) / eq / ult / slt / sgt (signed compare) / and / or / xor / not / left-shift / logical+arithmetic
-right-shift (by a constant) / ite-mux (bit-select), quantifier-free, fixed width. NOT cvc5/Z3-parity (no SIGNED
-division (sdiv), no VARIABLE-amount shift, no arrays, no reals, no unbounded ints; udiv-by-zero left
-unconstrained). That's the point — small TCB, zero deps. (Signed comparison was added so the signed-overflow
-obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are decided in-house; general multiply +
-right-shift + ite-mux + udiv were added so strength-reduction transforms — mul↔shift, DIV→SHIFT (x//2^k ≡ x>>k),
-sign-mask, bit round-trips, and BRANCHLESS CONDITIONAL tricks verified ≡ their if-then-else spec (e.g.
-(x^ashr)−ashr ≡ x<0?−x:x) — are proven VALID in-house rather than only refuted, each EXACT within the stated width.)
+right-shift (constant OR variable amount, the latter a barrel shifter) / ite-mux (bit-select), quantifier-free,
+fixed width. NOT cvc5/Z3-parity (no SIGNED division (sdiv), no arrays, no reals, no unbounded ints; udiv-by-zero
+left unconstrained; variable shift ≥ w is total → 0). That's the point — small TCB, zero deps. (Signed comparison
+was added so the signed-overflow obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are
+decided in-house; general multiply + right-shift + ite-mux + udiv + VARIABLE-amount shift were added so
+strength-reduction transforms — mul↔shift, DIV→SHIFT (x//2^k ≡ x>>k), MUL-BY-POWER-OF-TWO ↔ variable shift
+(x·2^k ≡ x<<k), sign-mask, bit round-trips, and BRANCHLESS CONDITIONAL tricks verified ≡ their if-then-else spec
+(e.g. (x^ashr)−ashr ≡ x<0?−x:x) — are proven VALID in-house rather than only refuted, each EXACT within the width.)
 """
 from __future__ import annotations
 
@@ -186,6 +187,33 @@ class BitBlaster:
             rem = self.mux(ge, self.sub(rem, b), rem)       # if rem ≥ b: rem −= b
             q[i] = ge
         return BV(q)
+
+    def _over_w(self, b: BV, logw: int) -> int:            # literal: True iff b ≥ w (any bit at position ≥ ⌈log2 w⌉)
+        over = self._false
+        for i in range(logw, self.w):
+            over = self.cnf.lit_or(over, b.bits[i])
+        return over
+
+    def shl_var(self, a: BV, b: BV) -> BV:                 # LOGICAL shift-left by a VARIABLE amount (barrel shifter)
+        # ⌈log2 w⌉ ite-mux stages: stage i shifts by 2^i iff b's bit i is set. TOTAL function: if b ≥ w (a high bit
+        # set) the value is shifted out entirely ⇒ result 0 (well-defined, no UB). Cross-checked ≡ x·2^k below.
+        logw = max(1, (self.w - 1).bit_length())
+        cur = a
+        for i in range(logw):
+            sh = 1 << i
+            shifted = BV([self._false] * sh + cur.bits[: self.w - sh]) if sh < self.w else self.const(0)
+            cur = self.mux(b.bits[i], shifted, cur)         # apply this stage iff b_i set
+        return self.mux(self._over_w(b, logw), self.const(0), cur)   # b ≥ w ? 0 : shifted
+
+    def lshr_var(self, a: BV, b: BV) -> BV:                # LOGICAL shift-right by a VARIABLE amount (barrel shifter)
+        logw = max(1, (self.w - 1).bit_length())
+        cur = a
+        for i in range(logw):
+            sh = 1 << i
+            shifted = (BV([cur.bits[j + sh] if j + sh < self.w else self._false for j in range(self.w)])
+                       if sh < self.w else self.const(0))
+            cur = self.mux(b.bits[i], shifted, cur)
+        return self.mux(self._over_w(b, logw), self.const(0), cur)   # b ≥ w ? 0 : shifted
 
 
 # ── DPLL SAT core (deterministic: lowest-index unassigned var, positive first) ───────────────────────────
@@ -365,6 +393,9 @@ def inhouse_strength_reductions() -> List[Tuple[str, "callable", int]]:
         x = bb.var("x"); return (bb.udiv(x, bb.const(4)), bb.lshr(x, 2))
     def _udiv2_to_shift(bb):                                  # unsigned x // 2 ≡ x >> 1
         x = bb.var("x"); return (bb.udiv(x, bb.const(2)), bb.lshr(x, 1))
+    def _shl_var_is_mul_pow2(bb):                             # VARIABLE shift: x << k ≡ x · 2^k for EVERY k (incl.
+        x, k = bb.var("x"), bb.var("k")                       #   k≥w → both 0). Barrel shifter cross-checked ≡ multiplier.
+        return (bb.shl_var(x, k), bb.mul(x, bb.shl_var(bb.const(1), k)))
     # (name, build, width). Multiply is O(w²) gates so 3-var laws stay at width 3 (exhaustive over 2^9 inputs);
     # 1-var stays at 6. Each is a bounded, deterministic, EXACT-WITHIN-WIDTH decision — widen + re-prove to raise it.
     return [("sign_mask_ashr=neg_lshr", _sign_mask, 6), ("clear_low_bits_roundtrip", _clear_low, 6),
@@ -373,7 +404,7 @@ def inhouse_strength_reductions() -> List[Tuple[str, "callable", int]]:
             ("mul_associates", _mul_assoc, 3), ("mul_distributes_over_add", _mul_dist, 3),
             ("branchless_abs=cond_abs", _branchless_abs, 8), ("mux_idempotent", _mux_idempotent, 6),
             ("mux_sign_mask=ashr", _mux_sign_mask, 6), ("udiv4_to_lshr2", _udiv4_to_shift, 6),
-            ("udiv2_to_lshr1", _udiv2_to_shift, 6)]
+            ("udiv2_to_lshr1", _udiv2_to_shift, 6), ("shl_var=mul_pow2", _shl_var_is_mul_pow2, 4)]
 
 
 def prove_strength_reductions() -> Dict[str, BVResult]:

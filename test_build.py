@@ -7884,14 +7884,14 @@ def test_native_s1_rust_core():
 def test_native_s2_bitblast_smt():
     """§2 — ZERO-DEPENDENCY bit-blasting SMT (in-house DPLL SAT + bit-blaster + independent certificate checker;
     no coqc/cvc5/Bitwuzla/Lean/Z3). It DECIDES fixed-width QF-bitvector obligations the CODE engine actually
-    generates (add/sub/mul-by-const/general-mul/udiv/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt/ite-mux) so those
-    proofs need no external solver. Honest scope (§X): a validity result is EXACT *within the stated width* (bound =
-    2^width), DETERMINISTIC (same input ⇒ same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT
-    model is re-checked by a tiny independent checker; ∀-validity is UNSAT of the negation over the whole w-bit
-    domain). It is NOT cvc5/Z3 parity — no SIGNED division, no variable-amount shift, no arrays/reals/unbounded ints
-    — and we never imply it (signed compare, general multiply, right-shift, ite-mux, AND unsigned division ARE
-    in-house; sections g–h decide them — incl. branchless abs ≡ x<0?−x:x, the div→shift x//2^k ≡ x>>k, and the
-    in-house refutation of the overflow-unsafe (x+1)>ₛx)."""
+    generates (add/sub/mul-by-const/general-mul/udiv/and/or/xor/not/shl/lshr/ashr/shl_var/lshr_var/eq/ult/slt/sgt/
+    ite-mux) so those proofs need no external solver. Honest scope (§X): a validity result is EXACT *within the
+    stated width* (bound = 2^width), DETERMINISTIC (same input ⇒ same result AND same certificate), and
+    CERTIFICATE-PRODUCING (every SAT model is re-checked by a tiny independent checker; ∀-validity is UNSAT of the
+    negation over the whole w-bit domain). It is NOT cvc5/Z3 parity — no SIGNED division, no arrays/reals/unbounded
+    ints — and we never imply it (signed compare, general multiply, right-shift, ite-mux, unsigned division, AND
+    variable-amount shift ARE in-house; sections g–h decide them — incl. branchless abs ≡ x<0?−x:x, the div→shift
+    x//2^k ≡ x>>k, the mul↔shift x·2^k ≡ x<<k, and the in-house refutation of the overflow-unsafe (x+1)>ₛx)."""
     import bitblast_smt as S
     from pillar3 import bv_validate as BV
 
@@ -7974,6 +7974,18 @@ def test_native_s2_bitblast_smt():
         assert dv.status == "VALID", (v, dv)                       # divider ≡ Python // on concrete values
     bad_div = S.prove_bv_identity(lambda bb: (lambda x: (bb.udiv(x, bb.const(3)), bb.lshr(x, 1)))(bb.var("x")), 5)
     assert bad_div.status == "INVALID", bad_div                    # x//3 ≠ x>>1 — division by 3 is not a shift
+    # ★ VARIABLE-amount shift (barrel shifter, ⌈log2 w⌉ ite-mux stages) now in-house: x<<k ≡ x·2^k for EVERY k is in
+    # the VALID catalog; the variable shifter reduces to the CONSTANT shifter at fixed amounts; a shift ≥ w is total
+    # → 0 (well-defined, no UB); and a wrong reduction (x<<k ≢ x·k) is REFUTED ★
+    assert "shl_var=mul_pow2" in sr and sr["shl_var=mul_pow2"].status == "VALID"
+    for j in range(5):
+        sj = S.prove_bv_identity(lambda bb, j=j: (lambda x: (bb.shl_var(x, bb.const(j)), bb.shl(x, j)))(bb.var("x")), 5)
+        rj = S.prove_bv_identity(lambda bb, j=j: (lambda x: (bb.lshr_var(x, bb.const(j)), bb.lshr(x, j)))(bb.var("x")), 5)
+        assert sj.status == "VALID" and rj.status == "VALID", (j, sj.status, rj.status)  # var shifter ≡ const shifter
+    over = S.prove_bv_identity(lambda bb: (lambda x: (bb.shl_var(x, bb.const(5)), bb.const(0)))(bb.var("x")), 5)
+    assert over.status == "VALID", over                            # shift by w (≥w) is total → 0 (well-defined, no UB)
+    bad_sh = S.prove_bv_identity(lambda bb: (lambda x, k: (bb.shl_var(x, k), bb.mul(x, k)))(bb.var("x"), bb.var("k")), 4)
+    assert bad_sh.status == "INVALID", bad_sh                      # x<<k ≠ x·k — a shift is not multiply-by-the-amount
     # determinism extends to the new theory: identical status + certificate across independent runs
     assert {n: r.certificate for n, r in S.prove_strength_reductions().items()} == \
            {n: r.certificate for n, r in sr.items()}, "strength-reduction proofs must be deterministic"
@@ -7981,11 +7993,12 @@ def test_native_s2_bitblast_smt():
     print(f"PASS test_native_s2_bitblast_smt (ZERO-DEP in-house SMT: {len(cc['rows'])} sound peepholes decided VALID "
           f"and AGREEING with Z3 at matched width; INVALID x+1==x with checked cex x={xc}; SAT 3x≡9→x={sat.model['x']} "
           f"+ UNSAT 2x≡1; SIGNED compare now in-house [(x+1)>ₛx false at INT_MAX=127, found w/o Z3]; EXPANDED theory: "
-          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift + ite-mux + udiv: sign-mask, bit "
-          f"round-trips, mul↔shift, div→shift x//4≡x>>2, ×-ring laws, branchless-abs≡x<0?−x:x] + REAL refutations x·x≠x "
-          f"cex x={sq.model['x']} and x//3≠x>>1; in-house refutation of unsound (x+1)>ₛx via mux cex x={uc.model['x']}; "
-          f"deterministic result+certificate; tamper-rejecting checker; still out-of-scope: SIGNED division (sdiv)/"
-          f"variable-shift — by design (udiv + ite-mux now in-house))")
+          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift + ite-mux + udiv + var-shift: "
+          f"sign-mask, bit round-trips, mul↔shift, div→shift x//4≡x>>2, mul-pow2↔shift x·2^k≡x<<k, ×-ring laws, "
+          f"branchless-abs≡x<0?−x:x] + REAL refutations x·x≠x cex x={sq.model['x']}, x//3≠x>>1 and x<<k≠x·k; in-house "
+          f"refutation of unsound (x+1)>ₛx via mux cex x={uc.model['x']}; deterministic result+certificate; "
+          f"tamper-rejecting checker; still out-of-scope: SIGNED division (sdiv) only — by design (udiv + "
+          f"variable-shift + ite-mux now in-house))")
 
 
 def test_native_s3_triage_layer():

@@ -76,8 +76,9 @@ crates); source + `Cargo.lock` + bridge are committed.
 
 In-house DPLL SAT + bit-blaster + independent certificate checker — **no coqc/cvc5/Bitwuzla/Lean/Z3**. Decides
 fixed-width **quantifier-free bitvector** obligations (add / sub / neg / mul-by-constant / **general w×w multiply** /
-**unsigned division (udiv)** / and / or / xor / not / left-shift / **logical+arithmetic right-shift** / eq /
-unsigned-lt / **signed lt+gt** / **ite-mux**). A validity result is **EXACT within the stated width** (bound = 2^w);
+**unsigned division (udiv)** / and / or / xor / not / left-shift / **logical+arithmetic right-shift** /
+**variable-amount shift (barrel shifter)** / eq / unsigned-lt / **signed lt+gt** / **ite-mux**). A validity result
+is **EXACT within the stated width** (bound = 2^w);
 DETERMINISTIC (same input ⇒ same result AND same
 certificate); CERTIFICATE-PRODUCING (every SAT model is re-checked by a tiny independent checker — that one function
 is the whole TCB; ∀-validity is UNSAT of the negation over the w-bit domain).
@@ -91,17 +92,20 @@ width and asserts agreement — a faithful zero-dep replacement on its decidable
 negation, EXACT within width) the transforms CODE wants to ACCEPT: `mul8_to_shl3_general`, `general_mul=mul_const`,
 the branchless sign-mask `ashr(x,w-1) = neg(lshr(x,w-1))`, the shift round-trips that clear low/high bits, the
 ×-ring laws (commute / associate / distribute), the classic **DIV→SHIFT** `x//2^k ≡ x>>k` (`udiv4_to_lshr2`,
-`udiv2_to_lshr1`, now that a restoring unsigned divider is in-house), and — via ite-mux — **branchless CONDITIONAL
-tricks verified ≡ their if-then-else spec** (branchless abs `(x^ashr)−ashr ≡ x<0?−x:x`) — so a strength reduction
-ships EXACT with zero external solver. Real refutations are still found (`x·x = x` INVALID; `x//3 ≠ x>>1` (non-
-power-of-2 division is not a shift); and the overflow-unsafe `(x+1)>ₛx` REFUTED in-house at INT_MAX via ite-mux) —
-never a false VALID.
+`udiv2_to_lshr1`, now that a restoring unsigned divider is in-house), the **MUL-BY-POWER-OF-TWO ↔ VARIABLE SHIFT**
+`x·2^k ≡ x<<k` for every `k` (`shl_var=mul_pow2` — a barrel shifter cross-checked against the multiplier), and —
+via ite-mux — **branchless CONDITIONAL tricks verified ≡ their if-then-else spec** (branchless abs
+`(x^ashr)−ashr ≡ x<0?−x:x`) — so a strength reduction ships EXACT with zero external solver. Real refutations are
+still found (`x·x = x` INVALID; `x//3 ≠ x>>1` (non-power-of-2 division is not a shift); `x<<k ≠ x·k` (a shift is
+not multiply-by-the-amount); and the overflow-unsafe `(x+1)>ₛx` REFUTED in-house at INT_MAX via ite-mux) — never a
+false VALID.
 
-**Honest scope (§X).** NOT cvc5/Z3 parity: no SIGNED division (sdiv), no variable-amount shift, no
-arrays/reals/unbounded ints. The overflow-unsafe peepholes (`succ_gt_self`, `mul2_div2_id`, `add_monotone`) stay
-out of the SOUND cross-check — they are unsound (and `mul2_div2_id` needs SIGNED division) — though the in-house
-solver can now REFUTE the conditional ones via ite-mux. Signed compare, general multiply, right-shift, ite-mux, and
-UNSIGNED division (udiv — incl. the div→shift `x//2^k ≡ x>>k`) ARE in-house. Small TCB, zero deps: that is the point.
+**Honest scope (§X).** NOT cvc5/Z3 parity: no SIGNED division (sdiv), no arrays/reals/unbounded ints. The
+overflow-unsafe peepholes (`succ_gt_self`, `mul2_div2_id`, `add_monotone`) stay out of the SOUND cross-check — they
+are unsound (and `mul2_div2_id` needs SIGNED division) — though the in-house solver can now REFUTE the conditional
+ones via ite-mux. Signed compare, general multiply, right-shift, ite-mux, UNSIGNED division (udiv — incl. the
+div→shift `x//2^k ≡ x>>k`), and VARIABLE-amount shift (barrel shifter — incl. mul-by-power-of-two `x·2^k ≡ x<<k`)
+ARE in-house. Small TCB, zero deps: that is the point.
 
 ## §3 — AST-depth fast-triage before the proof cache  ·  `proof_triage.py`  ·  `test_native_s3_triage_layer`
 
