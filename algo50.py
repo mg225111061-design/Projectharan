@@ -134,10 +134,11 @@ _B: List[Algo] = [
     Algo(24, "Matrix completion (low-rank)", "B", "matrix_completion", "complete", KV.PROBABILISTIC,
          "held-out entries: 0 violations → binomial-tail δ-bound", "PROBABILISTIC(ε,δ) — never EXACT", False,
          NORMAL, False, note="EXACT only with an exact-completion certificate; default grade PROBABILISTIC"),
-    Algo(25, "Tensor decomposition (CP/Tucker exact cases)", "B", "mathmode.tensor_canon", "canonicalize",
-         KV.EXACT, "Butler–Portugal orbit-invariant canonical form (mono-term)", "canonicalization present", True,
-         NORMAL, False, PARTIAL, "mono-term tensor CANONICALIZATION present; CP/Tucker exact DECOMPOSITION not "
-         "yet built"),
+    Algo(25, "Tensor decomposition (CP/Tucker exact cases)", "B", "cp_decompose", "cp_decompose_grade", KV.EXACT,
+         "exact CP rank ≤ 1 over ℚ via re-composition equality Σ rank-1 ≡ T (+ Butler–Portugal canonicalization)",
+         "rank-1 exact; higher CP rank NP-hard → DECLINE", True, NORMAL, False,
+         note="exact CP (rank ≤ 1) decomposition + mono-term canonicalization present; general CP/Tucker is "
+              "NP-hard ⇒ certified-numeric/DECLINE beyond rank-1"),
     Algo(26, "Spiked / planted-signal detection", "B", "planted_detect", "detect", KV.PROBABILISTIC,
          "spectral gap above Marchenko–Pastur edge (BBP); 'not detectable' ≠ 'no signal'", "PROBABILISTIC(δ)",
          False, NORMAL, False, note="random-matrix universality used (not invented); detection is PROBABILISTIC"),

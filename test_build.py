@@ -9075,11 +9075,12 @@ def test_algo50_registry():
     for n in (24, 26, 27):
         assert A.BY_NUM[n].grade == KV.PROBABILISTIC, f"#{n} must be PROBABILISTIC (never EXACT)"
 
-    # (d) any GAP carries no entry point; all are honestly tracked. The 50 are now FULLY PRESENT (0 gaps:
-    # 41 CONFIRMED + 9 PARTIAL) — every named algorithm resolves to a real, certificate-bearing implementation.
+    # (d) any GAP carries no entry point; all are honestly tracked. The 50 are now FULLY PRESENT (0 gaps) — every
+    # named algorithm resolves to a real, certificate-bearing implementation; any PARTIAL names only a SUB-variant.
     gaps = dict(A.gaps())
     assert all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == set(), gaps   # all 50 built/confirmed; the 9 PARTIALS name only missing SUB-variants
+    assert set(gaps) == set(), gaps   # all 50 built/confirmed
+    assert c["confirmed"] == 50 and c["partial"] == 0, c   # every named algorithm is CONFIRMED (no partials left)
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9422,6 +9423,42 @@ def test_haran_groebner_membership():
     print("PASS test_haran_groebner_membership (#19: Buchberger ideal-membership DECISION; YES → cofactor witness "
           "q=Σ Hᵢfᵢ re-checked by expansion ([y,1] for xy−1∈⟨x−1,y−1⟩); NO → normal form + S-pair criterion; 8-case "
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
+
+
+def test_haran_cp_decompose():
+    """HARAN #25 (Group B) — exact CP (CANDECOMP/PARAFAC) tensor decomposition for the EXACT-DECIDABLE case. A
+    3-way tensor over ℚ is rank-1 iff T[i][j][k]=a_i·b_j·c_k; we recover (a,b,c) from a nonzero pivot fibre and
+    CERTIFY by re-composition equality (Σ rank-1 ≡ T, entry-by-entry). Higher CP rank ⇒ honest DECLINE (general
+    CP rank is NP-hard). Closes the last partial ⇒ all 50 CONFIRMED."""
+    import cp_decompose as CP
+    import kernel_verdict as KV
+    from fractions import Fraction as Fr
+
+    # (a) rank-1 (integer + rational) ⇒ EXACT; recovered factors re-compose to T exactly
+    a, b, c = [1, 2, 3], [2, 1], [1, -1, 2]
+    T = [[[a[i] * b[j] * c[k] for k in range(3)] for j in range(2)] for i in range(3)]
+    v = CP.cp_decompose_grade(T)
+    assert v.status == KV.EXACT and v.result["rank"] == 1 and v.certificate.kind == "cp_recomposition"
+    aa, bb, cc = v.result["factors"]
+    assert CP._outer(aa, bb, cc) == CP._f3(T)                # ★ re-composition certificate, re-checked ★
+    ar, br, cr = [Fr(1, 2), 3], [1, Fr(2, 3)], [2, Fr(-1, 5)]
+    Tr = [[[ar[i] * br[j] * cr[k] for k in range(2)] for j in range(2)] for i in range(2)]
+    assert CP.cp_decompose_grade(Tr).status == KV.EXACT
+
+    # (b) the zero tensor is rank 0 (EXACT)
+    assert CP.cp_decompose_grade([[[0, 0], [0, 0]], [[0, 0], [0, 0]]]).result["rank"] == 0
+
+    # (c) a genuine rank-2 tensor ⇒ honest DECLINE (not rank-1; exact CP rank is NP-hard)
+    a2, b2, c2, a3, b3, c3 = [1, 0], [1, 1], [1, 0], [0, 1], [1, 0], [0, 1]
+    T2 = [[[a2[i] * b2[j] * c2[k] + a3[i] * b3[j] * c3[k] for k in range(2)] for j in range(2)] for i in range(2)]
+    assert CP.cp_decompose_grade(T2).status == KV.DECLINE
+
+    # (d) malformed (non-rectangular) ⇒ DECLINE
+    assert CP.cp_decompose_grade([[[1, 2], [3]], [[4, 5], [6, 7]]]).status == KV.DECLINE
+
+    print("PASS test_haran_cp_decompose (#25: exact CP rank≤1 over ℚ via re-composition equality Σ rank-1 ≡ T; "
+          "integer + rational rank-1 recovered; zero tensor → rank 0; genuine rank-2 → honest DECLINE (CP rank "
+          "NP-hard); malformed → DECLINE — closes the last partial, all 50 CONFIRMED)")
 
 
 def test_haran_hermite():
