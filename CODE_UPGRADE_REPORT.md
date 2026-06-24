@@ -262,9 +262,9 @@ carries, per algorithm, the BEST grade (ADT: EXACT / PROBABILISTIC / DECLINE), t
 TRUE complexity with the honest ceiling, the decision-procedure flag, the tier (fast/normal/extend), broth-
 eligibility, and a status.
 
-**Status (MEASURED, honest — never rounded up to "50 done"):** **35 CONFIRMED + 9 PARTIAL + 6 GAP** (gaps close
-one-per-commit as they are built). The 6 remaining GAPS are NAMED, not padded over: #13 Bostan–Mori, #14
-Newton-iteration, #19 Gröbner, #28 autodiff, #32 power-towers, #34 Lucas-theorem+lifting. The 9 PARTIALS
+**Status (MEASURED, honest — never rounded up to "50 done"):** **36 CONFIRMED + 9 PARTIAL + 5 GAP** (gaps close
+one-per-commit as they are built). The 5 remaining GAPS are NAMED, not padded over: #13 Bostan–Mori, #14
+Newton-iteration, #19 Gröbner, #28 autodiff, #34 Lucas-theorem+lifting. The 9 PARTIALS
 name the missing sub-variant (e.g.
 #36 has deterministic Miller–Rabin but not yet the BPSW Lucas part; #38 has Pollard-rho but not p−1/ECM; #44 has
 Euler φ but not Möbius). Grades: 47 EXACT-capable / 3 PROBABILISTIC (matrix-completion #24, planted #26, sketches
@@ -289,6 +289,13 @@ The GAPS are the work queue for the next items. `algo50.py`, `test_algo50_regist
   the |result| = π(n) checkpoint). Beyond both it honestly DECLINES TO CERTIFY rather than stamp EXACT without a
   witness. HONEST: O(n log log n) ENUMERATION — not a collapse; the classic boolean sieve (segmented/wheel are
   constant-factor optimizations, not yet added). `test_haran_sieve_eratosthenes`. (35 CONFIRMED now.)
+- **#32 Power towers via Carmichael-λ** → `mathmode.number_theory.power_tower_grade`. Computes a^(b^c) mod m by
+  reducing the exponent with the generalized Euler theorem a^E ≡ a^((E mod λ(m)) + λ(m)) (mod m). EXACT, certified
+  two ways: when E=b^c is formable the result is CROSS-CHECKED against direct `pow(a, E, m)`; when E is
+  astronomically large the theorem applies (premise E ≥ ⌈log2 m⌉ verified, λ(m) independently validated by
+  u^λ ≡ 1 on units). The test ground-truths the pure-theorem branch against a 200001-bit exponent. m<1/negatives →
+  DECLINE; m unfactorable → DECLINE (can't certify λ). EXACT, tier fast, broth-eligible.
+  `test_haran_power_tower_carmichael`. (36 CONFIRMED now.)
 
 ---
 

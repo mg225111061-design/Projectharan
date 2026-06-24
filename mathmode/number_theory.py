@@ -472,6 +472,70 @@ def sieve_primes_grade(n: int) -> KV.Verdict:
     return KV.exact(primes, "number_theory.sieve", "Sieve of Eratosthenes O(n log log n) enumeration", cert)
 
 
+def _carmichael(m: int):
+    """Carmichael function λ(m) = lcm over prime powers (λ(2)=1, λ(4)=2, λ(2^e)=2^(e−2) for e≥3, λ(p^e)=
+    p^(e−1)(p−1) for odd p). Returns None if m cannot be factored to certify."""
+    if m == 1:
+        return 1
+    fv = factorize_grade(m)
+    if fv.status == KV.DECLINE:
+        return None
+    lam = 1
+    for p, e in fv.result.items():
+        l = (1 << (e - 2)) if (p == 2 and e >= 3) else (p - 1) * p ** (e - 1)
+        lam = lam * l // gcd(lam, l)                          # lcm
+    return lam
+
+
+def power_tower_grade(a: int, b: int, c: int, m: int) -> KV.Verdict:
+    """a^(b^c) mod m via CARMICHAEL-λ exponent reduction (the generalized Euler theorem). EXACT: when the exponent
+    E=b^c is directly computable it is CROSS-CHECKED against pow(a, E, m); when E is astronomically large the
+    generalized Euler theorem a^E ≡ a^((E mod λ(m)) + λ(m)) (mod m) applies EXACTLY (premise E ≥ ⌈log2 m⌉ verified),
+    with λ(m) INDEPENDENTLY validated by u^λ(m) ≡ 1 (mod m) on sampled units. m<1 ⇒ DECLINE; m unfactorable ⇒
+    DECLINE (cannot certify λ). a,b,c ≥ 0."""
+    if m < 1 or a < 0 or b < 0 or c < 0:
+        return KV.decline(f"power_tower: need m≥1, a,b,c≥0 (got a={a},b={b},c={c},m={m}) ⇒ DECLINE",
+                          "number_theory.power_tower")
+    if m == 1:
+        cert = KV.Cert(KV.EXACT, "mod_one", passed=True, check_cost="O(1)", detail="x mod 1 = 0 for all x")
+        return KV.exact(0, "number_theory.power_tower", "trivial", cert)
+    lam = _carmichael(m)
+    if lam is None:
+        return KV.decline(f"power_tower: cannot factor m={m} to certify λ(m) ⇒ DECLINE", "number_theory.power_tower")
+    units = [u for u in (2, 3, 5, 7, 11, 13) if gcd(u, m) == 1]
+    if not all(pow(u, lam, m) == 1 for u in units):          # ★ independent re-check that λ(m) is a valid exponent ★
+        return KV.decline(f"power_tower: λ(m)={lam} failed the unit re-check u^λ≡1 ⇒ DECLINE (correctness-bug guard)",
+                          "number_theory.power_tower")
+    threshold_bits = m.bit_length() + 2                       # large branch needs E ≥ 2^threshold > m ≥ log2 m
+    est_bits = (b.bit_length() - 1) * c if b >= 2 else 0     # ≈ log2(b^c) — gate forming E on its size, not on c
+    if b <= 1 or c == 0:                                      # E = b^c ∈ {0,1} (or 1) — tiny, direct
+        E, big = b ** c, False
+    elif est_bits <= 100000:                                 # E has ≤ ~100k bits ⇒ form it (so we can cross-check)
+        E = b ** c                                           # computable; may still be ≥ 2^threshold ⇒ "big"
+        big = E.bit_length() > threshold_bits
+    else:
+        E, big = None, True                                  # c astronomically large ⇒ never form E; pure theorem
+    if not big:
+        val = pow(a, E, m)
+        cert = KV.Cert(KV.EXACT, "power_tower_direct", passed=True, check_cost="O(log E) modexp",
+                       detail=f"a^(b^c) mod m = {a}^({b}^{c}={E}) mod {m} = {val} (exponent small ⇒ direct)")
+        return KV.exact(val, "number_theory.power_tower", "direct modexp", cert)
+    e_red = pow(b, c, lam)                                    # b^c mod λ(m)
+    val = pow(a % m, e_red + lam, m)                         # generalized Euler: a^E ≡ a^(E mod λ + λ) (mod m)
+    if E is not None:                                        # E was computable ⇒ CROSS-CHECK the theorem vs direct
+        if pow(a, E, m) != val:
+            return KV.decline(f"power_tower: generalized-Euler value ≠ direct pow ⇒ DECLINE (correctness-bug guard)",
+                              "number_theory.power_tower")
+        xcheck = " (cross-checked vs direct pow(a,b^c,m))"
+    else:
+        xcheck = ""                                          # c astronomically large: rely on the proven theorem
+    cert = KV.Cert(KV.EXACT, "power_tower_carmichael", passed=True,
+                   check_cost="O(log) modexp + λ(m) factorization + unit re-check",
+                   detail=f"{a}^({b}^{c}) mod {m} = {val}; E=b^c ≥ 2^{threshold_bits} ≥ ⌈log2 m⌉ ⇒ generalized "
+                          f"Euler a^E≡a^(E mod λ + λ); λ({m})={lam} (unit-validated); E mod λ={e_red}{xcheck}")
+    return KV.exact(val, "number_theory.power_tower", "Carmichael-λ reduction O(log)", cert)
+
+
 # ── uniform dispatch (recognize → route → certify), mirroring fold's shape ───────────────────────────────
 def solve(problem: dict) -> KV.Verdict:
     """problem = {"op": "egcd"|"modinv"|"crt"|"modexp"|"diophantine"|"is_prime"|"factorize"|"euler_phi", ...}."""
@@ -502,4 +566,6 @@ def solve(problem: dict) -> KV.Verdict:
         return jacobi_grade(problem["a"], problem["n"])
     if op == "sieve":
         return sieve_primes_grade(problem["n"])
+    if op == "power_tower":
+        return power_tower_grade(problem["a"], problem["b"], problem["c"], problem["m"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")

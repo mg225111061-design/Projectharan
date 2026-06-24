@@ -9078,7 +9078,7 @@ def test_algo50_registry():
     # (d) GAPS are NAMED and NOT papered over: a GAP carries no entry point; the gap set is the honest tracked one
     gaps = dict(A.gaps())
     assert gaps and all(not A.BY_NUM[n].module and not A.BY_NUM[n].entry for n in gaps), "a GAP must name no entry"
-    assert set(gaps) == {13, 14, 19, 28, 32, 34}, gaps   # #45 Jacobi, #43 sieve now CONFIRMED
+    assert set(gaps) == {13, 14, 19, 28, 34}, gaps   # #45 Jacobi, #43 sieve, #32 power-towers now CONFIRMED
 
     # (e) HONEST COMPLEXITY caveats are RECORDED (never glossed): CAD doubly-exp, Lucas–Lehmer O(p), sieve enumeration
     assert "DOUBLY-EXP" in A.BY_NUM[18].complexity.upper(), "CAD must be flagged doubly-exponential (never O(1))"
@@ -9178,6 +9178,47 @@ def test_haran_sieve_eratosthenes():
     print(f"PASS test_haran_sieve_eratosthenes (#43: Eratosthenes EXACT by construction; {len(primes1k)} primes "
           f"≤1000; full trial-division cross-check (n≤5000) + π(n) checkpoints 168/1229/9592; soundness via "
           f"independent Miller–Rabin; honest DECLINE for n<2 and beyond the bound — enumeration, not collapse)")
+
+
+def test_haran_power_tower_carmichael():
+    """HARAN #32 (Group C) — a^(b^c) mod m via CARMICHAEL-λ exponent reduction (the generalized Euler theorem).
+    EXACT, certified two ways: when E=b^c is formable the result is CROSS-CHECKED against direct pow(a, E, m);
+    when E is astronomically large the theorem a^E ≡ a^(E mod λ(m) + λ(m)) applies (premise E ≥ ⌈log2 m⌉, λ(m)
+    validated by u^λ ≡ 1 on units). The killer test forms a 200001-bit exponent in the TEST to ground-truth the
+    pure-theorem branch the function refuses to evaluate directly."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    # (a) Carmichael λ on known values (independent of the tower machinery)
+    assert [NT._carmichael(x) for x in (1, 2, 4, 8, 9, 15, 561)] == [1, 1, 2, 2, 6, 4, 80]
+
+    # (b) small exponent: direct path, EXACT, matches independent pow(a, b**c, m)
+    for a in (2, 3, 7, 10):
+        for b in (2, 3, 5):
+            for c in (0, 1, 2, 3):
+                for m in (7, 100, 561, 1000):
+                    v = NT.power_tower_grade(a, b, c, m)
+                    assert v.status == KV.EXACT and v.result == pow(a, b ** c, m), (a, b, c, m)
+
+    # (c) large-but-formable exponent: generalized-Euler path, internally cross-checked vs direct ground truth
+    for a, b, c, m in [(7, 3, 100, 1000000007), (2, 5, 80, 998244353), (123, 7, 90, 123456789)]:
+        v = NT.power_tower_grade(a, b, c, m)
+        assert v.status == KV.EXACT and v.result == pow(a, b ** c, m), (a, b, c, m)
+        assert v.certificate.kind == "power_tower_carmichael"
+
+    # (d) the PURE-THEOREM branch (the function never forms E: est_bits > 100000) STILL matches ground truth — we
+    # form the 200001-bit 2^200000 only HERE to get the independent truth pow(3, 2^200000, m)
+    a, b, c, m = 3, 2, 200000, 998244353
+    v = NT.power_tower_grade(a, b, c, m)
+    assert v.status == KV.EXACT and v.result == pow(a, b ** c, m), "pure-theorem branch must match direct ground truth"
+
+    # (e) honest DECLINE on m<1 / negative inputs
+    for bad in [(2, 3, 4, 0), (2, 3, -1, 7), (2, -1, 4, 7)]:
+        assert NT.power_tower_grade(*bad).status == KV.DECLINE
+
+    print("PASS test_haran_power_tower_carmichael (#32: a^(b^c) mod m via Carmichael-λ; small battery == "
+          "pow(a,b^c,m); large-formable cross-checked vs direct; PURE-THEOREM branch ground-truthed against a "
+          "200001-bit exponent; λ(m) unit-validated; m<1/negatives → DECLINE; EXACT certificate re-checkable)")
 
 
 def test_mode_budget_roles():
