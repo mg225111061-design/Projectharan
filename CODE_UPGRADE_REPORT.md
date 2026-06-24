@@ -163,11 +163,14 @@ its grade + certificate, or `None` when none is proven (honest, never fabricated
 it as a "루프 붕괴 (결정 절차)" card. `test_run_optimize_collapse`. So the proven collapse is part of the actual
 result, programmatically consumable, not just narrated in the live trace.
 
-**Budget-bounded (§1 enforcement extended).** The collapse analysis EXECS and TIMES the user's loop (sampling,
-`f(n)`), so it is bounded by the mode budget (fast 0.5 s / normal 2 s / extend 5 s) via the daemon-thread watchdog:
-a pathological loop whose VALUE is C-finite (the fit succeeds) but whose per-call COST is slow returns `None`
-within budget rather than hanging the response — fast never blocks on user code, and a partial is never fabricated.
-A normal loop still collapses well within budget (no false negative). `test_loop_collapse_budget_bounded`.
+**Decide-only + synchronous (fork-safe).** In the optimize RESULT path `_loop_collapse` DECIDES the collapse
+(sample → fit → held-out verify) WITHOUT timing the user's loop — so it is fast and spawns NO threads. (An earlier
+timing-under-a-daemon-watchdog design left a thread alive executing slow user-code and could DEADLOCK a later
+`multiprocessing.fork` — a real regression, now fixed and gated by `test_loop_collapse_fork_safe`: after a collapse
+the live thread count does not increase and a `multiprocessing.Pool` runs without hanging.) Soundness is unchanged
+— the held-out `companion ≡ loop` gate is kept — and the MEASURED ratio lives in the live trace (§3), a single
+deliberate step, not on every optimize call. The result field carries the proof + certificate (no unmeasured
+ratio).
 
 ---
 

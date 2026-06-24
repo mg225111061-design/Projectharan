@@ -51,7 +51,7 @@ def _decline(reason: str) -> RecurrenceCollapse:
 
 
 def decide_recurrence_collapse(source: str, fn_name: Optional[str] = None, sample: int = 24, n: int = 4000,
-                               trials: int = 5) -> RecurrenceCollapse:
+                               trials: int = 5, measure: bool = True) -> RecurrenceCollapse:
     """DECIDE whether a single-parameter loop f(n) computes a C-finite sequence and, if so, collapse the O(n)
     loop to an O(log n) companion form — MEASURED, verified ≡ the loop on held-out n. Otherwise DECLINE (honest:
     keep the loop). Sound: a wrong fit or a non-C-finite loop never yields a (wrong) collapse."""
@@ -93,6 +93,19 @@ def decide_recurrence_collapse(source: str, fn_name: Optional[str] = None, sampl
             return _decline("the loop raised on held-out n ⇒ DECLINE")
         if cfinite.companion_nth(c, init, nv) != want:
             return _decline(f"companion form ≠ the loop at held-out n={nv} ⇒ DECLINE (no wrong collapse)")
+
+    if not measure:                                          # DECIDE-ONLY (fast, synchronous, fork-safe) — for the
+        order = len(c)                                       #   optimize RESULT field; the measured ratio is shown
+        cert = KV.Cert(KV.EXACT, "verified_recurrence_collapse", passed=True,         # in the live trace instead
+                       check_cost="held-out companion≡loop verification",
+                       detail=f"order-{order} C-finite recurrence f(n)=Σ c_j·f(n-1-j), c={c}, init={init}, VERIFIED ≡ "
+                              f"the loop on held-out n {holdout} — the O(log n) companion form is a PROVEN lossless "
+                              f"replacement (decision only; the measured speedup is shown in the live trace). "
+                              f"DOMAIN-CONDITIONAL — C-finite (linear constant-coefficient) sequences only.")
+        return RecurrenceCollapse("COLLAPSED", c=c, init=init, order=order, n=0, ratio=0.0, measured_win=False,
+                                  closed_desc=f"companion_nth(c={c}, init={init}, n) — O(log n)",
+                                  verdict=KV.exact({"c": c, "init": init}, "loop_recurrence",
+                                                   "verified O(n)→O(log n) collapse (decision only)", cert))
 
     # 4) final re-check at the measured n, then MEASURE the O(n) loop vs the O(log n) companion
     if f(n) != cfinite.companion_nth(c, init, n):
@@ -146,7 +159,7 @@ def _detect_modulus(fn, ns) -> Optional[int]:
 
 
 def decide_modular_recurrence_collapse(source: str, fn_name: Optional[str] = None, sample: int = 24,
-                                       n: int = 100000, trials: int = 5) -> RecurrenceCollapse:
+                                       n: int = 100000, trials: int = 5, measure: bool = True) -> RecurrenceCollapse:
     """DECIDE whether a single-parameter loop computes a C-finite sequence f(n) MOD M and, if so, collapse the
     O(n) modular loop to an O(log n) companion-matrix-power-MOD-M form — the case where O(log n) genuinely WINS
     (bounded ints, no bigint). Sound: M is detected from the loop's `% M`, the recurrence is fitted from the
@@ -193,6 +206,19 @@ def decide_modular_recurrence_collapse(source: str, fn_name: Optional[str] = Non
             return _decline("the loop raised on held-out n ⇒ DECLINE")
         if cfinite.companion_nth_mod(c, init, nv, M) != want:
             return _decline(f"companion-mod ≠ the loop at held-out n={nv} (mod {M}) ⇒ DECLINE (no wrong collapse)")
+
+    if not measure:                                          # DECIDE-ONLY (fast, synchronous, fork-safe)
+        order = len(c)
+        cert = KV.Cert(KV.EXACT, "verified_modular_recurrence_collapse", passed=True,
+                       check_cost="held-out companion-mod≡loop verification",
+                       detail=f"order-{order} C-finite recurrence mod {M}, c={c}, init={init}, VERIFIED ≡ the loop on "
+                              f"held-out n {holdout} WHERE IT HAS WRAPPED — the O(log n) companion-mod is a PROVEN "
+                              f"lossless replacement (decision only; the measured speedup is shown in the live trace). "
+                              f"This is the genuine-win case (bounded ints). DOMAIN-CONDITIONAL — C-finite modular only.")
+        return RecurrenceCollapse("COLLAPSED", c=c, init=init, order=order, n=0, ratio=0.0, measured_win=False,
+                                  closed_desc=f"companion_nth_mod(c={c}, init={init}, n, M={M}) — O(log n) bounded",
+                                  verdict=KV.exact({"c": c, "init": init, "M": M}, "loop_recurrence",
+                                                   f"verified O(n)→O(log n) modular collapse mod {M} (decision only)", cert))
 
     # 3) re-check at the measured n, then MEASURE the O(n) modular loop vs the O(log n) companion-mod
     if f(n) != cfinite.companion_nth_mod(c, init, n, M):

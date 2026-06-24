@@ -9201,6 +9201,14 @@ def test_code_stream():
     assert appf and "O(log n)" in appf[0].message, "a recurrence loop must stream the O(log n) companion collapse"
     assert rcres and rcres[0].grade == "EXACT" and "증명된 붕괴" in rcres[0].message, "RESULT reports the proven collapse"
 
+    # (g) §4 modular tie-in: a MODULAR C-finite loop streams the O(log n) mod-M collapse (the genuine-win case)
+    fibm = "M = 10 ** 9 + 7\ndef f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, (a + b) % M\n    return a"
+    tm = CS.build_code_trace(fibm, "normal")
+    appm = [e for e in tm if e.phase == CS.APPLY and "모듈러" in e.message]
+    rmres = [e for e in tm if e.phase == CS.RESULT and "모듈러" in e.message]
+    assert appm and "O(log n)" in appm[0].message, "a modular recurrence loop must stream the O(log n) mod-M collapse"
+    assert rmres and rmres[0].grade == "EXACT" and "증명된 붕괴" in rmres[0].message
+
     print("PASS test_code_stream (live CODE process ANALYZE→RECOGNIZE→APPLY→CERTIFY→VERIFY→RESULT, ordered; extend "
           "budget line BOUNDED '· / 8:00'; the §2 PROVEN DECLINE surfaced live; displayed grade == engine grade "
           f"[harmonic {real.verdict.status} decision; list-as-set {eng['shipped'][0]['grade'].upper()}] — no "
@@ -9396,31 +9404,34 @@ def test_loop_collapse_coverage():
           f"decided rows EXACT-certified — never a general-purpose-accelerator claim, the honest structured-corpus share)")
 
 
-def test_loop_collapse_budget_bounded():
-    """§1/§4 — the loop-collapse analysis EXECS and TIMES the user's loop (sampling, f(n)), so it is
-    BUDGET-BOUNDED: a pathological loop whose VALUE is C-finite (the fit succeeds) but whose per-call COST is slow
-    must NOT hang the optimize response — the daemon-thread watchdog returns None within budget (fast never blocks;
-    never fabricates a result). A normal fast loop still collapses within a generous budget (no false negative)."""
+def test_loop_collapse_fork_safe():
+    """§4 (regression) — _loop_collapse is DECIDE-ONLY and SYNCHRONOUS: it surfaces the proven collapse (sample →
+    fit → held-out verify) WITHOUT timing the user's loop, so it is fast and spawns NO threads. The earlier
+    timing-under-a-daemon-watchdog design left a thread alive on a slow loop and could DEADLOCK a later
+    multiprocessing.fork; this guards against that (after _loop_collapse the live thread count does not increase)
+    while keeping the proof — the held-out-verified decision + certificate. The measured ratio lives in the live
+    trace (§3), a single deliberate step, not on every optimize call."""
     from webapi import engine_bridge as EB
+    import threading
     import time
 
-    # f(n) = 1000n: linear (C-finite ⇒ the fit succeeds) but O(1000n) per call ⇒ f(10000) is slow (~0.6s)
-    slow = ("def f(n):\n    x = 0\n    for i in range(n):\n        for j in range(1000):\n            x += 1\n"
-            "    return x")
-    t0 = time.monotonic()
-    col = EB._loop_collapse(slow, budget_s=0.1)
-    dt = time.monotonic() - t0
-    assert dt < 0.9, f"the bounded analysis must NOT hang (took {dt:.2f}s)"
-    assert col is None, "a slow loop exceeding the budget returns None (honest — never a fabricated collapse)"
+    for code in ("def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a",
+                 "M = 10 ** 9 + 7\ndef f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, (a + b) % M\n"
+                 "    return a"):
+        base = threading.active_count()
+        t0 = time.monotonic()
+        col = EB._loop_collapse(code)
+        dt = time.monotonic() - t0
+        assert col and col["status"] == "COLLAPSED" and col["c"] == [1, 1] and col["grade"] == "EXACT", col
+        assert col["certificate"] and "ratio" not in col, "decide-only ⇒ proof + certificate but no (unmeasured) ratio"
+        assert dt < 2.0, f"decide-only collapse must be fast (took {dt:.2f}s)"
+        # ★ the regression guard ★: _loop_collapse adds NO threads (so a later multiprocessing.fork can't deadlock)
+        assert threading.active_count() <= base, "decide-only _loop_collapse must spawn NO threads (fork-safe)"
 
-    # a normal Fibonacci loop still COLLAPSES well within a generous budget (the bound creates no false negative)
-    fib = "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"
-    cf = EB._loop_collapse(fib, budget_s=5.0)
-    assert cf and cf["status"] == "COLLAPSED" and cf["kind"] == "recurrence", cf
-
-    print(f"PASS test_loop_collapse_budget_bounded (a C-finite-but-SLOW loop [f(n)=1000n, O(n) per call] is "
-          f"budget-bounded → None in {dt:.2f}s [no hang, no fabricated collapse]; a normal Fibonacci loop still "
-          f"COLLAPSES within budget [no false negative from the bound] — fast never blocks on user code)")
+    print("PASS test_loop_collapse_fork_safe (_loop_collapse decide-only + synchronous for both the recurrence and "
+          "modular cases: COLLAPSED c=[1,1] EXACT with a certificate, no (unmeasured) ratio [shown in the live trace "
+          "instead], fast, and spawns NO threads [active_count does not increase] — the multiprocessing.fork "
+          "deadlock regression is gated)")
 
 
 def test_modular_recurrence_collapse():

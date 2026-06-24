@@ -71,6 +71,7 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
     # 3+4) APPLY + CERTIFY — the absorbed MATH decision procedure on a Σ-accumulation loop (§2), surfaced live
     dec = SR.decide_loop(code)
     rc = None
+    mc = None
     if dec is not None:
         if dec.status == "CLOSED_FORM":
             yield ev(APPLY, f"fold 적용 중: 결정 절차로 멱합/누적 루프 접는 중… Σ {dec.summand}",
@@ -95,6 +96,8 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
         try:
             import loop_recurrence as LR2
             rc = LR2.decide_recurrence_collapse(code, n=20000, trials=2)
+            if rc is None or rc.status != "COLLAPSED":         # exact declined → try the genuine-win modular case
+                mc = LR2.decide_modular_recurrence_collapse(code, n=20000, trials=2)
         except Exception:                                    # noqa: BLE001 — analysis must never crash the stream
             rc = None
         if rc is not None and rc.status == "COLLAPSED":
@@ -102,6 +105,10 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
             _win = "측정 win" if rc.measured_win else "검증됨 (이 n에선 측정 win 아님 — 정직)"
             yield ev(CERTIFY, f"증명서 생성 중… (동반형 ≡ 루프, held-out n 검증) · {rc.ratio:.1f}× {_win}",
                      grade=rc.verdict.status, certificate=rc.verdict.certificate.detail)
+        elif mc is not None and mc.status == "COLLAPSED":
+            yield ev(APPLY, f"모듈러 선형 점화식 인식 중: O(n) 루프 → O(log n) 동반행렬 mod M (order={mc.order}, c={mc.c})")
+            yield ev(CERTIFY, f"증명서 생성 중… (동반형-mod ≡ 루프, wrap된 held-out n 검증) · {mc.ratio:.1f}× 측정 win "
+                     f"[경계 정수 ⇒ 진짜 O(log n)]", grade=mc.verdict.status, certificate=mc.verdict.certificate.detail)
 
     # 5) VERIFY — run the REAL engine UNDER the mode's enforced budget (§1)
     res = EB.run_optimize(code, m.value)
@@ -122,6 +129,9 @@ def iter_code_trace(code: str, mode: str = "normal") -> Iterator[PhaseEvent]:
     elif rc is not None and rc.status == "COLLAPSED":
         yield ev(RESULT, f"결과: O(n) 점화식 루프 → O(log n) 동반형 — 증명된 붕괴 (held-out n 검증, {rc.ratio:.1f}×)",
                  grade=rc.verdict.status, certificate=rc.verdict.certificate.detail)
+    elif mc is not None and mc.status == "COLLAPSED":
+        yield ev(RESULT, f"결과: O(n) 모듈러 점화식 루프 → O(log n) 동반형 mod M — 증명된 붕괴 (wrap된 held-out 검증, "
+                 f"{mc.ratio:.1f}×)", grade=mc.verdict.status, certificate=mc.verdict.certificate.detail)
     elif dec is not None and dec.status == "NO_CLOSED_FORM":
         yield ev(RESULT, "결과: 이 루프는 닫힌형이 없음 — PROVEN DECLINE (루프를 그대로 유지)",
                  grade=dec.verdict.status, certificate=dec.certificate)
