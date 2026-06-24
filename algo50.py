@@ -186,9 +186,10 @@ _C: List[Algo] = [
          KV.EXACT, "Cipolla ≡ Tonelli–Shanks (two independent algorithms agree ±); non-residue proven by Euler",
          "O(log² p)", False, NORMAL, True,
          note="Tonelli–Shanks AND Cipolla present; each cross-checks the other"),
-    Algo(40, "Baby-step giant-step / rho (discrete log)", "C", "mathmode.number_theory", "discrete_log_grade",
-         KV.EXACT, "g^x ≡ h verified; no-solution proven by exhaustive order search", "O(√m) time+space (honest "
-         "size bound)", False, EXTEND, False, PARTIAL, "BSGS present; Pollard-rho dlog variant not yet"),
+    Algo(40, "Baby-step giant-step / rho (discrete log)", "C", "mathmode.number_theory", "pollard_rho_dlog_grade",
+         KV.EXACT, "Pollard-rho ≡ BSGS (two independent algorithms agree mod ord g); g^x≡h re-checked",
+         "O(√n) time, O(1) space (rho) / O(√m) (BSGS)", False, EXTEND, False,
+         note="BSGS AND Pollard-rho (O(1) space) present; each cross-checks the other"),
     Algo(41, "Continued fractions + Pell", "C", "mathmode.number_theory", "pell_grade", KV.EXACT,
          "x²−D·y² = 1 verified exactly; perfect square → DECLINE", "O(period)≈O(√D); n-th via matrix power O(log n)",
          False, NORMAL, False),

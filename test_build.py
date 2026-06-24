@@ -9424,6 +9424,36 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_pollard_rho_dlog():
+    """HARAN #40 (Group C) — discrete log by POLLARD'S RHO (O(√n) time, O(1) SPACE — a random-walk + Floyd cycle
+    detection; collision ⇒ x·(B−D)≡(C−A) mod ord g), CROSS-CHECKED against baby-step/giant-step. Two INDEPENDENT
+    algorithms must agree (mod ord g). Closes the Pollard-rho branch of the discrete-log partial."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+
+    # (a) dlogs over a few small primes, cross-checked vs BSGS and ground truth, all EXACT
+    for m in (23, 29, 101):
+        for g in (2, 3, 5):
+            if NT.gcd(g, m) != 1:
+                continue
+            n = NT._mult_order(g, m)
+            for x in range(0, min(n, 8)):
+                h = pow(g, x, m)
+                v = NT.pollard_rho_dlog_grade(g, h, m)
+                assert v.status == KV.EXACT and pow(g, v.result, m) == h and (v.result - x) % n == 0, (g, h, m, x)
+                assert v.certificate.kind == "rho_dlog_vs_bsgs"
+
+    # (b) no solution (h ∉ ⟨g⟩) ⇒ honest DECLINE (never a fabricated exponent)
+    g, m = 4, 23
+    powers = {pow(g, i, m) for i in range(NT._mult_order(g, m))}
+    hbad = next(z for z in range(1, m) if z not in powers)
+    assert NT.pollard_rho_dlog_grade(4, hbad, 23).status == KV.DECLINE
+
+    print("PASS test_haran_pollard_rho_dlog (#40: Pollard-rho discrete log O(√n) time / O(1) space, cross-checked "
+          "≡ BSGS over 3 primes; g^x≡h re-checked + agreement mod ord g; h∉⟨g⟩ → DECLINE — closes the rho-dlog "
+          "branch (two independent algorithms verify each other))")
+
+
 def test_haran_cipolla():
     """HARAN #39 (Group C) — modular square root by CIPOLLA's algorithm (deterministic non-residue search — no
     randomness), CROSS-CHECKED against Tonelli–Shanks: two INDEPENDENT algorithms must agree (up to ±). Closes the

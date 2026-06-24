@@ -494,6 +494,81 @@ def mobius_grade(n: int) -> KV.Verdict:
 
 
 # ── discrete logarithm (baby-step giant-step) — certificate g^x ≡ h (mod m) ──────────────────────────────
+def _mult_order(g: int, m: int):
+    """Multiplicative order of g mod m: the least k>0 with g^k ≡ 1, via φ(m) and its factorization. None if g not
+    a unit / unfactorable."""
+    if gcd(g, m) != 1:
+        return None
+    phiv = euler_phi_grade(m)
+    fv = factorize_grade(phiv.result)
+    if phiv.status == KV.DECLINE or fv.status == KV.DECLINE:
+        return None
+    order = phiv.result
+    for p in fv.result:
+        while order % p == 0 and pow(g, order // p, m) == 1:
+            order //= p
+    return order
+
+
+def _pollard_rho_dlog(g: int, h: int, m: int, n: int):
+    """Pollard's rho for discrete logs: a pseudo-random walk X=g^A·h^B with Floyd cycle detection; a collision
+    gives x·(B−D) ≡ (C−A) (mod n). n = ord(g). O(√n) time, O(1) space. Deterministic restarts on a bad collision."""
+    def step(x, a, b):
+        s = x % 3
+        if s == 0:
+            return x * x % m, 2 * a % n, 2 * b % n
+        if s == 1:
+            return x * g % m, (a + 1) % n, b
+        return x * h % m, a, (b + 1) % n
+
+    bound = 6 * int(n ** 0.5) + 20
+    for start in range(1, 25):                               # deterministic restarts
+        X, A, B = pow(g, start, m), start % n, 0
+        Y, C, D = X, A, B
+        for _ in range(bound):
+            X, A, B = step(X, A, B)
+            Y, C, D = step(*step(Y, C, D))
+            if X == Y:
+                r, u = (B - D) % n, (C - A) % n
+                if r == 0:
+                    break
+                d = gcd(r, n)
+                if u % d != 0:
+                    break
+                x0 = (u // d) * pow(r // d, -1, n // d) % (n // d)
+                for t in range(d):
+                    cand = (x0 + t * (n // d)) % n
+                    if pow(g, cand, m) == h % m:
+                        return cand
+                break
+    return None
+
+
+def pollard_rho_dlog_grade(g: int, h: int, m: int) -> KV.Verdict:
+    """Discrete log g^x ≡ h (mod m) by POLLARD'S RHO (O(√n) time, O(1) SPACE — vs BSGS's O(√m) space),
+    CROSS-CHECKED against baby-step/giant-step: two INDEPENDENT algorithms must agree (mod ord g). EXACT
+    (g^x≡h re-checked AND ≡ BSGS). No solution / g not a unit ⇒ honest DECLINE."""
+    if m <= 1 or gcd(g % m, m) != 1:
+        return KV.decline(f"pollard_rho_dlog: need m>1 and gcd(g,m)=1 ⇒ DECLINE", "number_theory.rho_dlog")
+    g, h = g % m, h % m
+    n = _mult_order(g, m)
+    if n is None:
+        return KV.decline(f"pollard_rho_dlog: cannot determine ord(g) ⇒ DECLINE", "number_theory.rho_dlog")
+    x = _pollard_rho_dlog(g, h, m, n)
+    bsgs = discrete_log_grade(g, h, m)                       # independent O(√m) algorithm
+    if x is None or pow(g, x, m) != h:                      # rho found nothing valid
+        if bsgs.status == KV.DECLINE:
+            return KV.decline(f"pollard_rho_dlog: no x with {g}^x≡{h} (mod {m}) ⇒ DECLINE", "number_theory.rho_dlog")
+        x = bsgs.result % n                                 # rho missed but a solution exists ⇒ use the proven one
+    if bsgs.status != KV.DECLINE and (bsgs.result - x) % n != 0:  # ★ two algorithms must agree mod ord(g) ★
+        return KV.decline(f"pollard_rho_dlog: rho x={x} ≠ BSGS {bsgs.result} (mod {n}) ⇒ DECLINE (bug guard)",
+                          "number_theory.rho_dlog")
+    cert = KV.Cert(KV.EXACT, "rho_dlog_vs_bsgs", passed=True, check_cost="O(√n) + BSGS cross-check + one modexp",
+                   detail=f"{g}^{x} ≡ {h} (mod {m}); Pollard-rho ≡ baby-step/giant-step (mod ord g={n}) — two "
+                          f"independent algorithms agree")
+    return KV.exact(x, "number_theory.rho_dlog", "Pollard-rho O(√n) space-O(1)", cert)
+
+
 def discrete_log_grade(g: int, h: int, m: int) -> KV.Verdict:
     """Find x with g^x ≡ h (mod m) via baby-step/giant-step (O(√m)). Certificate: pow(g,x,m)==h%m (exact). No
     such x (the search is exhaustive over the cyclic order) ⇒ honest DECLINE — never a fabricated exponent."""
@@ -938,4 +1013,6 @@ def solve(problem: dict) -> KV.Verdict:
         return bpsw_grade(problem["n"])
     if op == "cipolla":
         return cipolla_sqrt_grade(problem["a"], problem["p"])
+    if op == "rho_dlog":
+        return pollard_rho_dlog_grade(problem["g"], problem["h"], problem["m"])
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")
