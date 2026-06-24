@@ -7884,13 +7884,14 @@ def test_native_s1_rust_core():
 def test_native_s2_bitblast_smt():
     """§2 — ZERO-DEPENDENCY bit-blasting SMT (in-house DPLL SAT + bit-blaster + independent certificate checker;
     no coqc/cvc5/Bitwuzla/Lean/Z3). It DECIDES fixed-width QF-bitvector obligations the CODE engine actually
-    generates (add/sub/mul-by-const/general-mul/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt/ite-mux) so those proofs
-    need no external solver. Honest scope (§X): a validity result is EXACT *within the stated width* (bound =
+    generates (add/sub/mul-by-const/general-mul/udiv/and/or/xor/not/shl/lshr/ashr/eq/ult/slt/sgt/ite-mux) so those
+    proofs need no external solver. Honest scope (§X): a validity result is EXACT *within the stated width* (bound =
     2^width), DETERMINISTIC (same input ⇒ same result AND same certificate), and CERTIFICATE-PRODUCING (every SAT
     model is re-checked by a tiny independent checker; ∀-validity is UNSAT of the negation over the whole w-bit
-    domain). It is NOT cvc5/Z3 parity — no division, no variable-amount shift, no arrays/reals/unbounded ints — and
-    we never imply it (signed compare, general multiply, right-shift, AND ite-mux ARE in-house; sections g–h decide
-    them — incl. branchless abs ≡ x<0?−x:x and the in-house refutation of the overflow-unsafe (x+1)>ₛx)."""
+    domain). It is NOT cvc5/Z3 parity — no SIGNED division, no variable-amount shift, no arrays/reals/unbounded ints
+    — and we never imply it (signed compare, general multiply, right-shift, ite-mux, AND unsigned division ARE
+    in-house; sections g–h decide them — incl. branchless abs ≡ x<0?−x:x, the div→shift x//2^k ≡ x>>k, and the
+    in-house refutation of the overflow-unsafe (x+1)>ₛx)."""
     import bitblast_smt as S
     from pillar3 import bv_validate as BV
 
@@ -7900,8 +7901,9 @@ def test_native_s2_bitblast_smt():
     assert cc["all_agree"], f"in-house must agree with Z3 (PROVEN) on every sound peephole: {cc['rows']}"
     for row in cc["rows"]:
         assert row["inhouse"] == "PROVEN" == row["z3"], row
-    # (b) HONEST SCOPE: the overflow-unsafe peepholes (signed `>` / division / ite-mux) are NOT claimed by the
-    # in-house solver — they stay on Z3. The list is non-empty and names exactly those three (no parity pretence).
+    # (b) HONEST SCOPE: the overflow-unsafe peepholes (signed `>` / signed division / signed `>=`) are NOT claimed
+    # by the in-house cross-check — they stay on Z3 (they're UNSOUND, and mul2_div2_id needs SIGNED division (sdiv),
+    # which is outside the in-house theory). The list is non-empty and names exactly those three (no parity pretence).
     assert cc["out_of_scope_for_inhouse"] == [n for n, *_ in BV.unsafe_peepholes()] and cc["out_of_scope_for_inhouse"], \
         "must honestly declare the signed/division/ite peepholes OUT of the in-house theory"
     # the VALID certificate states its bound (EXACT only within that width — never an unbounded claim)
@@ -7964,6 +7966,14 @@ def test_native_s2_bitblast_smt():
         return (bb.mux(s, bb.const(1), bb.const(0)), bb.const(1))    # claim it is ALWAYS 1 — FALSE at INT_MAX
     uc = S.prove_bv_identity(_unsound_cond, 8)
     assert uc.status == "INVALID" and uc.model["x"] == 127, uc      # refuted in-house at INT_MAX(w8)=127 via mux
+    # ★ unsigned division (udiv) now in-house: the canonical DIV→SHIFT x//2^k ≡ x>>k is in the VALID catalog; the
+    # restoring divider is CORRECT on a non-power-of-2 (udiv(v,3) == v//3), and a wrong div→shift is REFUTED ★
+    assert "udiv4_to_lshr2" in sr and sr["udiv4_to_lshr2"].status == "VALID"
+    for v in (7, 17, 31):
+        dv = S.prove_bv_identity(lambda bb, v=v: (bb.udiv(bb.const(v), bb.const(3)), bb.const(v // 3)), 6)
+        assert dv.status == "VALID", (v, dv)                       # divider ≡ Python // on concrete values
+    bad_div = S.prove_bv_identity(lambda bb: (lambda x: (bb.udiv(x, bb.const(3)), bb.lshr(x, 1)))(bb.var("x")), 5)
+    assert bad_div.status == "INVALID", bad_div                    # x//3 ≠ x>>1 — division by 3 is not a shift
     # determinism extends to the new theory: identical status + certificate across independent runs
     assert {n: r.certificate for n, r in S.prove_strength_reductions().items()} == \
            {n: r.certificate for n, r in sr.items()}, "strength-reduction proofs must be deterministic"
@@ -7971,10 +7981,11 @@ def test_native_s2_bitblast_smt():
     print(f"PASS test_native_s2_bitblast_smt (ZERO-DEP in-house SMT: {len(cc['rows'])} sound peepholes decided VALID "
           f"and AGREEING with Z3 at matched width; INVALID x+1==x with checked cex x={xc}; SAT 3x≡9→x={sat.model['x']} "
           f"+ UNSAT 2x≡1; SIGNED compare now in-house [(x+1)>ₛx false at INT_MAX=127, found w/o Z3]; EXPANDED theory: "
-          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift + ite-mux: sign-mask, bit "
-          f"round-trips, mul↔shift, ×-ring laws, branchless-abs≡x<0?−x:x] + REAL refutations x·x≠x cex x={sq.model['x']} "
-          f"and in-house refutation of unsound (x+1)>ₛx via mux cex x={uc.model['x']}; deterministic result+certificate; "
-          f"tamper-rejecting checker; still out-of-scope: division/variable-shift — by design (ite-mux now in-house))")
+          f"{len(sr)} strength reductions decided VALID [general mul + L/A right-shift + ite-mux + udiv: sign-mask, bit "
+          f"round-trips, mul↔shift, div→shift x//4≡x>>2, ×-ring laws, branchless-abs≡x<0?−x:x] + REAL refutations x·x≠x "
+          f"cex x={sq.model['x']} and x//3≠x>>1; in-house refutation of unsound (x+1)>ₛx via mux cex x={uc.model['x']}; "
+          f"deterministic result+certificate; tamper-rejecting checker; still out-of-scope: SIGNED division (sdiv)/"
+          f"variable-shift — by design (udiv + ite-mux now in-house))")
 
 
 def test_native_s3_triage_layer():

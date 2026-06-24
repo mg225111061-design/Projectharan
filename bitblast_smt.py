@@ -10,14 +10,15 @@ with ZERO external solver. It is:
     AND same certificate, every run.
   • CERTIFICATE-PRODUCING — SAT returns a MODEL that an independent tiny checker verifies against the CNF; for a
     validity claim (∀x. P), UNSAT of ¬P is the proof (decided exhaustively over the w-bit domain by the SAT core).
-Honest scope: bitvector add / sub / neg / mul-by-constant / general w×w multiply / eq / ult / slt / sgt (signed
-compare) / and / or / xor / not / left-shift / logical+arithmetic right-shift (by a constant) / ite-mux
-(bit-select), quantifier-free, fixed width. NOT cvc5/Z3-parity (no division, no VARIABLE-amount shift, no arrays,
-no reals, no unbounded ints). That's the point — small TCB, zero deps. (Signed comparison was added so the
-signed-overflow obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are decided in-house;
-general multiply + right-shift + ite-mux were added so strength-reduction transforms — mul↔shift, sign-mask, bit
-round-trips, and BRANCHLESS CONDITIONAL tricks verified ≡ their if-then-else spec (e.g. (x^ashr)−ashr ≡ x<0?−x:x) —
-are proven VALID in-house rather than only refuted, each EXACT within the stated width.)
+Honest scope: bitvector add / sub / neg / mul-by-constant / general w×w multiply / unsigned division (udiv,
+restoring) / eq / ult / slt / sgt (signed compare) / and / or / xor / not / left-shift / logical+arithmetic
+right-shift (by a constant) / ite-mux (bit-select), quantifier-free, fixed width. NOT cvc5/Z3-parity (no SIGNED
+division (sdiv), no VARIABLE-amount shift, no arrays, no reals, no unbounded ints; udiv-by-zero left
+unconstrained). That's the point — small TCB, zero deps. (Signed comparison was added so the signed-overflow
+obligations the CODE engine generates — e.g. (x+1) >ₛ x false at INT_MAX — are decided in-house; general multiply +
+right-shift + ite-mux + udiv were added so strength-reduction transforms — mul↔shift, DIV→SHIFT (x//2^k ≡ x>>k),
+sign-mask, bit round-trips, and BRANCHLESS CONDITIONAL tricks verified ≡ their if-then-else spec (e.g.
+(x^ashr)−ashr ≡ x<0?−x:x) — are proven VALID in-house rather than only refuted, each EXACT within the stated width.)
 """
 from __future__ import annotations
 
@@ -174,6 +175,17 @@ class BitBlaster:
         # result_i = (s ∧ a_i) ∨ (¬s ∧ b_i) — a sound if-then-else, s a CNF literal (e.g. a slt/sgt result)
         return BV([self.cnf.lit_or(self.cnf.lit_and(s, a.bits[i]), self.cnf.lit_and(-s, b.bits[i]))
                    for i in range(self.w)])
+
+    def udiv(self, a: BV, b: BV) -> BV:                     # UNSIGNED quotient a // b (restoring division, O(w²))
+        # standard shift/compare/subtract; the conditional subtract is an ite-mux. Divisor assumed nonzero in the
+        # obligation (div-by-zero left unconstrained — constrain b≠0 separately). Quotient bits MSB→LSB.
+        rem, q = self.const(0), [self._false] * self.w
+        for i in range(self.w - 1, -1, -1):
+            rem = BV([a.bits[i]] + rem.bits[: self.w - 1])  # rem = (rem << 1) | a_i  (bring in the next dividend bit)
+            ge = -self.ult_lit(rem, b)                      # rem ≥ b (unsigned) ⇔ ¬(rem < b)
+            rem = self.mux(ge, self.sub(rem, b), rem)       # if rem ≥ b: rem −= b
+            q[i] = ge
+        return BV(q)
 
 
 # ── DPLL SAT core (deterministic: lowest-index unassigned var, positive first) ───────────────────────────
@@ -349,6 +361,10 @@ def inhouse_strength_reductions() -> List[Tuple[str, "callable", int]]:
     def _mux_sign_mask(bb):                                   # (x<0 ? −1 : 0) ≡ ashr(x,w-1) — ite expresses the sign mask
         x = bb.var("x"); return (bb.mux(bb.slt_lit(x, bb.const(0)), bb.const((1 << bb.w) - 1), bb.const(0)),
                                  bb.ashr(x, bb.w - 1))
+    def _udiv4_to_shift(bb):                                  # unsigned x // 4 ≡ x >> 2 — THE classic div→shift
+        x = bb.var("x"); return (bb.udiv(x, bb.const(4)), bb.lshr(x, 2))
+    def _udiv2_to_shift(bb):                                  # unsigned x // 2 ≡ x >> 1
+        x = bb.var("x"); return (bb.udiv(x, bb.const(2)), bb.lshr(x, 1))
     # (name, build, width). Multiply is O(w²) gates so 3-var laws stay at width 3 (exhaustive over 2^9 inputs);
     # 1-var stays at 6. Each is a bounded, deterministic, EXACT-WITHIN-WIDTH decision — widen + re-prove to raise it.
     return [("sign_mask_ashr=neg_lshr", _sign_mask, 6), ("clear_low_bits_roundtrip", _clear_low, 6),
@@ -356,7 +372,8 @@ def inhouse_strength_reductions() -> List[Tuple[str, "callable", int]]:
             ("general_mul=mul_const", _mul_agrees, 6), ("mul_commutes", _mul_comm, 4),
             ("mul_associates", _mul_assoc, 3), ("mul_distributes_over_add", _mul_dist, 3),
             ("branchless_abs=cond_abs", _branchless_abs, 8), ("mux_idempotent", _mux_idempotent, 6),
-            ("mux_sign_mask=ashr", _mux_sign_mask, 6)]
+            ("mux_sign_mask=ashr", _mux_sign_mask, 6), ("udiv4_to_lshr2", _udiv4_to_shift, 6),
+            ("udiv2_to_lshr1", _udiv2_to_shift, 6)]
 
 
 def prove_strength_reductions() -> Dict[str, BVResult]:
