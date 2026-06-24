@@ -9788,17 +9788,19 @@ def test_haran_nested_loop_collapse():
          lambda n: sum(i + j for i in range(1, n + 1) for j in range(1, i + 1))),             # coupled
         ("def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   acc += i*i+j\n return acc",
          lambda n: sum(i * i + j for i in range(n) for j in range(n))),                       # 0-based
+        ("def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,i*i+1):\n   acc += j\n return acc",
+         lambda n: sum(j for i in range(1, n + 1) for j in range(1, i * i + 1))),             # degree-2 bound → O(n³)
     ]
     for src, ref in cases:
         assert SR.recognize(src, "f").kind == "CLOSED_FORM_LOOP", src
         d = SR.dispatch(src, "f")
-        assert d.status == "OFFLOADED" and "O(1)" in d.complexity and "n²" in d.complexity, (src, d.status, d.detail)
+        assert d.status == "OFFLOADED" and d.complexity.startswith("O(1)") and "nested" in d.complexity, (src, d.status, d.detail)
         F = sympy.sympify(d.closed_form)
         psym = next(iter(F.free_symbols), sympy.Symbol("n"))
         for N in (4, 7, 11, 16, 25):                              # INDEPENDENT re-check vs brute force, fresh inputs
             assert abs(float(F.subs(psym, N)) - ref(N)) < 1e-6, (src, N, d.closed_form, ref(N))
 
-    # ★ soundness: these nested shapes must NOT collapse (the recognizer rejects → honest NONE) ★
+    # ★ soundness: these nested shapes must NOT collapse (the recognizer/bounded-gate guard → honest NONE) ★
     advs = [
         "def f(n):\n acc=1\n for i in range(1,n+1):\n  for j in range(1,i+1):\n   acc += acc+j\n return acc",  # acc in body
         "def f(n):\n acc=0\n for i in range(n):\n  for j in range(n):\n   for k in range(n):\n    acc += i\n return acc",  # triple
@@ -9809,10 +9811,17 @@ def test_haran_nested_loop_collapse():
         assert SR._nested_acc(SR._first_fn(src, "f")) is None, src
         assert SR.dispatch(src, "f").status != "OFFLOADED", src
 
-    print("PASS test_haran_nested_loop_collapse (§3 nested code-shape: triangular / rectangular / coupled / 0-based "
-          "double sums Σ_iΣ_j h(i,j) all OFFLOAD O(n²)→O(1), each closed form independently re-checked vs a brute-force "
-          "double loop; acc-dependent body, triple nesting, extra outer statement & non-identity init correctly "
-          "REJECTED — sound, CAS-proposed + execution-gated)")
+    # ★ NO-HANG soundness: an EXPONENTIAL inner bound (range(1, 2**i)) would make the equivalence gate execute ~2^N
+    #   iterations and hang. The bounded-gate guard rejects non-polynomial bounds, so dispatch returns NONE FAST and
+    #   never runs an unbounded loop. (This test completing at all is the no-hang proof.) ★
+    exp_src = "def f(n):\n acc=0\n for i in range(1,n+1):\n  for j in range(1,2**i):\n   acc += j\n return acc"
+    assert SR.dispatch(exp_src, "f").status == "NONE", "exponential inner bound must DECLINE (never execute an unbounded gate)"
+
+    print("PASS test_haran_nested_loop_collapse (§3 nested code-shape: triangular / rectangular / coupled / 0-based / "
+          "degree-2-bound[O(n³)] double sums Σ_iΣ_j h(i,j) all OFFLOAD →O(1) with HONEST per-case complexity, each "
+          "closed form independently re-checked vs a brute-force double loop; acc-dependent body, triple nesting, "
+          "extra outer statement, non-identity init & EXPONENTIAL-bound[no-hang] correctly REJECTED — sound, "
+          "CAS-proposed + bounded-execution-gated)")
 
 
 def test_haran_code_shape_coverage():

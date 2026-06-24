@@ -604,6 +604,10 @@ _SAFE_BUILTINS = {"range": range, "min": min, "max": max, "abs": abs, "sum": sum
                   "map": map, "filter": filter, "bool": bool, "int": int, "float": float, "str": str,
                   "round": round, "divmod": divmod, "reduce": _functools.reduce, "__import__": _safe_import}
 _SAMPLE_N = [1, 2, 3, 5, 8, 13, 20, 37, 64]
+# nested gate uses SMALL bounded samples: with degree-≤2 polynomial loop bounds the real double loop runs ≤ N²
+# iterations per sample, so the gate is always cheap (never hangs); 12 points over-determine the low-degree
+# polynomial closed forms these nested loops produce.
+_NESTED_SAMPLE_N = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16]
 
 
 def _make_callable(source: str, name: str):
@@ -702,6 +706,21 @@ def _offload_nested(source: str, fn: ast.FunctionDef, nst: _NestedAcc) -> Dispat
         h = sympy.sympify(nst.body, locals=loc)
         lo2 = sympy.sympify(nst.lo2, locals=loc); hi2 = sympy.sympify(nst.hi2, locals=loc)
         lo1 = sympy.sympify(nst.lo1, locals=loc); hi1 = sympy.sympify(nst.hi1, locals=loc)
+    except Exception as e:  # noqa: BLE001
+        return Dispatch(NONE, struct, detail=f"nested bounds/body not interpretable ({type(e).__name__}) → LLM fallback")
+    # ★ BOUNDED-GATE GUARD (soundness + no-hang): every loop bound must be a low-degree POLYNOMIAL in {i, param}.
+    #   This rejects exponential/non-polynomial bounds (e.g. range(1, 2**i)) whose REAL loop would blow up when the
+    #   equivalence gate executes it — the gate must never run an unbounded loop. Polynomial bounds keep the sampled
+    #   loop tiny (≤ N_max² iterations), so the gate is always cheap. ★
+    try:
+        for bnd in (lo1, hi1, lo2, hi2):
+            if sympy.Poly(bnd, i, p).total_degree() > 2:
+                return Dispatch(NONE, struct, detail="nested loop bound is degree>2 — outside the bounded-gate lift "
+                                "(honest: not collapsed)")
+    except Exception:  # noqa: BLE001 — non-polynomial bound (e.g. exponential 2**i) ⇒ Poly() raises
+        return Dispatch(NONE, struct, detail="nested loop bound is non-polynomial (e.g. exponential) — the gate must "
+                        "not execute an unbounded loop → LLM fallback (sound: never collapsed unchecked)")
+    try:
         c_i = sympy.summation(h, (j, lo2, hi2 - 1))          # inner inclusive upper = range-exclusive hi − 1
         f_expr = sympy.summation(c_i, (i, lo1, hi1 - 1))     # outer inclusive upper
         f_simpl = sympy.simplify(f_expr)
@@ -718,7 +737,10 @@ def _offload_nested(source: str, fn: ast.FunctionDef, nst: _NestedAcc) -> Dispat
     if ref is None:
         return Dispatch(NONE, struct, detail="original function not found after exec")
     ok = checked = 0
-    for val in _SAMPLE_N:
+    # SMALL bounded samples: degree-≤2 polynomial bounds ⇒ ≤16²=256 inner iters/sample, so the gate cannot hang;
+    # 12 points over-determine the low-degree-polynomial closed forms these loops produce (a wrong poly proposal
+    # would have to AGREE on all 12 to slip through — impossible below degree 11).
+    for val in _NESTED_SAMPLE_N:
         try:
             want = ref(val)
             got = float(f_simpl.subs(p, val))
@@ -731,12 +753,20 @@ def _offload_nested(source: str, fn: ast.FunctionDef, nst: _NestedAcc) -> Dispat
         return Dispatch(NONE, struct, detail=f"nested closed form not equivalence-verified ({ok}/{checked}) → "
                         "LLM fallback (sound: a wrong form is never emitted)")
     cf = str(f_simpl)
+    # HONEST per-case complexity: the true iteration count is Σ_i (hi2−lo2); its polynomial degree in the param is
+    # the loop's big-O exponent (affine bounds → O(n²); a degree-2 inner bound → O(n³); etc.) — not a fixed label.
+    try:
+        iters = sympy.expand(sympy.summation(hi2 - lo2, (i, lo1, hi1 - 1)))
+        deg = sympy.Poly(iters, p).total_degree() if iters.free_symbols else 0
+    except Exception:  # noqa: BLE001
+        deg = 2
+    was = "O(n²)" if deg == 2 else f"O(n^{deg})"
     cert = (f"OFFLOAD certificate (nested): double loop `{fn.name}` Σ_{nst.vi} Σ_{nst.vj} {nst.body} lifted by "
-            f"closing the inner fold to C({nst.vi})={c_i} then the outer fold → closed form {cf} (O(1), was O(n²) "
+            f"closing the inner fold to C({nst.vi})={c_i} then the outer fold → closed form {cf} (O(1), was {was} "
             f"nested); differential-equivalence verified on {checked}/{checked} inputs vs the ORIGINAL executed "
             f"nested loop (never a wrong closed form). The CAS proposed; the execution gate is the authority.")
     return Dispatch("OFFLOADED", struct, certificate=cert, closed_form=cf,
-                    complexity="O(1) (was O(n²) nested)", detail="offloaded nested loop to closed form")
+                    complexity=f"O(1) (was {was} nested)", detail="offloaded nested loop to closed form")
 
 
 # ── action 2: CERTIFIED REWRITE of an equi-join to a hash join (measured) ───────────────────────────

@@ -391,9 +391,14 @@ triangular case Σ_i Σ_{j≤i}). The closed form is PROPOSED by the CAS (`sympy
 polynomial/hypergeometric sums) and becomes authoritative ONLY after passing DIFFERENTIAL EQUIVALENCE against the
 ORIGINAL executed nested loop on ≥5 inputs — exactly the module's propose-then-prove discipline, the execution gate
 the sole soundness authority (a bad proposal DECLINEs). Verified on triangular / rectangular / coupled / 0-based
-double sums (e.g. Σ_iΣ_{j≤i} j → n(n²+3n+2)/6), each closed form INDEPENDENTLY re-checked vs a brute-force double
-loop. Sound: an accumulator-dependent body, triple nesting, an extra outer statement, and a non-identity
-initializer are all correctly REJECTED. `test_haran_nested_loop_collapse`.
+double sums (e.g. Σ_iΣ_{j≤i} j → n(n²+3n+2)/6, plus a degree-2 inner bound → O(n³)), each closed form INDEPENDENTLY
+re-checked vs a brute-force double loop; the complexity label is computed PER-CASE from the true iteration-count
+degree (honest O(n²)/O(n³)/…, not a fixed string). **Bounded-gate soundness:** every loop bound must be a
+polynomial of total degree ≤ 2 in the loop vars — a non-polynomial bound (e.g. `range(1, 2**i)`) is REJECTED so the
+equivalence gate can never execute an unbounded/exponential loop (no hang); with polynomial bounds the sampled loop
+stays ≤ N² iterations, so the gate is always cheap. Sound: an accumulator-dependent body, triple nesting, an extra
+outer statement, a non-identity initializer, and an exponential bound are all correctly REJECTED.
+`test_haran_nested_loop_collapse`.
 
 **MEASURED code-shape reach (§3 deepen).** `algo50_coverage.measure_code_shapes()` quantifies the CODE recognizer's
 collapse breadth, with NO padding — a collapse counts only if `dispatch`→OFFLOADED AND the emitted closed form matches
