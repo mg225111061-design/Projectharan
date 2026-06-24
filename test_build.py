@@ -9843,6 +9843,53 @@ def test_haran_nested_loop_collapse():
           "CAS-proposed + bounded-execution-gated)")
 
 
+def test_haran_filtered_loop_collapse():
+    """HARAN §3 (code-shape: FILTERED) — a modular-filtered accumulation `for k in range(lo,hi): if k%M==R: acc +=
+    h(k)` (O(n)) collapses to an O(1) closed form by the EXACT reindex k = M·t + r₀ (r₀ = least k≥lo with k≡R mod M),
+    summing over t with the CAS. The closed form (with floor — still O(1) to evaluate) is authoritative ONLY after
+    DIFFERENTIAL EQUIVALENCE against the ORIGINAL executed loop, each independently re-checked vs a brute-force
+    filtered loop on fresh inputs. Adversarial (soundness): a non-modular predicate, an if/else, a summand using a
+    non-loop var, and a degenerate M=1 must NOT collapse — the gate can only DECLINE on a misread, never ship a
+    wrong O(1) form. Filtered/strided sums are among the most common real-world loop shapes."""
+    import structure_recognizer as SR
+    import sympy
+
+    cases = [
+        ("def f(n):\n s=0\n for k in range(n):\n  if k%2==0:\n   s += k\n return s",
+         lambda n: sum(k for k in range(n) if k % 2 == 0)),                                   # Σ evens
+        ("def f(n):\n s=0\n for k in range(1,n+1):\n  if k%2==1:\n   s += k*k\n return s",
+         lambda n: sum(k * k for k in range(1, n + 1) if k % 2 == 1)),                        # Σ odd squares
+        ("def f(n):\n s=0\n for k in range(n):\n  if k%3==0:\n   s += k\n return s",
+         lambda n: sum(k for k in range(n) if k % 3 == 0)),                                   # Σ multiples of 3
+        ("def f(n):\n s=0\n for k in range(n):\n  if k%4==1:\n   s += k\n return s",
+         lambda n: sum(k for k in range(n) if k % 4 == 1)),                                   # Σ k≡1 (mod 4)
+    ]
+    for src, ref in cases:
+        assert SR.recognize(src, "f").kind == "CLOSED_FORM_LOOP", src
+        d = SR.dispatch(src, "f")
+        assert d.status == "OFFLOADED" and d.complexity == "O(1) (was O(n) filtered)", (src, d.status, d.detail)
+        F = sympy.sympify(d.closed_form)
+        psym = next(iter(F.free_symbols), sympy.Symbol("n"))
+        for N in (7, 10, 13, 16, 25, 30):                       # INDEPENDENT re-check vs brute force, fresh inputs
+            assert abs(float(F.subs(psym, N)) - ref(N)) < 1e-6, (src, N, d.closed_form, ref(N))
+
+    # ★ soundness: these filtered shapes must NOT collapse (the recognizer rejects → honest NONE) ★
+    advs = [
+        "def f(n):\n s=0\n for k in range(n):\n  if k>3:\n   s += k\n return s",              # non-modular predicate
+        "def f(n):\n s=0\n for k in range(n):\n  if k%2==0:\n   s += k\n  else:\n   s += 1\n return s",  # if/else
+        "def f(n):\n s=0\n for k in range(n):\n  if k%2==0:\n   s += n\n return s",            # summand uses n not k
+        "def f(n):\n s=0\n for k in range(n):\n  if k%1==0:\n   s += k\n return s",            # degenerate M=1
+    ]
+    for src in advs:
+        assert SR._cond_acc(SR._first_fn(src, "f")) is None, src
+        assert SR.dispatch(src, "f").status != "OFFLOADED", src
+
+    print("PASS test_haran_filtered_loop_collapse (§3 filtered code-shape: Σ evens / odd-squares / multiples-of-3 / "
+          "k≡1(mod 4) all OFFLOAD O(n)→O(1) via the exact reindex k=M·t+r₀, each floor-form independently re-checked "
+          "vs a brute-force filtered loop; non-modular predicate, if/else, non-loop-var summand & degenerate M=1 "
+          "correctly REJECTED — sound, CAS-proposed + bounded-execution-gated)")
+
+
 def test_haran_code_shape_coverage():
     """HARAN §3 — MEASURED reach of the CODE-side code-shape collapse: every (Σ-target × code-shape) pair and every
     nested form that VERIFIABLY collapses to a closed form (dispatch→OFFLOADED AND the emitted closed form matches a

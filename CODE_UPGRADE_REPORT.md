@@ -405,6 +405,16 @@ accumulation is never a single-state C-finite recurrence, it returns its collaps
 the loop-SAMPLING recurrence detector (which executes the loop and would hang on an explosive inner bound). The
 recurrence/modular paths for genuine single-state loops are unchanged. `test_loop_collapse_fork_safe`.
 
+**Filtered loops → O(1) (§3 deepen).** A modular-FILTERED accumulation `for k in range(lo,hi): if k%M==R: acc +=
+h(k)` (O(n)) — one of the most common real-world loop shapes (sum of evens/odds, multiples, strided sums) — now
+collapses to an O(1) closed form (`_cond_acc` + `_offload_cond`). The mechanism is the EXACT reindex k = M·t + r₀
+(r₀ = the least k ≥ lo with k ≡ R mod M), summing over t with `sympy.summation`; the closed form (with `floor`,
+still O(1) to evaluate, e.g. Σ_{k<n} evens → (⌊n/2−½⌋+1)⌊n/2−½⌋) is authoritative ONLY after DIFFERENTIAL
+EQUIVALENCE against the ORIGINAL executed loop on affordable samples (the same bounded gate). Verified on Σ evens,
+Σ odd-squares, Σ multiples-of-3, Σ k≡1(mod 4), each re-checked vs a brute-force filtered loop. Sound: a non-modular
+predicate, an if/else, a summand using a non-loop var, and a degenerate M=1 are all correctly REJECTED.
+`test_haran_filtered_loop_collapse`.
+
 **Bounded single-fold gate (§3 harden).** The same no-hang discipline now protects the single-fold OFFLOAD gate
 (`_offload_closed_form`): the gate EXECUTES the user's loop, so it NEVER runs a sample whose iteration count exceeds
 `_GATE_ITER_BUDGET` (2 M) — a super-linear upper bound like `for j in range(2**n)` would otherwise loop ~2⁶⁴ times

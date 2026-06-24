@@ -476,6 +476,81 @@ def _nested_acc(fnnode: ast.FunctionDef) -> Optional[_NestedAcc]:
 
 
 @dataclass
+class _CondAcc:
+    """A FILTERED accumulation Σ_{k: k%M==R} h(k): loop var/bounds, the modular predicate (M, R), op/algebra,
+    and the summand h (in terms of the loop var). The reindex k = M·t + r₀ closes it to an O(1) closed form."""
+    var: str
+    lo: str
+    hi: str            # range upper bound (EXCLUSIVE), source
+    mod: int           # M in `k % M == R`
+    rem: int           # R
+    op: str
+    algebra: str
+    body: str
+
+
+def _cond_acc(fnnode: ast.FunctionDef) -> Optional[_CondAcc]:
+    """CODE-SHAPE NORMALIZATION (filtered): `acc=ID; for k in range(lo,hi): if k%M==R: acc OP= h(k); return acc`
+    ⇒ a `_CondAcc`. Conservative & sound — one `for` over range(lo,hi) whose only body statement is an `if k%M==R`
+    (M≥2, 0≤R<M, constants) with NO else and a single acc-update inside; acc initialised to the monoid identity and
+    returned; h depends ONLY on the loop var. Else None."""
+    if len(_for_loops(fnnode)) != 1 or any(isinstance(n, ast.While) for n in ast.walk(fnnode)):
+        return None
+    if len(fnnode.args.args) != 1 or fnnode.args.vararg or fnnode.args.kwarg or fnnode.args.kwonlyargs:
+        return None
+    param = fnnode.args.args[0].arg
+    body = fnnode.body
+    if not (len(body) == 3 and isinstance(body[0], ast.Assign) and isinstance(body[1], ast.For)
+            and isinstance(body[2], ast.Return)):
+        return None
+    init, loop, ret = body
+    if not (len(init.targets) == 1 and isinstance(init.targets[0], ast.Name) and isinstance(init.value, ast.Constant)):
+        return None
+    accname = init.targets[0].id
+    if not (isinstance(ret.value, ast.Name) and ret.value.id == accname):
+        return None
+    if not (isinstance(loop.iter, ast.Call) and isinstance(loop.iter.func, ast.Name) and loop.iter.func.id == "range"
+            and isinstance(loop.target, ast.Name) and len(loop.body) == 1 and isinstance(loop.body[0], ast.If)):
+        return None
+    var = loop.target.id
+    if var in (param, accname):
+        return None
+    args = loop.iter.args
+    if len(args) == 1:
+        lo, hi = "0", ast.unparse(args[0])
+    elif len(args) == 2:
+        lo, hi = ast.unparse(args[0]), ast.unparse(args[1])
+    else:
+        return None
+    iff = loop.body[0]
+    if iff.orelse or len(iff.body) != 1:                     # no else; the if-body is exactly the accumulation
+        return None
+    test = iff.test                                          # the predicate must be `k % M == R` (constants)
+    if not (isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq)
+            and isinstance(test.left, ast.BinOp) and isinstance(test.left.op, ast.Mod)
+            and isinstance(test.left.left, ast.Name) and test.left.left.id == var
+            and isinstance(test.left.right, ast.Constant) and isinstance(test.comparators[0], ast.Constant)):
+        return None
+    M, R = test.left.right.value, test.comparators[0].value
+    if not (isinstance(M, int) and isinstance(R, int) and M >= 2 and 0 <= R < M):
+        return None
+    stmt = iff.body[0]
+    if not (isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == accname):
+        return None
+    b = _MONOID_BIN.get(type(stmt.op).__name__)
+    if b is None:
+        return None
+    if (b[0] == "+" and init.value.value != 0) or (b[0] == "*" and init.value.value != 1):
+        return None
+    hsrc = ast.unparse(stmt.value)
+    hnames = _names_used(ast.parse(hsrc, mode="eval"))
+    if hnames - {var} or var not in hnames:                  # h depends ONLY on the loop var
+        return None
+    return _CondAcc(var=var, lo=_canon_expr(lo), hi=_canon_expr(hi), mod=M, rem=R,
+                    op=b[0], algebra=b[1], body=hsrc)
+
+
+@dataclass
 class _Join:
     a_iter: str
     b_iter: str
@@ -570,6 +645,10 @@ def recognize(source: str, fn_name: Optional[str] = None) -> Structure:
     if nst is not None:
         return Structure(CLOSED_FORM_LOOP, nst.algebra,
                          f"reduce('{nst.op}', f({nst.vi},{nst.vj})) over range×range (nested)", name)
+    cnd = _cond_acc(fn)                                       # filtered Σ_{k%M==R} h(k)
+    if cnd is not None:
+        return Structure(CLOSED_FORM_LOOP, cnd.algebra,
+                         f"reduce('{cnd.op}', f({cnd.var}) where {cnd.var}%{cnd.mod}=={cnd.rem})", name)
     if _dataflow_fixpoint(fn):
         return Structure(DATAFLOW_FIXPOINT, "fixpoint", "while-to-convergence (lattice fixpoint)", name)
     if _has_call(fn, "re") or any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
@@ -781,6 +860,73 @@ def _offload_nested(source: str, fn: ast.FunctionDef, nst: _NestedAcc) -> Dispat
                     complexity=f"O(1) (was {was} nested)", detail="offloaded nested loop to closed form")
 
 
+def _offload_cond(source: str, fn: ast.FunctionDef, cnd: _CondAcc) -> Dispatch:
+    """OFFLOAD a FILTERED accumulation Σ_{k=lo, k≡R (mod M)}^{hi−1} h(k) (O(n)) to an O(1) closed form by the exact
+    REINDEX k = M·t + r₀ (r₀ = the least k ≥ lo with k ≡ R mod M), summing over t with sympy.summation. The closed
+    form is CAS-PROPOSED and authoritative ONLY after DIFFERENTIAL EQUIVALENCE against the ORIGINAL executed loop on
+    affordable samples (the gate is BOUNDED by the iteration budget — no hang). Σ only; lower bound concrete."""
+    struct = Structure(CLOSED_FORM_LOOP, cnd.algebra,
+                       f"reduce('{cnd.op}', f({cnd.var}) where {cnd.var}%{cnd.mod}=={cnd.rem})", fn.name)
+    if cnd.op != "+":
+        return Dispatch(NONE, struct, detail=f"'{cnd.op}'-accumulation is not a Σ-fold (filtered closer sums) "
+                        "→ LLM fallback (sound: not lifted to a wrong form)")
+    param = fn.args.args[0].arg
+    try:
+        lo_val = int(eval(compile(ast.parse(cnd.lo, mode="eval"), "<lo>", "eval"), {"__builtins__": {}}))  # noqa: S307
+    except Exception:  # noqa: BLE001
+        return Dispatch(NONE, struct, detail=f"non-constant lower bound `{cnd.lo}` — filtered lift needs a concrete lo")
+    import sympy
+    try:
+        t, p = sympy.symbols(f"t {param}", integer=True)
+        k = sympy.sympify(cnd.body, locals={cnd.var: sympy.Symbol(cnd.var, integer=True)})
+        ksym = sympy.Symbol(cnd.var, integer=True)
+        r0 = lo_val + ((cnd.rem - lo_val) % cnd.mod)         # least k ≥ lo with k ≡ R (mod M)
+        u = sympy.sympify(cnd.hi, locals={param: p}) - 1     # inclusive upper
+        T = sympy.floor((u - r0) / cnd.mod)                  # number of valid k is T+1 (t = 0..T)
+        h_t = k.subs(ksym, cnd.mod * t + r0)                 # reindex k = M·t + r₀
+        f_expr = sympy.summation(h_t, (t, 0, T))
+        f_simpl = sympy.simplify(f_expr)
+    except Exception as e:  # noqa: BLE001
+        return Dispatch(NONE, struct, detail=f"filtered CAS closer could not evaluate ({type(e).__name__}) → LLM fallback")
+    if f_simpl.has(sympy.Sum) or (f_simpl.free_symbols - {p}):
+        return Dispatch(NONE, struct, detail="filtered sum did not fully close → LLM fallback")
+    try:
+        ref = _make_callable(source, fn.name)
+        hi_fn = eval(compile(f"lambda {param}: ({cnd.hi})", "<hi>", "eval"), {"__builtins__": _SAFE_BUILTINS})  # noqa: S307
+    except Exception as e:  # noqa: BLE001
+        return Dispatch(NONE, struct, detail=f"could not build the equivalence gate ({type(e).__name__})")
+    if ref is None:
+        return Dispatch(NONE, struct, detail="original function not found after exec")
+    ok = checked = 0
+    for val in _SAMPLE_N:
+        try:
+            iters = int(hi_fn(val)) - lo_val                 # the real loop runs (hi−lo) iterations (predicate aside)
+        except Exception:  # noqa: BLE001
+            continue
+        if iters <= 0:
+            continue
+        if iters > _GATE_ITER_BUDGET:                        # NEVER execute an unaffordable loop (no hang)
+            continue
+        try:
+            want = ref(val)
+            got = float(f_simpl.subs(p, val))
+        except Exception:  # noqa: BLE001
+            continue
+        checked += 1
+        if abs(got - float(want)) <= 1e-6:
+            ok += 1
+    if checked < 5 or ok != checked:
+        return Dispatch(NONE, struct, detail=f"filtered closed form not equivalence-verified ({ok}/{checked}) → "
+                        "LLM fallback (sound: a wrong form is never emitted)")
+    cf = str(f_simpl)
+    cert = (f"OFFLOAD certificate (filtered): loop `{fn.name}` Σ_{{{cnd.var}={cnd.lo}, {cnd.var}%{cnd.mod}=={cnd.rem}}} "
+            f"{cnd.body} reindexed k={cnd.mod}·t+{r0} → closed form {cf} (O(1), was O(n)); differential-equivalence "
+            f"verified on {checked}/{checked} inputs vs the ORIGINAL executed loop (never a wrong closed form). The "
+            f"CAS proposed; the bounded execution gate is the authority.")
+    return Dispatch("OFFLOADED", struct, certificate=cert, closed_form=cf,
+                    complexity="O(1) (was O(n) filtered)", detail="offloaded filtered loop to closed form")
+
+
 # ── action 2: CERTIFIED REWRITE of an equi-join to a hash join (measured) ───────────────────────────
 def _synth_hash_join(j: _Join) -> str:
     # `__dd` (collections.defaultdict) is injected into the exec globals — the restricted builtins
@@ -864,6 +1010,9 @@ def dispatch(source: str, fn_name: Optional[str] = None) -> Dispatch:
         nst = _nested_acc(fn)                                # doubly-nested Σ_i Σ_j h(i,j) → O(1) closed form
         if nst is not None:
             return _offload_nested(source, fn, nst)
+        cnd = _cond_acc(fn)                                  # filtered Σ_{k%M==R} h(k) → O(1) closed form (reindex)
+        if cnd is not None:
+            return _offload_cond(source, fn, cnd)
         s = recognize(source, fn_name)
         if s.kind == DATAFLOW_FIXPOINT:
             return Dispatch(NONE, s, detail="dataflow fixpoint recognized → abstract-interpretation path "
