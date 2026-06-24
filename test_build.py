@@ -9424,6 +9424,39 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_tier_routing():
+    """HARAN §4 — TIER ROUTING for the 50 algorithms: a BROTH HIT short-circuits instantly in ANY mode (even
+    fast — it was pre-proven offline); on a MISS, fast (~1s) NEVER runs an extend-tier heavy solver (it returns
+    TIER_UP), normal runs fast+normal, extend runs everything within its bounded ~8-min budget. Operationalizes
+    the fast/normal/extend contract from pillar3/mode.py for the 50."""
+    import algo50_router as R
+    import kernel_verdict as KV
+
+    # (a) broth HIT short-circuits in fast — instant EXACT (the "사전증명된 닫힌형 0.1µs" path)
+    h = R.route(9, "fast", broth_key=("faulhaber", 5))
+    assert h["action"] == "BROTH_HIT" and h["grade"] == KV.EXACT and "0.1µs" in h["ui"]
+    assert R.route(49, "fast", broth_key=("wigner3j", 1, 1, 2, 0, 0, 0))["action"] == "BROTH_HIT"
+
+    # (b) MISS: fast NEVER hosts a heavy extend-tier solver — it tiers up (the headline fast contract)
+    for heavy in (4, 6, 16, 18, 19, 20):     # Petkovsek, PiSigma*, Risch, CAD, Gröbner, Kovacic
+        r = R.route(heavy, "fast")
+        assert r["action"] == "TIER_UP" and r["required_tier"] == "extend", (heavy, r)
+
+    # (c) MISS: a fast-tier algorithm RUNs in fast; a normal-tier one tiers up in fast but RUNs in normal
+    assert R.route(9, "fast")["action"] == "RUN"                  # Faulhaber is fast-tier
+    assert R.route(1, "fast")["action"] == "TIER_UP"             # Gosper is normal-tier
+    assert R.route(1, "normal")["action"] == "RUN"
+
+    # (d) whole-fleet invariant: fast hosts NO heavy solver; extend runs all 50; only the 10 fast-tier RUN in fast
+    m = R.routing_matrix()
+    assert m["fast_hosts_no_heavy_solver"] and m["extend_runs_all"], m
+    assert m["fast_tier_up_count"] == 40, m
+
+    print(f"PASS test_haran_tier_routing (§4: broth HIT → instant in ANY mode incl. fast; MISS → fast (~1s) NEVER "
+          f"runs an extend-tier heavy solver [{m['fast_tier_up_count']}/50 TIER_UP in fast, 0 heavy hosted]; normal "
+          f"runs fast+normal; extend runs all 50 within its bounded budget — fast/normal/extend contract enforced)")
+
+
 def test_haran_coverage():
     """HARAN §3 — MEASURED collapse coverage of the 50 algorithms over a structured corpus, DOMAIN-CONDITIONAL.
     Every structured item is dispatched to the REAL algorithm and must certify (EXACT/PROBABILISTIC); a

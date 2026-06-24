@@ -361,6 +361,16 @@ corpus, near-zero on general/control-flow/graph/I/O code; NOT a general-purpose 
 adversarial DECLINEs are correct behaviour; a "family" is a generalized recognizer family (algorithm × sub-pattern),
 NOT a fundamentally-distinct structure. `test_haran_coverage`.
 
+### §4 — TIER ROUTING for the 50: fast / normal / extend + broth short-circuit (`algo50_router.py`)
+
+The operational glue tying §1 (each algorithm's tier) + §2 (broth) + the `pillar3/mode.py` contract. `route(algo,
+mode, broth_key)` enforces, per-commit-tested: a **BROTH HIT short-circuits in ANY mode** — instant O(1) EXACT
+even in fast, even for an extend-tier algorithm (it was pre-proven offline; the UI shows "사전증명된 닫힌형 0.1µs").
+On a MISS, the algorithm runs only if its tier ≤ the mode: **fast (~1s) NEVER runs an extend-tier heavy solver**
+(CAD/Risch/Gröbner/Kovacic/Petkovšek/ΠΣ*/factorization/Lucas–Lehmer/BSGS) — it returns TIER_UP (40/50 tier up in
+fast, 0 heavy hosted); **normal** runs fast+normal; **extend** runs all 50 within its BOUNDED ~8-min budget. The
+router decides ROUTING ONLY — it never weakens a grade and never runs past a budget. `test_haran_tier_routing`.
+
 ---
 
 ## §X — WHAT WE MUST NOT CLAIM (verbatim)
