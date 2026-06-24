@@ -9424,6 +9424,43 @@ def test_haran_groebner_membership():
           "battery incl. 3 vars AGREES with sympy.groebner; parse/empty → DECLINE; EXPSPACE ⇒ extend-tier)")
 
 
+def test_haran_stern_brocot():
+    """HARAN #42 (Group C) — the Stern–Brocot tree for positive rationals: the EXACT L/R path encoding (certified
+    by RECONSTRUCTING p/q from the path — the path IS the witness), and best rational approximation under a
+    denominator bound (cross-checked against a brute-force scan of every q). Closes the rational-reconstruction
+    partial (the SB tree walk)."""
+    import mathmode.number_theory as NT
+    import kernel_verdict as KV
+    from fractions import Fraction as Fr
+    from math import gcd
+
+    # (a) exact path encoding round-trips for every coprime p/q with p,q < 40
+    for p in range(1, 40):
+        for q in range(1, 40):
+            if gcd(p, q) != 1:
+                continue
+            v = NT.stern_brocot_grade(p, q)
+            assert v.status == KV.EXACT and NT._sb_reconstruct(v.result["path"]) == (p, q), (p, q)
+    assert NT.stern_brocot_grade(3, 5).result["path"] == "LRL"
+
+    # (b) best rational approximation: 3.1416 with q≤10 ⇒ 22/7 (classic); 1/3 with q≤2 ⇒ 1/2
+    assert NT.stern_brocot_grade(31416, 10000, 10).result["approx"] == (22, 7)
+    assert NT.stern_brocot_grade(1, 3, 2).result["approx"] == (1, 2)
+
+    # (c) the returned approximation is provably optimal (independent brute-force min over all q≤bound)
+    t = Fr(31416, 10000)
+    bp, bq = NT.stern_brocot_grade(31416, 10000, 100).result["approx"]
+    brute = min(abs(t - Fr(round(t * dq), dq)) for dq in range(1, 101))
+    assert abs(t - Fr(bp, bq)) <= brute
+
+    # (d) honest DECLINE: non-positive rationals (the SB tree is for positive rationals)
+    assert NT.stern_brocot_grade(0, 5).status == KV.DECLINE and NT.stern_brocot_grade(-1, 3).status == KV.DECLINE
+
+    print("PASS test_haran_stern_brocot (#42: Stern–Brocot exact path encoding round-trips for all coprime p/q<40 "
+          "[3/5→'LRL']; best rational approx 3.1416→22/7 (q≤10), 1/3→1/2 (q≤2), provably optimal vs brute force; "
+          "non-positive → DECLINE — closes the rational-reconstruction partial)")
+
+
 def test_haran_tier_routing():
     """HARAN §4 — TIER ROUTING for the 50 algorithms: a BROTH HIT short-circuits instantly in ANY mode (even
     fast — it was pre-proven offline); on a MISS, fast (~1s) NEVER runs an extend-tier heavy solver (it returns

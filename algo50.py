@@ -189,9 +189,10 @@ _C: List[Algo] = [
     Algo(41, "Continued fractions + Pell", "C", "mathmode.number_theory", "pell_grade", KV.EXACT,
          "x²−D·y² = 1 verified exactly; perfect square → DECLINE", "O(period)≈O(√D); n-th via matrix power O(log n)",
          False, NORMAL, False),
-    Algo(42, "Stern–Brocot / rational reconstruction", "C", "mathmode.transforms_number", "modular_to_rational",
-         KV.EXACT, "p ≡ q·r (mod m), bounded |p|,q ≤ √(m/2) (uniqueness)", "O(log m)", False, FAST, False,
-         PARTIAL, "rational reconstruction present; the Stern–Brocot tree walk not yet"),
+    Algo(42, "Stern–Brocot / rational reconstruction", "C", "mathmode.number_theory", "stern_brocot_grade",
+         KV.EXACT, "SB path reconstructs p/q exactly; best-approx ≤ brute-force over all q≤bound (+ modular reconstruction)",
+         "O(log m)", False, FAST, False,
+         note="Stern–Brocot tree (exact path + best rational approximation) AND modular reconstruction present"),
     Algo(43, "Sieve of Eratosthenes (segmented + wheel)", "C", "mathmode.number_theory", "sieve_primes_grade",
          KV.EXACT, "soundness (each prime independently MR-verified) + completeness (trial-division cross-check / "
          "π(n) checkpoint)", "O(n log log n) ENUMERATION — not a collapse", False, NORMAL, False,

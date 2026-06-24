@@ -261,6 +261,93 @@ def euler_phi_grade(n: int) -> KV.Verdict:
     return KV.exact(phi, "number_theory.euler_phi", "via factorization", cert)
 
 
+def _sb_path(p: int, q: int) -> str:
+    """The Stern–Brocot L/R path of p/q (p,q ≥ 1, gcd=1) by the subtractive (Euclidean) walk from the root 1/1."""
+    out = []
+    while p != q:
+        if p < q:
+            out.append("L")
+            q -= p
+        else:
+            out.append("R")
+            p -= q
+    return "".join(out)
+
+
+def _sb_reconstruct(path: str) -> Tuple[int, int]:
+    """Inverse of _sb_path: walk the path BACKWARDS from 1/1, inverting each subtraction ⇒ recover (p,q)."""
+    p, q = 1, 1
+    for d in reversed(path):
+        if d == "L":
+            q += p
+        else:
+            p += q
+    return p, q
+
+
+def _sb_best_approx(num: int, den: int, max_denom: int) -> Tuple[int, int]:
+    """Best rational approximation of num/den with denominator ≤ max_denom via the Stern–Brocot mediant descent."""
+    from fractions import Fraction
+    lp, lq, rp, rq = 0, 1, 1, 0                              # boundaries 0/1 .. 1/0
+    t = Fraction(num, den)
+    best, bestdiff = (0, 1), abs(t)
+    for _ in range(10 ** 6):
+        mp, mq = lp + rp, lq + rq
+        if mq > max_denom:
+            break
+        d = abs(t - Fraction(mp, mq))
+        if d < bestdiff:
+            best, bestdiff = (mp, mq), d
+        if t == Fraction(mp, mq):
+            break
+        if t < Fraction(mp, mq):
+            rp, rq = mp, mq
+        else:
+            lp, lq = mp, mq
+    # also consider the two boundaries within the denom bound
+    for cp, cq in ((lp, lq), (rp, rq)):
+        if 1 <= cq <= max_denom and abs(t - Fraction(cp, cq)) < bestdiff:
+            best, bestdiff = (cp, cq), abs(t - Fraction(cp, cq))
+    return best
+
+
+def stern_brocot_grade(num: int, den: int, max_denom: Optional[int] = None) -> KV.Verdict:
+    """Stern–Brocot tree for the positive rational num/den. With max_denom=None: the EXACT L/R path encoding,
+    certified by RECONSTRUCTING p/q from the path (the path IS the witness). With max_denom set: the best rational
+    approximation with denominator ≤ max_denom, cross-checked (for max_denom ≤ 5000) against a brute-force scan of
+    every q. num/den must be a positive rational ⇒ otherwise DECLINE."""
+    from fractions import Fraction
+    if den <= 0 or num <= 0:
+        return KV.decline(f"stern_brocot: need a positive rational (got {num}/{den}) ⇒ DECLINE", "number_theory.stern_brocot")
+    g = gcd(num, den)
+    p, q = num // g, den // g
+    if max_denom is None:
+        path = _sb_path(p, q)
+        rp, rq = _sb_reconstruct(path)
+        if (rp, rq) != (p, q):                              # ★ the path must reconstruct the fraction exactly ★
+            return KV.decline("stern_brocot: path does not reconstruct p/q ⇒ DECLINE (bug guard)", "number_theory.stern_brocot")
+        cert = KV.Cert(KV.EXACT, "stern_brocot_path", passed=True, check_cost="O(path) reconstruct",
+                       detail=f"{p}/{q} ↦ Stern–Brocot path '{path}'; reconstruction matches exactly")
+        return KV.exact({"frac": (p, q), "path": path}, "number_theory.stern_brocot", "SB encoding", cert)
+    bp, bq = _sb_best_approx(p, q, max_denom)
+    t = Fraction(p, q)
+    if max_denom <= 5000:                                   # independent brute-force ground truth (best per denom)
+        best, bd = (0, 1), abs(t)
+        for dq in range(1, max_denom + 1):
+            dp = round(Fraction(p * dq, q))
+            for cand in (dp - 1, dp, dp + 1):
+                if cand >= 1 and abs(t - Fraction(cand, dq)) < bd:
+                    best, bd = (cand, dq), abs(t - Fraction(cand, dq))
+        if abs(t - Fraction(bp, bq)) > bd:
+            return KV.decline(f"stern_brocot: approx {bp}/{bq} not optimal (brute {best}) ⇒ DECLINE", "number_theory.stern_brocot")
+        how = f"≤ brute-force best over all q≤{max_denom}"
+    else:
+        how = "Stern–Brocot mediant descent (best-approximation property)"
+    cert = KV.Cert(KV.EXACT, "stern_brocot_best_approx", passed=True, check_cost="O(max_denom) scan",
+                   detail=f"best p/q with q≤{max_denom} for {p}/{q} is {bp}/{bq} (|Δ|={float(abs(t-Fraction(bp,bq))):.2e}); {how}")
+    return KV.exact({"approx": (bp, bq), "target": (p, q)}, "number_theory.stern_brocot", "SB best-approx", cert)
+
+
 def _mobius_from_factors(factors: dict) -> int:
     if any(e >= 2 for e in factors.values()):
         return 0                                              # a squared prime factor ⇒ μ = 0
@@ -718,4 +805,6 @@ def solve(problem: dict) -> KV.Verdict:
         return binom_mod_pe_grade(problem["n"], problem["k"], problem["p"], problem.get("e", 1))
     if op == "mobius":
         return mobius_grade(problem["n"])
+    if op == "stern_brocot":
+        return stern_brocot_grade(problem["num"], problem["den"], problem.get("max_denom"))
     return KV.decline(f"number_theory: unknown op {op!r} ⇒ DECLINE", "number_theory")
