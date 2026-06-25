@@ -32,6 +32,7 @@ _CONDITION = {
     "string_model_witness": "completeness",
     "string_unsat_refutation": "completeness",
     "structured_pseudorandom_split": "completeness",
+    "exponential_sum": "completeness",
     "residual": "completeness",
     "latent_residual": "completeness",
     "mdl_two_part": "completeness",

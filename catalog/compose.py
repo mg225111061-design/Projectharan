@@ -144,6 +144,8 @@ def plan(x: Any) -> Plan:
     max-probe point — a structured decomposition (e.g. a signal ⇒ M7 split into a structure leg + a remainder leg)."""
     probe = MECH.probe_vector(x)
     f = feats(x)
+    if isinstance(x, dict) and "detect" in x:             # FRONT-END: the probe cascade (widened structure detection)
+        return Plan("detect", (), "probe cascade: cheapest-first detectors, each exact-certified before folding", probe)
     if _is_signal(x):                                     # ★ structure⊕pseudorandom: M7 → [M1/M13] + [M12]
         return Plan("m7_split", (7, 1, 12), "structure⊕pseudorandom split (M7 → structure[M1/M13] + remainder[M12])", probe)
     if isinstance(x, (bytes, bytearray)):                 # raw bytes ⇒ MDL directly (not a signal for M7)
@@ -287,7 +289,20 @@ def _exec_chain(path, x, probe, why) -> CatalogResult:
     return _result(sf, probe, why)
 
 
-_SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl}
+def _exec_detect(x, probe, why) -> CatalogResult:
+    """FRONT-END: run the probe cascade on x["detect"]; a certified candidate folds (cert tier recorded), else
+    DECLINE. The cascade's native cores do the EXACT certification — nothing folds without a passed certificate."""
+    from catalog import probe_cascade as PCAS
+    cr = PCAS.cascade(x["detect"])
+    note = why + f" [stage {cr.stage}: {cr.kind}, tier={cr.tier}]"
+    path = [11] if cr.kind in ("c_finite", "exponential_sum") else ([12] if cr.kind == "slp" else ([2] if cr.kind == "integer_relation" else []))
+    sf = ir.StructForm.raw(x).accumulate(path[0] if path else 14, cr.verdict,
+                                         data=(cr.verdict.result if cr.grade != KV.DECLINE else None))
+    return _result(sf, probe, note)
+
+
+_SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
+           "detect": _exec_detect}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:

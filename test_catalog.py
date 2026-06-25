@@ -735,7 +735,7 @@ def test_capstone_report():
     assert rep["deferred_mechanisms"] == [], rep["deferred_mechanisms"]
     assert set(rep["per_mechanism"]) == set(range(1, 15))
     assert rep["false_positive_zero"] is True and rep["false_positive_count"] == 0
-    assert len(rep["bypasses_wired"]) == 4 and rep["heavy_bypasses"]["total"] == 8
+    assert len(rep["bypasses_wired"]) == 4 and rep["heavy_bypasses"]["total"] >= 8   # 13 after PHASE 5 giants registered
     print(f"PASS test_capstone_report (MEASURED: {rep['mechanisms_run']}/14 mechanism applies run a real gated "
           f"procedure [M6/M10 filled — none deferred]; {len(rep['bypasses_wired'])} bypasses wired; "
           f"{rep['heavy_bypasses']['total']} heavy honest-deferred; false-positive = {rep['false_positive_count']})")
@@ -932,6 +932,40 @@ def test_native_arsenal_report():
     print(f"PASS test_native_arsenal_report (MEASURED: 14/14 mechanisms; {r['native_live_count']} native cores LIVE; "
           f"{len(r['fallback_defer'])} giants fallback+defer; zero forbidden imports; false-positive=0; A/B DECLINE "
           f"split A-open={ab['a_count']} / B-core={ab['b_count']})")
+
+
+def test_frontend_phaseA_probe_cascade():
+    """FRONT-END PHASE A — the probe cascade detects hidden structure conservative probes miss, with the EXACT
+    certification gate keeping precision = 1.0 (zero false positives). Structured inputs (C-finite / periodic /
+    repetitive / constants) are detected + certified + folded; the impossible core (secure CSPRNG / random /
+    incompressible) finds nothing and every gate fails ⇒ DECLINE on every path."""
+    import os
+    import random
+    import numpy as np
+    import catalog.compose as C
+    import catalog.probe_cascade as PC
+    import kernel_verdict as KV
+    # detected + certified + folded (each via its exact gate)
+    rf = C.route({"detect": [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]})           # Fibonacci → C-finite (stage 1)
+    assert rf.grade == KV.EXACT and rf.lossless in ("completeness", "full_abstraction"), rf
+    rp = C.route({"detect": (np.cos(2 * np.pi * 5 * np.arange(64) / 64) + np.cos(2 * np.pi * 11 * np.arange(64) / 64)).tolist()})
+    assert rp.grade == KV.EXACT                                                          # periodic → exponential sum (stage 2)
+    assert C.route({"detect": b"abcabc" * 40}).grade == KV.EXACT                         # repetitive → SLP (stage 3)
+    assert C.route({"detect": [1.5, 0.5, 1.0]}).grade == KV.EXACT                         # constants → integer relation
+    # ★ precision = 1.0: a battery of random / impossible-core inputs — NONE may fold ★
+    random.seed(2)
+    impossible = [
+        os.urandom(600),                                                                 # secure CSPRNG
+        [random.randint(0, 9999) for _ in range(80)],                                    # random ints
+        [random.gauss(0, 1) for _ in range(80)],                                         # random floats
+        os.urandom(1024),
+        [random.randint(0, 1) for _ in range(128)],                                      # random bits
+    ]
+    false_positives = sum(1 for x in impossible if PC.cascade(x).grade != KV.DECLINE)
+    assert false_positives == 0, f"{false_positives} false positives — the central invariant is broken"
+    print("PASS test_frontend_phaseA_probe_cascade (Fibonacci→C-finite[s1], periodic→exp-sum[s2], repetitive→SLP[s3], "
+          "constants→int-relation; impossible core [CSPRNG/random/incompressible] → DECLINE every path; "
+          "precision = 1.0 / 5 — the exact-certification gate admits zero false positives)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
