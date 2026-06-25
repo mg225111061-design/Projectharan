@@ -1022,6 +1022,27 @@ def test_frontend_phaseCD_lifting():
           "cold code; non-liftable → DECLINE — nothing folds without a passing equivalence certificate)")
 
 
+def test_frontend_phaseE_topic_a():
+    """FRONT-END PHASE E — Topic A constant-factor VERIFIED speedups for code that neither folds nor lifts. Equality
+    saturation (Z3-certified node reduction), translation validation (refinement proof), each carrying a certificate
+    with the asymptotics recorded as UNCHANGED (M7-honest — never a fake speedup, never an asymptotic claim)."""
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # equality saturation: (x*1)+0 → x, Z3-equivalent, constant-factor (5→1 nodes), asymptotics unchanged
+    r = C.route({"speedup": ("+", ("*", ("var", "x"), ("const", 1)), ("const", 0))})
+    assert r.grade == KV.EXACT and r.mechanism_path == [8] and r.lossless == "full_abstraction"
+    assert r.verdict.result["asymptotics"] == "unchanged" and r.verdict.result["after"] < r.verdict.result["before"]
+    # no smaller form ⇒ DECLINE (no fake speedup)
+    assert C.route({"speedup": ("var", "x")}).grade == KV.DECLINE
+    # translation validation: an unsound "optimization" (x*2 → x+1) is REFUTED ⇒ DECLINE
+    assert C.route({"validate": [lambda e: e["x"] * 2, lambda e: e["x"] + 1, ["x"]]}).grade == KV.DECLINE
+    rv = C.route({"validate": [lambda e: e["x"] * 2, lambda e: e["x"] + e["x"], ["x"]]})
+    assert rv.grade == KV.EXACT and rv.verdict.result["asymptotics"] == "unchanged"
+    print("PASS test_frontend_phaseE_topic_a (equality saturation 5→1 nodes [Z3-certified, asymptotics unchanged]; "
+          "no-gain→DECLINE; translation validation refutes an unsound x*2→x+1 [DECLINE] / proves x*2≡x+x — "
+          "constant-factor only, certificate-carried)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

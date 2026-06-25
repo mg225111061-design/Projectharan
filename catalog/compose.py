@@ -148,6 +148,8 @@ def plan(x: Any) -> Plan:
         return Plan("detect", (), "probe cascade: cheapest-first detectors, each exact-certified before folding", probe)
     if isinstance(x, dict) and ("lift_sum" in x or "lift_code" in x):   # FRONT-END: verified lifting (code → closed form)
         return Plan("lift", (13,), "verified lifting: imperative loop → closed form, z3-proved equivalent", probe)
+    if isinstance(x, dict) and ("speedup" in x or "validate" in x or "superopt" in x):   # Topic A constant-factor speedup
+        return Plan("topic_a", (8,), "Topic A: certified constant-factor speedup (asymptotics unchanged)", probe)
     if _is_signal(x):                                     # ★ structure⊕pseudorandom: M7 → [M1/M13] + [M12]
         return Plan("m7_split", (7, 1, 12), "structure⊕pseudorandom split (M7 → structure[M1/M13] + remainder[M12])", probe)
     if isinstance(x, (bytes, bytearray)):                 # raw bytes ⇒ MDL directly (not a signal for M7)
@@ -313,8 +315,17 @@ def _exec_lift(x, probe, why) -> CatalogResult:
     return _result(sf, probe, why + (f" [{v.result['tier']}]" if v.status != KV.DECLINE else " [not lifted]"))
 
 
+def _exec_topic_a(x, probe, why) -> CatalogResult:
+    """Topic A: a certified constant-factor speedup (equality saturation / translation validation / superopt).
+    Asymptotics unchanged — recorded honestly; nothing is reported faster without a passing equivalence certificate."""
+    from catalog import topic_a as TA
+    v = TA.topic_a_grade(x)
+    sf = ir.StructForm.raw(x).accumulate(8, v, data=(v.result if v.status != KV.DECLINE else None), new_kind="normal_form")
+    return _result(sf, probe, why)
+
+
 _SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
-           "detect": _exec_detect, "lift": _exec_lift}
+           "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:
