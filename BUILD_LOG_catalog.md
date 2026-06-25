@@ -239,3 +239,49 @@ takes the MIN). Negative controls (random bytes / random signal / unstructured p
 (false-positive 0). New composition tests in `test_catalog.py`: M7 split correctness, M9⟂M14 obstruction DECLINE,
 weakest-link grade enforcement, DECLINE short-circuit path recording, negative controls, IR signature-unification,
 measurement. **`test_catalog` 27/27 green; `test_build` 273/273 (purely additive).** 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §11 CAPSTONE — 14-mechanism completion + 15-bypass wiring + lossless gate
+
+The empty mechanism applies were completed by WIRING existing repo modules (free wins) and adding bypass
+strategies, each §7-gated with a per-instance certificate. **Measured (catalog/capstone_report.py): 12/14 mechanism
+applies now run a real gated procedure** — only M6 (renormalize/multigrid, external engine) and M10 (forbidden-minor,
+non-constructive Robertson–Seymour) remain honestly deferred.
+
+**PHASE 1 — free wins (repo modules, no external deps):**
+- M2 ← `groebner.ideal_member_grade` — Buchberger ideal membership + a re-checkable cofactor witness (q=ΣHᵢfᵢ).
+- M8 ← `equality_saturation.optimize` — e-graph confluent normal form, Z3-equivalence-certified (full abstraction).
+- M13 ← `ic3_pdr.prove_safety` (k-induction inductive invariant) + `taint_ifds.prove_injection_free` (IFDS fixpoint).
+- M11 ← `prony.recover` — exact hidden-recurrence state space (held-out residual ≈ machine-ε ⇒ EXACT, else DECLINE).
+- M14 ← `closure_classifier` (Galois insolvability / Liouville non-elementary) — call-site wired; `galois_absence`
+  binary absent ⇒ honest DEFER (never a fabricated impossibility).
+
+**PHASE 2 — bypass strategies (pip / pure-python), each independently re-checked:**
+- `lstar.py` → M9 — Angluin L* learns the minimal DFA of a regular black-box (complete invariant); EXACT+complete
+  when the exhaustive bounded-equivalence depth covers the Myhill–Nerode bound; non-regular ⇒ DECLINE.
+- `string_solver.py` → M2 — straight-line/QF_S string constraints via z3's string theory (z3 is an allowed core dep;
+  cvc5 was rejected — constitutionally FORBIDDEN big-prover binder). SAT model re-substituted independently.
+- `zx_normalize.py` → M8 — ZX-calculus circuit equivalence/normal form via pyzx, re-checked by an exact tensor
+  comparison; over-budget / pyzx-absent ⇒ DECLINE.
+- `chc_solve.py` → M13 — z3-Spacer SYNTHESIZES an inductive invariant where k-induction returns UNKNOWN; the
+  invariant is EXTRACTED and its three Horn conditions are RE-VERIFIED with a fresh solver (EXACT only if that passes).
+
+**PHASE 3 — the ★ lossless judgment gate (`catalog/lossless_gate.py`):** before trusting a translation as a FOLD,
+judge it LOSSLESS by one of three per-instance conditions — completeness (ρ∘f==f^♯∘ρ), full abstraction (preserves+
+reflects equivalence), machine-verified refinement (re-verified inductive invariant). A PROBABILISTIC (δ-bounded)
+result is LOSSY → flagged `approximation`, NEVER folded EXACT (the source-block that makes "fold almost everything"
+safe). A composition is lossless iff EVERY stage is (weakest-link for losslessness too). Every `route` result now
+carries a `lossless` condition label (M7→completeness, Petrov/L*→full_abstraction, CHC→refinement, …).
+
+**PHASE 4 — heavy bypass call-sites (`catalog/heavy_bypasses.py`):** 8 external bypasses (Metalift verified-lifting,
+d-DNNF/c2d, pynauty symmetry, pykoopman, Sepref/CoqEAL data-refinement, SystemDS compressed-domain, MONA/MSO,
+OpenFST) wired as call sites with their PRECISE blockers; the body calls them (M11←koopman, M1←nauty) and they
+light up the moment the engine is installed — until then an HONEST_DEFER, never a fabricated result.
+
+**Honesty boundary (measured, §10):** false-positive = 0 (random bytes / random signal / unstructured prose →
+DECLINE on every path). Still-DECLINE domains are honest: genuinely non-constructive (M10 forbidden-minor), no
+runtime engine (M6 multigrid; the 8 heavy bypasses), or a forbidden runtime dep (cvc5/Coq/Lean — only a [BLOCKED]
+subprocess). NO uniform-property (RIP) verification; per-instance witnesses only. This does NOT break Ω(N) /
+pigeonhole / Skolem≥5 / halting; what grows is the set of inputs routable into a wall-less structure domain, with
+a domain label on every coverage number. **test_catalog 32/32; test_build 273/273 (purely additive).**

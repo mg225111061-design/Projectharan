@@ -725,6 +725,23 @@ def test_capstone_phase3_lossless_gate():
           "— the gate blocks wrong-folding at the source)")
 
 
+def test_capstone_report():
+    """CAPSTONE §C — the report is MEASURED (computed live, not hardcoded) and HONEST: ≥12/14 mechanism applies now
+    run a real gated procedure (only M6 renormalize/multigrid and M10 forbidden-minor remain deferred, both with
+    sound reasons); 4 bypasses wired; 8 heavy bypasses honest-deferred; false-positive = 0."""
+    import catalog.capstone_report as R
+    rep = R.report()
+    assert rep["mechanisms_run"] >= 12 and rep["mechanisms_total"] == 14
+    assert rep["deferred_mechanisms"] == [6, 10], rep["deferred_mechanisms"]
+    assert set(rep["per_mechanism"]) == set(range(1, 15))
+    assert rep["false_positive_zero"] is True and rep["false_positive_count"] == 0
+    assert len(rep["bypasses_wired"]) == 4 and rep["heavy_bypasses"]["total"] == 8
+    print(f"PASS test_capstone_report (MEASURED: {rep['mechanisms_run']}/14 mechanism applies run a real gated "
+          f"procedure [deferred: M{rep['deferred_mechanisms']} — multigrid / non-constructive forbidden-minor]; "
+          f"{len(rep['bypasses_wired'])} bypasses wired; {rep['heavy_bypasses']['total']} heavy honest-deferred; "
+          f"false-positive = {rep['false_positive_count']})")
+
+
 def test_capstone_phase4_heavy_bypasses():
     """CAPSTONE PHASE 4 — heavy / external bypasses: CALL SITES wired, compute honestly DEFERRED. Each names its
     precise blocker (never a fabricated result); the body CALLS the leg (M11←koopman, M1←nauty) and it lights up the

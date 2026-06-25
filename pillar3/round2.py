@@ -354,13 +354,20 @@ def reservoir_sample(stream, k: int = 100):
     return res
 
 
+# deterministic-but-distinct per-call seeds (§0 reproducibility: a flaky unseeded stream cannot be trusted to <2%;
+# a fixed base + per-call counter gives independent trials that are REPRODUCIBLE across runs).
+_STREAM_SEED = [0]
+
+
 def _make_card_stream(n: int = 200000):
-    rng = _rnd.Random(_rnd.Random().random())
+    _STREAM_SEED[0] += 1
+    rng = _rnd.Random(0xC0FFEE ^ _STREAM_SEED[0])
     return [rng.randrange(n * 3) for _ in range(n)]
 
 
 def _make_freq_stream(n: int = 80000, keys: int = 800):
-    rng = _rnd.Random(_rnd.Random().random())
+    _STREAM_SEED[0] += 1
+    rng = _rnd.Random(0xBEEF ^ _STREAM_SEED[0])
     return [rng.randrange(keys) for _ in range(n)]
 
 
