@@ -114,3 +114,57 @@ def fix_loop(generate: Callable[[Optional[str]], Any], verify: Callable[[Any], T
     return FixLoopResult(KV.decline(f"fix_loop: did not converge in {max_iters} iterations — DECLINE (honest: could "
                                     f"not produce verifiable code; never ship unverified)", "product.fix_loop"),
                          max_iters, False, trace)
+
+
+# ── PHASE 6 — explicit failure modes + key-safe backoff (never retry a bad key; retry only transient faults) ──
+# Markers are matched against a KEY-REDACTED, lowercased str(exc) (see classify_failure) — no secret can reach here.
+_RETRYABLE_MARKERS = ("429", "rate limit", "요청 한도", "ratelimit", "timeout", "timed out", "connection",
+                      "network", "네트워크", "502", "503", "504", "overloaded", "temporarily unavailable")
+_TERMINAL_MARKERS = ("401", "invalid x-api-key", "invalid api key", "api 키", "authentication", "403",
+                     "permission", "400", "bad request", "unknown model", "spec violation", "not installed")
+
+
+def classify_failure(exc: Exception) -> dict:
+    """Classify an LLM/gateway failure into an EXPLICIT mode, KEY-SAFELY. The message is run through
+    claude_agent.redact_key FIRST (so an `sk-…` echoed by an SDK can never reach a log/screen here), then matched:
+      • terminal  — auth / bad-request / unknown-model / spec-violation: NEVER retried (retrying a bad key is
+                    useless and can lock the account / burn quota — the critical correctness+security property).
+      • retryable — rate-limit / network / timeout / 5xx-overload: a transient fault worth a backoff retry.
+      • unknown   — default NOT retryable (fail safe: don't hammer on an unclassified error).
+    Returns {mode, retryable, safe_message} — safe_message is already key-redacted."""
+    try:
+        from claude_agent import redact_key
+        safe = redact_key(str(exc))
+    except Exception:  # noqa: BLE001 — redaction must never be the thing that throws
+        safe = "<unprintable error>"
+    low = safe.lower()
+    if any(m in low for m in _TERMINAL_MARKERS):            # check terminal FIRST (a 400 must never be retried)
+        return {"mode": "terminal", "retryable": False, "safe_message": safe[:300]}
+    if any(m in low for m in _RETRYABLE_MARKERS):
+        return {"mode": "retryable", "retryable": True, "safe_message": safe[:300]}
+    return {"mode": "unknown", "retryable": False, "safe_message": safe[:300]}    # fail safe: don't retry the unknown
+
+
+def call_with_backoff(call: Callable[[], Any], *, max_retries: int = 4, base_delay: float = 2.0,
+                      sleep: Optional[Callable[[float], None]] = None) -> Any:
+    """Run `call`; on a RETRYABLE failure retry with exponential backoff (base·2^k → 2s,4s,8s,16s), up to
+    `max_retries`. A TERMINAL failure (auth/bad-request) is re-raised IMMEDIATELY — never retried (a bad key is
+    not transient). `sleep` is injectable (deterministic tests pass a recorder; default time.sleep). Returns the
+    call's result on success; re-raises the last exception once retries are exhausted. The key never enters here —
+    `call` is a zero-arg closure that already captured it, and failures are classified key-safely."""
+    import time
+    sleep = sleep or time.sleep
+    delays: List[float] = []
+    last: Optional[Exception] = None
+    for attempt in range(max_retries + 1):
+        try:
+            return call()
+        except Exception as e:  # noqa: BLE001
+            last = e
+            info = classify_failure(e)
+            if not info["retryable"] or attempt == max_retries:
+                raise                                       # terminal, or out of retries → surface it (key-safe)
+            d = base_delay * (2 ** attempt)
+            delays.append(d)
+            sleep(d)
+    raise last  # unreachable (loop always returns or raises), kept for type-completeness

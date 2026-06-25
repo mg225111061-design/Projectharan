@@ -1150,6 +1150,87 @@ def test_product_phase2345_route_verify_oracle_fixloop():
           "raise→DECLINE]; PHASE5 targeted-feedback fix loop converges [trace=concrete artifacts] / N-bounded→DECLINE)")
 
 
+def test_product_phase6_key_security():
+    """PRODUCT PHASE 6 — API-key security, end to end. (1) REPO-WIDE grep: no key-shaped literal in any product
+    source (the only `sk-…`-shaped strings live in test redaction fixtures — a real hardcoded secret would trip
+    this). (2) ISOLATION: claude_agent never imports os, keeps _KEY_STORE=None across a mock call, and the result
+    object carries no key; provider exposes only a has_env_key BOOL, never the key. (3) EXPLICIT failure modes +
+    key-safe backoff: a terminal (auth/bad-request) failure is NEVER retried, a transient one backs off
+    exponentially, and every classified message is key-redacted first."""
+    import os
+    import re
+    import claude_agent as CA
+    import provider as PV
+    import catalog.product as P
+    # ── (1) repo-wide key-shaped-literal grep: only test/bundle redaction fixtures may contain one ──
+    key_re = re.compile(r"sk-ant-[A-Za-z0-9]{8,}|sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9]{20,}|gsk_[A-Za-z0-9]{20,}")
+    offenders = []
+    for root, _dirs, files in os.walk("."):
+        if any(seg in root for seg in (".git", "__pycache__", "rust_accel", "node_modules")):
+            continue
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(root, fn)
+            try:
+                txt = open(path, encoding="utf-8", errors="ignore").read()
+            except Exception:  # noqa: BLE001
+                continue
+            if key_re.search(txt) and not (fn.startswith("test_") or fn == "projectharan_all_code.py"):
+                offenders.append(path)            # a key-shaped literal in PRODUCT source — forbidden
+    assert offenders == [], f"key-shaped literal in product source: {offenders}"
+    # ── (2) key isolation: structural + runtime ──
+    src = open("claude_agent.py", encoding="utf-8").read()
+    assert "import os" not in src and "os.environ" not in src and "getenv" not in src   # LEVEL-1: fences env/fs
+    assert "api_key = None" in src and "del client" in src                              # explicit per-call hygiene
+    assert CA._KEY_STORE is None
+    res = CA.claude_generate("write triangular", api_key=None)      # mock mode (no key) — no network, no secret
+    assert res.live is False and res.source == "mock-sim" and CA._KEY_STORE is None
+    assert not any("sk-" in str(v) for v in vars(res).values())     # the result object carries no key
+    # provider exposes only a BOOL, never the key itself
+    saved = os.environ.get("HARAN_KEY")
+    try:
+        os.environ["HARAN_KEY"] = "sk-ant-FAKEKEYFORTEST0000000000"
+        cfg = PV.config()
+        assert cfg.has_env_key is True
+        assert not any("FAKEKEYFORTEST" in str(v) for v in vars(cfg).values())   # config holds the bool, not the key
+    finally:
+        if saved is None:
+            os.environ.pop("HARAN_KEY", None)
+        else:
+            os.environ["HARAN_KEY"] = saved
+    # ── (3) explicit failure modes + key-safe exponential backoff ──
+    auth = P.classify_failure(CA.LLMError("401 invalid x-api-key sk-ant-SECRETXYZ0001"))
+    assert auth["mode"] == "terminal" and not auth["retryable"] and "SECRETXYZ" not in auth["safe_message"]
+    assert P.classify_failure(CA.LLMError("429 요청 한도를 초과")) ["retryable"] is True
+    assert P.classify_failure(Exception("Connection timeout"))["retryable"] is True
+    assert P.classify_failure(Exception("weird unclassified"))["retryable"] is False     # fail-safe default
+    # transient: retried with exponential backoff (2,4,8,16) then succeeds
+    slept, n = [], {"k": 0}
+    def flaky():
+        n["k"] += 1
+        if n["k"] < 3:
+            raise CA.LLMError("503 overloaded")
+        return "OK"
+    assert P.call_with_backoff(flaky, max_retries=4, base_delay=2.0, sleep=lambda d: slept.append(d)) == "OK"
+    assert n["k"] == 3 and slept == [2.0, 4.0]
+    # terminal: re-raised IMMEDIATELY, never retried, never slept (the critical property — don't hammer a bad key)
+    s2, t = [], {"k": 0}
+    def bad_key():
+        t["k"] += 1
+        raise CA.LLMError("401 invalid x-api-key")
+    raised = False
+    try:
+        P.call_with_backoff(bad_key, max_retries=4, sleep=lambda d: s2.append(d))
+    except CA.LLMError:
+        raised = True
+    assert raised and t["k"] == 1 and s2 == []
+    print("PASS test_product_phase6_key_security (repo-wide grep: zero key-shaped literals in product source; "
+          "claude_agent fences os + _KEY_STORE=None across a mock call + result/config carry no key; failure modes "
+          "explicit [auth→terminal NEVER retried, rate-limit/network→retryable, unknown→fail-safe], key-safe "
+          "exponential backoff [2,4,…] / terminal raised immediately — LEVEL-1 key security holds end to end)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
