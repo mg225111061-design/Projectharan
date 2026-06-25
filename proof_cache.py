@@ -171,6 +171,8 @@ def measure_triage(k_terms: int = 120, n_goals: int = 24) -> dict:
     routes2 = [PT.route(*PT.complexity(go, [])) for go, _ in goals]   # determinism: same route every time
     nodes0, depth0, hard0 = PT.complexity(goals[0][0], [])
 
+    import statistics
+
     def run() -> float:
         reset()
         t = time.perf_counter()
@@ -178,16 +180,21 @@ def measure_triage(k_terms: int = 120, n_goals: int = 24) -> dict:
             prove_forall_cached(go, vt)
         return time.perf_counter() - t
 
+    def uncached_run() -> float:
+        t = time.perf_counter()
+        for go, vt in goals:                                 # uncached baseline (no cache, no canonicalization)
+            Z.prove_forall(go, vt, [])
+        return time.perf_counter() - t
+
+    # §0 reproducibility: MEDIAN of k repeats (a single wall-clock shot flips order under load — the regression is
+    # real, so the median is stable). Assertion logic is unchanged; only the measurement methodology is robust.
     saved = TRIAGE_ENABLED
     TRIAGE_ENABLED = False
-    off_s = run()                                            # cache pays canonical_key on every distinct goal
+    off_s = statistics.median(run() for _ in range(3))       # cache pays canonical_key on every distinct goal
     TRIAGE_ENABLED = True
-    on_s = run()
+    on_s = statistics.median(run() for _ in range(3))
     direct = STATS.triaged_direct
-    t = time.perf_counter()
-    for go, vt in goals:                                     # uncached baseline (no cache, no canonicalization)
-        Z.prove_forall(go, vt, [])
-    uncached_s = time.perf_counter() - t
+    uncached_s = statistics.median(uncached_run() for _ in range(3))
     mism = 0
     for go, vt in goals:                                     # lossless: triage-direct verdict == fresh solve
         if prove_forall_cached(go, vt).verdict != Z.prove_forall(go, vt, []).verdict:

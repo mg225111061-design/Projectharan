@@ -55,6 +55,22 @@ HEAVY: List[HeavyBypass] = [
     HeavyBypass("openfst_min", "C", "M9", "pywrapfst",
                 "OpenFST / pywrapfst", "OpenFST not installed — weighted-automaton minimization to a canonical machine "
                 "deferred (the in-repo L* already gives the unweighted minimal DFA)"),
+    # ── PHASE 5 residual GIANTS: an in-repo fallback covers the common case; only the galactic residual defers ──
+    HeavyBypass("groebner_galactic", "—", "M2", "msolve",
+                "msolve (galactic 0-dim systems)", "in-repo Buchberger (groebner.py) handles small/medium zero-"
+                "dimensional systems with a cofactor cert; only galactic (Katsura-scale) systems need msolve"),
+    HeavyBypass("cad_multivariate", "—", "M2", "qepcad",
+                "QEPCAD / CDCAC (multivariate CAD)", "in-repo Sturm (native_realroots.py) + z3 nlsat cover univariate "
+                "and decidable QF_NRA; full multivariate CAD with many variables defers"),
+    HeavyBypass("capd_highdim", "—", "M11/M5", "capd",
+                "CAPD (validated high-dim/PDE integration)", "in-repo interval arithmetic covers low-dim ODE enclosures; "
+                "high-dimensional / PDE rigorous integration defers"),
+    HeavyBypass("walnut_ostrowski", "—", "M2/M9", "walnut",
+                "Walnut (Ostrowski-automatic theories)", "in-repo Presburger-via-z3 + L* cover the cases they reach; "
+                "the full Ostrowski-numeration automatic frontier defers"),
+    HeavyBypass("quadratic_chabauty", "—", "M9/M14", "qcmod",
+                "QCMod / Magma (quadratic Chabauty)", "no in-repo fallback feasible — genuinely out-of-reach island "
+                "tool; honest defer (the one tool with no common-case fallback)"),
 ]
 _BY_NAME = {h.name: h for h in HEAVY}
 
