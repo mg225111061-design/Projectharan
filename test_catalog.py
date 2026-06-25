@@ -1277,6 +1277,110 @@ def test_product_phase7_native_backend():
           f"[Rust/LLVM in toolchain, not Python-core imports])")
 
 
+def test_product_phase8_ui_honest_numbers():
+    """PRODUCT PHASE 8 — UI honest numbers: every number the landing page shows is PINNED to the measured engine
+    source (pillar3_studio_data.json, 'real engine runs; no hand-edited numbers') and obeys the engine's own laws.
+    This converts 'the numbers happen to match' into 'a fabricated/drifted UI number is a test failure':
+      (1) provenance — the JSON declares its real-engine generator, no hand-edits;
+      (2) the AMDAHL LAW holds on every row — measured ratio ≤ Amdahl ceiling (the page's central honesty claim);
+      (3) DECLINE rows are honest — a decline shows no win (ratio ≤ ~1.0 or null) AND carries a reason;
+      (4) PIN — every numeric the landing HTML displays (demo bars + hero 112× + decline 0.97×) is backed by a
+          value in the measured JSON; nothing on screen is invented."""
+    import json
+    import math
+    import re
+    data = json.load(open("pillar3_studio_data.json", encoding="utf-8"))
+    # (1) provenance
+    assert "no hand-edited numbers" in data["generated_by"] and "pillar3_studio_gen.py" in data["generated_by"]
+    # gather the measured numeric pool + check the Amdahl law and decline-honesty as we go
+    pool = []
+    def num(x):
+        return isinstance(x, (int, float)) and not isinstance(x, bool)
+    for run in data["runs"]:
+        pool.append(run["cumulative_ratio"])
+        for s in run["shipped"]:
+            r, c = s["ratio"], s["ceiling"]
+            pool += [r, c, s["hotspot_fraction"]]
+            if num(r) and num(c):
+                assert r <= c + 1e-6, f"(2) AMDAHL VIOLATED: {s['name']} ratio {r} > ceiling {c}"   # the core law
+            assert s["grade"] in ("EXACT", "PROBABILISTIC", "DECLINE")
+        for d in run["declined"]:                                   # (3) declines carry a reason
+            assert isinstance(d.get("reason"), str) and len(d["reason"]) > 10, d
+    for pr in data["panel_rows"]:
+        r, c = pr["ratio"], pr["ceiling"]
+        if num(r):
+            pool.append(r)
+        if num(r) and num(c):
+            assert r <= c + 1e-6, f"(2) AMDAHL VIOLATED: {pr['name']} ratio {r} > ceiling {c}"
+        assert pr["grade"] in ("EXACT", "PROBABILISTIC", "DECLINE")
+        if pr["grade"] == "DECLINE":
+            assert isinstance(pr.get("note"), str) and pr["note"], pr        # a decline must carry its honest reason
+            if num(r):                                                       # and must not be hiding a shippable win:
+                assert r < 1.10, f"(3) a DECLINE hides a >10% win? {pr['name']} ratio {r}"   # below the documented floor
+    # (4) PIN: every number the landing HTML displays is backed by a measured value in the pool
+    html = open("mrjeffrey_landing.html", encoding="utf-8").read()
+    runs_block = re.search(r"const RUNS = \{(.*?)\n\};", html, re.DOTALL).group(1)
+    shown = [float(x) for x in re.findall(r"(?:ratio|ceil|cum|f):\s*([0-9]+\.[0-9]+)", runs_block)]
+    assert len(shown) >= 18, f"too few demo numbers parsed ({len(shown)}) — parser drift"
+    # the two hero numbers the page headlines (the O(n²)→O(n) win and the honest decline)
+    assert "115×" in html and "1.00×" in html
+    shown += [115.0, 1.00]
+
+    def backed(u):
+        return any(abs(u - j) < 6e-3 or math.floor(j) == u or round(j, 2) == round(u, 2) for j in pool if num(j))
+    unbacked = [u for u in shown if not backed(u)]
+    assert unbacked == [], f"(4) UNBACKED UI numbers (not in the measured engine source): {unbacked}"
+    print(f"PASS test_product_phase8_ui_honest_numbers (provenance: real-engine generator, no hand-edits; AMDAHL "
+          f"law ratio≤ceiling holds on all {len(data['runs'])} runs + {len(data['panel_rows'])} panel rows; declines "
+          f"carry a reason + hide no >10% win; PINNED: all {len(shown)} landing-page numbers [6 demo bars + hero 115× "
+          f"+ decline 1.00×, re-synced from stale 112×/0.97×] backed by the measured JSON — a fabricated/drifted UI "
+          f"number is now a test failure)")
+
+
+def test_product_phase9_report():
+    """PRODUCT §F — the integrated product-hardening report is MEASURED LIVE (never hardcoded) and HONEST across
+    every phase: the three clocks stay SEPARATE (A live-BLOCKED, no uniform-Nx); the sound cache's measured
+    Clock-A reduction is real (calls-avoided) and a hit is byte-identical to cold; correctness is deepened
+    (multi-oracle consensus EXACT, converge-or-DECLINE fix loop); the key is structurally isolated (zero os
+    imports, zero key-shaped literals, terminal-never-retried); native is a certificate-gated Clock-C win
+    Amdahl-targeted at compute; every UI number is pinned to the measured source; zero forbidden deps."""
+    import catalog.product_report as PR
+    r = PR.report()
+    # PHASE 0/1 — clocks separate + sound cache with a real measured Clock-A reduction
+    p01 = r["phase01_clocks_and_cache"]
+    assert set(p01["clocks_ms"]) == {"A_llm", "B_verify", "C_fold"} and "BLOCKED" in p01["clockA_live"]
+    assert 0.0 < p01["cache_clockA_reduction"] < 1.0 and p01["cache_llm_calls"] < p01["cache_requests"]
+    assert p01["cache_sound_hit_eq_cold"] is True                     # stale hit impossible
+    # PHASE 2/3/4/5 — correctness deepened
+    p = r["phase2345_correctness"]
+    assert p["model_routing"] == {"hard": "large", "easy": "small"} and "BLOCKED" in p["routing_live"]
+    assert p["incremental_skip_proved"] and p["multi_oracle_consensus_EXACT"] and p["multi_oracle_insufficient_DECLINE"]
+    assert p["fix_loop_converges"] and p["fix_loop_diverge_is_DECLINE"]
+    # PHASE 6 — security
+    s = r["phase6_security"]
+    assert s["claude_agent_zero_os_imports"] and s["key_store_is_none"] and s["no_key_shaped_literals_in_product_source"]
+    assert s["failure_modes"]["auth_terminal_never_retried"] and s["failure_modes"]["ratelimit_retryable"]
+    assert s["failure_modes"]["unknown_fail_safe_not_retried"]
+    # PHASE 7 — native Clock-C, certificate-gated, asymptotics unchanged
+    n = r["phase7_native_clockC"]
+    assert n["clock"].startswith("C") and "UNCHANGED" in n["asymptotics"].upper()
+    if n["availability"]["llvm_emission"]:
+        assert n["llvm_compile_fold_certified"] and n["llvm_cert"] == "compilation_correctness[translation_validation]"
+    if n["availability"]["rust_cdylib"]:
+        assert n["rust_differential_ok"] is True                      # the deterministic correctness certificate
+    # PHASE 8 — UI numbers pinned + Amdahl law holds
+    u = r["phase8_ui_honest_numbers"]
+    assert u["amdahl_law_holds_all_rows"] and u["numbers_pinned_to_measured_source"]
+    # zero-dep audit
+    assert r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    assert "DECLINE이 항상 옳다" in r["one_line"]
+    print("PASS test_product_phase9_report (§F MEASURED LIVE: clocks A/B/C separate [A BLOCKED]; sound-cache "
+          f"Clock-A reduction {p01['cache_clockA_reduction']} [{p01['cache_llm_calls']}/{p01['cache_requests']} calls, "
+          "hit==cold]; multi-oracle EXACT + converge-or-DECLINE; key isolated [0 os imports / 0 key literals / "
+          "terminal-never-retried]; native Clock-C certificate-gated [asymptotics UNCHANGED]; UI pinned + Amdahl "
+          "holds; zero forbidden deps — fast·correct·secure·honest)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

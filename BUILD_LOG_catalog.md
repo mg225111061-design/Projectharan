@@ -368,3 +368,49 @@ certificate; none claims an asymptotic improvement.
 **Honesty (§10):** false-positive = 0 — secure CSPRNG / Kolmogorov-random / incompressible / halting / full-rank /
 non-liftable / unsound-opt → DECLINE on every path. The impossible core does not move. **test_catalog 43/43;
 test_build 273/273 (isolated). No new dependency.** 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §F PRODUCT-WIDE HARDENING — fast · correct · secure · honest (PHASE 0–9, MEASURED)
+
+The write→verify→fix loop hardened as a product. Three clocks NEVER mixed (A=LLM latency [live BLOCKED: egress],
+B=verification, C=fold/native compute); every win states its clock + N; no uniform-Nx; build-time is not a clock.
+
+**PHASE 0 — measure first** (`catalog/product.three_clocks`): A/B/C measured separately (median-of-k), the Amdahl
+bottleneck named; Clock-A live latency is honestly BLOCKED (mock used only for attribution, never a fabricated number).
+
+**PHASE 1 — the biggest Clock-A win: a SOUND cache** (`catalog/prodcache.py`, stdlib only): key =
+sha256(canonical(exact inputs) + version). A hit is byte-for-byte the cold result (the LLM call / re-verification is
+skipped); a mutated input OR a version bump ALWAYS misses — a stale/wrong hit is impossible (test-enforced). The
+measured Clock-A reduction on a repeated-request workload is exact (LLM calls avoided), never extrapolated.
+
+**PHASE 2/3 — fewer/cheaper calls** (`catalog/product.py`): difficulty-probe model routing (easy→small / hard→large,
+live BLOCKED); first-pass-wins parallel verify; incremental re-verify that PROVES the unchanged part equivalent (z3
+translation validation) before skipping it — never a skipped check without its proof.
+
+**PHASE 4/5 — correctness deepened** (`catalog/product.py`): multi-oracle consensus (EXACT only if ≥2 INDEPENDENT
+oracles unanimously agree — one oracle's bug can't manufacture a pass; else DECLINE); fix loop with TARGETED feedback
+(the concrete failure artifact targets the next attempt) that converges or DECLINEs honestly after N (never ships
+unverified code).
+
+**PHASE 6 — API-key security, LEVEL-1** (`provider.py` isolates env; `claude_agent.py` fences `os`): repo-wide grep
+proves zero key-shaped literals in product source; `_KEY_STORE` stays None across calls; explicit failure modes +
+key-safe exponential backoff — a terminal (auth/bad-request) failure is NEVER retried (a bad key is not transient), a
+transient one (rate-limit/network/5xx) backs off 2s,4s,8s,16s; every classified message is key-redacted first.
+
+**PHASE 7 — verified-native backend (Clock C)** (`catalog/native_backend.py`, reuses `egraph_native`+`rust_accel`):
+HARAN fold closed form → native i64 LLVM gated by a COMPILATION-CORRECTNESS certificate (z3-certified extraction ∘
+Alive2-style translation validation, bit-exact battery — a diverging native output is TRANSLATION_DECLINED, never
+emitted); the NTT hot kernel → std-only Rust cdylib gated by a DIFFERENTIAL TEST with N. Amdahl-honest: native is a
+constant-factor Clock-C win on the COMPUTE hot-paths — it does NOT speed the Clock-A-bound product, so the rest stays
+in the shell (no vanity rewrite). Measured: Σk² emission certified bit-exact; Rust NTT ~15× vs same-algo Python.
+asymptotics UNCHANGED. Rust/LLVM deps live in the toolchain, not Python-core imports (zero-dep audit stays []).
+
+**PHASE 8 — UI honest numbers** (`mrjeffrey_landing.html` ↔ `pillar3_studio_data.json`): the landing-page numbers had
+silently drifted from the regenerated measured source (hero 112×→re-synced 115×, decline 0.97×→1.00×, all six demo
+bars). Re-synced to the committed measured JSON and PINNED by a test — the Amdahl law (ratio ≤ ceiling) is checked on
+every row, declines must carry a reason, and a fabricated/drifted UI number is now a test failure.
+
+**PHASE 9 — integrated report** (`catalog/product_report.py`): all of the above MEASURED live, clocks separate,
+zero forbidden deps. **test_catalog 49/49; test_build 273/273 (isolated). No new dependency.** A's extreme compute
+speed does not move B (LLM-bound) — the two ledgers stay separate. 잘못된 답보다 DECLINE이 항상 옳다.

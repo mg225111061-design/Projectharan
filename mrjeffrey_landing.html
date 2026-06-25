@@ -209,7 +209,7 @@ footer .mono{font-size:11.5px}
     <p class="snaplabel" id="snap">— real engine run (best-of-k whole-program, snapshot from pillar3_studio_data.json)</p>
 
     <div class="stats">
-      <div class="stat"><div class="n mono">112×</div><div class="l">on never-profiled code with a genuine O(n²) → O(n) fix (measured whole-program)</div></div>
+      <div class="stat"><div class="n mono">115×</div><div class="l">on never-profiled code with a genuine O(n²) → O(n) fix (measured whole-program)</div></div>
       <div class="stat"><div class="n mono">≤ 1/(1−f)</div><div class="l">every speedup carries its Amdahl ceiling; the bar stops there by construction</div></div>
       <div class="stat"><div class="n mono">3</div><div class="l">grades the verifier decides at runtime — exact, probabilistic, decline</div></div>
       <div class="stat"><div class="n mono">~1.0×</div><div class="l">honest result on already-well-written code: nothing safe to ship</div></div>
@@ -270,7 +270,7 @@ footer .mono{font-size:11.5px}
         <span class="name">a well-written renderer — nothing to ship</span>
         <span class="gbadge g-decline"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V6a1.5 1.5 0 0 1 3 0v5m0-1V5a1.5 1.5 0 0 1 3 0v6m0-1a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3.5a1.6 1.6 0 0 1 2.7-1.6L9 13"/></svg></span> decline</span>
       </div>
-      <p>measured whole-program <b>0.97×</b> @ n=4000 · profiled f=0.999 · no fix beats its floor → a decline is the
+      <p>measured whole-program <b>1.00×</b> · profiled f=0.999 · no fix beats its floor → a decline is the
       honest answer, not an error. the engine found the hot path, tried it, and reports that it's already optimal.</p>
     </div>
   </div></section>
@@ -291,15 +291,15 @@ const NAMES = {
   algo_replace:"naive O(n²) poly eval → Horner O(n)"
 };
 const RUNS = {
-  fast:   {cum:1.284, z3:0, rows:[
-    {w:"list_as_set", ratio:1.238, ceil:1.27, f:0.21, grade:"probabilistic"}]},
-  normal: {cum:1.893, z3:0, rows:[
-    {w:"list_as_set", ratio:1.273, ceil:1.29, f:0.224, grade:"probabilistic"},
-    {w:"n_plus_1", ratio:1.513, ceil:1.57, f:0.36, grade:"exact"},
-    {w:"accidental_quadratic", ratio:1.883, ceil:1.96, f:0.489, grade:"probabilistic"}]},
-  extend: {cum:2.329, z3:2, rows:[
-    {w:"algo_replace", ratio:1.731, ceil:1.79, f:0.441, grade:"exact"},
-    {w:"n_plus_1", ratio:2.264, ceil:2.41, f:0.583, grade:"exact"}]}
+  fast:   {cum:1.293, z3:0, rows:[
+    {w:"list_as_set", ratio:1.279, ceil:1.31, f:0.234, grade:"probabilistic"}]},
+  normal: {cum:1.867, z3:0, rows:[
+    {w:"list_as_set", ratio:1.229, ceil:1.28, f:0.218, grade:"probabilistic"},
+    {w:"n_plus_1", ratio:1.536, ceil:1.57, f:0.361, grade:"exact"},
+    {w:"accidental_quadratic", ratio:1.925, ceil:1.96, f:0.49, grade:"probabilistic"}]},
+  extend: {cum:2.267, z3:2, rows:[
+    {w:"algo_replace", ratio:1.782, ceil:1.82, f:0.45, grade:"exact"},
+    {w:"n_plus_1", ratio:2.277, ceil:2.47, f:0.595, grade:"exact"}]}
 };
 const ACCENT = {fast:"var(--fast)", normal:"var(--normal)", extend:"var(--extend)"};
 const TINT   = {fast:"var(--fast-tint)", normal:"var(--normal-tint)", extend:"var(--extend-tint)"};
