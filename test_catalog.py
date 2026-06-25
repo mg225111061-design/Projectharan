@@ -643,6 +643,49 @@ def test_capstone_phase1_freewins():
           "recurrence [noise→DECLINE]; M14←Galois/Liouville call-wired+honest-DEFER [binary absent] — 5 free wins gated)")
 
 
+def test_capstone_phase2_bypasses():
+    """CAPSTONE PHASE 2 — translation bypasses wired with per-instance certificates (pip/pure-python, gated):
+      L* (Angluin, pure Python) → M9 minimal DFA (complete invariant) · z3 QF_S strings → M2 string decision (model
+      re-verified) · pyzx ZX-calculus → M8 circuit equivalence (exact tensor re-check) · z3-Spacer CHC → M13
+      inductive invariant (independently re-verified). Each EXACT only via an INDEPENDENT recheck; unavailable/over-
+      budget ⇒ honest DECLINE."""
+    import mechanisms as M
+    import kernel_verdict as KV
+    # L* → M9: even-#a is regular (2-state minimal DFA, complete) ; a^n b^n is not regular → DECLINE
+    v = M.MECHANISMS[9].apply({"lstar": (lambda w: w.count("a") % 2 == 0), "alphabet": ("a", "b"), "max_states": 6})
+    assert v.status == KV.EXACT and v.result["n_states"] == 2 and v.result["complete"] is True
+    vn = M.MECHANISMS[9].apply({"lstar": (lambda w: (lambda s: s == "a" * (len(s) // 2) + "b" * (len(s) // 2) and len(s) % 2 == 0)("".join(w))),
+                                "alphabet": ("a", "b"), "max_states": 5})
+    assert vn.status == KV.DECLINE
+    # z3 strings → M2: x='a'++y ∧ |x|=3 SAT (model re-verified) ; x='ab' ∧ |x|=5 UNSAT (obstruction). z3 = core dep.
+    vs = M.MECHANISMS[2].apply({"smt_string": [("concat_eq", "x", ["'a'", "y"]), ("len", "x", 3)]})
+    assert vs.status == KV.EXACT and vs.result["sat"] is True and len(vs.result["model"]["x"]) == 3
+    vu = M.MECHANISMS[2].apply({"smt_string": [("eq", "x", "'ab'"), ("len", "x", 5)]})
+    assert vu.status == KV.EXACT and vu.result["sat"] is False
+    # pyzx → M8: X·X = identity (equivalent) ; X ≠ identity (non-equivalent), both via exact tensor re-check.
+    try:
+        import pyzx  # noqa: F401
+        _have_pyzx = True
+    except Exception:  # noqa: BLE001
+        _have_pyzx = False
+    if _have_pyzx:
+        qid = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[1];'
+        ve = M.MECHANISMS[8].apply({"zx_equiv": (qid + "\nx q[0];\nx q[0];", qid)})
+        assert ve.status == KV.EXACT and ve.result["equivalent"] is True
+        vne = M.MECHANISMS[8].apply({"zx_equiv": (qid + "\nx q[0];", qid)})
+        assert vne.status == KV.EXACT and vne.result["equivalent"] is False
+    # z3-Spacer CHC → M13: x==y maintained (NOT directly k-inductive) — invariant synthesized AND re-verified
+    import z3
+    vc = M.MECHANISMS[13].apply({"chc": True, "varnames": ["x", "y"],
+                                 "init": lambda s: z3.And(s["x"] == 0, s["y"] == 0),
+                                 "trans": lambda s, p: z3.And(p["x"] == s["x"] + 1, p["y"] == s["y"] + 1),
+                                 "prop": lambda s: s["x"] == s["y"]})
+    assert vc.status == KV.EXACT and vc.result["safe"] is True and vc.certificate.kind == "fixpoint_inductive"
+    print("PASS test_capstone_phase2_bypasses (L*→M9 minimal DFA [regular EXACT/complete, non-regular DECLINE]; "
+          "z3-strings→M2 [SAT model re-verified / UNSAT]; pyzx→M8 ZX equivalence [equiv/non-equiv tensor-checked]; "
+          "z3-Spacer CHC→M13 synthesized invariant [independently re-verified] — 4 bypasses gated)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

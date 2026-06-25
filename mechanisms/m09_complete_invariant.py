@@ -19,8 +19,21 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    """Mechanism 9: a complete invariant. Buckingham-Π (dimensionless-group normal form) is wired (PHASE F); other
-    complete-invariant instances (Cartan–Karlhede, Petrov, …) exist as modules and are deferred until wired+gated."""
+    """Mechanism 9: a complete invariant. Buckingham-Π (dimensionless-group normal form), Petrov (Weyl algebraic
+    type), and — NEW (capstone) — the minimal DFA of a regular black-box behaviour via Angluin's L* (the canonical
+    invariant of a regular language: equal languages ⟺ isomorphic minimal DFAs). Other instances are deferred."""
+    if isinstance(x, dict) and "lstar" in x:
+        import kernel_verdict as KV
+        import lstar
+        v = lstar.learn(x["lstar"], x.get("alphabet", ("a", "b")), max_states=x.get("max_states", 12),
+                        equiv_depth=x.get("equiv_depth"))
+        if v.status == "EXACT":
+            cert = KV.Cert(KV.EXACT, "complete_invariant", passed=True,
+                           check_cost=f"exhaustive bounded equivalence ≤ length {v.verified_depth}",
+                           bound=v.verified_depth, detail=v.detail)
+            return KV.exact({"n_states": v.n_states, "minimal_dfa": True, "complete": v.complete},
+                            "m9_lstar", "Angluin L*", cert)
+        return KV.decline(f"M9.lstar: {v.reason} (not regular within budget ⇒ honest DECLINE)", "m9_lstar")
     if isinstance(x, dict) and x and all(isinstance(v, dict) and all(isinstance(e, int) for e in v.values()) for v in x.values()):
         import mathmode.buckingham as B
         return B.buckingham_pi(x)

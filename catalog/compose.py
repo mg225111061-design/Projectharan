@@ -150,10 +150,14 @@ def plan(x: Any) -> Plan:
         return Plan("chain", (2,), "QE: eliminate → certify finite witness (z3 model / CAD sample-point — M2∘M3 fused)", probe)
     if isinstance(x, dict) and "groebner" in x:                     # M2: Gröbner ideal membership + cofactor witness
         return Plan("chain", (2,), "Gröbner ideal membership (Buchberger + cofactor certificate)", probe)
-    if isinstance(x, dict) and (x.get("ic3") or "taint" in x):      # M13: IC3 inductive invariant / taint IFDS fixpoint
-        return Plan("chain", (13,), "Kleene/least-fixpoint: IC3 inductive invariant / taint IFDS dataflow", probe)
-    if isinstance(x, dict) and "egraph" in x:                       # M8: confluent normal form (e-graph)
-        return Plan("chain", (8,), "confluent normal form (e-graph equality saturation, Z3-certified)", probe)
+    if isinstance(x, dict) and "smt_string" in x:                   # M2: straight-line string constraints (cvc5)
+        return Plan("chain", (2,), "straight-line / QF_SLIA string decision (cvc5 + model re-verification)", probe)
+    if isinstance(x, dict) and "lstar" in x:                        # M9: minimal DFA via Angluin L* (complete invariant)
+        return Plan("chain", (9,), "complete invariant: minimal DFA via Angluin L* (regular-language canonical form)", probe)
+    if isinstance(x, dict) and ((x.get("ic3") or "taint" in x) or (x.get("chc") and "trans" in x)):   # M13: fixpoint
+        return Plan("chain", (13,), "Kleene/least-fixpoint: IC3 / CHC-Spacer inductive invariant / taint IFDS", probe)
+    if isinstance(x, dict) and ("egraph" in x or "zx_equiv" in x or "zx_simplify" in x):   # M8: confluent normal form
+        return Plan("chain", (8,), "confluent normal form (e-graph / ZX-calculus, formally re-checked)", probe)
     if isinstance(x, tuple) and x and x[0] in ("+", "*", "var", "const"):
         return Plan("chain", (8,), "confluent normal form (e-graph equality saturation, Z3-certified)", probe)
     if isinstance(x, dict) and ("galois_quintic" in x or x.get("liouville")):   # M14: Galois/Liouville impossibility
