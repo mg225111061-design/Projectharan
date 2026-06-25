@@ -19,6 +19,9 @@ def _probe(x):
 def _apply(x, **kw):
     """Mechanism 1: spectral structure. Sylvester inertia (a complete congruence invariant of a symmetric matrix)
     is wired (EXACT via exact eigenvalue signs); other spectral instances (Hecke, R-transform) are deferred."""
+    if isinstance(x, dict) and "nauty_graph" in x:                   # heavy bypass call site: graph automorphism / orbits
+        from catalog import heavy_bypasses
+        return heavy_bypasses.try_bypass("symmetry_nauty", x)
     try:
         import sympy as sp
         if isinstance(x, sp.MatrixBase) or (isinstance(x, (list, tuple)) and x and all(isinstance(r, (list, tuple)) for r in x)):

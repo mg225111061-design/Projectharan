@@ -20,6 +20,9 @@ def _apply(x, **kw):
     CLEAN exponential-sum signal is EXACTLY DETERMINED from O(k) samples (held-out residual ≈ machine-ε ⇒ EXACT —
     this is exact algebraic recovery, not statistical estimation). Noisy / non-exponential ⇒ honest DECLINE.
     Other latent instances (LFADS/EnKF/cointegration, genuinely PROBABILISTIC) remain deferred."""
+    if isinstance(x, dict) and "koopman" in x:                       # heavy bypass call site: Koopman linear embedding
+        from catalog import heavy_bypasses
+        return heavy_bypasses.try_bypass("koopman", x)
     if not (isinstance(x, (list, tuple)) and len(x) >= 6 and all(isinstance(v, (int, float, complex)) for v in x)):
         return honest_defer("M11.hidden_statespace",
                             "Prony state-space wired for numeric signals (len≥6); LFADS/EnKF/cointegration latent "

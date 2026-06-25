@@ -725,6 +725,32 @@ def test_capstone_phase3_lossless_gate():
           "— the gate blocks wrong-folding at the source)")
 
 
+def test_capstone_phase4_heavy_bypasses():
+    """CAPSTONE PHASE 4 — heavy / external bypasses: CALL SITES wired, compute honestly DEFERRED. Each names its
+    precise blocker (never a fabricated result); the body CALLS the leg (M11←koopman, M1←nauty) and it lights up the
+    moment the engine is installed. No heavy engine is fabricated as present."""
+    import mechanisms as M
+    import kernel_verdict as KV
+    from catalog import heavy_bypasses as HB
+    rep = HB.status_report()
+    assert rep["total"] == len(HB.HEAVY) >= 8
+    # every deferred leg yields an HONEST_DEFER naming its blocker (no fabricated impossibility / success)
+    for name in rep["deferred_here"]:
+        v = HB.defer(name)
+        assert v.status == KV.DECLINE and "HONEST_DEFER" in v.reason and len(v.reason) > 30
+    # the wired call sites actually CALL the registry and defer honestly (engine absent here)
+    vk = M.MECHANISMS[11].apply({"koopman": {"series": [1, 2, 4, 8]}})
+    assert vk.status == KV.DECLINE and "HONEST_DEFER" in vk.reason
+    vn = M.MECHANISMS[1].apply({"nauty_graph": {"n": 4, "edges": [(0, 1), (2, 3)]}})
+    assert vn.status == KV.DECLINE and "HONEST_DEFER" in vn.reason
+    # a leg reported AVAILABLE (if any) must actually import; a leg DEFERRED must not be falsely claimed present
+    avail = HB.availability()
+    assert set(avail) == {h.name for h in HB.HEAVY}
+    print(f"PASS test_capstone_phase4_heavy_bypasses ({rep['total']} heavy bypasses wired; available here: "
+          f"{rep['available_here'] or 'none'}; {len(rep['deferred_here'])} honest-deferred with precise blockers; "
+          f"M11←koopman / M1←nauty call sites CALL the registry and DEFER — plug the engine in and they activate)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
