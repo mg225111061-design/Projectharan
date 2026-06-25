@@ -992,6 +992,36 @@ def test_frontend_phaseB_detectors():
           "each exact-gated, zero false positives)")
 
 
+def test_frontend_phaseCD_lifting():
+    """FRONT-END PHASE C+D — the z3 equivalence substrate + verified lifting. C: ∀-equivalence (UNSAT of inequality)
+    + inductive sum proof (complete, not bounded); a wrong candidate is refuted with a counterexample. D: an
+    imperative accumulation loop is LIFTED to a closed form and z3-PROVED equivalent by induction, then folded —
+    nothing folds without a passing equivalence certificate; the cost gate rejects cold code."""
+    import catalog.compose as C
+    import catalog.equiv_check as EC
+    import kernel_verdict as KV
+    # C: ∀-equivalence proved / refuted
+    assert EC.prove_equiv_z3(lambda e: e["x"] * 2, lambda e: e["x"] + e["x"], ["x"]).proved
+    bad = EC.prove_equiv_z3(lambda e: e["x"] * 2, lambda e: e["x"] + 1, ["x"])
+    assert not bad.proved and bad.counterexample is not None
+    # C: inductive sum proof (Σk² closed form) over ℝ
+    assert EC.inductive_sum_equiv(lambda n: n * (n + 1) * (2 * n + 1) / 6, lambda k: k * k, 0, 0, sort="Real").proved
+    # D: lift Σk² loop → closed form, z3-proved by INDUCTION, folded
+    rl = C.route({"lift_sum": "k*k", "var": "k", "base": 1})
+    assert rl.grade == KV.EXACT and rl.mechanism_path == [13] and rl.lossless == "full_abstraction"
+    assert "2*n**2" in rl.verdict.result["closed_form"] and rl.verdict.result["tier"] == "z3_induction"
+    # D: lift from a code string
+    rc = C.route({"lift_code": "s = 0\nfor k in range(1, n+1):\n  s += k\nreturn s"})
+    assert rc.grade == KV.EXACT and "n*(n + 1)/2" in rc.verdict.result["closed_form"]
+    # D: cost gate — cold/run-once code is not lifted (no proof attempted)
+    assert C.route({"lift_code": "s = 0\nfor k in range(1, n+1):\n  s += k\nreturn s", "hot": False}).grade == KV.DECLINE
+    # D: non-liftable code (no accumulation loop) → honest DECLINE
+    assert C.route({"lift_code": "return foo(bar(baz))"}).grade == KV.DECLINE
+    print("PASS test_frontend_phaseCD_lifting (C: ∀-equiv proved/refuted+cex, inductive Σk² proof over ℝ; D: lift "
+          "Σk²/Σk loops → closed form z3-PROVED by induction [full_abstraction], folded via [13]; cost gate rejects "
+          "cold code; non-liftable → DECLINE — nothing folds without a passing equivalence certificate)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

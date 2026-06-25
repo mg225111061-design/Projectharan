@@ -91,6 +91,9 @@ def _classify_kind(kind: str):
     """Map a (possibly composite) certificate kind to a lossless condition. A composition is lossless IFF EVERY
     constituent stage is lossless (weakest-link for losslessness too); the reported condition is the single shared
     condition, or 'mixed_lossless' when the stages witness different (but all valid) conditions."""
+    if ("equivalence[" in kind) or kind.startswith("lift_equivalence["):
+        # a z3-proved / bounded-checked equivalence or refinement (lifting + Topic A) — preserves+reflects behaviour
+        return "full_abstraction"
     if kind.startswith("composition[") and kind.endswith("]"):
         parts = [p for p in kind[len("composition["):-1].split("∘") if p]
         conds = [_CONDITION.get(p) for p in parts]
