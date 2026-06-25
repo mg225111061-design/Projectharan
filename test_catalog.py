@@ -1059,6 +1059,97 @@ def test_frontend_phaseF_report():
           f"{r['lift_rate']}, B-core held {r['b_core_held']}/{r['impossible_total']} — central invariant holds)")
 
 
+def test_product_phase01_three_clocks_and_cache():
+    """PRODUCT PHASE 0+1 — measure-before-optimize (three clocks A/B/C, never mixed) + the biggest Clock-A win: a
+    SOUND content-hash cache. The soundness invariant is TEST-ENFORCED: a hit returns the byte-for-byte cold result;
+    a mutated input OR a version bump ALWAYS misses (a stale hit is impossible). The Clock-A reduction on a repeated-
+    request workload is MEASURED exactly by calls-avoided (the LLM call is skipped on every hit) — never a fabricated Nx."""
+    import catalog.prodcache as PC
+    import catalog.product as P
+    # PHASE 0 — three clocks measured + Amdahl bottleneck named; Clock A (live LLM) honestly BLOCKED, never fabricated
+    res = P.three_clocks(lambda: sum(range(1000)), lambda: sum(range(4000)), lambda: sum(range(500)), k=3)
+    assert set(res["clocks_ms"]) == {"A_llm", "B_verify", "C_fold"} and res["bottleneck"] == "B_verify"
+    assert abs(sum(res["fractions"].values()) - 1.0) < 0.05 and "BLOCKED" in res["clockA_live"]
+    # PHASE 1a — SOUND cache: hit == cold result byte-for-byte, and the fn (the "LLM call") runs exactly once
+    calls = {"n": 0}
+    def fn():
+        calls["n"] += 1
+        return {"closed_form": "n*(n+1)/2", "grade": "EXACT"}
+    c = PC.SoundCache("t", version="v1")
+    cold = c.compute(("spec", "openai", "gpt"), fn)
+    hit = c.compute(("spec", "openai", "gpt"), fn)
+    assert cold == hit and calls["n"] == 1, (cold, hit, calls)        # identical result, call avoided on the hit
+    # PHASE 1b — a mutated input ALWAYS misses (different content hash ⇒ never a stale hit)
+    c.compute(("spec-MUTATED", "openai", "gpt"), fn)
+    assert calls["n"] == 2
+    # PHASE 1c — a version bump ALWAYS misses (the cache is never consulted across versions)
+    c.invalidate_version("v2")
+    c.compute(("spec", "openai", "gpt"), fn)
+    assert calls["n"] == 3
+    # content_key: canonical (dict-order independent), bytes-stable, mutation-sensitive
+    assert PC.content_key({"a": 1, "b": 2}, b"z") == PC.content_key({"b": 2, "a": 1}, b"z")
+    assert PC.content_key({"a": 1}) != PC.content_key({"a": 2})
+    # PHASE 1d — MEASURED Clock-A reduction on a repeated-request workload (calls-avoided, exact/deterministic)
+    llm_calls = {"n": 0}
+    def llm(_spec):
+        llm_calls["n"] += 1
+        return {"ok": True}
+    cache2 = PC.SoundCache("workload", version="v1")
+    workload = ["specA", "specB", "specA", "specA", "specB", "specC", "specA"]   # 7 requests, 3 unique
+    for spec in workload:
+        cache2.compute((spec,), lambda s=spec: llm(s))
+    reduction = round(1 - llm_calls["n"] / len(workload), 3)
+    assert llm_calls["n"] == 3 and cache2.stats.hits == 4 and abs(reduction - 0.571) < 1e-3, (llm_calls, cache2.stats)
+    print(f"PASS test_product_phase01_three_clocks_and_cache (PHASE0 three clocks A/B/C measured, bottleneck="
+          f"{res['bottleneck']}, Clock-A live BLOCKED [not faked]; PHASE1 SOUND cache: hit==cold byte-for-byte, "
+          f"mutated input + version bump ALWAYS miss [no stale hit]; MEASURED Clock-A reduction {reduction} on a "
+          f"7-request/3-unique workload [4 LLM calls avoided] — exact calls-avoided, no fabricated Nx)")
+
+
+def test_product_phase2345_route_verify_oracle_fixloop():
+    """PRODUCT PHASE 2+3+4+5 — the write→verify→fix loop made fast AND correct. (2) model routing by a cheap
+    difficulty probe (live BLOCKED, mechanism tested). (3) first-pass-wins parallel verify + incremental re-verify
+    that PROVES the unchanged part equivalent (translation validation) before skipping it. (4) multi-oracle consensus:
+    EXACT requires ≥2 INDEPENDENT unanimous oracles (one oracle's bug can't manufacture a pass). (5) fix loop with
+    TARGETED feedback that converges, or DECLINEs honestly after N (never ships unverified code)."""
+    import catalog.product as P
+    import kernel_verdict as KV
+    # PHASE 2 — difficulty-probe routing (hard → large, easy → small); the live call is honestly BLOCKED
+    assert P.route_model("prove the loop invariant by induction over a quantifier")["model"] == "large"
+    assert P.route_model("add two integers")["model"] == "small"
+    assert "BLOCKED" in P.route_model("x")["live"]
+    # PHASE 3 — parallel verify accepts the FIRST passing candidate (Clock B → fastest pass, not the sum)
+    r = P.parallel_verify(["bad1", "bad2", "good", "good2"], lambda x: x.startswith("good"))
+    assert r["accepted"] == "good" and r["accepted_index"] == 2 and r["checked"] == 3
+    assert P.parallel_verify(["x", "y"], lambda x: False)["accepted_index"] == -1
+    # PHASE 3 — incremental re-verify: PROVE the unchanged part equivalent (z3) before skipping; else re-verify fully
+    v = P.incremental_reverify(lambda e: e["x"] * 2, lambda e: e["x"] + e["x"], ["x"])
+    assert v.status == KV.EXACT and v.result["skip_safe"] and v.certificate.passed
+    assert P.incremental_reverify(lambda e: e["x"] * 2, lambda e: e["x"] + 1, ["x"]).status == KV.DECLINE
+    # PHASE 4 — multi-oracle consensus: ≥2 INDEPENDENT unanimous oracles ⇒ EXACT; otherwise DECLINE
+    v = P.multi_oracle_exact(42, [lambda r: r == 42, lambda r: r % 2 == 0, lambda r: r > 0], need=2)
+    assert v.status == KV.EXACT and v.result["agree"] == 3 and v.certificate.passed
+    assert P.multi_oracle_exact(42, [lambda r: r == 42, lambda r: r == 43], need=2).status == KV.DECLINE   # 1/2
+    assert P.multi_oracle_exact(42, [lambda r: r == 42], need=2).status == KV.DECLINE                       # <need
+    assert P.multi_oracle_exact(42, [lambda r: r == 42, lambda r: 1 / 0]).status == KV.DECLINE              # raise→disagree
+    # PHASE 5 — fix loop with targeted feedback: converges, recording the trace; never-converges ⇒ honest DECLINE
+    seen = {"fb": []}
+    attempts = {"n": 0}
+    def gen(feedback):
+        seen["fb"].append(feedback)
+        attempts["n"] += 1
+        return attempts["n"]
+    res = P.fix_loop(gen, lambda c: (c >= 3, f"too small: {c}"), max_iters=5)
+    assert res.converged and res.verdict.status == KV.EXACT and res.iterations == 3
+    assert seen["fb"] == [None, "too small: 1", "too small: 2"]       # the CONCRETE failure artifact targets each retry
+    res2 = P.fix_loop(lambda f: 0, lambda c: (False, "nope"), max_iters=3)
+    assert not res2.converged and res2.verdict.status == KV.DECLINE and res2.iterations == 3
+    print("PASS test_product_phase2345_route_verify_oracle_fixloop (PHASE2 difficulty-probe routing [hard→large/"
+          "easy→small, live BLOCKED]; PHASE3 first-pass-wins verify + incremental re-verify PROVES unchanged-part "
+          "equivalence before skipping [non-equiv→DECLINE]; PHASE4 ≥2 independent unanimous oracles→EXACT [1/2 or "
+          "raise→DECLINE]; PHASE5 targeted-feedback fix loop converges [trace=concrete artifacts] / N-bounded→DECLINE)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
