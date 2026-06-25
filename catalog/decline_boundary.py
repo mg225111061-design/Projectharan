@@ -104,13 +104,17 @@ def mdl_grade(data) -> KV.Verdict:
 
 
 def incompressibility_guard(x) -> Optional[KV.Verdict]:
-    """§6 incompressibility: a REAL MDL 2-part test on data-like input (DECLINE iff no model beats the literal), OR
-    an explicitly-declared-random marker. Compressible data (hidden structure) passes through (proceed)."""
-    m = mdl_two_part(x)
-    if m is not None and not m["compresses"]:
-        return _decline("kolmogorov_random_string",
-                        f"MDL: no model beats the literal ({m['literal_bytes']}B→{m['compressed_bytes']}B, "
-                        f"ratio {m['ratio']}) — incompressible in the MDL/zlib class")
+    """§6 incompressibility: a REAL MDL 2-part test on genuine DATA (bytes / numeric sequence — DECLINE iff no model
+    beats the literal), OR an explicitly-declared-random marker. The MDL test is NOT applied to a plain `str`: a
+    natural-language request or code is not a compression target (a short instruction that zlib can't shrink is not
+    'Kolmogorov-random' — that would be a false positive that pre-empts the composition router). Strings DECLINE
+    only on an explicit randomness marker. Compressible data (hidden structure) passes through (proceed)."""
+    if not isinstance(x, str):
+        m = mdl_two_part(x)
+        if m is not None and not m["compresses"]:
+            return _decline("kolmogorov_random_string",
+                            f"MDL: no model beats the literal ({m['literal_bytes']}B→{m['compressed_bytes']}B, "
+                            f"ratio {m['ratio']}) — incompressible in the MDL/zlib class")
     if _INCOMP_RE.search(feats(x).text):
         return _decline("kolmogorov_random_string", "declared incompressible/random — no model beats the literal")
     return None
@@ -123,11 +127,15 @@ def turbulence_guard(x) -> Optional[KV.Verdict]:
     return None
 
 
-_GUARDS = (rice_guard, incompressibility_guard, turbulence_guard)
+# turbulence (no-complete-invariant) is a CLASSIFICATION obstruction → it is OWNED by the M9⟂M14 composition
+# (`catalog.compose._exec_m9_perp_m14` checks it in parallel with the M9 invariant attempt, per §5). The general
+# top-level boundary keeps the two domain-agnostic obstructions (undecidability, incompressibility).
+_GUARDS = (rice_guard, incompressibility_guard)
 
 
 def check(x) -> Optional[KV.Verdict]:
-    """Run the DECLINE guards (cheapest first). First hit → an honest obstruction DECLINE; else None (proceed)."""
+    """Run the general DECLINE guards (cheapest first). First hit → an honest obstruction DECLINE; else None
+    (proceed). Turbulence is checked inside the M9⟂M14 composition, not here (it is classification-specific)."""
     for g in _GUARDS:
         v = g(x)
         if v is not None:

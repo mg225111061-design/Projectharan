@@ -29,6 +29,18 @@ class Mechanism:
     composable_with: Tuple[int, ...] = ()         # mechanism numbers that can follow this one in a pipeline
     ur_form: str = ""                             # for 1 & 14: the diagonal/fixpoint ur-form annotation (§D-1·D-2)
 
+    def step(self, sf, **kw):
+        """UNIFIED StructForm → StructForm view (§5 signature unification — what lets the composer CHAIN). A raw
+        input is wrapped as a raw StructForm; this mechanism's gated `apply` runs on the current structured object
+        (`sf.working()`); the Verdict is folded into the IR by the weakest-link law (a DECLINE short-circuits). The
+        per-mechanism `apply` keeps returning a graded Verdict (the §7-gated core) — `step` is the connective tissue."""
+        from catalog.ir import StructForm
+        if not isinstance(sf, StructForm):
+            sf = StructForm.raw(sf)
+        v = self.apply(sf.working(), **kw)
+        data = v.result if v.status != KV.DECLINE else sf.data
+        return sf.accumulate(self.num, v, data=data)
+
 
 def honest_defer(name: str, reason: str) -> "KV.Verdict":
     """A mechanism whose sound `apply` is not yet built returns this — an honest DECLINE, never a fake pass (§1.4)."""

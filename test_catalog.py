@@ -83,11 +83,12 @@ def test_compose_router():
     # Rice boundary → DECLINE, mechanism 14
     r = C.route("is this arbitrary program semantically equivalent to that one?")
     assert r.grade == KV.DECLINE and r.mechanism_path == [14], r
-    # an UNBUILT composition (classification 9→2) → honest DEFER naming the path (not a fake pass)
+    # M9⟂M14 composition: no obstruction fires, no WIRED complete invariant for this string instance → honest DECLINE
+    # along the real composition path [9,14] (M9 attempted, M14 obstruction-checked: none) — not a fake pass
     r = C.route("classify the curvature complete invariant")
-    assert r.grade == KV.DECLINE and r.mechanism_path == [9, 2] and "HONEST_DEFER" in r.verdict.reason, r
+    assert r.grade == KV.DECLINE and r.mechanism_path == [9, 14] and "HONEST_DEFER" in r.verdict.reason, r
     assert len(r.probe) == 14
-    print("PASS test_compose_router (fold→EXACT[13]; Rice→DECLINE[14]; unbuilt composition [9→2]→honest-DEFER with "
+    print("PASS test_compose_router (fold→EXACT[13]; Rice→DECLINE[14]; M9⟂M14 composition [9,14]→honest-DEFER with "
           "probe vector + mechanism_path — no fake pass)")
 
 
@@ -310,9 +311,10 @@ def test_phaseE_composition_router():
     assert C.route(list(range(800))).grade == KV.EXACT
     # M14 obstruction (undecidable) and DECLINE backbone
     assert C.route("does this program halt on all inputs?").grade == KV.DECLINE
-    # unbuilt composition → HONEST DEFER naming the planned path (e.g. classification 9→2, RS 10→14)
+    # M9⟂M14 composition (no obstruction, no wired invariant for this instance) → honest DECLINE along [9,14];
+    # M10→M14 (wired-but-deferred: forbidden-minor compute non-constructive) → honest DECLINE along [10,14]
     r = C.route("classify the curvature complete invariant")
-    assert r.grade == KV.DECLINE and r.mechanism_path == [9, 2] and "HONEST_DEFER" in r.verdict.reason
+    assert r.grade == KV.DECLINE and r.mechanism_path == [9, 14] and "HONEST_DEFER" in r.verdict.reason
     r = C.route("is this graph minor-closed forbidden-minors")
     assert r.mechanism_path == [10, 14] and "HONEST_DEFER" in r.verdict.reason
     # every non-DECLINE result carries a passed certificate (no fake pass)
@@ -417,6 +419,187 @@ def test_loop_cycle2_petrov():
     assert {t.tid: t for t in catalog.TRANSFORMS}["C1.petrov"].verified
     print("PASS test_loop_cycle2_petrov (§9: Weyl scalars → EXACT Petrov type [D / O]; mechanism-9 apply routes the "
           "5-scalar list; C1.petrov RECOVERED [deferred→VERIFIED])")
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────
+# COMPOSITION ENGINE (몸통·대가리) — the directive's four required tests + negative controls + the IR.
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────
+def test_composition_m7_decomposition():
+    """★ (a) The master principle, executed: M7 splits a signal into structure ⊕ pseudorandom. A CLEAN k-sparse
+    signal → EXACT closed form (the k tones; M1 reads the spectrum off M7's certified split) + a remainder bounded
+    ≈ machine-ε (M12). The composition runs a REAL mechanism chain [7→1→12]; EXACT only because every stage
+    certified. M7's splitter finds NO structure in a random signal (honest, not hallucinated)."""
+    import numpy as np
+    import random
+    import catalog.compose as C
+    import kernel_verdict as KV
+    import mechanisms as M
+    N = 64
+    t = np.arange(N)
+    clean = (np.cos(2 * np.pi * 3 * t / N) + 0.5 * np.cos(2 * np.pi * 7 * t / N)).tolist()   # exactly k-sparse
+    r = C.route(clean)
+    res, grade, cert, bound, path = r.as_tuple()                         # the §5.6 output tuple
+    assert grade == KV.EXACT and path == [7, 1, 12], r                   # M7 split → M1 spectral → M12 remainder
+    assert isinstance(res, dict) and "spectrum" in res                   # the structured part = the recovered tones
+    assert bound is not None and bound < 1e-6                            # remainder bounded ≈ machine-ε (the Ω(N) floor)
+    assert cert.passed and "composition" in cert.kind                   # one composite cert, every stage re-verified
+    assert [m for (m, _g, _k) in r.trace] == [7, 1, 12]
+    # ★ honesty: the splitter does NOT invent structure in genuine noise ★
+    random.seed(7)
+    noise = [random.gauss(0, 1) for _ in range(128)]
+    assert M.MECHANISMS[7].apply(noise).status == KV.DECLINE, "M7 hallucinated structure in noise"
+    assert C.route(noise).grade == KV.DECLINE
+    print("PASS test_composition_m7_decomposition (★ clean k-sparse signal → EXACT closed form [7→1→12] + remainder "
+          "≤ machine-ε; M7 splitter DECLINEs on noise — structure⊕pseudorandom split runs the master principle, no "
+          "false structure)")
+
+
+def test_composition_m9_perp_m14():
+    """(b) M9 ⟂ M14: 'fold into a normal form, OR present the obstruction.' (1) An obstruction (turbulence/E₀, no
+    complete invariant) FIRES → DECLINE-classification + an obstruction certificate (a positive absence-proof).
+    (2) A wired complete invariant (Petrov, the 5 Weyl scalars) → EXACT classification, obstruction-check: none.
+    (3) Neither a fired obstruction nor a wired invariant → honest DECLINE along the real composition path [9,14]."""
+    import catalog.compose as C
+    import kernel_verdict as KV
+    r = C.route("classify these flows: there is no complete invariant — turbulence / E0, not classifiable")
+    assert r.grade == KV.DECLINE and r.mechanism_path == [14] and "OBSTRUCTION" in r.verdict.reason, r
+    r2 = C.route([0, 0, 1.0, 0, 0])                                      # Petrov Type D (only Ψ2 ≠ 0)
+    assert r2.grade == KV.EXACT and r2.mechanism_path == [9, 14], r2
+    assert r2.verdict.result["type"] == "D" and r2.verdict.certificate.passed
+    r3 = C.route("classify the curvature complete invariant")
+    assert r3.grade == KV.DECLINE and r3.mechanism_path == [9, 14] and "HONEST_DEFER" in r3.verdict.reason
+    print("PASS test_composition_m9_perp_m14 (obstruction fires → DECLINE+obstruction cert [14]; Petrov complete "
+          "invariant → EXACT classification [9,14]; neither → honest DECLINE [9,14] — 'normal form OR obstruction')")
+
+
+def test_composition_weakest_link_grade():
+    """(c) The honesty core, test-enforced: a composition's grade is the WEAKEST link, NEVER falsely upgraded.
+    combine_grade — EXACT∘EXACT→EXACT; any PROBABILISTIC→PROBABILISTIC (δ_total≤Σδ_i union bound, never EXACT);
+    a DECLINE short-circuits (stop=True). The IR refuses to emit EXACT over a non-EXACT cert chain (ADT exception)."""
+    import catalog.compose as C
+    import catalog.ir as IR
+    import kernel_verdict as KV
+    ex = KV.Cert(KV.EXACT, "a", True)
+    pr = KV.Cert(KV.PROBABILISTIC, "b", True, delta=0.01)
+    pr2 = KV.Cert(KV.PROBABILISTIC, "c", True, delta=0.02)
+    exV = KV.exact(1, "k", "O(1)", ex)
+    prV = KV.probabilistic(1, "k", "O(1)", pr)
+    dcV = KV.decline("nope", "k")
+    g, certs, stop = C.combine_grade(KV.EXACT, [ex], exV)
+    assert g == KV.EXACT and not stop and len(certs) == 2               # EXACT ∘ EXACT → EXACT
+    g, _, stop = C.combine_grade(KV.EXACT, [ex], prV)
+    assert g == KV.PROBABILISTIC and not stop                           # EXACT ∘ PROBABILISTIC → PROBABILISTIC (downgrade)
+    g, _, _ = C.combine_grade(KV.PROBABILISTIC, [pr], exV)
+    assert g == KV.PROBABILISTIC                                        # PROBABILISTIC ∘ EXACT → PROBABILISTIC (weakest link)
+    g, certs, stop = C.combine_grade(KV.EXACT, [ex], dcV)
+    assert g == KV.DECLINE and stop                                     # anything ∘ DECLINE → DECLINE + short-circuit
+    # δ union bound on exit (two PROBABILISTIC certs → δ_total = Σδ_i = 0.03)
+    sf = IR.StructForm("invariant", data=1, grade=KV.PROBABILISTIC, cert_chain=[pr, pr2],
+                       path=[(1, "PROBABILISTIC", "b"), (2, "PROBABILISTIC", "c")])
+    v = sf.to_verdict()
+    assert v.status == KV.PROBABILISTIC and abs(v.certificate.delta - 0.03) < 1e-12
+    # ★ no false upgrade: claim EXACT over a PROBABILISTIC chain → ADT raises ★
+    bad = IR.StructForm("invariant", data=1, grade=KV.EXACT, cert_chain=[pr], path=[(1, "EXACT", "b")])
+    raised = False
+    try:
+        bad.to_verdict()
+    except AssertionError:
+        raised = True
+    assert raised, "weakest-link false upgrade was NOT caught by the ADT"
+    print("PASS test_composition_weakest_link_grade (EXACT∘EXACT→EXACT; any PROBABILISTIC→PROBABILISTIC [δ_total=Σδ "
+          "union bound]; DECLINE short-circuits; EXACT-over-PROBABILISTIC chain → ADT exception — grade never "
+          "falsely upgrades)")
+
+
+def test_composition_decline_shortcircuit():
+    """(d) A DECLINE short-circuits the pipeline AT that stage: downstream mechanisms are NOT run, and the path
+    records (m, DECLINE, reason). M10→M14 (forbidden-minor compute deferred): M10 DECLINEs → the chain stops, the
+    obstruction tail M14 is named, the path is exactly [10,14], the reason carries the HONEST_DEFER proof. After a
+    DECLINE, a later EXACT stage cannot resurrect the grade (weakest-link)."""
+    import catalog.compose as C
+    import catalog.ir as IR
+    import kernel_verdict as KV
+    r = C.route("is this graph minor-closed forbidden-minors")
+    assert r.mechanism_path == [10, 14] and r.grade == KV.DECLINE
+    assert "HONEST_DEFER" in r.verdict.reason                           # M10's deferred-compute proof is surfaced
+    trace = {m: g for (m, g, _k) in r.trace}
+    assert trace[10] == KV.DECLINE and trace[14] == KV.DECLINE
+    # IR unit: a chain stops at the first DECLINE; downstream is not run, and EXACT cannot resurrect the grade
+    sf = IR.StructForm.raw("x").accumulate(2, KV.decline("stop here", "m2"))
+    assert sf.stopped and sf.grade == KV.DECLINE and sf.mechanism_path == [2]
+    sf2 = sf.accumulate(3, KV.exact(1, "m3", "O(1)", KV.Cert(KV.EXACT, "w", True)))
+    assert sf2.grade == KV.DECLINE, "a DECLINE was resurrected to EXACT by a downstream stage"
+    print("PASS test_composition_decline_shortcircuit (M10→M14: M10 DECLINE stops the chain, M14 obstruction tail "
+          "named, path=[10,14] with HONEST_DEFER; downstream EXACT cannot resurrect a DECLINE — weakest-link holds)")
+
+
+def test_composition_negative_controls():
+    """음성 통제 (§7.5): genuinely structureless inputs → DECLINE on EVERY composition path (false-positive 0). A
+    composition never invents structure that isn't there. 잘못된 답보다 DECLINE이 항상 옳다."""
+    import os
+    import random
+    import catalog.compose as C
+    import kernel_verdict as KV
+    import mechanisms as M
+    random.seed(11)
+    negatives = [
+        os.urandom(1024),                                              # random bytes → MDL incompressible
+        [random.gauss(0, 1) for _ in range(300)],                     # random signal → no low-rank split
+        "totally unstructured prose with no mathematical content whatsoever",
+        os.urandom(2048),
+    ]
+    for neg in negatives:
+        assert C.route(neg).grade == KV.DECLINE, repr(neg)[:60]
+    assert M.MECHANISMS[7].apply([random.gauss(0, 1) for _ in range(160)]).status == KV.DECLINE
+    print("PASS test_composition_negative_controls (random bytes / random signal / unstructured prose → DECLINE on "
+          "every path; M7 split finds no structure in noise — false-positive 0)")
+
+
+def test_composition_ir_structform():
+    """The IR connective tissue (catalog.ir): every mechanism is callable as StructForm→StructForm (signature
+    unification) so the body can CHAIN. StructForm.raw wraps a raw input; .step threads it through a mechanism; the
+    path/cert_chain/grade accumulate by the weakest-link law; .to_verdict collapses to the §5.6 output."""
+    import catalog.ir as IR
+    import kernel_verdict as KV
+    import mechanisms as M
+    sf = IR.StructForm.raw([0, 0, 1.0, 0, 0])
+    assert sf.kind == "raw" and sf.working() == [0, 0, 1.0, 0, 0] and sf.grade == KV.EXACT and sf.path == []
+    out = M.MECHANISMS[9].step(sf)                                      # signature unification: StructForm → StructForm
+    assert isinstance(out, IR.StructForm) and out.grade == KV.EXACT and out.mechanism_path == [9]
+    assert out.cert_chain and all(c.passed for c in out.cert_chain)
+    v = out.to_verdict()
+    assert v.status == KV.EXACT and v.result["type"] == "D"
+    out2 = M.MECHANISMS[9].step([0, 0, 1.0, 0, 0])                      # .step auto-wraps a bare value too
+    assert out2.mechanism_path == [9]
+    # a deferred mechanism's .step yields a DECLINE StructForm (honest), never a fake structured form
+    bad = M.MECHANISMS[7].step("not a signal")
+    assert bad.grade == KV.DECLINE and bad.stopped
+    print("PASS test_composition_ir_structform (StructForm.raw/.working/.step/.to_verdict; M9.step→EXACT invariant "
+          "[9]; deferred .step→honest DECLINE — the connective tissue that lets mechanisms chain)")
+
+
+def test_composition_measurement():
+    """Measurement (NO_UNMEASURED §0): the ★ M7 sublinear composition is MEASURED honestly. The GENUINE advantage is
+    SAMPLES READ — Prony recovers the structure from an O(k)≈88 prefix regardless of N (vs O(N) to read the whole
+    signal): a real, complexity-faithful, measured win. The Clock-B WALL-CLOCK vs numpy's optimized C-FFT is reported
+    TRUTHFULLY (it may show no crossover in range — we never fake a speedup). Build-time is NOT a clock; a non-M7
+    composition honestly reports measured=False (no fabricated number)."""
+    import numpy as np
+    import catalog.compose as C
+    N = 2048
+    t = np.arange(N)
+    sig = (np.cos(2 * np.pi * (N // 8) * t / N) + np.cos(2 * np.pi * (N // 4) * t / N)).tolist()  # clean k-sparse, large N
+    m = C.measure_composition(sig)
+    assert m["measured"] is True and m["clock"] == "B"
+    # ★ the genuine, measured sublinear win: reads strictly fewer samples than the O(N) baseline ★
+    assert m["samples_read"] < m["samples_baseline"] and m["samples_crossover_n"] == 88
+    assert 0.0 <= m["amdahl_p"] <= 1.0 and m["amdahl_p"] > 0.9        # ~96% of the O(N) read eliminated at N=2048
+    assert "wall_clock_ratio" in m and "wall_clock_crossover_n" in m  # wall-clock reported truthfully (win or not)
+    # a non-M7 composition (SOS) → honest measured=False, never a fabricated number
+    assert C.measure_composition("prove x**2 - 2*x + 1 >= 0 by sos")["measured"] is False
+    print(f"PASS test_composition_measurement (M7 measured: reads {m['samples_read']}/{m['samples_baseline']} samples "
+          f"[Amdahl p={m['amdahl_p']}], wall-clock vs numpy-FFT {m['wall_clock_ratio']}× [crossover_n="
+          f"{m['wall_clock_crossover_n']}, honest]; non-M7 → measured=False — NO_UNMEASURED, build-time≠clock)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

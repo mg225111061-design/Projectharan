@@ -183,3 +183,59 @@ non-symmetric → DECLINE. coverage 94 / **10 VERIFIED** / 84 deferred; test_cat
 **Cycle 2 — mechanism 9 (complete invariant): Petrov.** Weyl scalars [Ψ0..Ψ4] → EXACT Petrov type (complete
 invariant of the Weyl tensor's algebraic type), reusing `mathmode.petrov`. Recovers C1.petrov. coverage 94 /
 **11 VERIFIED** / 83 deferred; test_catalog **20/20**. (Cartan–Karlhede SPI format pending — next cycle.)
+
+---
+
+## §10 합성 엔진 — 몸통·대가리 (composition body+head)
+
+The catalog stopped being "a skeleton with 3 arms" (M4/M12/M13 only) and became a **composition engine** where
+mechanisms CHAIN: one mechanism's output is the next's input, each stage §7-gated, the grade composed by the
+weakest-link law. No single-discipline 1:1 decomposition — inputs decompose into mechanism pipelines/trees.
+
+**1. IR — `catalog/ir.py` `StructForm`** (the connective tissue flowing between mechanisms):
+`kind | data | residual | grade | cert_chain | path`. `StructForm.raw(x)` starts a composition; `.accumulate(m, v)`
+folds a mechanism's Verdict in by the weakest-link law; `.note_step(m, g, k)` records a derived/branch step without
+touching the grade; `.to_verdict()` collapses to the §5.6 `(result, grade, cert, bound, mechanism_path)` output and
+re-checks the weakest-link invariant. **Signature unification**: `Mechanism.step(StructForm)→StructForm` (in
+`mechanisms/base.py`) — every mechanism is now callable in the chain; the per-mechanism `apply` stays the gated,
+Verdict-returning core.
+
+**2. `combine_grade` (weakest-link law, `catalog/compose.py`).** Grade lattice DECLINE < PROBABILISTIC < EXACT; a
+composition's grade is the MIN (the weakest link). EXACT∘EXACT→EXACT (both certs retained, all re-checked passed);
+any PROBABILISTIC→PROBABILISTIC (δ_total ≤ Σδ_i union bound, ε per-op, **never upgraded to EXACT**); a DECLINE
+short-circuits (stop=True, downstream NOT run). **No false upgrade**: claiming EXACT over a non-EXACT cert chain
+raises an ADT exception at `to_verdict` (test-enforced). Partial success (M_a EXACT + M_b DECLINE) → honest
+"structured up to M_a, stuck at M_b" DECLINE, never whole-EXACT.
+
+**3. `plan` (head).** probe[0,1]^14 → a composition-tree SHAPE (not a single max-point): numeric signal → `m7_split`;
+classification → `m9_perp_m14`; polynomial inequality → `sos`; bytes → `mdl`; structured QE dict → fused `[2]`; else
+the research-grammar `chain` (M10→M14, M6∘M13, M1→M9, …).
+
+**4. `execute` (body).** Walks the plan, threads the `StructForm`, §7-gates every stage (grade ADT enforced at
+Verdict construction + cert.passed re-asserted; mechanisms with an oracle do their differential-equivalence recheck
+inside `apply`). Returns a `CatalogResult` with the full `(m, grade, cert_kind)` trace.
+
+**Real mechanism chains that RUN:**
+- ★ **M7 decomposition** ("무질서 = 구조 + 의사난수", the master principle, executed). `sparse_fft`/`prony` (reused,
+  repo-first) split a signal into a k-sparse structure + a remainder. CLEAN k-sparse → EXACT closed form
+  `[7→1→12]` (M1 reads the spectrum off M7's certified split; M12 bounds the remainder ≈ machine-ε). Noisy/low-rank
+  → HONEST_DEFER (no overclaim). Structureless → DECLINE (no false structure). The remainder, when incompressible,
+  hits the Ω(N) floor on THAT part only.
+- **M9⟂M14** ("정규형으로 접거나, 장애물을 내놓거나"). M14 (turbulence/E₀) checked in parallel with the M9 complete
+  invariant: obstruction fires → DECLINE + obstruction certificate (absence-of-invariant proof); Petrov/Buckingham
+  → EXACT classification `[9,14]`; neither → honest DECLINE. (turbulence ownership moved here from the generic
+  top-level boundary — it is a classification-specific obstruction.)
+- **M4|M14** (SOS or impossibility), **M2(∘M3)** (z3/CAD fuses elimination + finite-witness certification).
+- **Wired-but-deferred** (body CALLS the leg, only the heavy compute defers): M10→M14 (forbidden-minor set is
+  non-constructive), M6∘M13 (multigrid/RG external). Signatures matched so plugging the leg in just works.
+
+**Measurement (`measure_composition`, NO_UNMEASURED).** M7's genuine advantage is **samples read** — O(k)≈88 prefix
+vs O(N) (Amdahl p=0.96 @N=2048): real, complexity-faithful, measured. The Clock-B wall-clock vs numpy's C-FFT is
+reported TRUTHFULLY (constant-dominated → no crossover in range = honest "no measured wall-clock win", never a faked
+speedup). Build-time is NOT a clock.
+
+**Honesty / passing condition.** Composition grade NEVER falsely upgrades (weakest-link ADT + `combine_grade` only
+takes the MIN). Negative controls (random bytes / random signal / unstructured prose) → DECLINE on every path
+(false-positive 0). New composition tests in `test_catalog.py`: M7 split correctness, M9⟂M14 obstruction DECLINE,
+weakest-link grade enforcement, DECLINE short-circuit path recording, negative controls, IR signature-unification,
+measurement. **`test_catalog` 27/27 green; `test_build` 273/273 (purely additive).** 잘못된 답보다 DECLINE이 항상 옳다.

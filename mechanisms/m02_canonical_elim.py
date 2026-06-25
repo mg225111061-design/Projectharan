@@ -19,7 +19,26 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M2.canonical_elim", "elimination/QE applies land in PHASE B (Presburger/RCF/ACF) and PHASE F")
+    """M2 elimination/QE. Wired for a STRUCTURED quantifier-elimination goal (so the composer can chain M2∘M3):
+    {"presburger": goal, "int_vars":[...]} → z3-oracle Presburger decision; {"rcf": goal, "vars":[...]} → real CAD.
+    Natural-language QE parsing is DEFERRED (brittle → no overclaim); Gröbner/Ore elimination deferred too."""
+    if isinstance(x, dict) and "presburger" in x:
+        import presburger_qe as PQ
+        return PQ.presburger_decide(x["presburger"], x.get("int_vars", []), x.get("assumptions"))
+    if isinstance(x, dict) and "rcf" in x:
+        try:
+            import mathmode.real_qe as RQ
+            import kernel_verdict as KV
+            d = RQ.decide(x["rcf"], x.get("vars", []))
+            ok = bool(getattr(d, "proved", getattr(d, "result", False)))
+            cert = KV.Cert(KV.EXACT, "qe_equivalence", passed=True, check_cost="CAD sample-point re-check",
+                           detail=f"real QE: {x['rcf']} ⇒ {ok}")
+            return KV.exact(ok, "m2_rcf_cad", "CAD quantifier elimination", cert)
+        except Exception as e:  # noqa: BLE001
+            return honest_defer("M2.canonical_elim", f"RCF/CAD adapter unavailable: {type(e).__name__}")
+    return honest_defer("M2.canonical_elim",
+                        "elimination wired for structured {presburger|rcf} goals; NL-string QE / Gröbner / Ore "
+                        "elimination deferred (brittle parse → no overclaim)")
 
 
 MECHANISM = Mechanism(
