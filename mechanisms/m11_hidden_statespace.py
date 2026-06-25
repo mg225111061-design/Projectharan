@@ -23,6 +23,12 @@ def _apply(x, **kw):
     if isinstance(x, dict) and "koopman" in x:                       # heavy bypass call site: Koopman linear embedding
         from catalog import heavy_bypasses
         return heavy_bypasses.try_bypass("koopman", x)
+    if isinstance(x, dict) and "recurrence_seq" in x:                # native Berlekamp–Massey minimal linear recurrence
+        import native_sequence
+        return native_sequence.bm_grade(x["recurrence_seq"])
+    if isinstance(x, dict) and ("lcg" in x or "lfsr" in x):          # native weak-PRNG state recovery (secure → DECLINE)
+        import native_prng
+        return native_prng.prng_grade(x)
     if not (isinstance(x, (list, tuple)) and len(x) >= 6 and all(isinstance(v, (int, float, complex)) for v in x)):
         return honest_defer("M11.hidden_statespace",
                             "Prony state-space wired for numeric signals (len≥6); LFADS/EnKF/cointegration latent "

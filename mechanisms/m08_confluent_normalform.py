@@ -52,6 +52,9 @@ def _apply(x, **kw):
     arithmetic expression. Non-ring inputs (NbE/cut-elim/ZX proof terms) are deferred."""
     import kernel_verdict as KV
     import equality_saturation as ES
+    if isinstance(x, dict) and "kb_rules" in x and "u" in x and "v" in x:   # Knuth–Bendix monoid word problem (native)
+        import native_rewrite
+        return native_rewrite.m8_word_grade(x)
     if isinstance(x, dict) and ("zx_equiv" in x or "zx_simplify" in x):   # ZX-calculus circuit normal form / equivalence (pyzx)
         import zx_normalize
         return zx_normalize.zx_grade(x)

@@ -19,6 +19,12 @@ def _apply(x, **kw):
     """Mechanism 12: a measured MDL 2-part code (zlib = a sound Kolmogorov-complexity upper bound). EXACT
     code-length when a model beats the literal; else DECLINE (incompressible in the MDL class — per-instance,
     NOT a Kolmogorov-randomness claim → composes into M14)."""
+    if isinstance(x, dict) and "repair" in x:                        # native Re-Pair grammar (lossless SLP)
+        import native_sequence
+        return native_sequence.repair_grade(x["repair"])
+    if isinstance(x, dict) and "sat_count" in x and "nvars" in x:    # native exact #SAT (DPLL, two-ordering cross-check)
+        import native_modelcount
+        return native_modelcount.m_count_grade(x)
     from catalog.decline_boundary import mdl_grade
     return mdl_grade(x)
 

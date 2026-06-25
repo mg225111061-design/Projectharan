@@ -42,10 +42,19 @@ _CONDITION = {
     "forced_monotone_subsequence": "completeness",
     "pigeonhole_repeated_state": "completeness",
     "ramsey_mono_clique": "completeness",
+    "linear_recurrence": "completeness",
+    "slp_grammar": "completeness",
+    "lll_reduced_basis": "completeness",
+    "integer_relation": "completeness",
+    "smith_diophantine": "completeness",
+    "sturm_isolation": "completeness",
     "sos_gram": "completeness",
     "rational_psd_gram": "completeness",
     # 2. full abstraction (equivalence preserved AND reflected — verified normal form / complete invariant)
     "normal_form_unique": "full_abstraction",
+    "confluent_rewrite_system": "full_abstraction",
+    "most_general_unifier": "completeness",
+    "model_count": "completeness",
     "zx_tensor_equality": "full_abstraction",
     "complete_invariant": "full_abstraction",
     "isomorphism_decision": "full_abstraction",
@@ -59,6 +68,9 @@ _CONDITION = {
     "reachability_counterexample": "refinement",
     "dataflow_witness": "refinement",
     "ordinal_descent": "refinement",
+    "lcg_state_replay": "completeness",
+    "lfsr_recurrence_replay": "completeness",
+    "gosper_antidifference": "completeness",
 }
 
 

@@ -156,14 +156,28 @@ def plan(x: Any) -> Plan:
         return Plan("chain", (2,), "straight-line / QF_SLIA string decision (cvc5 + model re-verification)", probe)
     if isinstance(x, dict) and "lstar" in x:                        # M9: minimal DFA via Angluin L* (complete invariant)
         return Plan("chain", (9,), "complete invariant: minimal DFA via Angluin L* (regular-language canonical form)", probe)
-    if isinstance(x, dict) and ((x.get("ic3") or "taint" in x) or (x.get("chc") and "trans" in x)):   # M13: fixpoint
-        return Plan("chain", (13,), "Kleene/least-fixpoint: IC3 / CHC-Spacer inductive invariant / taint IFDS", probe)
+    if isinstance(x, dict) and ((x.get("ic3") or "taint" in x) or (x.get("chc") and "trans" in x) or "telescope" in x):
+        return Plan("chain", (13,), "Kleene/least-fixpoint: IC3 / CHC-Spacer invariant / taint IFDS / Gosper Σ", probe)
     if isinstance(x, dict) and ("egraph" in x or "zx_equiv" in x or "zx_simplify" in x):   # M8: confluent normal form
         return Plan("chain", (8,), "confluent normal form (e-graph / ZX-calculus, formally re-checked)", probe)
     if isinstance(x, tuple) and x and x[0] in ("+", "*", "var", "const"):
         return Plan("chain", (8,), "confluent normal form (e-graph equality saturation, Z3-certified)", probe)
     if isinstance(x, dict) and ("galois_quintic" in x or x.get("liouville")):   # M14: Galois/Liouville impossibility
         return Plan("chain", (14,), "obstruction: Galois insolvability / Liouville non-elementary (impossibility)", probe)
+    if isinstance(x, dict) and ("lll" in x or "int_relation" in x or ("diophantine" in x and "b" in x) or "realroots" in x):
+        return Plan("chain", (2,), "native lattice/relation/real-root (LLL · integer relation · Smith Diophantine · Sturm)", probe)
+    if isinstance(x, dict) and "recurrence_seq" in x:               # M11: Berlekamp–Massey minimal linear recurrence
+        return Plan("chain", (11,), "Berlekamp–Massey minimal linear recurrence (randomness gate: L≪n/2 fold, L≈n/2 DECLINE)", probe)
+    if isinstance(x, dict) and ("lcg" in x or "lfsr" in x):         # M11: weak-PRNG recovery (secure CSPRNG → DECLINE)
+        return Plan("chain", (11,), "weak-PRNG state recovery (LCG/LFSR replay; secure CSPRNG → DECLINE)", probe)
+    if isinstance(x, dict) and "repair" in x:                       # M12: Re-Pair grammar compression (lossless SLP)
+        return Plan("chain", (12,), "Re-Pair grammar compression (lossless straight-line program)", probe)
+    if isinstance(x, dict) and "sat_count" in x and "nvars" in x:   # M12: exact #SAT (DPLL, differential-checked)
+        return Plan("chain", (12,), "exact #SAT via DPLL (two-ordering + brute-force cross-check)", probe)
+    if isinstance(x, dict) and "kb_rules" in x and "u" in x and "v" in x:   # M8: Knuth–Bendix monoid word problem
+        return Plan("chain", (8,), "Knuth–Bendix completion: monoid word problem (confluent rewriting)", probe)
+    if isinstance(x, dict) and "unify" in x:                        # M2: first-order syntactic unification
+        return Plan("chain", (2,), "first-order unification (most-general unifier, occurs-checked)", probe)
     if isinstance(x, dict) and (("markov" in x and "partition" in x) or ("linsolve" in x and "b" in x)):   # M6 coarse-grain
         return Plan("chain", (6,), "renormalize: exact Markov lumping / multigrid fixpoint (residual enclosure)", probe)
     if isinstance(x, dict) and ("sequence" in x or "states" in x or ("ramsey" in x and "n" in x)):   # M10 forced structure

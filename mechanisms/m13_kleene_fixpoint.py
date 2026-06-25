@@ -38,6 +38,9 @@ def _apply(x, **kw):
                            detail=f"reachable property violation — counterexample trace {sv.trace}")
             return KV.exact({"safe": False, "trace": sv.trace}, "m13_ic3", "k-induction", cert)
         return KV.decline(f"M13.ic3: {sv.detail} (not k-inductive within k≤{sv.k} — needs a stronger invariant, honest)", "m13_ic3")
+    if isinstance(x, dict) and "telescope" in x:                     # Gosper indefinite hypergeometric summation (fold Σ→closed form)
+        import native_telescope
+        return native_telescope.m_telescope_grade(x)
     if isinstance(x, dict) and x.get("chc") and "trans" in x:        # CHC/Spacer: synthesize + independently re-verify the invariant
         import chc_solve
         return chc_solve.chc_grade(x["varnames"], x["init"], x["trans"], x["prop"])

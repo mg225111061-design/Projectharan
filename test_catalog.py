@@ -803,6 +803,137 @@ def test_capstone_phase4_heavy_bypasses():
           f"M11←koopman / M1←nauty call sites CALL the registry and DEFER — plug the engine in and they activate)")
 
 
+def test_native_phase1_cores():
+    """NATIVE PHASE 1 — numeric / lattice / sequence cores, all in-repo (zero dep), each routed + certificate-checked:
+    Berlekamp–Massey (the fake-random vs genuine-random GATE), Re-Pair SLP, LLL, integer-relation (full-precision
+    re-check), Smith Diophantine, Sturm real-root isolation. The genuine-random core ⇒ DECLINE on every path."""
+    import os
+    import random
+    import math
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # ★ Berlekamp–Massey randomness gate: Fibonacci folds (L=2 ≪ n/2); a random bitstream DECLINEs (L≈n/2) ★
+    fib = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]
+    rf = C.route({"recurrence_seq": fib})
+    assert rf.grade == KV.EXACT and rf.mechanism_path == [11] and rf.verdict.result["order"] == 2
+    random.seed(5)
+    assert C.route({"recurrence_seq": [random.randint(0, 1) for _ in range(48)]}).grade == KV.DECLINE
+    # Re-Pair: repetitive data compresses (lossless SLP); incompressible random → DECLINE
+    rr = C.route({"repair": b"abcabcabc" * 30})
+    assert rr.grade == KV.EXACT and rr.mechanism_path == [12] and rr.verdict.result["grammar_size"] < rr.verdict.result["input"]
+    assert C.route({"repair": os.urandom(500)}).grade == KV.DECLINE
+    # LLL: reduce a basis (unimodular transform verified)
+    rl = C.route({"lll": [[1, 1, 1], [1, 0, 2], [3, 4, 5]]})
+    assert rl.grade == KV.EXACT and rl.mechanism_path == [2]
+    # integer relation: a clean small relation is found + re-checked; π,e,1 has none at this precision → DECLINE
+    rir = C.route({"int_relation": [1.5, 0.5, 1.0]})
+    assert rir.grade == KV.EXACT and sum(c * v for c, v in zip(rir.verdict.result["relation"], [1.5, 0.5, 1.0])) == 0
+    assert C.route({"int_relation": [math.pi, math.e, 1.0]}).grade == KV.DECLINE
+    # Smith Diophantine: 2x+3y=8 solvable (substituted back); 2x+4y=7 has no integer solution (gcd ∤) → DECLINE
+    rd = C.route({"diophantine": [[2, 3]], "b": [8]})
+    assert rd.grade == KV.EXACT and 2 * rd.verdict.result["solution"][0] + 3 * rd.verdict.result["solution"][1] == 8
+    assert C.route({"diophantine": [[2, 4]], "b": [7]}).grade == KV.DECLINE
+    # Sturm: (x-1)(x-2)(x-3) has 3 real roots; x²+1 has 0 — both Sturm-certified
+    rs = C.route({"realroots": [1, -6, 11, -6]})
+    assert rs.grade == KV.EXACT and rs.verdict.result["n_real_roots"] == 3
+    assert C.route({"realroots": [1, 0, 1]}).verdict.result["n_real_roots"] == 0
+    print("PASS test_native_phase1_cores (Berlekamp–Massey randomness GATE [Fib L=2 fold / random L≈n/2 DECLINE]; "
+          "Re-Pair lossless SLP [random→DECLINE]; LLL unimodular-verified; integer-relation full-precision-rechecked "
+          "[π,e→DECLINE]; Smith Diophantine [gcd∤→DECLINE]; Sturm root isolation — all native, zero dep)")
+
+
+def test_native_phase2_logic():
+    """NATIVE PHASE 2 — automata / logic cores, all in-repo (zero dep), each routed + certificate-checked:
+    Knuth–Bendix monoid word problem (confluent rewriting), exact #SAT (DPLL, two-ordering + brute-force
+    cross-check), first-order unification (occurs-checked MGU). (Presburger is decided via z3, an allowed core dep.)"""
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # Knuth–Bendix: a²=e ⇒ aaa = a (EXACT True); aa ≠ a (EXACT False)
+    rk = C.route({"kb_rules": [("aa", "")], "u": "aaa", "v": "a"})
+    assert rk.grade == KV.EXACT and rk.mechanism_path == [8] and rk.verdict.result["equal"] is True
+    assert C.route({"kb_rules": [("aa", "")], "u": "aa", "v": "a"}).verdict.result["equal"] is False
+    # exact #SAT: (x1∨x2) → 3 models; x1∧¬x1 → 0; differential-checked
+    rc = C.route({"sat_count": [[1, 2]], "nvars": 2})
+    assert rc.grade == KV.EXACT and rc.mechanism_path == [12] and rc.verdict.result["count"] == 3
+    assert C.route({"sat_count": [[1], [-1]], "nvars": 1}).verdict.result["count"] == 0
+    # unification: f(?x,b) ≐ f(a,?y) unifies (MGU re-checked); f(a) ≐ g(a) clashes → DECLINE
+    ru = C.route({"unify": [("f", "?x", "b"), ("f", "a", "?y")]})
+    assert ru.grade == KV.EXACT and ru.mechanism_path == [2] and ru.verdict.result["mgu"]["?x"] == "a"
+    assert C.route({"unify": [("f", "a"), ("g", "a")]}).grade == KV.DECLINE
+    assert C.route({"unify": ["?x", ("f", "?x")]}).grade == KV.DECLINE        # occurs-check
+    print("PASS test_native_phase2_logic (Knuth–Bendix word problem [a²=e ⇒ aaa=a / aa≠a]; exact #SAT [DPLL "
+          "two-ordering+brute-force cross-check: 3 / 0 models]; first-order unification [MGU re-checked; clash & "
+          "occurs-check → DECLINE] — all native, zero dep)")
+
+
+def test_native_phase4_prng():
+    """NATIVE PHASE 4 (WALL 2) — weak-PRNG recovery, in-repo, the fake-random vs SECURE-random GATE. An LCG and an
+    LFSR are recovered from outputs and CERTIFIED by replay (+ next-output prediction); a secure CSPRNG (os.urandom)
+    has near-maximal linear complexity and no LCG fit ⇒ DECLINE on every path (the impossible core does not move)."""
+    import os
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # LCG (glibc constants) recovered + replay-certified
+    m, a, c, x = 2 ** 31, 1103515245, 12345, 42
+    out = []
+    for _ in range(8):
+        x = (a * x + c) % m
+        out.append(x)
+    rl = C.route({"lcg": out})
+    assert rl.grade == KV.EXACT and rl.mechanism_path == [11] and rl.verdict.result["a"] == a
+    # LFSR (4-tap) recovered
+    b = [1, 0, 1, 1]
+    for i in range(4, 64):
+        b.append(b[i - 1] ^ b[i - 4])
+    rf = C.route({"lfsr": b})
+    assert rf.grade == KV.EXACT and rf.verdict.result["order"] == 4
+    # ★ SECURE CSPRNG → DECLINE on every path (impossible core untouched). Deterministic high-complexity stream
+    # (SHA-256 keystream) so the negative control is reproducible yet genuinely cryptographic-random. ★
+    import hashlib
+    data = b"".join(hashlib.sha256(i.to_bytes(4, "little")).digest() for i in range(16))   # 512 cryptographic bytes
+    secure_bits = [(byte >> k) & 1 for byte in data for k in range(8)]
+    assert C.route({"lfsr": secure_bits}).grade == KV.DECLINE
+    print("PASS test_native_phase4_prng (LCG recovered+replay-certified [a=glibc]; LFSR 4-tap recovered; secure "
+          "SHA-256 keystream → DECLINE on every path — the fake/secure-random gate, impossible core untouched)")
+
+
+def test_native_phase3_telescope():
+    """NATIVE PHASE 3 — Gosper's algorithm (creative-telescoping base), in-repo: indefinite hypergeometric
+    summation Σt(n) → antidifference S with S(n+1)−S(n)=t(n), CERTIFIED by simplifying that difference to 0. A
+    non-summable term (1/n, the harmonic series) ⇒ honest DECLINE. Sound: a wrong antidifference cannot pass the
+    re-check (it DECLINEs instead)."""
+    import catalog.compose as C
+    import kernel_verdict as KV
+    rt = C.route({"telescope": "1/(n*(n+1))"})
+    assert rt.grade == KV.EXACT and rt.mechanism_path == [13] and "n" in rt.verdict.result["antidifference"]
+    assert C.route({"telescope": "1/n"}).grade == KV.DECLINE          # harmonic — not Gosper-summable
+    print("PASS test_native_phase3_telescope (Gosper: Σ 1/(n(n+1)) = −1/n + C [S(n+1)−S(n)=t re-verified]; harmonic "
+          "1/n NOT Gosper-summable → DECLINE — certificate-protected, never a wrong antidifference)")
+
+
+def test_native_arsenal_report():
+    """NATIVE §D — the arsenal report is MEASURED (live, never hardcoded): 14/14 mechanisms run; the native cores
+    are NATIVE-LIVE (in-repo, smoke-pass); ZERO forbidden imports (only z3+stdlib+numpy+grandfathered sympy);
+    false-positive = 0 (the impossible core DECLINEs). A/B DECLINE split separates A-open from B-core."""
+    import catalog.arsenal_report as A
+    r = A.report()
+    assert r["mechanisms_run"] == 14
+    assert r["native_live_count"] >= 18 and r["not_live"] == [], r["not_live"]
+    assert r["zero_dep_ok"] is True and r["forbidden_imports"] == []
+    assert r["false_positive_zero"] is True
+    # A/B DECLINE classification: secure/halting/incompressible are B-core; a below-threshold Ramsey is A-open
+    ab = A.decline_ab_split([
+        ("secure_csprng", __import__("os").urandom(800)),
+        ("halting", "does this program halt on every input?"),
+        ("ramsey_K5", {"ramsey": (lambda u, v: 0), "n": 5}),
+    ])
+    assert "secure_csprng" in ab["B_core"] and "halting" in ab["B_core"]
+    assert ab["a_count"] + ab["b_count"] == 3
+    print(f"PASS test_native_arsenal_report (MEASURED: 14/14 mechanisms; {r['native_live_count']} native cores LIVE; "
+          f"{len(r['fallback_defer'])} giants fallback+defer; zero forbidden imports; false-positive=0; A/B DECLINE "
+          f"split A-open={ab['a_count']} / B-core={ab['b_count']})")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

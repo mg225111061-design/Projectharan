@@ -285,3 +285,49 @@ runtime engine (M6 multigrid; the 8 heavy bypasses), or a forbidden runtime dep 
 subprocess). NO uniform-property (RIP) verification; per-instance witnesses only. This does NOT break Ω(N) /
 pigeonhole / Skolem≥5 / halting; what grows is the set of inputs routable into a wall-less structure domain, with
 a domain label on every coverage number. **test_catalog 32/32; test_build 273/273 (purely additive).**
+
+---
+
+## §D NATIVE ARSENAL — zero-dependency in-repo implementation of all 14 mechanisms + the research tools
+
+ZERO new external dependencies (only z3 + stdlib + numpy + the grandfathered sympy already in source; dependency
+audit `forbidden_present == []`). Every fold carries a per-instance, independently re-checked certificate; routed
+through `lossless_gate`; false-positive = 0 on the impossible core. **Measured (`catalog/arsenal_report.py`): 14/14
+mechanisms run, 19 native cores NATIVE-LIVE, 8 giants fallback+defer.**
+
+**PHASE 0 — completed the 14** (`renormalize.py` M6, `guaranteed_structure.py` M10): exact Markov lumping +
+multigrid residual enclosure; Erdős–Szekeres / pigeonhole-cycle / Ramsey R(3,3) constructive extractors. 14/14.
+
+**PHASE 1 — numeric / lattice / sequence cores** (in-repo, exact):
+- `native_lattice.py`: LLL (δ=3/4, exact ℚ, unimodular transform verified), integer-relation via LLL (full-precision
+  re-check — spurious below precision ⇒ DECLINE), Smith Normal Form + linear Diophantine (substituted back).
+- `native_sequence.py`: Berlekamp–Massey over ℚ and GF(2) — **the fake-random vs genuine-random gate** (L≪n/2 fold,
+  L≈n/2 DECLINE); GF(2) Gaussian solver; Re-Pair grammar (lossless SLP, incompressible ⇒ DECLINE).
+- `native_realroots.py`: Sturm sequence + Descartes/bisection real-root isolation (count-certified intervals).
+
+**PHASE 2 — automata / logic cores** (in-repo; z3 only as an allowed oracle):
+- `native_rewrite.py`: Knuth–Bendix completion (shortlex) for the monoid word problem (confluent system re-verified).
+- `native_modelcount.py`: exact #SAT via DPLL, cross-checked under two variable orderings + brute force (≤20 vars).
+- `native_unify.py`: first-order syntactic unification (occurs-checked MGU, apply-to-both-sides re-check).
+- (Presburger is decided via z3, an allowed core dep; Courcelle bounded-treewidth DP — see §C heavy list.)
+
+**PHASE 3 — symbolic** (`native_telescope.py`): Gosper's algorithm for indefinite hypergeometric summation
+(antidifference re-verified S(n+1)−S(n)=t(n); non-summable ⇒ DECLINE). The genuinely-enormous symbolic engines
+(full Kovacic, full Risch) remain honest-deferred — a wrong symbolic answer is the worst soundness bug, so where
+correctness can't be guaranteed the constitutional choice is DECLINE; the existing `closure_classifier` (Liouville)
+covers the non-elementary obstruction cases.
+
+**PHASE 4 — decidable islands** (`native_prng.py`, WALL 2): LCG recovery (difference/gcd) + LFSR/xorshift (GF(2)
+Berlekamp–Massey), each REPLAY-certified (predict a held-out output exactly). ★ A secure CSPRNG / SHA-256 keystream
+has near-maximal linear complexity ⇒ DECLINE on every path — the impossible core does not move. (Linear-loop
+termination / Karp–Miller / Pell are covered by the existing ic3_pdr / ordinal / mathmode modules.)
+
+**PHASE 5 — the residual giants** (`catalog/heavy_bypasses.py`, in-repo fallback + honest-defer): Gröbner (native
+Buchberger fallback, galactic systems defer), full CAD (native Sturm + z3 nlsat fallback), CAPD-scale rigorous
+integration, Walnut Ostrowski-automatic, QCMod quadratic-Chabauty — call sites wired, the residual hard case
+honest-deferred with a precise blocker, never a fake pass.
+
+**Honesty (measured §10):** false-positive = 0 (secure CSPRNG / Kolmogorov-random / halting / non-SOS → DECLINE on
+every path). A/B DECLINE split separates A-open (movable) from B-core (impossible). Reproducibility: `pillar3/round2`
+sketch streams seeded (the int-tuple sketch hashing is already process-stable). **test_catalog 38/38; test_build
+273/273 stable. No new dependency.** 잘못된 답보다 DECLINE이 항상 옳다.

@@ -25,6 +25,15 @@ def _apply(x, **kw):
     if isinstance(x, dict) and "smt_string" in x:                    # straight-line/QF_S string constraints (z3)
         import string_solver
         return string_solver.string_grade(x["smt_string"], x.get("vars"))
+    if isinstance(x, dict) and ("lll" in x or "int_relation" in x or ("diophantine" in x and "b" in x)):  # native lattice
+        import native_lattice
+        return native_lattice.lattice_grade(x)
+    if isinstance(x, dict) and "realroots" in x:                     # native Sturm/Descartes real-root isolation
+        import native_realroots
+        return native_realroots.realroots_grade(x["realroots"])
+    if isinstance(x, dict) and "unify" in x:                         # native first-order syntactic unification (MGU)
+        import native_unify
+        return native_unify.m2_unify_grade(x)
     if isinstance(x, dict) and "groebner" in x:
         import groebner
         return groebner.ideal_member_grade(x.get("gens", []), x["groebner"], x.get("vars", x.get("variables", [])),
