@@ -686,6 +686,45 @@ def test_capstone_phase2_bypasses():
           "z3-Spacer CHC→M13 synthesized invariant [independently re-verified] — 4 bypasses gated)")
 
 
+def test_capstone_phase3_lossless_gate():
+    """CAPSTONE PHASE 3 — the ★ LOSSLESS judgment gate (§5): judge whether a bypass is a LOSSLESS fold BEFORE
+    trusting it, so wrong-folding is blocked at the source. Three conditions (completeness / full-abstraction /
+    machine-verified-refinement) each witnessed PER-INSTANCE by the result's certificate; a PROBABILISTIC (δ-bounded)
+    result is LOSSY → flagged 'approximation', NEVER folded EXACT; a DECLINE folds nothing."""
+    import numpy as np
+    import z3
+    import catalog.compose as C
+    import catalog.lossless_gate as LG
+    import kernel_verdict as KV
+    N = 128
+    t = np.arange(N)
+    # every certified-lossless fold is classified by its condition (per-instance, via the certificate)
+    cases = {
+        "completeness": C.route((np.cos(2 * np.pi * 16 * t / N) + np.cos(2 * np.pi * 32 * t / N)).tolist()),  # M7 split
+        "full_abstraction": C.route([0, 0, 1.0, 0, 0]),                                                       # M9 Petrov
+        "refinement": C.route({"chc": True, "varnames": ["x", "y"],
+                               "init": lambda s: z3.And(s["x"] == 0, s["y"] == 0),
+                               "trans": lambda s, p: z3.And(p["x"] == s["x"] + 1, p["y"] == s["y"] + 1),
+                               "prop": lambda s: s["x"] == s["y"]}),                                           # CHC invariant
+    }
+    for cond, r in cases.items():
+        assert r.grade == KV.EXACT and r.lossless == cond, (cond, r.lossless)
+        assert LG.is_lossless_fold(r.verdict) is True
+    # L* (regular) is a full-abstraction lossless fold; groebner/strings are completeness folds
+    assert C.route({"lstar": (lambda w: w.count("a") % 2 == 0), "alphabet": ("a", "b"), "max_states": 6}).lossless == "full_abstraction"
+    assert C.route({"groebner": "x*y", "gens": ["x", "y"], "vars": ["x", "y"]}).lossless == "completeness"
+    # ★ the source-block: a PROBABILISTIC (lossy) verdict is flagged 'approximation' and is NOT a lossless fold ★
+    pv = KV.probabilistic(1, "k", "O(1)", KV.Cert(KV.PROBABILISTIC, "sampling", True, delta=0.01))
+    j = LG.judge(pv)
+    assert j.lossless is False and j.condition == "approximation"
+    assert LG.is_lossless_fold(pv) is False
+    # a DECLINE folds nothing
+    assert LG.judge(KV.decline("nope", "k")).condition == "none"
+    print("PASS test_capstone_phase3_lossless_gate (per-instance lossless judgment: M7→completeness, Petrov/L*→"
+          "full_abstraction, CHC→refinement; PROBABILISTIC→approximation [LOSSY, never folded EXACT]; DECLINE→none "
+          "— the gate blocks wrong-folding at the source)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

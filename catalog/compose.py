@@ -27,6 +27,7 @@ import kernel_verdict as KV
 import mechanisms as MECH
 from catalog import decline_boundary as DB
 from catalog import ir
+from catalog import lossless_gate as LG
 from mechanisms.base import feats
 
 
@@ -37,6 +38,7 @@ class CatalogResult:
     probe: List[float] = field(default_factory=list)         # the [0,1]^14 probe vector (traceability)
     note: str = ""
     trace: List[Tuple[int, str, str]] = field(default_factory=list)  # full (m_num, grade, cert_kind) path
+    lossless: str = ""                                       # the §5 lossless judgment (condition or 'approximation')
 
     @property
     def grade(self) -> str:
@@ -183,7 +185,8 @@ def plan_pipeline(x: Any) -> Tuple[List[int], List[float], str]:
 # ── BODY: the executor — walk the plan, thread the StructForm, gate each stage ──────────────────────────
 def _result(sf: "ir.StructForm", probe, why) -> CatalogResult:
     v = sf.to_verdict()                                   # re-checks the weakest-link invariant (false upgrade ⇒ raise)
-    return CatalogResult(v, sf.mechanism_path, probe, why, trace=list(sf.path))
+    lj = LG.judge(v)                                      # §5 lossless gate: is this a certified-lossless fold or lossy?
+    return CatalogResult(v, sf.mechanism_path, probe, why, trace=list(sf.path), lossless=lj.condition)
 
 
 def _exec_m7_split(x, probe, why) -> CatalogResult:
@@ -329,11 +332,12 @@ def route(x: Any) -> CatalogResult:
     place = AH.classify(x)
     if place.route == "DECLINE":                          # §5 cheapest: Σ⁰₁/Π⁰₁ semantic-program-property → Rice DECLINE
         v = KV.decline(f"OBSTRUCTION[arith_hierarchy {place.level}]: {place.reason} (mechanism 14)", "catalog.compose")
-        return CatalogResult(v, [14], MECH.probe_vector(x), f"hierarchy {place.level}", trace=[(14, KV.DECLINE, "arith_hierarchy")])
+        return CatalogResult(v, [14], MECH.probe_vector(x), f"hierarchy {place.level}", trace=[(14, KV.DECLINE, "arith_hierarchy")], lossless="none")
     ob = DB.check(x)                                      # §6 proven DECLINE boundary (incompressibility/turbulence/Rice)
     if ob is not None:
-        return CatalogResult(ob, [14], MECH.probe_vector(x), "obstruction boundary", trace=[(14, KV.DECLINE, "boundary")])
+        return CatalogResult(ob, [14], MECH.probe_vector(x), "obstruction boundary", trace=[(14, KV.DECLINE, "boundary")], lossless="none")
     fold = _existing_fold(x)                              # §5.1 existing fold (code strings → M13)
     if fold is not None:
-        return CatalogResult(fold, [13], MECH.probe_vector(x), "existing fold", trace=[(13, KV.EXACT, "fold_closed_form")])
+        return CatalogResult(fold, [13], MECH.probe_vector(x), "existing fold", trace=[(13, KV.EXACT, "fold_closed_form")],
+                             lossless=LG.judge(fold).condition)
     return execute(plan(x), x)                            # §5.2-5.4 mechanism composition (plan → execute)
