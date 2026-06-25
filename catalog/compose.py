@@ -164,6 +164,10 @@ def plan(x: Any) -> Plan:
         return Plan("chain", (8,), "confluent normal form (e-graph equality saturation, Z3-certified)", probe)
     if isinstance(x, dict) and ("galois_quintic" in x or x.get("liouville")):   # M14: Galois/Liouville impossibility
         return Plan("chain", (14,), "obstruction: Galois insolvability / Liouville non-elementary (impossibility)", probe)
+    if isinstance(x, dict) and (("markov" in x and "partition" in x) or ("linsolve" in x and "b" in x)):   # M6 coarse-grain
+        return Plan("chain", (6,), "renormalize: exact Markov lumping / multigrid fixpoint (residual enclosure)", probe)
+    if isinstance(x, dict) and ("sequence" in x or "states" in x or ("ramsey" in x and "n" in x)):   # M10 forced structure
+        return Plan("chain", (10,), "guaranteed-by-size: Erdős–Szekeres / pigeonhole-cycle / Ramsey (constructive witness)", probe)
     if _is_classification(x, f):                          # classification ⟂ obstruction
         return Plan("m9_perp_m14", (9, 14), "classification ⟂ obstruction (M9: complete invariant ⟂ M14: turbulence/E₀)", probe)
     if "inequality" in f.tags:                            # polynomial inequality ⇒ SOS or impossibility

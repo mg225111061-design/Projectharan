@@ -731,15 +731,50 @@ def test_capstone_report():
     sound reasons); 4 bypasses wired; 8 heavy bypasses honest-deferred; false-positive = 0."""
     import catalog.capstone_report as R
     rep = R.report()
-    assert rep["mechanisms_run"] >= 12 and rep["mechanisms_total"] == 14
-    assert rep["deferred_mechanisms"] == [6, 10], rep["deferred_mechanisms"]
+    assert rep["mechanisms_run"] == 14 and rep["mechanisms_total"] == 14, rep["per_mechanism"]
+    assert rep["deferred_mechanisms"] == [], rep["deferred_mechanisms"]
     assert set(rep["per_mechanism"]) == set(range(1, 15))
     assert rep["false_positive_zero"] is True and rep["false_positive_count"] == 0
     assert len(rep["bypasses_wired"]) == 4 and rep["heavy_bypasses"]["total"] == 8
     print(f"PASS test_capstone_report (MEASURED: {rep['mechanisms_run']}/14 mechanism applies run a real gated "
-          f"procedure [deferred: M{rep['deferred_mechanisms']} — multigrid / non-constructive forbidden-minor]; "
-          f"{len(rep['bypasses_wired'])} bypasses wired; {rep['heavy_bypasses']['total']} heavy honest-deferred; "
-          f"false-positive = {rep['false_positive_count']})")
+          f"procedure [M6/M10 filled — none deferred]; {len(rep['bypasses_wired'])} bypasses wired; "
+          f"{rep['heavy_bypasses']['total']} heavy honest-deferred; false-positive = {rep['false_positive_count']})")
+
+
+def test_native_phase0_complete_14():
+    """NATIVE PHASE 0 — M6 and M10 filled with real in-repo certificate-bearing procedures ⇒ 14/14 mechanisms run.
+    M6: exact Markov strong-lumpability (rational coarse-graining + lumped stationary) + multigrid residual enclosure.
+    M10 (CONSTRUCTIVE): Erdős–Szekeres monotone subsequence, pigeonhole repeated-state cycle, Ramsey R(3,3) triangle —
+    each with a directly-checkable witness above the forcing threshold; below threshold ⇒ honest DECLINE."""
+    import mechanisms as M
+    import kernel_verdict as KV
+    # M6 exact Markov lumping: a 2-state chain with uniform rows lumps into singletons exactly
+    v = M.MECHANISMS[6].apply({"markov": [["1/2", "1/2"], ["1/2", "1/2"]], "partition": [[0], [1]]})
+    assert v.status == KV.EXACT and v.certificate.kind == "exact_lumping"
+    # M6 not lumpable → DECLINE (states 1,2 have different total prob into block [0]: 1 vs 0)
+    vnl = M.MECHANISMS[6].apply({"markov": [["0", "1/2", "1/2"], ["1", "0", "0"], ["0", "1", "0"]],
+                                 "partition": [[0], [1, 2]]})
+    assert vnl.status == KV.DECLINE, vnl
+    # M6 multigrid residual enclosure on an SPD diagonally-dominant system
+    vm = M.MECHANISMS[6].apply({"linsolve": [[4.0, 1.0], [1.0, 3.0]], "b": [1.0, 2.0]})
+    assert vm.status == KV.EXACT and vm.certificate.bound is not None and vm.certificate.bound < 1e-9
+    # M10 Erdős–Szekeres: length-n sequence forces a monotone subsequence of length ≥ ⌈√n⌉
+    import math
+    seq = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3]
+    ve = M.MECHANISMS[10].apply({"sequence": seq})
+    assert ve.status == KV.EXACT and ve.result["length"] >= math.ceil(math.sqrt(len(seq)))
+    sub, kind = ve.result["subsequence"], ve.result["kind"]
+    assert all((sub[i] < sub[i + 1]) if kind == "increasing" else (sub[i] > sub[i + 1]) for i in range(len(sub) - 1))
+    # M10 pigeonhole cycle: a run longer than the state set repeats a state
+    vp = M.MECHANISMS[10].apply({"states": [0, 1, 2, 3, 1, 4]})
+    assert vp.status == KV.EXACT and vp.result["state"] == 1 and vp.result["i"] == 1 and vp.result["j"] == 4
+    # M10 Ramsey: K6 2-colouring forces a monochromatic triangle; K5 does NOT (below R(3,3)) → DECLINE
+    vr = M.MECHANISMS[10].apply({"ramsey": lambda u, v: (u * v + u + v) % 2, "n": 6})
+    assert vr.status == KV.EXACT and len(vr.result["triangle"]) == 3
+    assert M.MECHANISMS[10].apply({"ramsey": lambda u, v: 0, "n": 5}).status == KV.DECLINE
+    print("PASS test_native_phase0_complete_14 (M6 exact Markov lumping [non-lumpable→DECLINE] + multigrid residual "
+          "enclosure; M10 Erdős–Szekeres / pigeonhole-cycle / Ramsey-K6 with witnesses [K5→DECLINE below threshold] "
+          "— 14/14 mechanisms now run real gated code)")
 
 
 def test_capstone_phase4_heavy_bypasses():

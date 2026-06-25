@@ -17,7 +17,16 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M6.renormalize_fixpoint", "RG / multigrid / abstract-interp widening applies land in PHASE C/F")
+    """M6 renormalize / coarse-grain to a fixpoint. WIRED (native, zero-dep): exact Markov lumping
+    ({"markov":P,"partition":B} → strong-lumpability EXACT coarse-graining + lumped stationary) and multigrid/Jacobi
+    linear solve ({"linsolve":A,"b":b} → residual-enclosure fixpoint). Non-lumpable / non-convergent ⇒ DECLINE;
+    full RG of a critical field theory remains out of scope (honest defer for unstructured operators)."""
+    if isinstance(x, dict) and (("markov" in x and "partition" in x) or ("linsolve" in x and "b" in x)):
+        import renormalize
+        return renormalize.m6_grade(x)
+    return honest_defer("M6.renormalize_fixpoint",
+                        "wired for {markov,partition} exact lumping and {linsolve,b} multigrid; general RG / "
+                        "critical-exponent flow of an unstructured operator deferred")
 
 
 MECHANISM = Mechanism(

@@ -15,7 +15,16 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M10.structure_by_size", "wqo / VC / o-minimality applies land in PHASE F (NON-CONSTRUCTIVE bound; honest)")
+    """M10 guaranteed-structure-by-size. WIRED (native, zero-dep, CONSTRUCTIVE): Erdős–Szekeres monotone-subsequence
+    extraction ({"sequence":[...]}), pigeonhole repeated-state cycle ({"states":[...]}), and Ramsey R(3,3)
+    monochromatic-triangle extraction ({"ramsey":fn,"n":n}) — each with a directly-checkable witness above the
+    forcing threshold. The NON-CONSTRUCTIVE Robertson–Seymour forbidden-minor bound stays honestly deferred."""
+    if isinstance(x, dict) and ("sequence" in x or "states" in x or ("ramsey" in x and "n" in x)):
+        import guaranteed_structure
+        return guaranteed_structure.m10_grade(x)
+    return honest_defer("M10.structure_by_size",
+                        "wired for {sequence} Erdős–Szekeres / {states} pigeonhole-cycle / {ramsey,n} Ramsey "
+                        "(constructive, with witness); NON-CONSTRUCTIVE wqo / forbidden-minor bound deferred (honest)")
 
 
 MECHANISM = Mechanism(

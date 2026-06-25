@@ -24,8 +24,10 @@ def _probe_inputs():
         2: {"groebner": "x*y", "gens": ["x", "y"], "vars": ["x", "y"]},  # Gröbner ideal membership
         4: "prove x**2 - 2*x + 1 >= 0 by sos",                          # SOS
         7: sig,                                                         # clean k-sparse signal → M7 structure⊕pseudo split
+        6: {"linsolve": [[2.0, 0.0], [0.0, 2.0]], "b": [2.0, 2.0]},    # multigrid/Jacobi residual-enclosure fixpoint
         8: ("+", ("*", ("var", "x"), ("const", 1)), ("const", 0)),     # e-graph normal form
         9: [0, 0, 1.0, 0, 0],                                          # Petrov complete invariant
+        10: {"sequence": [3, 1, 4, 1, 5, 9, 2, 6]},                    # Erdős–Szekeres forced monotone subsequence
         11: [2.0 ** t for t in range(12)],                            # Prony hidden recurrence
         12: list(range(200)),                                          # MDL code-length
         13: {"ic3": True, "varnames": ["x"], "init": lambda s: s["x"] == 0,
@@ -48,8 +50,6 @@ def mechanism_runs() -> Dict[int, str]:
     except Exception:  # noqa: BLE001
         out[5] = "defer"
     out[3] = "fused"      # M3 guess-finite-certify is fused into M2's z3 model / CAD sample-point (the finite witness)
-    out[6] = "defer"      # renormalize / multigrid — external engine, deferred
-    out[10] = "defer"     # forbidden-minor obstruction — non-constructive (Robertson–Seymour), deferred
     # M14 = the router-level obstruction backbone (Rice / incompressibility / turbulence DECLINE-as-win)
     import catalog.decline_boundary as DB
     out[14] = "runs" if DB.rice_guard("does this program halt on every input?") is not None else "defer"

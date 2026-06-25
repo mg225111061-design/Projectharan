@@ -37,6 +37,11 @@ _CONDITION = {
     "mdl_two_part": "completeness",
     "sturm_bound": "completeness",
     "sylvester": "completeness",
+    "exact_lumping": "completeness",
+    "fixpoint_residual": "completeness",
+    "forced_monotone_subsequence": "completeness",
+    "pigeonhole_repeated_state": "completeness",
+    "ramsey_mono_clique": "completeness",
     "sos_gram": "completeness",
     "rational_psd_gram": "completeness",
     # 2. full abstraction (equivalence preserved AND reflected — verified normal form / complete invariant)
