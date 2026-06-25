@@ -72,6 +72,8 @@ _CONDITION = {
     "lcg_state_replay": "completeness",
     "lfsr_recurrence_replay": "completeness",
     "gosper_antidifference": "completeness",
+    "low_rank_dependence": "completeness",
+    "poly_finite_difference": "completeness",
 }
 
 

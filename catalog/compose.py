@@ -295,7 +295,8 @@ def _exec_detect(x, probe, why) -> CatalogResult:
     from catalog import probe_cascade as PCAS
     cr = PCAS.cascade(x["detect"])
     note = why + f" [stage {cr.stage}: {cr.kind}, tier={cr.tier}]"
-    path = [11] if cr.kind in ("c_finite", "exponential_sum") else ([12] if cr.kind == "slp" else ([2] if cr.kind == "integer_relation" else []))
+    _kind_mech = {"c_finite": 11, "exponential_sum": 11, "poly_law": 13, "low_rank": 1, "slp": 12, "integer_relation": 2}
+    path = [_kind_mech.get(cr.kind, 14)] if cr.kind != "none" else []
     sf = ir.StructForm.raw(x).accumulate(path[0] if path else 14, cr.verdict,
                                          data=(cr.verdict.result if cr.grade != KV.DECLINE else None))
     return _result(sf, probe, note)

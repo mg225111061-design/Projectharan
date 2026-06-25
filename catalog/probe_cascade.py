@@ -93,6 +93,14 @@ def cascade(x: Any) -> CascadeResult:
     if decision == "reject":
         return CascadeResult(KV.decline(f"probe_cascade stage0: {why} ⇒ DECLINE", "probe_cascade"), -1, "none", "—", trace)
 
+    # ── Matrix branch: exact rank-revealing (a low-rank matrix is a fold; full-rank ⇒ DECLINE) ──────────
+    if isinstance(x, (list, tuple)) and len(x) >= 2 and all(isinstance(r, (list, tuple)) and len(r) >= 2 for r in x):
+        from catalog import detectors_b as DBd
+        vr = DBd.rank_revealing_grade(x)
+        trace.append(f"matrix[rank-revealing]: {vr.status}")
+        return CascadeResult(vr, 2, "low_rank", "exact", trace) if vr.status == KV.EXACT else \
+            CascadeResult(KV.decline(f"probe_cascade: matrix full-rank (trace={trace})", "probe_cascade"), -1, "none", "—", trace)
+
     # ── Stage 1: Berlekamp–Massey (C-finite recurrence), exact ℚ re-substitution gate ───────────────────
     if _is_num_seq(x):
         import native_sequence as NS
@@ -100,6 +108,12 @@ def cascade(x: Any) -> CascadeResult:
         trace.append(f"stage1[BM]: {v.status}")
         if v.status == KV.EXACT:
             return CascadeResult(v, 1, "c_finite", "exact", trace)
+        # Stage 1b: explicit finite-difference polynomial law (closed form, complements BM's recurrence)
+        from catalog import detectors_b as DBd
+        vp = DBd.poly_law_grade(list(x))
+        trace.append(f"stage1b[poly_law]: {vp.status}")
+        if vp.status == KV.EXACT:
+            return CascadeResult(vp, 1, "poly_law", "exact", trace)
 
     # ── Stage 2: FFT/autocorrelation → Prony exponential-sum, residual gate ─────────────────────────────
     if _is_num_seq(x):

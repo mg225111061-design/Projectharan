@@ -968,6 +968,30 @@ def test_frontend_phaseA_probe_cascade():
           "precision = 1.0 / 5 — the exact-certification gate admits zero false positives)")
 
 
+def test_frontend_phaseB_detectors():
+    """FRONT-END PHASE B — additional native detectors, each exact-gated: rank-revealing (low-rank matrix →
+    dependence certificate; full-rank → DECLINE), finite-difference polynomial law (a(n)=p(n) regenerated exactly;
+    non-polynomial → DECLINE), and the NIST structure-router (a failed randomness test → a typed signal)."""
+    import os
+    import catalog.compose as C
+    import catalog.detectors_b as DB
+    import kernel_verdict as KV
+    # rank-revealing via the cascade: a rank-2 matrix folds; identity (full-rank) → DECLINE
+    rlow = C.route({"detect": [[1, 2, 3], [2, 4, 6], [1, 1, 1]]})
+    assert rlow.grade == KV.EXACT and rlow.verdict.result["rank"] == 2 and rlow.lossless == "completeness"
+    assert C.route({"detect": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}).grade == KV.DECLINE
+    # finite-difference polynomial law: n²+1 → degree 2; a non-polynomial (2^n) → DECLINE here (BM would get it elsewhere)
+    rp = DB.poly_law_grade([1, 2, 5, 10, 17, 26, 37, 50])
+    assert rp.status == KV.EXACT and rp.result["degree"] == 2
+    assert DB.poly_law_grade([1, 2, 4, 8, 16, 32, 64]).status == KV.DECLINE
+    # NIST router: a strongly-biased stream → typed signal; genuine random → None
+    assert DB.nist_route([1] * 60 + [0] * 4)["route"] is not None
+    assert DB.nist_route(os.urandom(256))["route"] is None
+    print("PASS test_frontend_phaseB_detectors (rank-revealing: rank-2 matrix folds [completeness] / identity→DECLINE; "
+          "finite-difference poly law: n²+1→deg2 / 2^n→DECLINE; NIST router: biased→typed signal / random→None — "
+          "each exact-gated, zero false positives)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
