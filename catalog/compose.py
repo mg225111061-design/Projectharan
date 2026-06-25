@@ -148,6 +148,16 @@ def plan(x: Any) -> Plan:
         return Plan("mdl", (12,), "MDL 2-part code (algorithmic statistics)", probe)
     if isinstance(x, dict) and ("presburger" in x or "rcf" in x):   # M2∘M3 fused: z3/CAD eliminates AND certifies the
         return Plan("chain", (2,), "QE: eliminate → certify finite witness (z3 model / CAD sample-point — M2∘M3 fused)", probe)
+    if isinstance(x, dict) and "groebner" in x:                     # M2: Gröbner ideal membership + cofactor witness
+        return Plan("chain", (2,), "Gröbner ideal membership (Buchberger + cofactor certificate)", probe)
+    if isinstance(x, dict) and (x.get("ic3") or "taint" in x):      # M13: IC3 inductive invariant / taint IFDS fixpoint
+        return Plan("chain", (13,), "Kleene/least-fixpoint: IC3 inductive invariant / taint IFDS dataflow", probe)
+    if isinstance(x, dict) and "egraph" in x:                       # M8: confluent normal form (e-graph)
+        return Plan("chain", (8,), "confluent normal form (e-graph equality saturation, Z3-certified)", probe)
+    if isinstance(x, tuple) and x and x[0] in ("+", "*", "var", "const"):
+        return Plan("chain", (8,), "confluent normal form (e-graph equality saturation, Z3-certified)", probe)
+    if isinstance(x, dict) and ("galois_quintic" in x or x.get("liouville")):   # M14: Galois/Liouville impossibility
+        return Plan("chain", (14,), "obstruction: Galois insolvability / Liouville non-elementary (impossibility)", probe)
     if _is_classification(x, f):                          # classification ⟂ obstruction
         return Plan("m9_perp_m14", (9, 14), "classification ⟂ obstruction (M9: complete invariant ⟂ M14: turbulence/E₀)", probe)
     if "inequality" in f.tags:                            # polynomial inequality ⇒ SOS or impossibility
@@ -240,7 +250,7 @@ def _exec_chain(path, x, probe, why) -> CatalogResult:
     short-circuits. A trailing M14 is the obstruction tail (named even when the prior stage's compute is deferred)."""
     sf = ir.StructForm.raw(x)
     for i, m in enumerate(path):
-        if m == 14:
+        if m == 14 and i > 0:                            # a TRAILING M14 is the obstruction tail (prior stage couldn't certify)
             sf = sf.note_step(14, KV.DECLINE, "obstruction tail (impossibility leg — forbidden-set/closure compute deferred)")
             break
         v = _gate(m, MECH.MECHANISMS[m].apply(sf.working()))

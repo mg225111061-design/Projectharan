@@ -19,7 +19,34 @@ def _probe(x):
 
 
 def _apply(x, **kw):
-    return honest_defer("M14.obstruction_cert", "obstruction guards (Rice/incompressibility/turbulence) land in PHASE D")
+    """M14 standalone obstruction certificate (a POSITIVE impossibility proof = a DECLINE-as-win). The Rice /
+    incompressibility / turbulence guards live in catalog.decline_boundary (reached first in the router). WIRED here:
+    Galois (insolvability by radicals) and Liouville (non-elementary integral) via closure_classifier —
+      • {"galois_quintic": (a, b)} → x⁵+ax+b solvable by radicals? insolvable ⇒ DECLINE-as-win;
+      • {"liouville": "erf"}       → ∫e^{-x²} elementary? non-elementary ⇒ DECLINE-as-win.
+    The actual obstruction compute needs the `galois_absence` engine; if it is not built, HONEST_DEFER (call site
+    wired — plug the engine in and it works) — never a fabricated impossibility."""
+    import kernel_verdict as KV
+    if isinstance(x, dict) and "galois_quintic" in x:
+        import closure_classifier as CC
+        a, b = x["galois_quintic"]
+        cv = CC.classify_radical_absence(int(a), int(b))
+        if cv.kind == "ABSENT":
+            return KV.decline(f"OBSTRUCTION[galois_radical]: x⁵+{a}x+{b} is INSOLVABLE by radicals — {cv.proof} "
+                              f"(mechanism 14 — impossibility proof = DECLINE-as-win)", "m14_galois")
+        return honest_defer("M14.obstruction_cert", f"galois insolvability: {cv.proof} (galois_absence engine not built — "
+                            f"call site wired, compute deferred)")
+    if isinstance(x, dict) and x.get("liouville") == "erf":
+        import closure_classifier as CC
+        cv = CC.classify_elementary_absence_erf()
+        if cv.kind == "ABSENT":
+            return KV.decline(f"OBSTRUCTION[liouville_elementary]: ∫e^(−x²)dx is NON-ELEMENTARY — {cv.proof} "
+                              f"(mechanism 14 — impossibility proof = DECLINE-as-win)", "m14_liouville")
+        return honest_defer("M14.obstruction_cert", f"liouville non-elementary: {cv.proof} (galois_absence engine not "
+                            f"built — call site wired, compute deferred)")
+    return honest_defer("M14.obstruction_cert",
+                        "standalone obstructions wired for {galois_quintic|liouville}; Rice/incompressibility/"
+                        "turbulence guards are in catalog.decline_boundary (router checks them first)")
 
 
 MECHANISM = Mechanism(

@@ -22,6 +22,10 @@ def _apply(x, **kw):
     """M2 elimination/QE. Wired for a STRUCTURED quantifier-elimination goal (so the composer can chain M2∘M3):
     {"presburger": goal, "int_vars":[...]} → z3-oracle Presburger decision; {"rcf": goal, "vars":[...]} → real CAD.
     Natural-language QE parsing is DEFERRED (brittle → no overclaim); Gröbner/Ore elimination deferred too."""
+    if isinstance(x, dict) and "groebner" in x:
+        import groebner
+        return groebner.ideal_member_grade(x.get("gens", []), x["groebner"], x.get("vars", x.get("variables", [])),
+                                            x.get("order", "grevlex"))
     if isinstance(x, dict) and "presburger" in x:
         import presburger_qe as PQ
         return PQ.presburger_decide(x["presburger"], x.get("int_vars", []), x.get("assumptions"))

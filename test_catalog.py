@@ -602,6 +602,47 @@ def test_composition_measurement():
           f"{m['wall_clock_crossover_n']}, honest]; non-M7 → measured=False — NO_UNMEASURED, build-time≠clock)")
 
 
+def test_capstone_phase1_freewins():
+    """CAPSTONE PHASE 1 — the empty mechanism applies completed by WIRING existing repo modules (free wins, no
+    external deps). Each runs a REAL gated procedure with a per-instance certificate:
+      M2←groebner (Buchberger + cofactor) · M8←equality_saturation (e-graph, Z3-certified normal form) ·
+      M13←ic3_pdr (k-induction inductive invariant) + taint_ifds (IFDS dataflow fixpoint) ·
+      M11←prony (exact hidden-recurrence state space) · M14←closure_classifier (Galois/Liouville — binary absent ⇒
+      call-site wired + honest DEFER, never a fabricated impossibility)."""
+    import mechanisms as M
+    import kernel_verdict as KV
+    # M2 ← Gröbner: x*y ∈ ⟨x,y⟩ (cofactor witness) ; 1 ∉ ⟨x,y⟩ (sound NO)
+    v = M.MECHANISMS[2].apply({"groebner": "x*y", "gens": ["x", "y"], "vars": ["x", "y"]})
+    assert v.status == KV.EXACT and v.result["member"] is True and v.certificate.passed
+    v = M.MECHANISMS[2].apply({"groebner": "1", "gens": ["x", "y"], "vars": ["x", "y"]})
+    assert v.status == KV.EXACT and v.result["member"] is False
+    # M8 ← e-graph: x*1 + x*0 normalizes to x (Z3-equivalence-certified unique normal form)
+    v = M.MECHANISMS[8].apply(("+", ("*", ("var", "x"), ("const", 1)), ("*", ("var", "x"), ("const", 0))))
+    assert v.status == KV.EXACT and v.result["normal_form"] == "x" and v.certificate.kind == "normal_form_unique"
+    # M13 ← IC3: counter x:=0; x:=x+1; prop x≥0 → SAFE inductive invariant; prop x≤2 → UNSAFE + counterexample
+    ic3 = lambda prop: {"ic3": True, "varnames": ["x"], "init": lambda s: s["x"] == 0,
+                        "trans": lambda s, s2: s2["x"] == s["x"] + 1, "prop": prop}
+    vs = M.MECHANISMS[13].apply(ic3(lambda s: s["x"] >= 0))
+    assert vs.status == KV.EXACT and vs.result["safe"] is True and vs.certificate.kind == "fixpoint_inductive"
+    vu = M.MECHANISMS[13].apply(ic3(lambda s: s["x"] <= 2))
+    assert vu.status == KV.EXACT and vu.result["safe"] is False and vu.result["trace"]
+    # M13 ← taint IFDS: a tainted source reaching a sink is detected (sound dataflow fixpoint)
+    vt = M.MECHANISMS[13].apply({"taint": "fn h(u: Int) -> Int { query(u) }", "sources": {"u"}})
+    assert vt.status == KV.EXACT and vt.result["injection_free"] is False and vt.result["flows"]
+    # M11 ← Prony: f(t)=2^t → EXACT hidden recurrence a(n)=2·a(n-1) ; noise → DECLINE (no overclaim)
+    v = M.MECHANISMS[11].apply([2.0 ** t for t in range(16)])
+    assert v.status == KV.EXACT and v.result["recurrence"] == [2] and v.certificate.passed
+    import random
+    random.seed(3)
+    assert M.MECHANISMS[11].apply([random.gauss(0, 1) for _ in range(40)]).status == KV.DECLINE
+    # M14 ← Galois/Liouville: the obstruction engine (galois_absence binary) is not built → honest DEFER, call wired
+    vg = M.MECHANISMS[14].apply({"galois_quintic": (1, 1)})
+    assert vg.status == KV.DECLINE and "HONEST_DEFER" in vg.reason
+    print("PASS test_capstone_phase1_freewins (M2←groebner cofactor [member/non-member]; M8←e-graph Z3-certified "
+          "normal form; M13←IC3 inductive-invariant [SAFE/UNSAFE+cex] + taint IFDS flow; M11←Prony exact hidden "
+          "recurrence [noise→DECLINE]; M14←Galois/Liouville call-wired+honest-DEFER [binary absent] — 5 free wins gated)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
