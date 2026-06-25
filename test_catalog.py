@@ -1231,6 +1231,52 @@ def test_product_phase6_key_security():
           "exponential backoff [2,4,…] / terminal raised immediately — LEVEL-1 key security holds end to end)")
 
 
+def test_product_phase7_native_backend():
+    """PRODUCT PHASE 7 — the verified-native backend (Clock C), unified + measured + boundary-documented. Two
+    ALREADY-CERTIFIED paths wrapped honestly: LLVM emission (egraph_native) gated by a COMPILATION-CORRECTNESS
+    certificate (z3-certified extraction ∘ Alive2-style translation validation — bit-exact battery), and the Rust
+    cdylib hot-path gated by a DIFFERENTIAL TEST with N (Rust ≡ schoolbook ground truth). The gate is REAL: a
+    native output that diverges from its reference is TRANSLATION_DECLINED, never emitted. Amdahl-honest: native
+    targets the compute hot-paths (Clock C), NOT the product loop (Clock A-bound) — no uniform-Nx, asymptotics
+    UNCHANGED. Environment-robust: where the toolchain is absent, the path DECLINEs with its precise blocker."""
+    import egraph_native as EN
+    import catalog.native_backend as NB
+    import kernel_verdict as KV
+    av = NB.availability()
+    rep = NB.report()
+    assert rep["clock"].startswith("C") and "UNCHANGED" in rep["asymptotics"].upper()
+    assert rep["amdahl"]["product_bottleneck"].startswith("Clock A")     # native does NOT speed the LLM-bound product
+    assert "native iff" in rep["boundary"]["rule"] and rep["boundary"]["zero_dep"]
+    # ── LLVM emission path ──
+    if av["llvm_emission"]["live"]:
+        v = NB.compile_fold(2)                                          # Σk² → native i64, translation-validated
+        assert v.status == KV.EXACT and v.certificate.kind == "compilation_correctness[translation_validation]"
+        assert len(v.result["checked_ns"]) >= 6 and v.certificate.passed
+        # ★ the certificate GATES: a native output that diverges from a WRONG reference is DECLINED, never emitted ★
+        bad = EN.emit_native("n*(n+1)/2", lambda n: n + 1)             # reference lies ⇒ native ≠ ref ⇒ DECLINE
+        assert bad.status == "TRANSLATION_DECLINED", bad.status
+        # measured PURE native constant-factor (same O(1) closed form, native vs interpreted) — reported, not faked
+        m = NB.measure_native_constant_factor(2, k=5)
+        assert m["status"] == "OK" and m["bit_exact"] and "unchanged" in m["asymptotics"]
+        assert m["native_ms"] >= 0 and m["python_ms"] >= 0 and isinstance(m["constant_factor"], float)
+        llvm_note = f"LLVM: Σk² emitted+translation-validated [cert={v.certificate.kind}], wrong-ref→DECLINED, " \
+                    f"native const-factor {m['constant_factor']}× (O(1), interpreter-removal)"
+    else:
+        assert NB.compile_fold(2).status == KV.DECLINE and "llvmlite" in (av["llvm_emission"]["blocker"] or "").lower()
+        llvm_note = f"LLVM: BLOCKED ({av['llvm_emission']['blocker']}) → honest DECLINE"
+    # ── Rust cdylib path ──
+    if av["rust_cdylib"]["live"]:
+        r = NB.measure_rust_hotpath(1024)
+        assert r["status"] == "OK" and r["differential_ok"] is True    # the CORRECTNESS certificate (deterministic)
+        assert isinstance(r["speedup_vs_python_ntt"], float) and r["speedup_vs_python_ntt"] > 0 and r["asymptotics"] == "unchanged"
+        rust_note = f"Rust NTT≡schoolbook [differential-tested], {r['speedup_vs_python_ntt']}× vs same-algo Python"
+    else:
+        rust_note = f"Rust: BLOCKED ({av['rust_cdylib']['blocker']}) → honest DECLINE"
+    print(f"PASS test_product_phase7_native_backend ({llvm_note}; {rust_note}; Amdahl: native=Clock C compute, "
+          f"product=Clock A LLM-bound [native does NOT speed B]; asymptotics UNCHANGED, no uniform-Nx; zero-dep "
+          f"[Rust/LLVM in toolchain, not Python-core imports])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
