@@ -1043,6 +1043,22 @@ def test_frontend_phaseE_topic_a():
           "constant-factor only, certificate-carried)")
 
 
+def test_frontend_phaseF_report():
+    """FRONT-END §E — the report is MEASURED and the central invariant is proven: detection/lifting recover hidden
+    structure conservative probes missed (recall > 0) at PRECISION = 1.0 (zero false positives), and every
+    impossible-core / random input stays DECLINE (B-core held). This is the proof that a liberal proposer + exact
+    certifier admits no false EXACT."""
+    import catalog.frontend_report as FR
+    r = FR.report()
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["false_positives"] == []
+    assert r["recall"] >= 0.8 and r["central_invariant_holds"] is True
+    assert r["b_core_held"] == r["impossible_total"]                 # every impossible input stayed DECLINE
+    assert r["lift_rate"] == 1.0                                     # the lift-tagged kernels all lifted + certified
+    print(f"PASS test_frontend_phaseF_report (MEASURED: recall {r['recall']} [{len(r['recovered'])}/"
+          f"{r['structured_total']}], ★ PRECISION = {r['precision']} (zero false positives), lift_rate "
+          f"{r['lift_rate']}, B-core held {r['b_core_held']}/{r['impossible_total']} — central invariant holds)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

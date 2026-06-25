@@ -331,3 +331,40 @@ honest-deferred with a precise blocker, never a fake pass.
 every path). A/B DECLINE split separates A-open (movable) from B-core (impossible). Reproducibility: `pillar3/round2`
 sketch streams seeded (the int-tuple sketch hashing is already process-stable). **test_catalog 38/38; test_build
 273/273 stable. No new dependency.** 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §E FRONT-END — probe-cascade detection + verified-lifting translation + Topic A speedups
+
+Two front-ends WIDEN the foldable denominator on top of the complete native engine, plus a constant-factor speedup
+path for the remainder — all gated by an EXACT zero-false-positive certifier (proposer→disposer). Zero new
+dependencies (z3+stdlib+numpy+sympy; audit `forbidden_present==[]`). **Measured (`catalog/frontend_report.py`):
+recall 1.0, ★ PRECISION = 1.0 (zero false positives), lift-rate 1.0, B-core held 10/10.**
+
+**★ Central invariant (proposer–verifier).** Detection (`probe_cascade.py`) and lifting (`lift.py`) are PROPOSERS —
+liberal, heuristic. Certification (each native core's exact re-check; `equiv_check.py`'s z3 proof) is the DISPOSER —
+EXACT, zero false positives. No transform reaches the fold engine without passing its exact certificate; a wrong
+proposal is caught and the input falls through to DECLINE. This is what makes aggressive detection/lifting sound.
+
+**PHASE A/B — probe cascade** (`catalog/probe_cascade.py`, `catalog/detectors_b.py`): cheapest-first detectors,
+escalate-on-hit, each gated by an EXACT check in exact arithmetic. Stage 0 compressibility+monobit/runs SCREEN
+(incompressible AND random ⇒ immediate DECLINE); 1 Berlekamp–Massey C-finite (ℚ re-substitution) + finite-difference
+polynomial law; 2 FFT/autocorrelation → Prony exponential sum (residual gate); 3 integer-relation (LLL) / Re-Pair SLP
+(lossless); matrix branch = exact rank-revealing (ℚ dependence certificate). NIST SP800-22 tests double as a
+typed structure dispatcher. Reuses the native-arsenal cores. precision = 1.0 on the impossible-core battery.
+
+**PHASE C/D — verified lifting** (`catalog/equiv_check.py`, `catalog/lift.py`): the z3 equivalence substrate
+(∀-equivalence UNSAT; inductive sum proof over ℝ so integer division can't block a true polynomial identity; bounded
+exhaustive) gates the lifting front-end. An imperative accumulation loop is parsed → its closed form synthesized →
+PROVED equivalent by z3 INDUCTION → folded (Σk/Σk²/Σk³/Σ(2k+1)/Σk(k+1) all lifted). A cost gate rejects cold/run-once
+code; non-liftable code → honest DECLINE. The lift never folds without a passing equivalence certificate.
+
+**PHASE E — Topic A** (`catalog/topic_a.py`): for code that neither folds nor lifts, a certified CONSTANT-FACTOR
+speedup (asymptotics recorded UNCHANGED) — equality saturation (Z3-certified node reduction), translation validation
+(an unsound x*2→x+1 is REFUTED with a counterexample), Souper-style superopt — each carrying its equivalence
+certificate; none claims an asymptotic improvement.
+
+**Certificate tiers recorded:** z3_forall / z3_induction (strong, re-checkable) vs bounded (domain-limited, labelled).
+**Honesty (§10):** false-positive = 0 — secure CSPRNG / Kolmogorov-random / incompressible / halting / full-rank /
+non-liftable / unsound-opt → DECLINE on every path. The impossible core does not move. **test_catalog 43/43;
+test_build 273/273 (isolated). No new dependency.** 잘못된 답보다 DECLINE이 항상 옳다.
