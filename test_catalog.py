@@ -1941,6 +1941,27 @@ def test_mech_growth_report():
           f"deps — the classification honestly reopened, the floor stays where the mathematics puts it)")
 
 
+def test_consolidation_audit_100pct():
+    """CONSOLIDATION PHASE 1 — the 100%-completion audit: every admitted mechanism (the original 14 + M15–M20) RUNS
+    real gated code, emits a re-checkable CERTIFICATE (kind recorded), records its DECIDABLE-ISLAND / hard-core
+    boundary, and DECLINEs its IMPOSSIBLE CORE. C7 expander/spectral-gap is M4+M7 (not M11). ★ Precision 1.0 across
+    the full set — the central invariant held under the complete grown mechanism set."""
+    import catalog.mechanism_audit as MA
+    r = MA.audit()
+    assert r["mechanisms_total"] == 20                                      # 14 original + M15–M20
+    assert r["all_run_real_gated_code"] and r["deferred_original_14"] == []  # no stubs, none deferred
+    assert r["every_mechanism_has_certificate_kind"] and r["every_mechanism_has_island_boundary"]
+    # ★ precision 1.0 + impossible core untouched + C7 corrected + zero forbidden deps ★
+    assert r["precision_is_one"] and r["false_exact"] == [] and r["impossible_core_untouched"]
+    assert r["C7_remap_M4_M7_not_M11"] and r["zero_dep_ok"]
+    # every mechanism individually: runs ∧ has a certificate ∧ has a boundary
+    for m, d in r["per_mechanism"].items():
+        assert d["runs"] and d["cert_kind"] and d["boundary"], (m, d)
+    print(f"PASS test_consolidation_audit_100pct (100% completion: all {r['mechanisms_total']} admitted mechanisms "
+          f"[14 original + M15–M20] run real gated code [0 deferred], each with a re-checkable certificate + a "
+          f"decidable-island boundary + an impossible-core DECLINE; C7→M4+M7; precision 1.0; zero forbidden deps)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
