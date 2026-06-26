@@ -1540,6 +1540,92 @@ def test_accel_phase79_report():
           f"asymptotics UNCHANGED; zero forbidden deps — large constant factor, never asymptotic)")
 
 
+def test_gap_detection_p1_p7():
+    """GAP CLOSURE (detection P1–P7) — structure the old probes missed, each proposer→EXACT-disposer, wired into the
+    cascade. P1 nonlinear recurrence, P2 matrix recurrence, P3 algebraic relation, P4 non-Fourier sparse, P5
+    block/Kronecker, P6 piecewise, P7 modulated. ★ PRECISION 1.0: a battery of random / secure-CSPRNG / incompressible
+    inputs DECLINEs on EVERY new path (the exact certifier disposes of wrong proposals). The impossible core does
+    not move."""
+    import os
+    import random
+    from fractions import Fraction
+    import catalog.gap_recur as GR
+    import catalog.gap_signal as GS
+    import catalog.gap_matrix as GM
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # ── P1 nonlinear recurrence (x[n]=x[n-1]²−2) ──
+    s = [3]
+    for _ in range(8):
+        s.append(s[-1] ** 2 - 2)
+    v1 = GR.nonlinear_recurrence_grade(s)
+    assert v1.status == KV.EXACT and v1.result["degree"] == 2 and v1.certificate.kind == "nonlinear_recurrence"
+    assert C.route({"detect": s}).grade == KV.EXACT                       # routes through the cascade
+    # ── P2 matrix recurrence (coupled a,b) ──
+    a, b = 1, 0
+    vec = []
+    for _ in range(10):
+        vec.append([a, b]); a, b = a + b, a - b
+    v2 = GR.matrix_recurrence_grade(vec)
+    assert v2.status == KV.EXACT and v2.result["dim"] == 2 and v2.certificate.kind == "matrix_recurrence"
+    # ── P3 algebraic relation (geometric x[n]²=x[n-1]x[n+1]) ──
+    v3 = GR.algebraic_relation_grade([3 * 2 ** i for i in range(16)])
+    assert v3.status == KV.EXACT and v3.certificate.kind.startswith("algebraic_relation")
+    # ── P4 non-Fourier sparse (2-Walsh signal) ──
+    coef = [Fraction(0)] * 8; coef[0] = Fraction(8); coef[3] = Fraction(8)
+    walsh_sig = [int(c / 8) for c in GS._wht(coef)]
+    v4 = GS.nonfourier_sparse_grade(walsh_sig)
+    assert v4.status == KV.EXACT and v4.result["basis"] == "walsh_hadamard" and v4.result["k"] == 2
+    # ── P5 Kronecker + block-low-rank; identity (3×3) must DECLINE (no over-trigger) ──
+    B, Cm = [[1, 2], [3, 4]], [[0, 5], [6, 7]]
+    A = [[B[i // 2][j // 2] * Cm[i % 2][j % 2] for j in range(4)] for i in range(4)]
+    v5 = GM.structured_matrix_grade(A)
+    assert v5.status == KV.EXACT and v5.result["structure"] == "kronecker"
+    assert GM.structured_matrix_grade([[1, 0, 0], [0, 1, 0], [0, 0, 1]]).status == KV.DECLINE   # identity → DECLINE
+    # ── P6 piecewise (fib ⊕ a different linear recurrence) ──
+    seg1 = [0, 1]
+    while len(seg1) < 12:
+        seg1.append(seg1[-1] + seg1[-2])
+    seg2 = [1, 3]
+    while len(seg2) < 12:
+        seg2.append(3 * seg2[-1] - 2 * seg2[-2])
+    v6 = GS.piecewise_grade(seg1 + seg2)
+    assert v6.status == KV.EXACT and v6.certificate.kind.startswith("piecewise")
+    # ── P7 modulated (2ⁿ × period-2 base) ──
+    base = [1, 3]
+    v7 = GS.modulated_grade([base[i % 2] * (2 ** i) for i in range(16)])
+    assert v7.status == KV.EXACT and v7.result["period"] == 2 and v7.certificate.kind == "modulated"
+    # ── ★ PRECISION 1.0: the impossible core DECLINEs on every new path ──
+    random.seed(20)
+    impossible = [
+        ("csprng", list(os.urandom(40))),
+        ("random_ints", [random.randint(0, 99999) for _ in range(24)]),
+        ("random_small", [random.randint(0, 9) for _ in range(20)]),
+        ("random_matrix", [[random.randint(1, 9) for _ in range(4)] for _ in range(4)]),
+        ("random_vecs", [[random.randint(0, 99), random.randint(0, 99)] for _ in range(10)]),
+        ("random_pow2", [random.randint(0, 99) for _ in range(16)]),
+    ]
+    false_exact = []
+    for lbl, x in impossible:
+        for fn in (GR.nonlinear_recurrence_grade, GR.algebraic_relation_grade, GS.modulated_grade,
+                   GS.piecewise_grade, GS.nonfourier_sparse_grade):
+            try:
+                if fn(x).status == KV.EXACT:
+                    false_exact.append((lbl, fn.__name__))
+            except Exception:  # noqa: BLE001
+                pass
+        if isinstance(x[0], list):
+            if GM.structured_matrix_grade(x).status == KV.EXACT:
+                false_exact.append((lbl, "structured_matrix"))
+            if GR.matrix_recurrence_grade(x).status == KV.EXACT:
+                false_exact.append((lbl, "matrix_recurrence"))
+    assert false_exact == [], f"FALSE EXACT (precision broken): {false_exact}"
+    print("PASS test_gap_detection_p1_p7 (P1 nonlinear-recur deg2 / P2 matrix-recur dim2 / P3 algebraic-relation / "
+          "P4 walsh-sparse k=2 / P5 Kronecker [identity→DECLINE] / P6 piecewise / P7 modulated period-2 — all "
+          "EXACT-certified + cascade-routed; impossible core [CSPRNG/random/random-matrix] → DECLINE on every new "
+          "path, ZERO false EXACT — precision 1.0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -98,8 +98,22 @@ def cascade(x: Any) -> CascadeResult:
         from catalog import detectors_b as DBd
         vr = DBd.rank_revealing_grade(x)
         trace.append(f"matrix[rank-revealing]: {vr.status}")
-        return CascadeResult(vr, 2, "low_rank", "exact", trace) if vr.status == KV.EXACT else \
-            CascadeResult(KV.decline(f"probe_cascade: matrix full-rank (trace={trace})", "probe_cascade"), -1, "none", "—", trace)
+        if vr.status == KV.EXACT:
+            return CascadeResult(vr, 2, "low_rank", "exact", trace)
+        # GAP 5 — block / Kronecker / separable structure a global rank check misses (exact residual gate)
+        from catalog import gap_matrix as GM
+        vb = GM.structured_matrix_grade(x)
+        trace.append(f"matrix[block/kron/separable]: {vb.status}")
+        if vb.status == KV.EXACT:
+            return CascadeResult(vb, 2, "structured_matrix", "exact", trace)
+        # GAP 2 — the rows may be a coupled recurrence v[n]=M·v[n-1] (exact M re-substitution gate)
+        from catalog import gap_recur as GR
+        vm = GR.matrix_recurrence_grade(x)
+        trace.append(f"matrix[recurrence]: {vm.status}")
+        if vm.status == KV.EXACT:
+            return CascadeResult(vm, 2, "matrix_recurrence", "exact", trace)
+        return CascadeResult(KV.decline(f"probe_cascade: matrix full-rank / no block/Kron/separable/recurrence "
+                                        f"structure (trace={trace})", "probe_cascade"), -1, "none", "—", trace)
 
     # ── Stage 1: Berlekamp–Massey (C-finite recurrence), exact ℚ re-substitution gate ───────────────────
     if _is_num_seq(x):
@@ -121,6 +135,32 @@ def cascade(x: Any) -> CascadeResult:
         trace.append(f"stage2[FFT→Prony]: {v2.status}")
         if v2.status == KV.EXACT:
             return CascadeResult(v2, 2, "exponential_sum", "exact_numeric", trace)
+
+    # ── Stage 2b/2c: GAP detectors above the linear/Prony probes (nonlinear & algebraic & modulated &
+    #    piecewise & quasi-periodic), each EXACT-gated; cost-bounded to len ≤ 64 (sympy/ℚ) ───────────────
+    if _is_num_seq(x) and len(x) <= 64:
+        from catalog import gap_recur as GR
+        vnl = GR.nonlinear_recurrence_grade(list(x), max_order=2, max_degree=3)
+        trace.append(f"stage2b[nonlinear-recur]: {vnl.status}")
+        if vnl.status == KV.EXACT:
+            return CascadeResult(vnl, 2, "nonlinear_recurrence", "exact", trace)
+        from catalog import gap_signal as GS
+        vmod = GS.modulated_grade(list(x))
+        trace.append(f"stage2c[modulated]: {vmod.status}")
+        if vmod.status == KV.EXACT:
+            return CascadeResult(vmod, 2, "modulated", "exact", trace)
+        vpw = GS.piecewise_grade(list(x))
+        trace.append(f"stage2d[piecewise]: {vpw.status}")
+        if vpw.status == KV.EXACT:
+            return CascadeResult(vpw, 2, "piecewise", "exact", trace)
+        valg = GR.algebraic_relation_grade(list(x))
+        trace.append(f"stage2f[algebraic-relation]: {valg.status}")
+        if valg.status == KV.EXACT:
+            return CascadeResult(valg, 2, "algebraic_relation", "exact", trace)
+        vnf = GS.nonfourier_sparse_grade(list(x))
+        trace.append(f"stage2g[non-fourier-sparse]: {vnf.status}")
+        if vnf.status == KV.EXACT:
+            return CascadeResult(vnf, 2, "nonfourier_sparse", "exact", trace)
 
     # ── Stage 3: escalation — integer-relation (short real vector) / Re-Pair SLP (bytes/str) ────────────
     if isinstance(x, (list, tuple)) and 2 <= len(x) <= 12 and all(isinstance(v, (int, float)) for v in x):

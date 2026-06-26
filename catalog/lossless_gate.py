@@ -74,6 +74,16 @@ _CONDITION = {
     "gosper_antidifference": "completeness",
     "low_rank_dependence": "completeness",
     "poly_finite_difference": "completeness",
+    # GAP CLOSURE — every new detector's exact certificate is a per-instance exact recovery ⇒ completeness
+    "nonlinear_recurrence": "completeness",
+    "matrix_recurrence": "completeness",
+    "algebraic_relation": "completeness",
+    "kronecker_product": "completeness",
+    "block_low_rank": "completeness",
+    "modulated": "completeness",
+    "piecewise": "completeness",
+    "nonfourier_sparse": "completeness",
+    "zeilberger_telescoping": "completeness",
 }
 
 
@@ -101,7 +111,12 @@ def _classify_kind(kind: str):
             uniq = set(conds)
             return next(iter(uniq)) if len(uniq) == 1 else "mixed_lossless"
         return None
-    return _CONDITION.get(kind)
+    direct = _CONDITION.get(kind)
+    if direct is not None:
+        return direct
+    if "[" in kind:                                          # strip a trailing qualifier, e.g. nonfourier_sparse[haar]
+        return _CONDITION.get(kind.split("[", 1)[0])
+    return None
 
 
 def judge(verdict: "KV.Verdict") -> LosslessJudgment:
