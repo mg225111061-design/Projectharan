@@ -1870,6 +1870,52 @@ def test_mech18_flow():
           f"3 components → 3 pieces; connected structureless → trivial consensus DECLINE; routes [18])")
 
 
+def test_mech19_20_scope():
+    """MECHANISMS 19 & 20 (scope-dependent) — knot invariant + aperiodic order, in-repo. M19: the Kauffman-bracket
+    state sum gives the writhe-normalized Jones polynomial (verified against the trefoil's known invariant
+    −t⁻⁴+t⁻³+t⁻¹); R-II/R-III invariant by the skein δ=−A²−A⁻², R-I by writhe normalization; large diagrams (#P-hard)
+    DECLINE on cost. M20: a Fibonacci chain is recognized as a cut-and-project quasicrystal (two tiles + balanced
+    Sturmian order ⇒ pure-point diffraction); periodic / random / unbalanced sets DECLINE (the impossible core)."""
+    import catalog.mech_knot as MK
+    import catalog.mech_aperiodic as MA
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # M19 — unknot bracket = 1; trefoil Jones matches the known polynomial (A^4+A^12-A^16 = −t⁻⁴+t⁻³+t⁻¹)
+    assert MK.knot_grade({"crossings": []}).result["bracket"] == {"0": 1}
+    tref = MK.knot_grade({"crossings": [[1, 4, 2, 5], [3, 6, 4, 1], [5, 2, 6, 3]], "writhe": -3})
+    assert tref.status == KV.EXACT and tref.result["jones"] == {"4": 1, "12": 1, "16": -1}
+    assert tref.certificate.kind == "knot_state_sum"
+    # Hopf link bracket −A⁴−A⁻⁴; large diagram (#P-hard) DECLINEs on cost
+    assert MK.knot_grade({"crossings": [[1, 3, 2, 4], [3, 1, 4, 2]], "writhe": 2}).result["bracket"] == {"4": -1, "-4": -1}
+    assert MK.knot_grade({"crossings": [[i, i, i, i] for i in range(15)]}).status == KV.DECLINE
+    assert C.route({"knot": {"crossings": [[1, 4, 2, 5], [3, 6, 4, 1], [5, 2, 6, 3]], "writhe": -3}}).mechanism_path == [19]
+    # M20 — Fibonacci chain (substitution a→ab,b→a; tiles 2,1) → cut-and-project EXACT
+    w = "a"
+    for _ in range(7):
+        w = "".join("ab" if c == "a" else "a" for c in w)
+    pos = [0]
+    for c in w:
+        pos.append(pos[-1] + (2 if c == "a" else 1))
+    fib = MA.aperiodic_grade({"positions": pos})
+    assert fib.status == KV.EXACT and fib.result["sturmian"] and fib.result["pure_point_diffraction"]
+    assert fib.certificate.kind == "aperiodic_cut_project"
+    # ★ impossible core: periodic, random-gaps, periodic-order, unbalanced-order all DECLINE ★
+    import random
+    assert MA.aperiodic_grade(list(range(0, 40, 2))).status == KV.DECLINE                 # periodic (one tile)
+    random.seed(5); rp = [0]
+    for _ in range(30):
+        rp.append(rp[-1] + random.randint(1, 5))
+    assert MA.aperiodic_grade(rp).status == KV.DECLINE                                    # random gaps
+    random.seed(9); ro = [0]
+    for _ in range(30):
+        ro.append(ro[-1] + random.choice([1, 2]))
+    assert MA.aperiodic_grade(ro).status == KV.DECLINE                                    # unbalanced 2-tile order
+    assert C.route({"aperiodic": {"positions": pos}}).mechanism_path == [20]
+    print("PASS test_mech19_20_scope (M19: trefoil Jones = −t⁻⁴+t⁻³+t⁻¹ [verified], Hopf −A⁴−A⁻⁴, #P-hard large → "
+          "DECLINE, routes [19]; M20: Fibonacci chain → cut-and-project quasicrystal [Sturmian, pure-point], "
+          "periodic/random/unbalanced → DECLINE, routes [20] — scope mechanisms, certificate-bearing)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
