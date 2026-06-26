@@ -2505,6 +2505,51 @@ def test_post_accel_moveA_verified_io():
           f"whole-program, never the component factor)")
 
 
+def test_post_accel_moveB_verified_parallel():
+    """ACCEL MOVE B — VERIFIED PARALLELISM (the highest proof bar — races/deadlocks). Concurrency applied ONLY with
+    a machine-checked independence/race-freedom proof. B1 async overlap: disjoint read/write conflict sets. B2 data
+    parallel: no carried dep, no shared-write race, reductions only if assoc+comm. B3 deadlock: lock-order
+    acyclicity. ★ Honest measurement: the proof unlocks SAFETY, the MEASURED factor decides deployment — the
+    sandbox is overhead-bound (<1×), reported and NOT deployed. Adversarial battery rejected 100%."""
+    import accel.verified_parallel as VP
+    import accel.pipeline as PL
+    # B1 async overlap: independent OK; true-dependence + write-write race REJECTED
+    indep = VP.verified_async_overlap([{"name": "A", "reads": {"uA"}, "writes": {"a"}},
+                                       {"name": "B", "reads": {"uB"}, "writes": {"b"}}])
+    dep = VP.verified_async_overlap([{"name": "t1", "reads": {"x"}, "writes": {"y"}},
+                                     {"name": "t2", "reads": {"y"}, "writes": {"z"}}])
+    ww = VP.verified_async_overlap([{"name": "t1", "writes": {"c"}}, {"name": "t2", "writes": {"c"}}])
+    assert indep.applied and not dep.applied and not ww.applied
+    # B2 data parallel: independent OK; carried + shared-write + non-assoc reduction REJECTED
+    assert VP.verified_data_parallel({"carried": False}).applied
+    assert not VP.verified_data_parallel({"carried": True}).applied
+    assert not VP.verified_data_parallel({"shared_writes": {"total"}}).applied
+    assert VP.verified_data_parallel({"reduction": lambda a, b: a + b}).applied         # + assoc+comm
+    assert VP.verified_data_parallel({"reduction": max}).applied                        # max assoc+comm
+    assert not VP.verified_data_parallel({"reduction": lambda a, b: a - b}).applied      # subtraction non-comm
+    # ★ honest measurement: proved SAFE but overhead-bound ⇒ reported, NOT deployed
+    m = VP.verified_data_parallel({"carried": False}, work=lambda: [i * i for i in range(2000)], measure=True)
+    assert m.applied and m.clock_c_speedup is not None                                  # proved safe + measured
+    if m.clock_c_speedup <= 1.0:
+        assert "overhead-bound" in m.reason and "NOT deployed" in m.reason              # honest non-deployment
+    # B3 deadlock: acyclic lock order proved deadlock-free; a cycle is REFUTED (found bug)
+    assert VP.verified_race_free([["A", "B"], ["A", "B", "C"]]).applied
+    assert not VP.verified_race_free([["A", "B"], ["B", "A"]]).applied                  # A→B→A cycle ⇒ deadlock
+    # ★ precision over the MOVE-B battery: zero unsafe concurrency applied
+    battery = [(indep, True), (dep, False), (ww, False),
+               (VP.verified_data_parallel({"carried": True}), False),
+               (VP.verified_data_parallel({"shared_writes": {"t"}}), False),
+               (VP.verified_data_parallel({"reduction": lambda a, b: a - b}), False),
+               (VP.verified_race_free([["A", "B"], ["B", "A"]]), False)]
+    prec = PL.precision(battery)
+    assert prec["precision"] == 1.0 and prec["unsafe_applied"] == []
+    print(f"PASS test_post_accel_moveB_verified_parallel (B1 async: independence via disjoint read/write sets [true-dep "
+          f"& write-write race rejected]; B2 data-parallel: carried/shared-write/non-assoc-reduction rejected, +/max "
+          f"reductions proved assoc+comm; ★ measured {m.clock_c_speedup}× — proved SAFE but overhead-bound, NOT "
+          f"deployed [honest]; B3: acyclic→deadlock-free, A→B→A cycle REFUTED; ★ precision = {prec['precision']} "
+          f"[zero unsafe concurrency])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
