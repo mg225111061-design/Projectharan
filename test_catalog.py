@@ -1626,6 +1626,45 @@ def test_gap_detection_p1_p7():
           "path, ZERO false EXACT — precision 1.0)")
 
 
+def test_gap_p8_p14_probabilistic_tier():
+    """GAP CLOSURE P8 + P14 — the PROBABILISTIC tier (graded honestly, NEVER folded EXACT). P8 quasi-periodic: a
+    sum of incommensurate sinusoids is fit by few tones to a measured relative error δ on the samples ⇒ PROBABILISTIC
+    (δ-bounded approximation, certified numerical enclosure). ★ BINDING SEPARATION: the EXACT ledger stays
+    residual-0-only — this never returns EXACT, lossless_gate grades it `approximation`, not a lossless fold. A
+    broadband random signal admits no few-tone bound ⇒ DECLINE (no nontrivial concentration)."""
+    import numpy as np
+    import random
+    import hashlib
+    import catalog.gap_prob as GP
+    import catalog.lossless_gate as LG
+    import catalog.compose as C
+    import kernel_verdict as KV
+    t = np.arange(64)
+    qp = (np.cos(0.4 * t) + np.cos(0.97 * t)).tolist()       # two incommensurate tones — almost-periodic
+    v = GP.quasi_periodic_grade(qp)
+    assert v.status == KV.PROBABILISTIC and v.status != KV.EXACT
+    assert 0 < v.certificate.delta <= 0.03 and v.certificate.kind.startswith("bounded_reconstruction")
+    # the lossless gate grades it APPROXIMATION (lossy), never a lossless/EXACT fold
+    j = LG.judge(v)
+    assert j.condition == "approximation" and LG.is_lossless_fold(v) is False
+    # routes as PROBABILISTIC through compose (own tier), never EXACT
+    r = C.route({"quasi_periodic": qp})
+    assert r.grade == KV.PROBABILISTIC and r.grade != KV.EXACT
+    # ★ random / CSPRNG admit no few-tone bound ⇒ DECLINE (the impossible core does not move) ★
+    random.seed(4)
+    assert GP.quasi_periodic_grade([random.gauss(0, 1) for _ in range(64)]).status == KV.DECLINE
+    ks = [float(b) for i in range(8) for b in hashlib.sha256(i.to_bytes(4, "little")).digest()][:48]
+    assert GP.quasi_periodic_grade(ks).status == KV.DECLINE
+    # P14 mechanism: a high reconstruction error is NOT a bound ⇒ DECLINE; a tight one ⇒ PROBABILISTIC (never EXACT)
+    assert GP.probabilistic_grade({}, 0.5, 64, "x").status == KV.DECLINE
+    pv = GP.probabilistic_grade({"k": 2}, 0.01, 64, "demo")
+    assert pv.status == KV.PROBABILISTIC and pv.status != KV.EXACT and pv.certificate.delta == 0.01
+    print(f"PASS test_gap_p8_p14_probabilistic_tier (quasi-periodic [2 incommensurate tones] → PROBABILISTIC "
+          f"δ={v.certificate.delta:.2e} [lossless_gate: approximation, NEVER EXACT/lossless]; routes PROBABILISTIC; "
+          f"random/CSPRNG → DECLINE [no nontrivial bound]; P14 high-error→DECLINE, tight→PROBABILISTIC — the EXACT "
+          f"ledger stays residual-0-only)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

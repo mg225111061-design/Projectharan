@@ -146,6 +146,8 @@ def plan(x: Any) -> Plan:
     f = feats(x)
     if isinstance(x, dict) and "detect" in x:             # FRONT-END: the probe cascade (widened structure detection)
         return Plan("detect", (), "probe cascade: cheapest-first detectors, each exact-certified before folding", probe)
+    if isinstance(x, dict) and "quasi_periodic" in x:     # GAP 8/14: almost-periodic → PROBABILISTIC approximation
+        return Plan("quasi_periodic", (), "almost-periodic structure → PROBABILISTIC (δ-bounded approximation, never EXACT)", probe)
     if isinstance(x, dict) and ("lift_sum" in x or "lift_code" in x):   # FRONT-END: verified lifting (code → closed form)
         return Plan("lift", (13,), "verified lifting: imperative loop → closed form, z3-proved equivalent", probe)
     if isinstance(x, dict) and ("speedup" in x or "validate" in x or "superopt" in x):   # Topic A constant-factor speedup
@@ -324,8 +326,17 @@ def _exec_topic_a(x, probe, why) -> CatalogResult:
     return _result(sf, probe, why)
 
 
+def _exec_quasi(x, probe, why) -> CatalogResult:
+    """GAP 8/14: almost-periodic structure graded PROBABILISTIC (δ-bounded approximation). NEVER EXACT — the EXACT
+    ledger stays residual-0-only; an incommensurate-frequency signal admits only an ε-certificate on the samples."""
+    from catalog import gap_prob as GP
+    v = GP.quasi_periodic_grade(x["quasi_periodic"])
+    sf = ir.StructForm.raw(x).accumulate(11, v, data=(v.result if v.status != KV.DECLINE else None))
+    return _result(sf, probe, why + (f" [δ={v.certificate.delta:.2e}]" if v.status == KV.PROBABILISTIC else " [not almost-periodic]"))
+
+
 _SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
-           "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a}
+           "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a, "quasi_periodic": _exec_quasi}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:
