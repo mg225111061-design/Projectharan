@@ -2389,6 +2389,38 @@ def test_post_consol_p3_tier2_faces_and_dispositions():
           f"excluded with exact reasons — no count++)")
 
 
+def test_post_consol_p4_fold_coverage():
+    """POST-CONSOLIDATION PHASE 4 — the FOLD-COVERAGE METER (MEASURED on a NAMED corpus). Runs every item of
+    POST_CONSOL_PROBE_CORPUS_v1 through the real graders and tabulates the disposition into THREE regions, the two
+    speeds never mixed: ASYMPTOTIC FOLD (EXACT collapse) vs CONSTANT-FACTOR (region-3, asymptotics unchanged) vs the
+    DECLINE FLOOR (impossible core). Raw AND cost-weighted fractions. ★ The meter DOUBLES as a precision gate (no
+    impossible-core item may fold — zero false EXACT) and is SELF-CONSISTENT (each item's measured region matches its
+    declared region). ★ The number is loudly CAVEATED: a curated probe corpus, NOT a sample of production code."""
+    import catalog.fold_coverage as FC
+    import kernel_verdict as KV
+    r = FC.measure()
+    assert r["corpus"] == "POST_CONSOL_PROBE_CORPUS_v1" and r["corpus_size"] >= 25
+    # ★ precision gate: zero false EXACT (no impossible-core item folded) ★
+    assert r["precision_is_one"] and r["false_exact"] == []
+    # ★ self-consistency: every item's measured region == its declared region ★
+    assert r["corpus_self_consistent"] and r["mismatches"] == []
+    # three regions present and separated; fractions are a partition (sum ≈ 1)
+    rf = r["raw_fraction"]
+    assert set(rf) == {"asymptotic_fold", "constant_factor", "decline_floor"}
+    assert abs(sum(rf.values()) - 1.0) < 1e-6 and abs(sum(r["cost_weighted_fraction"].values()) - 1.0) < 1e-6
+    assert rf["asymptotic_fold"] > 0 and rf["constant_factor"] > 0 and rf["decline_floor"] > 0   # all three non-empty
+    # the two speeds are never mixed; the impossible-core floor is recorded; per-mechanism contribution measured
+    assert "never mixed" in r["two_speeds_separated"] and "floor" in r["impossible_core_floor"]
+    assert len(r["per_mechanism_contribution"]) >= 10
+    # ★ the honesty caveat is present and explicit about NOT being a production-code sample ★
+    assert "NOT a random sample of production code" in r["caveat"] and "~1–3%" in r["caveat"]
+    print(f"PASS test_post_consol_p4_fold_coverage (MEASURED on {r['corpus']} [{r['corpus_size']} items]: "
+          f"asymptotic-fold raw {rf['asymptotic_fold']} / cost-weighted {r['asymptotic_fold_cost_weighted']}, "
+          f"constant-factor {rf['constant_factor']} [region-3, NOT a fold], decline-floor {rf['decline_floor']}; "
+          f"{len(r['per_mechanism_contribution'])} mechanisms contribute; ★ precision 1.0 [meter doubles as a "
+          f"precision gate], self-consistent; loudly CAVEATED as a curated probe corpus, not production code)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
