@@ -656,3 +656,60 @@ The post-consolidation pass admitted exactly ONE new mechanism (k-regular), impl
 face, routed the constant-factor tail to region-3, and excluded the rest with reasons — the floor stays exactly where
 the mathematics puts it; a further mechanism remains to be discovered or reduced, never declared.
 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §L — VERIFIED PRODUCT-ACCELERATION ENGINE (A/B/C/D to the measured limit)
+
+The fold engine collapses the ~1–3% of code with asymptotic structure (measured by the §K coverage meter). THIS
+engine goes after the other ~95% — the code whose wall-clock is I/O wait, serialization, data-structure work, and
+allocation — through ONE pipeline: PROFILE first (Amdahl), the LLM/detector PROPOSES, z3 or an exact in-repo oracle
+PROVES it semantics-preserving, only the PROVED change is APPLIED, and the WHOLE-PROGRAM wall-clock is MEASURED.
+Modules live under `accel/`, never imported by test_build. Zero new deps (audit `forbidden_present == []`).
+
+**★ The central invariant (propose–verify–apply).** `accel/pipeline.py`: an `Acceleration` is APPLIED iff `proved`
+is True — a proposal is WORTHLESS until the oracle proves it; no proof ⇒ the slow original stands. `precision()` over
+a battery = (applied ∩ unsafe) must be ∅. `profile()` ranks hot paths by MEASURED wall-clock share (the Amdahl gate:
+no acceleration off a measured hot path). `amdahl_whole_program()` converts a component factor to an HONEST whole-
+program factor (5% sped 10× ⇒ ~1.047×, NEVER the component factor). Three clocks separate: A (proposal), B
+(verification, one-time), C (achieved runtime, amortized).
+
+**MOVE A — verified I/O elimination** (`accel/verified_io.py`): A1 caching — an AST EFFECT-ANALYSIS proves PURITY
+(output is a deterministic function of explicit args; NO clock/RNG/IO read, NO global read/write, NO argument
+mutation; every call provably pure; conservative — any unprovable construct ⇒ NOT pure). A2 batching — independence
+(no carried dep) + EXACT result-equivalence. A3 dedup/dead-I/O — redundant (same args ⇒ identical result) / dead
+(result never consumed) removed, state-changed & live KEPT.
+
+**MOVE B — verified parallelism** (`accel/verified_parallel.py`, the highest proof bar): B1 async overlap — disjoint
+read/write conflict sets (true/anti/output dependence). B2 data parallel — no carried dep, no shared-write race,
+reductions only if the combine is proved ASSOCIATIVE + COMMUTATIVE (exhaustive). ★ honest measurement: the proof
+unlocks SAFETY, the MEASURED factor decides DEPLOYMENT — the sandbox is overhead-bound (~0.15×, GIL+marshalling),
+reported and NOT deployed. B3 deadlock — lock-order acyclicity (a cycle is a refuted bug).
+
+**MOVE C — verified algorithm/data-structure correction** (`accel/verified_algo.py`, the highest ceiling per fix):
+C1 complexity reduction (linear-search→hashmap dedup) PROVED result-equivalent over an input battery + measured
+**~34–36× O(N²)→O(N)** win on N≈3000 (a real fix, not a fold). C2 loop-invariant hoist / CSE. C3 early-exit
+(post-condition stability). A result-changing swap / non-invariant hoist / unsafe early-break (breaking a SUM) is
+REJECTED.
+
+**MOVE D — verified serde & allocation** (`accel/verified_serde.py`): D1 serialization fast-path — byte-equivalence
++ lossless round-trip (a field-dropping path REJECTED). D2 allocation reuse — no-aliasing-hazard via alias/escape
+analysis on an event trace (a `share → mutate → read` trace REJECTED).
+
+**§6 LIMIT PASS + §7 PRODUCT** (`accel/limit_pass.py`): drives A/B/C/D to exhaustion per hot path and composes the
+whole-program speedup via Amdahl, terminating with the HONEST LIMIT — on the modeled target a **36.6× compute fix is
+Amdahl-bounded to ~1.48× whole-program** by its 0.30 wall-share, with a **50% IRREDUCIBLE physical-I/O floor**;
+"10–20× on everything" is NEVER the output. Product: verified LLM-result caching applies A1 to the LLM step (sound
+content-hash key — a stale hit is impossible; a hit SKIPS the LLM), measured 3/6 calls avoided on a repeated-request
+workload; MR.JEFFREY wired as the A/B/C/D proposer (untrusted, the engine verifies).
+
+**§8 ADVERSARIAL PRECISION BATTERY + §9 REPORT** (`accel/acceleration_report.py`, MEASURED): across 15 cases where the
+"fast" version is deliberately WRONG (impure-as-pure, dropping-batch, dependent-async, non-assoc reduction, cyclic
+lock, result-changing swap, unsafe early-exit, lossy serde, aliasing-hazard pool), the engine REJECTS 100% — **PRECISION
+= 1.0 (zero unsafe accelerations applied)**, recall 1.0 on the safe ones. The honest scope: the fold engine handles
+the ~1–3% with collapsible structure; this engine accelerates measured hot paths where PROVABLE, the compute fix real
+but Amdahl-bounded, physical I/O the irreducible floor — neither is "all code fast", both are "what is provable,
+proved". `test_catalog.py` **86/86**, test_build 273 영향 없음. No new dependency.
+
+잘못된 답보다 DECLINE이 항상 옳다 — 이제 fold가 아니라 가속에서도: the only thing applied is what was proved, the
+limit is the measured limit, never infinity.
