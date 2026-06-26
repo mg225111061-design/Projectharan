@@ -1697,6 +1697,32 @@ def test_gap_lift_p9_p12():
           "implemented, undecidable cores declined)")
 
 
+def test_gap_p13_zeilberger():
+    """GAP CLOSURE P13 — full Zeilberger creative telescoping with a MANDATORY exact WZ certificate. The holonomic
+    recurrence Σ_j a_j(n)·S(n+j)=0 is GUESSED from exact S(n) values (proposer), then PROVEN by the WZ certificate:
+    t(n,k)=Σ_j a_j(n)F(n+j,k) telescopes as t=G(k+1)−G(k) with the identity re-checked in exact polynomial
+    arithmetic (guessing alone is NOT proof). EXACT iff the WZ identity holds; a non-holonomic sum (no rational
+    certificate) ⇒ DECLINE. Backs the Σ C(n,k)=2ⁿ and Σ C(n,k)²=C(2n,n) classics; routes via {zeilberger}."""
+    import catalog.gap_telescope as GT
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # Σ_k C(n,k) = 2ⁿ : recurrence S(n+1) − 2·S(n) = 0, WZ certificate R(n,k)=k/(k−n−1)
+    v = GT.zeilberger_grade("binomial(n,k)")
+    assert v.status == KV.EXACT and v.result["order"] == 1 and v.certificate.kind == "zeilberger_telescoping"
+    assert "wz_certificate" in v.result and v.result["wz_certificate"]
+    # Σ_k C(n,k)² = C(2n,n) : recurrence (n+1)·S(n+1) − (4n+2)·S(n) = 0
+    v2 = GT.zeilberger_grade("binomial(n,k)**2")
+    assert v2.status == KV.EXACT and v2.result["order"] == 1
+    # ★ non-holonomic 2^(k²) (ratio 2^(2k+1) not rational ⇒ not hypergeometric ⇒ no WZ certificate) ⇒ DECLINE ★
+    assert GT.zeilberger_grade("2**(k*k)", n_hi=12).status == KV.DECLINE
+    # routes through compose via M13 (the fold/closed-form mechanism)
+    r = C.route({"zeilberger": "binomial(n,k)"})
+    assert r.grade == KV.EXACT and r.mechanism_path == [13] and r.lossless == "completeness"
+    print(f"PASS test_gap_p13_zeilberger (Σ C(n,k)=2ⁿ → order-1 recurrence + WZ cert R={v.result['wz_certificate']}; "
+          f"Σ C(n,k)²=C(2n,n) → order-1; non-holonomic 2^(k²) → DECLINE [no rational WZ certificate]; routes [13] — "
+          f"guessing validated by the MANDATORY exact telescoping certificate, never trusted alone)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

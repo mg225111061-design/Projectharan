@@ -148,6 +148,8 @@ def plan(x: Any) -> Plan:
         return Plan("detect", (), "probe cascade: cheapest-first detectors, each exact-certified before folding", probe)
     if isinstance(x, dict) and "quasi_periodic" in x:     # GAP 8/14: almost-periodic → PROBABILISTIC approximation
         return Plan("quasi_periodic", (), "almost-periodic structure → PROBABILISTIC (δ-bounded approximation, never EXACT)", probe)
+    if isinstance(x, dict) and "zeilberger" in x:         # GAP 13: holonomic sum → exact WZ creative-telescoping cert
+        return Plan("zeilberger", (13,), "Zeilberger creative telescoping: holonomic recurrence + exact WZ certificate", probe)
     if isinstance(x, dict) and ("lift_sum" in x or "lift_code" in x):   # FRONT-END: verified lifting (code → closed form)
         return Plan("lift", (13,), "verified lifting: imperative loop → closed form, z3-proved equivalent", probe)
     if isinstance(x, dict) and ("speedup" in x or "validate" in x or "superopt" in x):   # Topic A constant-factor speedup
@@ -335,8 +337,18 @@ def _exec_quasi(x, probe, why) -> CatalogResult:
     return _result(sf, probe, why + (f" [δ={v.certificate.delta:.2e}]" if v.status == KV.PROBABILISTIC else " [not almost-periodic]"))
 
 
+def _exec_zeilberger(x, probe, why) -> CatalogResult:
+    """GAP 13: certify a holonomic sum by Zeilberger creative telescoping with an exact WZ certificate (EXACT) or
+    DECLINE (non-holonomic / outside the bounded island). Folds via M13 (the fold/closed-form mechanism)."""
+    from catalog import gap_telescope as GT
+    v = GT.zeilberger_grade(x["zeilberger"])
+    sf = ir.StructForm.raw(x).accumulate(13, v, data=(v.result if v.status != KV.DECLINE else None))
+    return _result(sf, probe, why + (f" [order {v.result['order']}]" if v.status == KV.EXACT else " [no WZ certificate]"))
+
+
 _SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
-           "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a, "quasi_periodic": _exec_quasi}
+           "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a, "quasi_periodic": _exec_quasi,
+           "zeilberger": _exec_zeilberger}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:
