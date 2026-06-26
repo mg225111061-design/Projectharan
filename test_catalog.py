@@ -2341,6 +2341,54 @@ def test_post_consol_p2_mpst_edgecover():
           "adjudicated-by-building: DEMOTE, M23/M24 NOT admitted, no count++)")
 
 
+def test_post_consol_p3_tier2_faces_and_dispositions():
+    """POST-CONSOLIDATION PHASE 3 — 8 TIER-2 FACES (no count++) + Tier-3 constant-factor routing + Tier-4 exclusions.
+    Each Tier-2 candidate folds its inputs with a constructive certificate but reduces IN KIND to a parent mechanism:
+    monoid-hom→M13, poset-Möbius→M2, CRN-δ0→M11, DEC→M18, restricted-chase→M14, species→M12, trace-monoids→M15,
+    twin-width→M10. Tier-3 (polyhedral/MTBDD/deforestation) routes to region-3 acceleration tagged CONSTANT-FACTOR
+    (never a fold). Tier-4 records each exclusion with its exact reason. POST_CONSOL_FACES registered separately from
+    the frozen consolidation FACES (7) so the §J snapshot stays intact."""
+    import catalog.tier2_faces as T2
+    import catalog.excluded_candidates as EX
+    import catalog.mechanism_faces as MF
+    import kernel_verdict as KV
+    # ── the 8 Tier-2 faces fold their structured inputs ──
+    tab = {(a, b): (a + b) % 4 for a in range(4) for b in range(4)}
+    tt = {(a, b): (a + b) % 2 for a in range(2) for b in range(2)}
+    assert T2.monoid_hom_face({"table": tab, "identity": 0, "phi": {x: x % 2 for x in range(4)},
+                               "ttable": tt, "tidentity": 0}).status == KV.EXACT
+    # a genuine NON-homomorphism ⇒ DECLINE (φ(1+1)≠φ(1)+φ(1))
+    assert T2.monoid_hom_face({"table": tab, "identity": 0, "phi": {0: 0, 1: 1, 2: 1, 3: 0},
+                               "ttable": tt, "tidentity": 0}).status == KV.DECLINE
+    divs = [1, 2, 3, 6]
+    vm = T2.poset_mobius_face({"elements": divs, "leq": [(x, y) for x in divs for y in divs if y % x == 0]})
+    assert vm.status == KV.EXACT and vm.result["mu"]["1,6"] == 1                 # μ(1,6) = +1 (squarefree, 2 primes)
+    crn = {"species": ["A", "B", "C"], "complexes": {"A": {"A": 1}, "B": {"B": 1}, "C": {"C": 1}},
+           "reactions": [("A", "B"), ("B", "C"), ("C", "A")]}
+    assert T2.crn_deficiency_face(crn).result["deficiency"] == 0
+    assert T2.dec_face({"vertices": [0, 1, 2], "edges": [(0, 1), (1, 2), (0, 2)], "triangles": [(0, 1, 2)]}).status == KV.EXACT
+    assert T2.restricted_chase_face({"facts": [(1, 2), (2, 3)], "tgd": "symmetric"}).status == KV.EXACT
+    assert T2.restricted_chase_face({"facts": [(1, 2)], "tgd": "successor", "bound": 50}).status == KV.DECLINE  # unbounded
+    assert T2.species_face({"species": "permutations", "n": 5}).result["count"] == 120
+    assert T2.trace_monoid_face({"independence": [("a", "c")], "word": "acb"}).result["foata_form"] == [["a", "c"], ["b"]]
+    assert T2.twin_width_face({"n": 4, "edges": [(0, 1), (1, 2), (2, 3)],
+                               "contraction_sequence": [(0, 1), (0, 2), (0, 3)]}).result["twin_width_bound"] <= 2
+    # ── registry: 8 Tier-2 faces, all route to a parent mechanism; POST_CONSOL_FACES = 8 Tier-2 + 6 demotions ──
+    assert len(T2.TIER2_FACES) == 8 and set(p for _, p in T2.TIER2_FACES.values()) <= {2, 9, 10, 11, 12, 13, 14, 15, 18}
+    assert len(MF.FACES) == 7                                                    # the consolidation snapshot is FROZEN
+    assert len(MF.POST_CONSOL_FACES) == 14                                       # 8 Tier-2 + 6 Tier-1/2 demotions
+    # ── Tier-3 constant-factor (NOT folds) + Tier-4 exclusions, each with a reason ──
+    r = EX.report()
+    assert r["tier3_count"] == 3 and "asymptotics UNCHANGED" in r["tier3_note"]
+    assert r["tier4_count"] >= 18 and all(len(EX.TIER4_EXCLUDED[k]) > 20 for k in EX.TIER4_EXCLUDED)
+    assert EX.disposition("zx_calculus")["tier"] == "4" and EX.disposition("polyhedral_affine")["tier"] == "3"
+    print(f"PASS test_post_consol_p3_tier2_faces_and_dispositions (8 TIER-2 faces fold [monoid-hom→M13, poset-Möbius→"
+          f"M2, CRN-δ0→M11, DEC→M18, chase→M14, species→M12, trace→M15, twin-width→M10]; non-hom & unbounded-chase → "
+          f"DECLINE; POST_CONSOL_FACES={len(MF.POST_CONSOL_FACES)} [8 Tier-2 + 6 demotions], consolidation FACES frozen "
+          f"at {len(MF.FACES)}; Tier-3 {r['tier3_count']} constant-factor→region-3 [NOT folds], Tier-4 {r['tier4_count']} "
+          f"excluded with exact reasons — no count++)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

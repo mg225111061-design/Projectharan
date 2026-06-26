@@ -186,3 +186,21 @@ def cobordism_face(spec: dict) -> KV.Verdict:
 FACES = {"tropical": (tropical_face, 13), "multifractal": (multifractal_face, 4), "rate_distortion": (rate_distortion_face, 4),
          "feigenbaum": (feigenbaum_face, 6), "atiyah_singer": (atiyah_singer_face, 9),
          "boolean_fourier": (boolean_fourier_face, 11), "cobordism": (cobordism_face, 9)}
+
+
+# ── POST-CONSOLIDATION PHASE 3 — new faces registered WITHOUT incrementing the mechanism count ───────────
+# Kept SEPARATE from the frozen consolidation snapshot FACES (above, 7) so the §J convergence report stays a faithful
+# historical record; the §K post-consolidation report counts FACES + POST_CONSOL_FACES. Each routes to a PARENT
+# mechanism; none is a new mechanism (no count++).
+from catalog.tier2_faces import TIER2_FACES   # noqa: E402
+
+# Tier-1/Tier-2 DEMOTIONS (full modules built in PHASE 1/2, adjudicated to FAIL distinct-in-kind) → parent mechanism:
+_DEMOTION_FACES = {
+    "defective_linearization": 11,   # mech_defective — the fold is C-finite (M11's class)
+    "chains_of_recurrences": 13,     # mech_tev — polynomial/geometric closed form (M13's class)
+    "semiring_newton": 13,           # mech_seminewton — same lfp as Kleene, faster solver
+    "symbolic_finite_automata": 9,   # mech_sfa — canonical complete-invariant decision (M9's class)
+    "mpst": 17,                      # mech_mpst — local-to-global gluing (M17's class)
+    "edge_cover": 10,                # mech_edgecover — structure-forced size bound (M10's class)
+}
+POST_CONSOL_FACES = {**{name: parent for name, (fn, parent) in TIER2_FACES.items()}, **_DEMOTION_FACES}
