@@ -414,3 +414,49 @@ every row, declines must carry a reason, and a fabricated/drifted UI number is n
 **PHASE 9 — integrated report** (`catalog/product_report.py`): all of the above MEASURED live, clocks separate,
 zero forbidden deps. **test_catalog 49/49; test_build 273/273 (isolated). No new dependency.** A's extreme compute
 speed does not move B (LLM-bound) — the two ledgers stay separate. 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §G EXTREME ACCELERATION — generated-code speed (A) to its honest limit + product latency (B), MEASURED
+
+A's acceleration is a large **CONSTANT FACTOR**, never asymptotic — general generated code has no foldable
+structure (or the fold engine would already collapse it). Each layer carries a CORRECTNESS CERTIFICATE or a
+measured benchmark with N; a layer that changes results is reverted; the compounded number is **MEASURED by
+running the stacked version**, never the product of per-layer numbers. Clock C (compute) and Clock A (LLM latency)
+stay in SEPARATE ledgers — A's extreme compute speed does NOT move the LLM-bound product (B).
+
+**PHASE 0** (`catalog/accel_profile.py`): a generated-code benchmark (readable pure-Python kernels — elementwise
+map, associative reduction, AXPY, Horner, AoS field-sum) profiled by median-of-k wall-clock (Clock C), ranked by
+wall-share, each tagged with its applicable layer (via `layout_simd` dependence analysis). The PHASE 1–7 ordering
+is set by measured addressable share (Amdahl); cold paths (<5%) are documented and left.
+
+**PHASE 1–5** (`catalog/accel.py`) — the certified constant-factor stack, each gated + measured (Clock C):
+- **native** (reuse `native_backend`): LLVM closed-form (compilation-correctness / translation-validation) + Rust
+  NTT kernel (differential-test N) — measured ~15–18× on the real kernel, ~1× on a trivial closed form (honest).
+- **vectorize** (numpy = native-C ⊕ SIMD): dependence-legality (tier A) ∘ differential-equivalence — measured
+  kernel-dependent (~6–7× transcendental, ~100–110× BLAS reduction). Unsound vectorization → MISMATCH (rejected);
+  non-parallelizable → DECLINED.
+- **cores**: independence ∘ differential CERTIFIED (the transferable safety contribution); in-sandbox
+  multiprocessing is OVERHEAD-BOUND for marshalled Python data (measured <1×) — reported HONESTLY, never faked.
+- **cache_layout**: AoS→SoA, aliasing/consistency certified — measured contiguous-vs-strided ~70–80×.
+- **superopt** (reuse `superopt.certified_extract`): z3 / Schwartz–Zippel refinement — modest, honest (op-count).
+
+**PHASE 6** (`accel.pgo_reorder_dispatch`): profile-guided dispatch reordering (measured-common case first);
+certificate = differential-equivalence on a mutually-exclusive first-match chain (layout-only). Non-exclusive →
+DECLINED. Measured ~2.4×.
+
+**PHASE 7** (`accel_report.gpu_decision`): GPU needs CUDA/ROCm — a forbidden heavy dependency. The constitutional
+choice is to DECLINE, not silently import: documented out-of-scope, no GPU runtime imported; numpy is the verified
+in-environment data-parallel path.
+
+**PHASE 8** (`catalog/accel_bpath.py`) — the B-path (Clock A): a two-tier cache cuts LLM calls SOUNDLY. Tier 1
+exact-hash reuses a VERIFIED result; tier 2 normalized-key offers a SUGGESTION that MUST RE-PASS VERIFICATION
+before use (fails ⇒ falls through to a real generation — never ships unverified). Measured Clock-A reduction =
+generations avoided, in its OWN ledger.
+
+**PHASE 9** (`catalog/accel_report.py`): the §G report — per-layer measured factors (each certificate-gated), the
+compounded stack MEASURED end-to-end (elementwise ~7×, reduction ~110× — explicitly NOT multiplied; numpy fuses
+native-C⊕SIMD, multicore excluded as overhead-bound), the Amdahl whole-program bound (a kernel factor is never a
+whole-program factor), and the strict A/B ledger separation. **test_catalog 55/55; test_build 273/273 (isolated).
+No new dependency** (Rust/LLVM in the toolchain; Python-core audit `forbidden_present == []`). asymptotics
+UNCHANGED on every layer — a large measured constant, never asymptotic, never uniform-Nx. 잘못된 답보다 DECLINE이 항상 옳다.
