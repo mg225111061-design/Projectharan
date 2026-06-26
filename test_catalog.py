@@ -2619,6 +2619,46 @@ def test_post_accel_moveD_verified_serde():
           f"read REJECTED]; ★ precision = {prec['precision']} [zero lossy-serde / hazard-pool applied])")
 
 
+def test_post_accel_battery_limit_report():
+    """ACCEL §6/§7/§8/§9 — the adversarial precision battery + limit pass + product + report (MEASURED). ★ THE
+    CENTRAL SAFETY PROOF: across a battery where the 'fast' version is deliberately WRONG (impure-as-pure, dropping-
+    batch, dependent-async, non-assoc reduction, cyclic lock, result-changing swap, unsafe early-exit, lossy serde,
+    aliasing-hazard pool), the engine REJECTS 100% — precision = 1.0 (zero unsafe applies). The LIMIT PASS drives
+    A/B/C/D to exhaustion per hot path and terminates with an HONEST whole-program X× (Amdahl-bounded, with an
+    irreducible-physical-I/O floor) — never '10–20× on everything'. The PRODUCT applies verified caching to the LLM
+    step (sound content-hash; a hit skips the LLM)."""
+    import accel.acceleration_report as AR
+    import accel.limit_pass as LP
+    r = AR.report()
+    # ★ precision = 1.0 over the adversarial battery — zero unsafe accelerations applied ★
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["unsafe_applied"] == []
+    assert r["battery_size"] >= 12 and r["applied"] >= 5 and r["recall_on_safe"] == 1.0   # safe ones applied, unsafe none
+    # ★ the whole-program speedup is HONEST: Amdahl-bounded, with an irreducible-I/O floor — NOT "10–20× on everything"
+    wp = r["whole_program"]
+    assert 1.0 < wp["speedup"] < 3.0 and wp["irreducible_io_share"] > 0                   # a real but modest whole-program win
+    assert abs(wp["accelerated_share"] + wp["irreducible_io_share"] + wp["already_optimal_share"] - 1.0) < 1e-6
+    assert "irreducible physical I/O" in wp["limit_statement"] and "not infinity" in wp["limit_statement"]
+    # the compute fix is huge on its PATH but Amdahl-bounded whole-program (the honesty spine)
+    compute = next(h for h in wp["per_hot_path"] if h["category"] == "computation")
+    assert compute["component_speedup"] > 5.0 and wp["speedup"] < compute["component_speedup"]
+    io = next(h for h in wp["per_hot_path"] if h["category"] == "io")
+    assert io["disposition"] == "irreducible_io"                                          # physical latency, not folded
+    # ★ product Clock-A: verified LLM-result caching skips the LLM on a hit (sound content-hash), outputs consistent
+    pa = r["product_clock_a"]
+    assert pa["llm_calls_avoided"] == pa["requests"] - pa["unique"] and pa["outputs_consistent"]
+    # three clocks separated; the honest scope statement; zero forbidden deps
+    assert "never mixed" in r["three_clocks"] and "what is provable, proved" in r["scope_statement"]
+    assert "1–3%" in r["scope_statement"] and r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    # the limit pass also terminates cleanly on an already-optimal-only target (no false acceleration)
+    trivial = LP.limit_pass([{"name": "tight", "category": "computation", "wall_share": 1.0, "attempts": []}])
+    assert trivial["whole_program_speedup"] == 1.0 and trivial["already_optimal_share"] == 1.0
+    print(f"PASS test_post_accel_battery_limit_report (★ precision = {r['precision']} over the {r['battery_size']}-case "
+          f"adversarial battery [{r['applied']} safe applied, 0 unsafe — every wrong acceleration rejected]; LIMIT: "
+          f"whole-program {wp['speedup']}× [compute fix {compute['component_speedup']}× Amdahl-bounded by its share; "
+          f"{round(wp['irreducible_io_share']*100)}% irreducible physical I/O floor] — never '10–20× on everything'; "
+          f"product Clock-A: {pa['llm_calls_avoided']}/{pa['requests']} LLM calls avoided [sound cache]; zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
