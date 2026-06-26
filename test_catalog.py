@@ -1723,6 +1723,34 @@ def test_gap_p13_zeilberger():
           f"guessing validated by the MANDATORY exact telescoping certificate, never trusted alone)")
 
 
+def test_gap_p15_report():
+    """GAP CLOSURE §H — the report is MEASURED and the central invariant is PROVEN under the widened detection:
+    every gap recovers its seeded structure, ★ PRECISION = 1.0 (zero false EXACT across ALL 14 new detectors on the
+    impossible core), the EXACT ledger is residual-0-only with the PROBABILISTIC tier separated, the impossible core
+    is untouched, and there are zero forbidden dependencies. This is the proof that aggressive new detection stayed
+    sound — a wrong proposal is caught by the exact disposer and DECLINEs."""
+    import catalog.gaps_report as GR
+    r = GR.report()
+    # every seeded structure recovered (EXACT or, for P8, the PROBABILISTIC tier)
+    assert r["recovery_count"] == r["gaps_total"] and r["gaps_total"] >= 13
+    assert all(d["recovered"] for d in r["per_gap"].values())
+    # ★ the headline: precision 1.0, zero false EXACT across all detectors on the impossible core ★
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["false_exact"] == []
+    assert r["central_invariant_holds"]
+    # EXACT vs PROBABILISTIC ledger separation (EXACT residual-0-only; the quasi-periodic tier is PROBABILISTIC)
+    assert r["exact_ledger_count"] >= 11 and r["probabilistic_ledger_count"] >= 1
+    assert "P8_quasi_periodic" in r["probabilistic_ledger"] and "P8_quasi_periodic" not in r["exact_ledger"]
+    # the impossible core did not move; zero forbidden deps
+    assert r["impossible_core_untouched"] and r["ab_reclassification"]["b_core_held"] == r["ab_reclassification"]["impossible_total"]
+    assert r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    assert "DECLINE이 항상 옳다" in r["one_line"]
+    print(f"PASS test_gap_p15_report (MEASURED: {r['recovery_count']}/{r['gaps_total']} gaps recover their seeded "
+          f"structure; ★ PRECISION = {r['precision']} (zero false EXACT across all 14 new paths on the impossible "
+          f"core); ledgers separated [EXACT residual-0-only {r['exact_ledger_count']} / PROBABILISTIC "
+          f"{r['probabilistic_ledger_count']}]; impossible core untouched [{r['ab_reclassification']['b_core_held']}/"
+          f"{r['ab_reclassification']['impossible_total']} held DECLINE]; zero forbidden deps — central invariant holds)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

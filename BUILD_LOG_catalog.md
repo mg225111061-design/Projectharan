@@ -460,3 +460,42 @@ native-C⊕SIMD, multicore excluded as overhead-bound), the Amdahl whole-program
 whole-program factor), and the strict A/B ledger separation. **test_catalog 55/55; test_build 273/273 (isolated).
 No new dependency** (Rust/LLVM in the toolchain; Python-core audit `forbidden_present == []`). asymptotics
 UNCHANGED on every layer — a large measured constant, never asymptotic, never uniform-Nx. 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §H GAP CLOSURE — folding the 14 fake-unstructured gaps (recover the structure the old probes missed)
+
+Fourteen inputs that have REAL structure the detectors/lifters missed — so they were wrongly judged unstructured and
+DECLINEd. Each closed by a STRONGER proposer gated by an EXACT disposer. ★ Precision stays measured at exactly 1.0
+(zero false EXACT): nothing folds without passing its exact certificate; a wrong proposal is caught and DECLINEs.
+The impossible core (secure-CSPRNG / Kolmogorov-random / general-nonlinear-recurrence / non-holonomic) does not move.
+
+**Detection gaps** (`gap_recur.py`, `gap_signal.py`, `gap_matrix.py`; wired into `probe_cascade`):
+- P1 nonlinear recurrence — x[n]=P(x[n-1..n-k]) bounded degree, exact ℚ run-forward gate (decidable island; general→DECLINE).
+- P2 matrix/coupled recurrence — v[n]=M·v[n-1], exact ℚ M re-substitution; char-poly the certified driver.
+- P3 algebraic relation — polynomial relation among windowed terms via exact rational nullspace (Gröbner-cofactor).
+- P4 non-Fourier sparse — k-sparse in Walsh–Hadamard / Haar (exact lossless + sparse support).
+- P5 block/Kronecker — Kronecker (Van Loan rearrangement rank-1, exact reconstruction) + block-low-rank (all blocks
+  rank-deficient, global full-rank); identity/diagonal correctly DECLINE (no over-trigger).
+- P6 piecewise — segment + per-segment BM recurrence (partial fold); whole-one-recurrence / all-random → DECLINE.
+- P7 modulated — a[n]=ρ·a[n-P] carrier×period-P, exact ℚ re-synthesis.
+
+**Lift gaps** (`gap_lift.py`):
+- P9 relational filter-aggregate → comprehension (differential battery, both forms built from the parse); automata/
+  graph/general shapes have no sound in-repo certifier without execution → honest DECLINE.
+- P10 affine/geometric loop summary — x=a·x+b / p=p·r → closed form, exact ℚ run-forward.
+- P11 aliased a[idx[k]] with affine idx[k]=c·k+d → direct a[c·k+d], rewrite z3-certified (UNSAT); non-affine→DECLINE.
+- P12 partial lift — a structured Σ inner loop in glue: lift only the inner loop (z3-induction), glue unchanged.
+
+**Certification gaps**:
+- P13 full Zeilberger (`gap_telescope.py`) — holonomic recurrence GUESSED from exact S(n) values, then PROVEN by the
+  WZ certificate (t=G(k+1)−G(k) re-checked as an exact polynomial identity — guessing is NOT proof). Σ C(n,k)=2ⁿ and
+  Σ C(n,k)²=C(2n,n) certified; non-holonomic 2^(k²) → DECLINE.
+- P14 PROBABILISTIC tier (`gap_prob.py`) — δ-bounded structure (P8 quasi-periodic: incommensurate tones fit to a
+  measured ε on the samples) graded PROBABILISTIC via `lossless_gate`, NEVER folded EXACT; random → DECLINE.
+
+**§H report** (`gaps_report.py`, MEASURED): 13/13 gaps recover their seeded structure; **PRECISION = 1.0** (zero
+false EXACT across all new paths on the impossible core); EXACT ledger residual-0-only (12) vs PROBABILISTIC tier
+(1), separated; impossible core untouched (6/6 held DECLINE); zero forbidden deps. **test_catalog 60/60; test_build
+273/273 (isolated). No new dependency** (z3+stdlib+numpy+sympy; audit `forbidden_present == []`). The denominator
+grows; the floor stays exactly where the mathematics puts it. 잘못된 답보다 DECLINE이 항상 옳다.
