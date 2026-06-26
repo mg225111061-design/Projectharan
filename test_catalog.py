@@ -2457,6 +2457,54 @@ def test_post_consol_p5_report():
           f"unmoved, zero forbidden deps — every valid zero-dep result implemented, the rest demoted truthfully)")
 
 
+def test_post_accel_moveA_verified_io():
+    """ACCEL MOVE A — VERIFIED I/O ELIMINATION (caching · batching · dedup), the propose→verify→apply invariant. ★
+    Every applied acceleration is PROVED; the adversarial battery (impure-as-pure, dependent/dropping-as-batchable,
+    live-as-dead) is rejected 100% — precision = 1.0 (zero unsafe applies). A1 caching: AST EFFECT-ANALYSIS proves
+    purity (no clock/RNG/IO/global/arg-mutation, all calls pure) else DECLINE. A2 batching: independence + exact
+    result-equivalence. A3 dedup: redundant (same args ⇒ same result) / dead (unused) removed, live KEPT."""
+    import accel.verified_io as VIO
+    import accel.pipeline as PL
+    # ── A1 purity: pure cacheable; the 6 impure forms REJECTED ──
+    assert VIO.verified_cache("def f(x):\n    return x*x + sum(range(x))").applied
+    assert VIO.verified_cache("def g(a, b):\n    return [i*b for i in range(a)]").applied
+    adversarial = [
+        ("def f(x):\n    import time\n    return x + time.time()", False),   # clock
+        ("def f(x):\n    import random\n    return x + random.random()", False),  # RNG
+        ("def f(x):\n    global C\n    C += x\n    return C", False),         # global mutation
+        ("def f(lst):\n    lst.append(1)\n    return sum(lst)", False),       # arg mutation
+        ("def f(p):\n    return open(p).read()", False),                     # IO
+        ("def f(x):\n    return external_helper(x)", False),                 # unprovable call
+    ]
+    cache_results = [(VIO.verified_cache(src), safe) for src, safe in adversarial]
+    assert all(not a.applied for a, _ in cache_results)                      # ★ every impure rejected
+    # ── A2 batching: good applied; drop-row + carried-dependency rejected ──
+    items = [1, 2, 3, 4, 5]
+    good = VIO.verified_batch(items, lambda x: x * x, lambda xs: [x * x for x in xs])
+    drop = VIO.verified_batch(items, lambda x: x * x, lambda xs: [x * x for x in xs][:-1])
+    carried = VIO.verified_batch(items, lambda x: x * x, lambda xs: [x * x for x in xs], carried=True)
+    assert good.applied and not drop.applied and not carried.applied
+    # ── A3 dedup: redundant (used dup) + dead (unused) removed; state-changed & live KEPT ──
+    calls = [(("GET", "/u/1"), "A"), (("GET", "/u/1"), "A"), (("GET", "/u/2"), "B"), (("GET", "/log"), "X")]
+    ded = VIO.verified_dedup(calls, used_indices={0, 1, 2})                  # idx1 used+dup→redundant, idx3 unused→dead
+    assert ded.applied and "1 redundant" in ded.proposed and "1 dead" in ded.proposed
+    # a "redundant" claim whose state CHANGED (same args, different result) must be KEPT, not removed
+    changed = [(("GET", "/t"), "v1"), (("GET", "/t"), "v2")]
+    assert not VIO.verified_dedup(changed, used_indices={0, 1}).applied      # both live, results differ ⇒ nothing removed
+    # ── ★ precision over the whole MOVE-A battery: zero unsafe applies ──
+    battery = cache_results + [(good, True), (drop, False), (carried, False),
+                               (ded, True), (VIO.verified_dedup(changed, {0, 1}), False)]
+    prec = PL.precision(battery)
+    assert prec["precision"] == 1.0 and prec["precision_is_one"] and prec["unsafe_applied"] == []
+    # the Amdahl gate converts a component factor to an HONEST whole-program factor (never the component factor)
+    assert PL.amdahl_whole_program(0.05, 10.0) < 1.06                        # 5% sped 10× ⇒ ~1.047× whole-program
+    print(f"PASS test_post_accel_moveA_verified_io (A1 purity proof: pure cacheable, 6 impure forms [clock/RNG/global/"
+          f"arg-mut/IO/unprovable-call] REJECTED; A2 batching: independence+exact result-equivalence [drop-row & "
+          f"carried-dep rejected]; A3 dedup: redundant+dead removed, state-changed & live KEPT; ★ precision = "
+          f"{prec['precision']} over {prec['total']}-case battery [zero unsafe applies]; Amdahl: 5%×10 ⇒ ~1.05× "
+          f"whole-program, never the component factor)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
