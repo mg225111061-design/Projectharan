@@ -2266,6 +2266,42 @@ def test_post_consol_p1d_semiring_newton():
           "solver, not a new kind])")
 
 
+def test_post_consol_p1e_sfa():
+    """POST-CONSOLIDATION PHASE 1e — SFA (symbolic finite automata). Transitions labelled by LIA PREDICATES over an
+    infinite (ℤ) alphabet; equivalence decided by SYMBOLIC BISIMULATION (z3 over guard regions). ★ HONEST
+    ADJUDICATION: passes z3-closed + asymptotic (|A|·|B| pairs regardless of alphabet size) + dependency-free — but
+    FAILS distinct-in-kind (the minimal SFA / equivalence decision is a CANONICAL complete invariant = M9's kind) ⇒
+    DEMOTE to a FACE of M9. Nonlinear-integer (x·x) guards (Hilbert-10th, undecidable) ⇒ DECLINE. Precision 1.0:
+    non-equivalent SFAs are correctly DISTINGUISHED (never falsely merged)."""
+    import catalog.mech_sfa as SF
+    import kernel_verdict as KV
+    A = {"states": [0, 1], "init": 0, "finals": [1], "trans": [(0, "x >= 0", 1)]}
+    B = {"states": [0, 1], "init": 0, "finals": [1], "trans": [(0, "(x >= 0) & (x < 5)", 1), (0, "x >= 5", 1)]}
+    # equivalent SFAs (same language x≥0, different guard structure) ⇒ EXACT, equivalent
+    v = SF.sfa_grade({"A": A, "B": B})
+    assert v.status == KV.EXACT and v.result["equivalent"] is True and v.certificate.kind == "sfa_bisimulation"
+    # ★ precision: x≥0 vs x≥1 are NOT equivalent — correctly distinguished with a witness (x=0), never merged
+    C = {"states": [0, 1], "init": 0, "finals": [1], "trans": [(0, "x >= 1", 1)]}
+    vc = SF.sfa_grade({"A": A, "B": C})
+    assert vc.status == KV.EXACT and vc.result["equivalent"] is False and vc.result["distinguishing_pair"] is not None
+    # two-state loop equivalence under relabeling
+    loop = {"states": [0, 1], "init": 0, "finals": [0],
+            "trans": [(0, "x > 0", 1), (1, "x > 0", 0), (0, "x <= 0", 0), (1, "x <= 0", 1)]}
+    relabel = {"states": [5, 6], "init": 5, "finals": [5],
+               "trans": [(5, "x > 0", 6), (6, "x > 0", 5), (5, "x <= 0", 5), (6, "x <= 0", 6)]}
+    assert SF.sfa_grade({"A": loop, "B": relabel}).result["equivalent"] is True
+    # impossible core: nonlinear-integer guards (undecidable theory) ⇒ DECLINE
+    nl = {"states": [0, 1], "init": 0, "finals": [1], "trans": [(0, "x*x >= 4", 1)]}
+    assert SF.sfa_grade({"A": nl, "B": A}).status == KV.DECLINE
+    adj = SF.adjudication()
+    assert adj["z3_closed"] and adj["asymptotic"] and adj["dependency_free"] and adj["distinct_in_kind"] is False
+    assert adj["verdict"] == "DEMOTE → FACE of M9"
+    print("PASS test_post_consol_p1e_sfa (symbolic bisimulation over LIA guards: x≥0 SFAs with different structure "
+          "decided equivalent; x≥0 vs x≥1 correctly DISTINGUISHED [witness, never falsely merged]; 2-state loop ≡ "
+          "relabel; nonlinear x·x guards → DECLINE [Hilbert-10th]; ★ HONEST DEMOTE → FACE of M9 [canonical "
+          "complete-invariant decision, M9's kind])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
