@@ -1465,6 +1465,81 @@ def test_accel_phase2345_certified_stack():
           f"{so['after_cost']} ops [{so['cert_status']}] — every layer certificate-gated, asymptotics UNCHANGED)")
 
 
+def test_accel_phase6_pgo():
+    """EXTREME ACCEL PHASE 6 — profile-guided dispatch reordering. The measured-common case is tested FIRST;
+    CERTIFICATE = differential-equivalence (mutually-exclusive first-match ⇒ reorder is layout-only, semantics
+    preserved). A non-mutually-exclusive case set is DECLINED (reorder could change first-match results)."""
+    import catalog.accel as A
+    cases = [("r1", lambda d: d[0] == "r1", lambda d: d[1] + 1),
+             ("r2", lambda d: d[0] == "r2", lambda d: d[1] + 2),
+             ("r3", lambda d: d[0] == "r3", lambda d: d[1] + 3),
+             ("common", lambda d: d[0] == "c", lambda d: d[1] * 2)]      # hot case declared LAST
+    data = [("c", i) for i in range(6000)] + [("r1", 1), ("r2", 2), ("r3", 3)] * 30
+    r = A.pgo_reorder_dispatch(cases, data, k=3)
+    assert r["status"] == "OPTIMIZED" and r["pgo_order"][0] == "common" and r["asymptotics"] == "unchanged"
+    assert r["factor"] > 1.0 and "differential_equivalence" in r["certificate"]
+    # ★ legality gate: non-mutually-exclusive cases → DECLINED (reorder unsafe) ★
+    bad = A.pgo_reorder_dispatch([("a", lambda d: True, lambda d: 1), ("b", lambda d: True, lambda d: 2)], [1, 2])
+    assert bad["status"] == "DECLINED"
+    print(f"PASS test_accel_phase6_pgo (profile reorders common-case first {r['pgo_order']}, measured {r['factor']}× "
+          f"[differential-equivalent, layout-only]; non-exclusive cases → DECLINED — semantics preserved)")
+
+
+def test_accel_phase8_bpath_sound():
+    """EXTREME ACCEL PHASE 8 — the B-path (Clock A): a two-tier cache cuts LLM calls. ★ SOUNDNESS ★: an exact hit
+    reuses a verified result; a NORMALIZED-key hit is a SUGGESTION that MUST RE-PASS VERIFICATION before use — a
+    candidate that fails re-verify FALLS THROUGH to a real generation (never ships unverified). Measured Clock-A
+    reduction = generations avoided (exact), reported in its OWN ledger (separate from Clock-C compute)."""
+    import catalog.accel_bpath as BP
+    # normalized key erases only semantics-preserving textual noise (whitespace/comment/case)
+    assert BP.normalized_key("fn f(x){x+1}") == BP.normalized_key("FN  f(x){x+1}   # comment")
+    assert BP.normalized_key("fn f(x){x+1}") != BP.normalized_key("fn f(x){x+2}")    # real difference preserved
+    # measured workload: exact repeat + case/whitespace variants
+    m = BP.measure_bpath(["fn f(x){x+1}", "fn f(x){x+1}", "FN  F(X){X+1} # c", "fn g(y){y*2}", "FN G(Y){Y*2}"])
+    assert m["clock"].startswith("A") and m["gen_calls_actual"] == m["llm_generations"]
+    assert m["exact_hits"] >= 1 and m["verified_suggestions"] >= 1 and 0.0 < m["clockA_reduction"] < 1.0
+    # ★ the soundness gate: a normalized candidate that FAILS re-verification is NOT shipped — falls through ★
+    cache = BP.TwoTierCache()
+    cache.request("spec ONE", lambda s: {"code": "c", "ok": True}, lambda c: True)    # store verified
+    rejecting = lambda c: False                                                        # now the verifier rejects
+    path, res = cache.request("spec  one  # variant", lambda s: {"code": "fresh", "ok": True}, rejecting)
+    assert cache.stats.suggestion_rejected == 1 and path == "miss"                     # candidate failed → real gen
+    print(f"PASS test_accel_phase8_bpath_sound (exact-hit reuses verified result; normalized hit RE-VERIFIED before "
+          f"use [Clock-A reduction {m['clockA_reduction']}, {m['llm_generations']}/{m['requests']} gens]; a candidate "
+          f"that fails re-verify FALLS THROUGH to generation — never ships unverified; A-ledger separate from C)")
+
+
+def test_accel_phase79_report():
+    """EXTREME ACCEL PHASE 7+9 — GPU declined under zero-dep (no GPU runtime imported); the §G report is MEASURED:
+    per-layer factors each certificate-gated, the compounded stack MEASURED end-to-end (NOT the product of layer
+    numbers), the Amdahl whole-program bound, the strict A/B ledger separation, and zero forbidden deps. asymptotics
+    UNCHANGED everywhere — a large CONSTANT factor, never asymptotic, never uniform-Nx."""
+    import catalog.accel_report as R
+    g = R.gpu_decision()
+    assert g["status"] == "OUT_OF_SCOPE" and g["no_gpu_runtime_imported"]      # constitutional decline, not imported
+    # Amdahl: a big kernel factor inside f=0.8 is bounded by 1/(1-f)=5×, whole-program < kernel factor
+    am = R.amdahl_whole_program(100.0, 0.8)
+    assert am["whole_program_speedup"] <= 5.0 + 1e-9 and am["amdahl_ceiling"] == 5.0
+    rep = R.report()
+    # A ledger: each measured layer carries a certificate; compounded stack is measured-not-multiplied
+    A_led = rep["A_ledger_clockC_compute"]
+    assert all(v["certificate"] for v in A_led["per_layer"].values())
+    stack = A_led["compounded_stack_measured"]
+    assert stack["measured_not_multiplied"] and "UNCHANGED" in stack["asymptotics"].upper()
+    assert stack["compounded_factor_range"] and stack["compounded_factor_range"][1] > 1.0
+    # B ledger present and SEPARATE from A
+    assert 0.0 < rep["B_ledger_clockA_latency"]["clockA_reduction"] < 1.0
+    assert "SEPARATE" in rep["ledger_separation"] and "does NOT move B" in rep["ledger_separation"]
+    # zero forbidden deps; one-line honesty contract
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    assert "DECLINE이 항상 옳다" in rep["one_line"] and "UNCHANGED" in rep["asymptotics"].upper()
+    fr = stack["compounded_factor_range"]
+    print(f"PASS test_accel_phase79_report (GPU OUT_OF_SCOPE [zero-dep, not imported]; §G MEASURED: compounded stack "
+          f"{fr[0]}–{fr[1]}× [measured end-to-end, NOT multiplied]; Amdahl whole-prog ≤ ceiling; A-ledger [Clock C "
+          f"compute] ⟂ B-ledger [Clock A latency, reduction {rep['B_ledger_clockA_latency']['clockA_reduction']}]; "
+          f"asymptotics UNCHANGED; zero forbidden deps — large constant factor, never asymptotic)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -161,3 +161,44 @@ def superoptimize(term: tuple) -> dict:
             "cert_status": ce.status, "cert_kind": ce.cert_kind, "asymptotics": "unchanged",
             "before_cost": ce.cost_before, "after_cost": ce.cost_after,
             "certificate": f"z3_refinement / schwartz_zippel ({ce.status})"}
+
+
+# ── PHASE 6 — profile-guided optimization (branch/dispatch reordering by measured frequency) ────────────
+def pgo_reorder_dispatch(cases: List[tuple], data: List, k: int = 5) -> dict:
+    """PGO for a dispatch chain. `cases` = [(name, predicate, handler), ...] evaluated in DECLARATION order by the
+    baseline (the profile-unaware generated code). We PROFILE the match frequency on `data`, then recompile the
+    chain in DESCENDING-frequency order so the measured-common case is tested FIRST — fewer predicate evaluations
+    per element. CERTIFICATE: PGO changes branch LAYOUT, not semantics — the reordered chain is DIFFERENTIAL-
+    EQUIVALENT to the baseline on every element (re-validated), because the cases are mutually exclusive (first-
+    match). A non-exclusive case set would change results under reorder ⇒ DECLINED. Measured baseline vs PGO."""
+    import clocks
+    # mutual-exclusivity check (the legality precondition for safe reorder): at most one predicate matches per item
+    for d in data:
+        if sum(1 for _n, pred, _h in cases if pred(d)) > 1:
+            return {"layer": "pgo", "status": "DECLINED", "clock": "C",
+                    "reason": "cases not mutually exclusive — reorder could change results (first-match semantics)"}
+
+    def dispatch(order):
+        def run():
+            out = []
+            for d in data:
+                for _n, pred, h in order:
+                    if pred(d):
+                        out.append(h(d))
+                        break
+                else:
+                    out.append(None)
+            return out
+        return run
+    freq = {n: sum(1 for d in data if pred(d)) for n, pred, _h in cases}
+    pgo_order = sorted(cases, key=lambda c: freq[c[0]], reverse=True)
+    base_run, pgo_run = dispatch(cases), dispatch(pgo_order)
+    if base_run() != pgo_run():                                       # re-validate: PGO preserved semantics
+        return {"layer": "pgo", "status": "MISMATCH", "clock": "C", "reason": "reordered dispatch ≠ baseline output"}
+    b = clocks.measure_repeat("dispatch_baseline", "C", base_run, k=k)
+    p = clocks.measure_repeat("dispatch_pgo", "C", pgo_run, k=k)
+    factor = round(b.median_ms / p.median_ms, 2) if p.median_ms > 0 else None
+    return {"layer": "pgo", "status": "OPTIMIZED", "clock": "C", "n": len(data), "factor": factor,
+            "baseline_ms": b.median_ms, "pgo_ms": p.median_ms, "profile_freq": freq,
+            "pgo_order": [c[0] for c in pgo_order], "asymptotics": "unchanged",
+            "certificate": "differential_equivalence (mutually-exclusive first-match dispatch; layout-only change)"}
