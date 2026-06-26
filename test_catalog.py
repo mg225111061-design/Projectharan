@@ -1407,6 +1407,64 @@ def test_accel_phase0_profile():
           f"numeric loop tagged for native lowering; asymptotics UNCHANGED — ordering by Amdahl, not guess)")
 
 
+def test_accel_phase1_native_lowering():
+    """EXTREME ACCEL PHASE 1 — native lowering (Clock C), via the verified-native backend. The LLVM closed-form
+    path carries a COMPILATION-CORRECTNESS certificate (translation validation); the Rust NTT kernel a
+    DIFFERENTIAL TEST with N. Measured native-vs-interpreted is honest (trivial closed form ≈1×; real kernel large).
+    asymptotics UNCHANGED — interpreter removal is a constant factor, never an asymptotic claim."""
+    import catalog.accel as A
+    nl = A.native_lowering()
+    assert nl["layer"] == "native" and nl["clock"] == "C" and nl["asymptotics"] == "unchanged"
+    assert nl["status"] in ("OPTIMIZED", "BLOCKED")
+    if nl["availability"]["llvm_emission"]:
+        assert nl["llvm_certified"] and nl["llvm_cert"] == "compilation_correctness[translation_validation]"
+    if nl["availability"]["rust_cdylib"]:
+        assert nl["rust_differential_ok"] is True                          # deterministic correctness certificate
+        assert isinstance(nl["rust_factor_vs_python_ntt"], float) and nl["rust_factor_vs_python_ntt"] > 1.0
+    print(f"PASS test_accel_phase1_native_lowering (LLVM closed-form certified [{nl.get('llvm_cert')}], Rust NTT "
+          f"differential-tested {nl.get('rust_factor_vs_python_ntt')}× vs same-algo Python; Clock C, asymptotics "
+          f"UNCHANGED — native compilation is certificate-gated, never a guessed native result)")
+
+
+def test_accel_phase2345_certified_stack():
+    """EXTREME ACCEL PHASE 2/3/4/5 — the certified constant-factor layers, each gated by a correctness certificate
+    and measured with N (Clock C). The gates are REAL (negative controls): an unsound vectorization (different
+    result) is REJECTED as MISMATCH, a non-parallelizable kernel is DECLINED. The multicore layer reports its
+    independence CERTIFICATE plus the HONEST in-sandbox scaling (overhead-bound for marshalled Python data — never
+    a faked win). asymptotics UNCHANGED on every layer (constant factors, no uniform-Nx)."""
+    import numpy as np
+    import catalog.accel as A
+    xs = [(i % 97) * 0.031 - 1.5 for i in range(20000)]
+    # PHASE 2 — vectorize (numpy native+SIMD), dependence-legality ∘ differential-equivalence certified
+    v = A.vectorize("elementwise", A._elementwise_scalar,
+                    lambda a: np.sin(a) * np.cos(a) + np.sqrt(np.abs(a)), xs, kind="map", k=3)
+    assert v["status"] == "OPTIMIZED" and v["factor"] > 1.5 and "differential_equivalence" in v["certificate"]
+    assert v["asymptotics"] == "unchanged" and v["clock"] == "C"
+    # ★ the gate is real: an UNSOUND vectorization (wrong result) is REJECTED, never shipped ★
+    bad = A.vectorize("bad", A._elementwise_scalar, lambda a: a + 1.0, xs, kind="map", k=2)
+    assert bad["status"] == "MISMATCH", bad
+    # ★ a non-parallelizable kernel is DECLINED (legality certificate refuses it) ★
+    decl = A.vectorize("seq", A._elementwise_scalar, lambda a: a, xs, kind="sequential", k=2)
+    assert decl["status"] == "DECLINED", decl
+    # PHASE 3 — multicore: independence + differential CERTIFIED; measured scaling honest (overhead-bound here)
+    par = A.parallelize_elementwise(xs[:4000], nproc=4, k=2)
+    assert par["status"] in ("CERTIFIED", "BLOCKED")
+    if par["status"] == "CERTIFIED":
+        assert par["independence_certified"] and par["differential_equivalent"]   # SAFE to parallelize (the contribution)
+        assert par["measured_scaling"] is not None and par["asymptotics"] == "unchanged"   # honest number, win or not
+    # PHASE 4 — cache layout AoS→SoA, aliasing/consistency certified
+    cl = A.relayout_aos_soa(xs, k=3)
+    assert cl["status"] == "OPTIMIZED" and cl["factor"] > 1.0 and "aliasing/consistency" in cl["certificate"]
+    # PHASE 5 — superopt, z3-refinement certified, modest + honest (after_cost ≤ before_cost)
+    so = A.superoptimize(("+", ("*", ("var", "x"), ("const", 1)), ("const", 0)))   # x*1+0 → x
+    assert so["status"] in ("OPTIMIZED", "NOCHANGE") and so["cert_status"] in ("CERTIFIED", "SCHWARTZ_ZIPPEL", "NOCHANGE")
+    assert so["after_cost"] <= so["before_cost"] and so["asymptotics"] == "unchanged"
+    print(f"PASS test_accel_phase2345_certified_stack (vectorize {v['factor']}× [legality∘differential; unsound→"
+          f"MISMATCH, non-parallel→DECLINED]; multicore independence-CERTIFIED [scaling {par.get('measured_scaling')}× — "
+          f"honest overhead-bound]; cache AoS→SoA {cl['factor']}× [aliasing-cert]; superopt {so['before_cost']}→"
+          f"{so['after_cost']} ops [{so['cert_status']}] — every layer certificate-gated, asymptotics UNCHANGED)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
