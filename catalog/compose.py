@@ -150,6 +150,18 @@ def plan(x: Any) -> Plan:
         return Plan("quasi_periodic", (), "almost-periodic structure → PROBABILISTIC (δ-bounded approximation, never EXACT)", probe)
     if isinstance(x, dict) and "zeilberger" in x:         # GAP 13: holonomic sum → exact WZ creative-telescoping cert
         return Plan("zeilberger", (13,), "Zeilberger creative telescoping: holonomic recurrence + exact WZ certificate", probe)
+    if isinstance(x, dict) and "persistence" in x:        # M15: multiscale-topological summary (persistent homology)
+        return Plan("persistence", (15,), "persistent homology: barcode + bottleneck-stability witness (multiscale topology)", probe)
+    if isinstance(x, dict) and "causal" in x:             # M16: causal-structure recovery (relational-asymmetric)
+        return Plan("causal", (16,), "causal recovery: CPDAG + do-calculus/hedge (faithfulness DECLARED, not certified)", probe)
+    if isinstance(x, dict) and "sheaf" in x:              # M17: sheaf cohomology (local-to-global; generalizes M14)
+        return Plan("sheaf", (17,), "sheaf cohomology: H⁰ global sections / H¹ gluing obstruction (generalizes M14)", probe)
+    if isinstance(x, dict) and "flow" in x:               # M18: geometric flow → canonical form + monotone witness
+        return Plan("flow", (18,), "geometric flow → canonical form + monotone (Lyapunov) convergence witness", probe)
+    if isinstance(x, dict) and "knot" in x:               # M19 (scope): knot/Jones state-sum invariant
+        return Plan("knot", (19,), "knot invariant: Kauffman bracket state-sum + Reidemeister invariance", probe)
+    if isinstance(x, dict) and "aperiodic" in x:          # M20 (scope): quasicrystal cut-and-project + diffraction
+        return Plan("aperiodic", (20,), "aperiodic order: cut-and-project scheme + pure-point diffraction", probe)
     if isinstance(x, dict) and ("lift_sum" in x or "lift_code" in x):   # FRONT-END: verified lifting (code → closed form)
         return Plan("lift", (13,), "verified lifting: imperative loop → closed form, z3-proved equivalent", probe)
     if isinstance(x, dict) and ("speedup" in x or "validate" in x or "superopt" in x):   # Topic A constant-factor speedup
@@ -346,9 +358,52 @@ def _exec_zeilberger(x, probe, why) -> CatalogResult:
     return _result(sf, probe, why + (f" [order {v.result['order']}]" if v.status == KV.EXACT else " [no WZ certificate]"))
 
 
+def _exec_mech(key: str, mod_fn, mech: int, exact_lossless: bool = True):
+    """Generic executor for the new meta-mechanisms (M15–M20): call the module grader, accumulate the verdict."""
+    def _run(x, probe, why) -> CatalogResult:
+        v = mod_fn(x[key])
+        sf = ir.StructForm.raw(x).accumulate(mech, v, data=(v.result if v.status != KV.DECLINE else None))
+        tag = f" [{v.certificate.kind}]" if v.status in (KV.EXACT, KV.PROBABILISTIC) and v.certificate else " [DECLINE]"
+        return _result(sf, probe, why + tag)
+    return _run
+
+
+def _persist(x):
+    from catalog import mech_persistence as M
+    return M.persistence_grade(x)
+
+
+def _causal(x):
+    from catalog import mech_causal as M
+    return M.causal_grade(x)
+
+
+def _sheaf(x):
+    from catalog import mech_sheaf as M
+    return M.sheaf_grade(x)
+
+
+def _flow(x):
+    from catalog import mech_flow as M
+    return M.flow_grade(x)
+
+
+def _knot(x):
+    from catalog import mech_knot as M
+    return M.knot_grade(x)
+
+
+def _aperiodic(x):
+    from catalog import mech_aperiodic as M
+    return M.aperiodic_grade(x)
+
+
 _SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
            "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a, "quasi_periodic": _exec_quasi,
-           "zeilberger": _exec_zeilberger}
+           "zeilberger": _exec_zeilberger,
+           "persistence": _exec_mech("persistence", _persist, 15), "causal": _exec_mech("causal", _causal, 16),
+           "sheaf": _exec_mech("sheaf", _sheaf, 17), "flow": _exec_mech("flow", _flow, 18),
+           "knot": _exec_mech("knot", _knot, 19), "aperiodic": _exec_mech("aperiodic", _aperiodic, 20)}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:

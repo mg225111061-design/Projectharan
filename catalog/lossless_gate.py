@@ -84,6 +84,14 @@ _CONDITION = {
     "piecewise": "completeness",
     "nonfourier_sparse": "completeness",
     "zeilberger_telescoping": "completeness",
+    # MECHANISM GROWTH (M15–M20) — each new mechanism's exact certificate
+    "persistence_barcode": "completeness",          # exact 𝔽₂ homology + stability witness
+    "causal_do_calculus": "refinement",             # do-calculus identifiability (relative to declared axioms)
+    "sheaf_cohomology": "full_abstraction",         # H⁰/H¹ class — exact linear algebra; generalizes M14 obstruction
+    "obstruction_h0": "full_abstraction",           # M14 folded in as the binary H⁰ special case
+    "flow_canonical_form": "completeness",          # canonical decomposition + monotone convergence witness
+    "knot_state_sum": "full_abstraction",           # Kauffman/Jones invariant, Reidemeister-invariant
+    "aperiodic_cut_project": "completeness",        # cut-and-project scheme + pure-point diffraction
 }
 
 

@@ -1751,6 +1751,41 @@ def test_gap_p15_report():
           f"{r['ab_reclassification']['impossible_total']} held DECLINE]; zero forbidden deps — central invariant holds)")
 
 
+def test_mech15_persistence():
+    """MECHANISM 15 — persistent homology (multiscale-topological summary), in-repo (no gudhi/ripser). A sampled
+    circle folds to its EXACT barcode (betti₁=1, a verified 𝔽₂ homology class) with a measured 1-Lipschitz
+    bottleneck-stability witness — the property that distinguishes M15 from M9's discontinuous Jordan form. ★ The
+    impossible core: random point clouds produce only short noise bars (normalized persistence ≪ 0.4·diam) ⇒ DECLINE
+    on every one — precision 1.0 (the central invariant holds for the new mechanism)."""
+    import math
+    import random
+    import catalog.mech_persistence as MP
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # a sampled circle → one persistent loop, EXACT barcode + stability witness
+    circle = [(math.cos(2 * math.pi * i / 16), math.sin(2 * math.pi * i / 16)) for i in range(16)]
+    v = MP.persistence_grade(circle)
+    assert v.status == KV.EXACT and v.result["betti"][1] == 1 and v.certificate.kind == "persistence_barcode"
+    assert v.result["top_persistence"] > 0 and "stability_bound" in v.result
+    assert C.route({"persistence": circle}).mechanism_path == [15]              # routes as a new mechanism
+    # a different circle (radius 3, n=20) also folds
+    assert MP.persistence_grade([(3 * math.cos(2 * math.pi * i / 20), 3 * math.sin(2 * math.pi * i / 20)) for i in range(20)]).status == KV.EXACT
+    # ★ precision 1.0: 30 random clouds + gaussian blobs — NONE may fold EXACT (only noise bars) ★
+    false_exact = 0
+    for seed in range(30):
+        random.seed(seed)
+        if MP.persistence_grade([(random.random(), random.random()) for _ in range(20)]).status == KV.EXACT:
+            false_exact += 1
+    for seed in range(15):
+        random.seed(500 + seed)
+        if MP.persistence_grade([(random.gauss(0, 1), random.gauss(0, 1)) for _ in range(18)]).status == KV.EXACT:
+            false_exact += 1
+    assert false_exact == 0, f"M15 false EXACT on random clouds: {false_exact}"
+    print(f"PASS test_mech15_persistence (sampled circle → EXACT barcode betti₁=1 [persistence "
+          f"{v.result['top_persistence']}, 1-Lipschitz stability witness]; routes [15]; 45 random clouds + blobs → "
+          f"DECLINE on every path [0 false EXACT] — precision 1.0, the impossible core does not move)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
