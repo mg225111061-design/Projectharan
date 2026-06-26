@@ -2237,6 +2237,35 @@ def test_post_consol_p1c_aara_potential():
           "[amortized_potential], NOT a Group-A fold mechanism — certifies a bound, does not collapse code)")
 
 
+def test_post_consol_p1d_semiring_newton():
+    """POST-CONSOLIDATION PHASE 1d — SEMIRING-NEWTON FIXPOINT (Esparza–Kiefer–Luttenberger). Newton's method solves
+    X=F(X) over the tropical (min,+) semiring by linearizing via the Jacobian; on idempotent semirings it reaches the
+    LEAST FIXPOINT in ≤ n steps (1 for a linear system — the star-solve A*⊗b) vs Kleene's n-rung climb. ★ HONEST
+    ADJUDICATION: passes z3-closed (exact re-substitution + independent Kleene cross-check), asymptotic, dependency-
+    free — but FAILS distinct-in-kind (the least fixpoint is M13's object; Newton is a faster SOLVER) ⇒ DEMOTE to a
+    FACE of M13. A negative cycle (non-absorptive, lfp=−∞) ⇒ DECLINE."""
+    import catalog.mech_seminewton as SN
+    import kernel_verdict as KV
+    # linear shortest-path system: Newton reaches the lfp at step 1 (the star solve), Kleene climbs longer
+    lin = {"n": 3, "system": [[(2, (1,)), (10, (2,))], [(3, (2,))], [(0, ())]]}
+    v = SN.seminewton_grade(lin)
+    assert v.status == KV.EXACT and v.result["lfp"] == ["5", "3", "0"] and v.certificate.kind == "semiring_newton_fixpoint"
+    assert v.result["newton_reached_at"] == 1 and v.result["linear"]              # linear ⇒ 1 star-solve
+    assert v.result["kleene_steps"] >= v.result["newton_reached_at"]              # Newton ≤ Kleene
+    # nonlinear systems: Newton's lfp matches the independent Kleene oracle + re-substitutes exactly
+    assert SN.seminewton_grade({"n": 1, "system": [[(0, (0, 0)), (5, ())]]}).result["lfp"] == ["5"]   # X=min(2X,5)
+    assert SN.seminewton_grade({"n": 2, "system": [[(1, (1, 1)), (0, ())], [(2, (0,)), (4, ())]]}).status == KV.EXACT
+    # impossible core: a negative cycle has no finite least fixpoint ⇒ DECLINE
+    assert SN.seminewton_grade({"n": 2, "system": [[(-1, (1,))], [(-1, (0,))]]}).status == KV.DECLINE
+    adj = SN.adjudication()
+    assert adj["z3_closed"] and adj["asymptotic"] and adj["dependency_free"] and adj["distinct_in_kind"] is False
+    assert adj["verdict"] == "DEMOTE → FACE of M13"
+    print("PASS test_post_consol_p1d_semiring_newton (tropical (min,+) Newton: linear SSSP lfp [5,3,0] reached at step "
+          "1 [star-solve A*⊗b] vs Kleene's climb; nonlinear lfps cross-checked vs Kleene + re-substituted exactly; "
+          "negative cycle → DECLINE [lfp=−∞]; ★ HONEST DEMOTE → FACE of M13 [same lfp as Kleene, Jacobian-accelerated "
+          "solver, not a new kind])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
