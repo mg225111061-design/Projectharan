@@ -2421,6 +2421,42 @@ def test_post_consol_p4_fold_coverage():
           f"precision gate], self-consistent; loudly CAVEATED as a curated probe corpus, not production code)")
 
 
+def test_post_consol_p5_report():
+    """POST-CONSOLIDATION §K — the final report (MEASURED): every valid zero-dependency result implemented, the rest
+    demoted truthfully. ★ EXACTLY ONE new fold mechanism admitted (M22 k-regular — folds automatic sequences M11/M1/
+    M13 DECLINE; count 21→22) + 14 faces (no count++) + 1 Group-B verification kind (AARA) + 3 constant-factor
+    (region-3) + 19 excluded (each with a reason). The admitted-fold-kinds list grows 14→15 (k-regular). The yield
+    keeps collapsing (Tiers 2–4 yielded 0). ★ PRECISION = 1.0 across the whole post-consolidation set (the impossible
+    core of every new module DECLINEs). Zero new dependencies."""
+    import catalog.post_consolidation_report as PR
+    r = PR.report()
+    # ★ the final count: exactly ONE new mechanism (k-regular M22) ★
+    assert r["final_named_mechanism_count"] == 22 and r["the_one_admission"]["net_new"] == 1
+    assert r["the_one_admission"]["popcount_here"] == "EXACT" and r["the_one_admission"]["popcount_M11"] == "DECLINE"
+    # the honest disposition: 1 admit + 14 faces + 1 Group-B + 3 constant-factor + 19 excluded
+    tc = r["tier_counts"]
+    assert tc["admitted"] == 1 and tc["faces"] == 14 and tc["group_b_verification"] == 1
+    assert tc["constant_factor_region3"] == 3 and tc["excluded"] == 19
+    # the admitted-fold-kinds list grew by exactly one (k-regular); 4 new certificate kinds appeared
+    assert r["admitted_fold_kinds_count"] == 15 and len(r["new_certificate_kinds"]) == 4
+    assert "ADMITTED" in r["new_certificate_kinds"]["kregular_linear_representation"]
+    assert "VERIFICATION" in r["new_certificate_kinds"]["amortized_potential"]      # AARA is not a fold
+    # ★ PRECISION = 1.0 across the whole post-consolidation set + impossible core unmoved ★
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["false_exact"] == []
+    assert r["impossible_core_untouched"]
+    # the fold-coverage number (measured, caveated) + continued yield collapse + zero-dep
+    assert 0 < r["fold_coverage"]["asymptotic_fold_raw"] < 1 and "production-code" in r["fold_coverage"]["caveat"]
+    assert "~33% → ~20% → ~2%" in r["yield_collapse"] and len(r["yield_record"]) == 4
+    assert r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    assert "discovered-or-reduced, NEVER declared" in r["closure_status"] and "DECLINE이 항상 옳다" in r["one_line"]
+    print(f"PASS test_post_consol_p5_report (MEASURED: {r['final_named_mechanism_count']} named mechanisms — ★ ONE new "
+          f"admission [M22 k-regular, net-new 1: popcount folds here but M11 DECLINEs], {tc['faces']} faces, "
+          f"{tc['group_b_verification']} Group-B verification kind [AARA], {tc['constant_factor_region3']} "
+          f"constant-factor→region-3, {tc['excluded']} excluded-with-reasons; admitted-fold-kinds 14→15; yield "
+          f"collapse continues [Tiers 2–4 → 0]; fold-coverage measured+caveated; ★ PRECISION = 1.0, impossible core "
+          f"unmoved, zero forbidden deps — every valid zero-dep result implemented, the rest demoted truthfully)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

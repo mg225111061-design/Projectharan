@@ -588,3 +588,71 @@ symmetric/static/algebraic core of the original 14 closed. **test_catalog 71/71;
 new dependency** (z3+stdlib+numpy+sympy; audit `forbidden_present == []`). The denominator has grown as far as
 constructive certificates allow; the floor stays exactly where the mathematics puts it; a further mechanism remains
 to be discovered or reduced, never declared. 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §K — POST-CONSOLIDATION IMPLEMENTATION (every valid zero-dependency result + the fold-coverage meter)
+
+After the three-test convergence (§J: ≈21 named mechanisms, yield ~33%→~20%→~2%), a fresh candidate ledger was
+surveyed under **FOUR ADMISSION GATES** — (1) distinct-in-kind, (2) z3-closed (cert inside z3 theories LIA/LRA/NRA/
+EUF/…, no external engine), (3) asymptotic (O(N)→O(polylog), not constant-factor), (4) dependency-free — and EVERY
+valid zero-dependency result was implemented as real gated code, the rest demoted TRUTHFULLY. Built in-repo,
+zero new dependencies (z3+stdlib+numpy+sympy; audit `forbidden_present == []`).
+
+**PHASE 1 — Tier-1 (6 candidates built; ★1 ADMIT, 4 faces, 1 Group-B).**
+- ★ **M22 k-REGULAR SEQUENCE FOLD** (`mech_kregular.py`, Allouche–Shallit) — the ONE genuinely-new fold mechanism.
+  A base-k DIGIT-INDEXED linear representation a(n)=v·∏A_{digit}·w built from the k-kernel (in-repo greedy automaton
+  closure + exact ℚ linear algebra). Folds popcount, Stern, digit-sums, summatory functions (dim 2–4), O(n)→O(log n).
+  ★ DISTINCT: popcount(n) is 2-regular and folds here but is PROVABLY NOT C-finite, so M11/M1/M13 DECLINE it — it
+  folds a class no existing mechanism folds. Cert = LIA equalities (z3 spot-check + exact ℚ re-substitution disposer).
+  Decidable equality island (Krenn–Shallit); undecidable growth boundary (Skolem/Hilbert-10th) DECLINEs. **Count 21→22.**
+- **defective-variable linearization** (`mech_defective.py`) → **FACE of M11**: Carleman monomial-closure of a
+  nonlinear loop ⇒ M(sₙ)=Aⁿ·M(s₀), C-finite (M11's class). Passes z3-closed/asymptotic/dep-free, FAILS distinct-in-kind.
+- **Tensor-Evolution / Chains-of-Recurrences** (`mech_tev.py`) → **FACE of M13**: CR algebra closes polynomial
+  (z3 ∀i finite-difference proof) + geometric loop-index forms; the closed form is M13's kind.
+- **AARA amortized potential** (`mech_aara.py`) → **GROUP-B VERIFICATION** (new cert kind `amortized_potential`):
+  ∀n-SOUND potential method (z3 ∃Φ∀state + ground re-verify); certifies an amortized BOUND, does NOT fold ⇒ fails
+  the asymptotic gate ⇒ not a Group-A mechanism. Dynamic-array amortized 3 (Φ=2·size−cap), binary counter 2 (Φ=ones).
+- **semiring-Newton fixpoint** (`mech_seminewton.py`) → **FACE of M13**: tropical (min,+) Newton reaches the least
+  fixpoint in ≤n steps (1 for linear: the star-solve) vs Kleene's n; SAME lfp object, cross-checked vs Kleene + exact
+  re-substitution. A faster solver, not a new kind.
+- **SFA symbolic finite automata** (`mech_sfa.py`) → **FACE of M9**: symbolic bisimulation over LIA guards decides
+  language equivalence over an infinite alphabet — a canonical complete-invariant decision (M9's kind); nonlinear
+  guards (Hilbert-10th) DECLINE.
+
+**PHASE 2 — adjudicated BY BUILDING (both DEMOTE; M23/M24 NOT admitted).**
+- **MPST** (`mech_mpst.py`) → **FACE of M17**: global protocol → endpoint projection + synchronous-product
+  deadlock-freedom (in-repo BFS, no external automata). Well-formedness is a LOCAL-TO-GLOBAL gluing (un-projectable
+  choice = a gluing obstruction = M17's H¹); deadlock-freedom = an M13 safety witness. No new cert kind.
+- **edge-cover / AGM** (`mech_edgecover.py`) → **FACE of M10**: fractional edge-cover ρ* (z3.Optimize LP) + the AGM
+  join-size bound (triangle ρ*=3/2 ⇒ N^{3/2}). A structure-FORCED size bound (M10's kind, M4 LP-duality lineage).
+
+**PHASE 3 — 8 TIER-2 FACES + Tier-3 constant-factor + Tier-4 exclusions.** `tier2_faces.py`: monoid-hom→M13,
+poset-Möbius→M2, CRN-deficiency-zero→M11, discrete-exterior-calculus (d∘d=0)→M18, restricted-chase→M14,
+combinatorial-species→M12, trace-monoid-Foata→M15, twin-width→M10 (each folds + DECLINEs its control). `excluded_
+candidates.py`: **Tier-3** (polyhedral/affine, MTBDD, deforestation/optics) routed to the **region-3 acceleration
+stack, CONSTANT-FACTOR, asymptotics UNCHANGED — never folds**; **Tier-4** 19 exclusions each with the exact reason
+(ZX→M8 face, crypto-accumulator impossible-core, Somos→gap_recur, q-holonomic/umbral→M13, forest-algebra→M9,
+point-process/markov-cutoff probabilistic, parametricity/nominal-sets/graded-effects not-a-fold, …).
+`mechanism_faces.POST_CONSOL_FACES` (14 = 8 Tier-2 + 6 demotions) registered SEPARATELY from the frozen
+consolidation `FACES` (7) so the §J snapshot stays a faithful record.
+
+**PHASE 4 — the FOLD-COVERAGE METER** (`fold_coverage.py`, MEASURED). Runs `POST_CONSOL_PROBE_CORPUS_v1` (30 items)
+through the real graders, tabulating the disposition into THREE regions the two speeds NEVER mix: **ASYMPTOTIC FOLD**
+(EXACT collapse — raw 0.60 / cost-weighted 0.64), **CONSTANT-FACTOR** (region-3, asymptotics unchanged — 0.10), the
+**DECLINE FLOOR** (impossible core — 0.30); 15 mechanisms/faces contribute. The meter DOUBLES as a precision gate
+(zero false EXACT) and is self-consistent. ★ Loudly CAVEATED: a curated mechanism-probe corpus, NOT a sample of
+production code — it measures the engine's per-region behaviour and mechanism coverage, NOT the prevalence of
+foldable structure in general code (frontend/gaps reports put that at a small ~1–3%).
+
+**PHASE 5 — the §K report** (`post_consolidation_report.py`, MEASURED): final count **22** named mechanisms (§J 21 +
+★M22); the honest disposition table (1 admit / 14 faces / 1 Group-B / 3 constant-factor / 19 excluded); the
+certificate-kinds update (admitted-fold-kinds 14→15 via k-regular; the AARA kind is verification, the MPST/edge-cover
+kinds reduce to M17/M10); the continued yield collapse (Tiers 2–4 → 0 new mechanisms); the A/B reclassification; and
+**PRECISION = 1.0** across the whole post-consolidation set (the impossible core of every new module DECLINEs).
+`test_catalog.py` **81/81**, test_build 273 영향 없음. **No new dependency** (audit `forbidden_present == []`).
+
+The post-consolidation pass admitted exactly ONE new mechanism (k-regular), implemented every other valid result as a
+face, routed the constant-factor tail to region-3, and excluded the rest with reasons — the floor stays exactly where
+the mathematics puts it; a further mechanism remains to be discovered or reduced, never declared.
+잘못된 답보다 DECLINE이 항상 옳다.
