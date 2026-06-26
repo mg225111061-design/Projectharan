@@ -1816,6 +1816,35 @@ def test_mech16_causal():
           "[hedge]; front-door-only → DECLINE; routes [16] — asymmetric structure, zero-FP relative to declared DAG)")
 
 
+def test_mech17_sheaf():
+    """MECHANISM 17 — sheaf cohomology (local-to-global), in-repo; GENERALIZES M14. A finite cellular sheaf's
+    coboundary δ⁰ is exact ℚ linear algebra: H⁰=ker δ⁰ (global sections), H¹=coker δ⁰ (graded obstruction). Local
+    data that GLUES (δ⁰s=0) folds to its global section (EXACT); data that does NOT glue ⇒ DECLINE with the
+    obstruction class [δs]∈H¹ — and M14's binary 'no global section' is exactly the H⁰=0 special case (holonomy).
+    A random/inconsistent sheaf with no global section ⇒ DECLINE; the impossible core does not move."""
+    import catalog.mech_sheaf as MS
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # consistent local data on a triangle glues → EXACT global section (H⁰=1, H¹=1: one independent cycle)
+    v = MS.sheaf_grade({"vertices": ["a", "b", "c"], "edges": [("a", "b"), ("b", "c"), ("a", "c")],
+                        "section": {"a": 5, "b": 5, "c": 5}})
+    assert v.status == KV.EXACT and v.result["glued"] and v.result["H0"] == 1 and v.certificate.kind == "sheaf_cohomology"
+    # inconsistent local data does NOT glue → DECLINE (obstruction class)
+    assert MS.sheaf_grade({"vertices": ["a", "b", "c"], "edges": [("a", "b"), ("b", "c"), ("a", "c")],
+                           "section": {"a": 1, "b": 2, "c": 3}}).status == KV.DECLINE
+    # no section, connected graph (identity restrictions) → nontrivial global sections (constants) → EXACT
+    assert MS.sheaf_grade({"vertices": ["a", "b", "c"], "edges": [("a", "b"), ("b", "c")]}).result["H0"] == 1
+    # ★ M14 generalization: holonomy around a cycle (restriction scales by 2) ⇒ H⁰=0, no global section ⇒ DECLINE ★
+    holo = MS.sheaf_grade({"vertices": ["a", "b"], "edges": [("a", "b"), ("a", "b")], "restrictions": {(1, "a"): [[2]]}})
+    assert holo.status == KV.DECLINE and "obstruction" in holo.reason.lower()
+    # routes as mechanism [17]
+    assert C.route({"sheaf": {"vertices": ["a", "b", "c"], "edges": [("a", "b"), ("b", "c"), ("a", "c")],
+                              "section": {"a": 5, "b": 5, "c": 5}}}).mechanism_path == [17]
+    print("PASS test_mech17_sheaf (consistent local data glues → EXACT global section [H⁰=1,H¹=1]; inconsistent → "
+          "DECLINE [obstruction class]; connected graph → nontrivial global sections; ★ holonomy → H⁰=0 no global "
+          "section [M14's binary obstruction = the H⁰-empty special case]; routes [17] — graded local-to-global)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
