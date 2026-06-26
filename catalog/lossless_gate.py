@@ -92,6 +92,15 @@ _CONDITION = {
     "flow_canonical_form": "completeness",          # canonical decomposition + monotone convergence witness
     "knot_state_sum": "full_abstraction",           # Kauffman/Jones invariant, Reidemeister-invariant
     "aperiodic_cut_project": "completeness",        # cut-and-project scheme + pure-point diffraction
+    "conley_index": "full_abstraction",             # H_*(N,L) homological index of an isolated invariant set (M21)
+    # PHASE 3 — faces of existing mechanisms (a face routes to its PARENT mechanism, never a new mechanism)
+    "tropical_newton_subdivision": "completeness",  # tropical variety = dual of a regular subdivision (face of M13)
+    "legendre_pair": "completeness",                # convex-duality / Legendre witness (face of M4/P1)
+    "rate_distortion_duality": "completeness",      # Blahut-Arimoto converged curve + duality (face of M4/M12)
+    "rg_fixpoint_enclosure": "completeness",        # validated RG-fixpoint (face of M6)
+    "characteristic_integral_index": "full_abstraction",   # computable characteristic-integral index (face of Chern/Witten)
+    "walsh_spectrum": "completeness",               # (Z/2)ⁿ Fourier / junta witness (face of M11/M9)
+    "characteristic_numbers": "full_abstraction",   # cobordism: Stiefel-Whitney numbers agree (face of M9)
 }
 
 

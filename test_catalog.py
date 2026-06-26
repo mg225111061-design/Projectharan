@@ -1962,6 +1962,34 @@ def test_consolidation_audit_100pct():
           f"decidable-island boundary + an impossible-core DECLINE; C7→M4+M7; precision 1.0; zero forbidden deps)")
 
 
+def test_consolidation_conley_m21():
+    """CONSOLIDATION PHASE 2 — the Conley index of dynamics (the third closure test's single marginal candidate),
+    with the honest distinct-vs-forced adjudication. The Conley index = cubical relative homology H_*(N,L) of an
+    index pair over 𝔽₂. ★ A 1D SOURCE and SINK share the SAME static geometry N (⇒ identical M15 barcode & M14
+    obstruction) yet have DIFFERENT indices (source t¹ / sink 1), because the exit set L is set by the DYNAMICS —
+    so the index carries Morse/unstable-dimension info neither M14 nor M15 emits ⇒ GENUINELY DISTINCT (M21). A
+    non-isolating neighborhood (empty invariant set, trivial index) ⇒ DECLINE."""
+    import catalog.mech_conley as MC
+    import catalog.compose as C
+    import kernel_verdict as KV
+    src = MC.conley_grade({"map_type": "source"})
+    snk = MC.conley_grade({"map_type": "sink"})
+    assert src.status == KV.EXACT and src.result["poincare"] == "t^1" and src.result["morse_index"] == 1
+    assert snk.status == KV.EXACT and snk.result["poincare"] == "1" and snk.result["morse_index"] == 0
+    assert src.certificate.kind == "conley_index"
+    # ★ non-isolating (empty invariant set) ⇒ trivial index ⇒ DECLINE ★
+    assert MC.conley_grade({"map_type": "non_isolating"}).status == KV.DECLINE
+    # the adjudication: DISTINCT (M21), net-new = 1
+    adj = MC.distinct_vs_forced()
+    assert adj["same_static_geometry"] and adj["indices_differ"]
+    assert adj["verdict"] == "DISTINCT (M21)" and adj["net_new"] == 1
+    # routes as mechanism [21]
+    assert C.route({"conley": {"map_type": "source"}}).mechanism_path == [21]
+    print(f"PASS test_consolidation_conley_m21 (source → Conley index t¹ [Morse dim 1], sink → 1; non-isolating → "
+          f"DECLINE; ★ adjudication: DISTINCT (M21), net-new=1 — source/sink share N [same M15 barcode & M14 "
+          f"obstruction] but differ in index, the dynamical Morse info neither emits; routes [21])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

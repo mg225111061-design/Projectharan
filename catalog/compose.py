@@ -162,6 +162,8 @@ def plan(x: Any) -> Plan:
         return Plan("knot", (19,), "knot invariant: Kauffman bracket state-sum + Reidemeister invariance", probe)
     if isinstance(x, dict) and "aperiodic" in x:          # M20 (scope): quasicrystal cut-and-project + diffraction
         return Plan("aperiodic", (20,), "aperiodic order: cut-and-project scheme + pure-point diffraction", probe)
+    if isinstance(x, dict) and "conley" in x:             # M21: Conley index of dynamics (relative homology)
+        return Plan("conley", (21,), "Conley index: H_*(N,L) of an isolated invariant set (dynamical Morse index)", probe)
     if isinstance(x, dict) and ("lift_sum" in x or "lift_code" in x):   # FRONT-END: verified lifting (code → closed form)
         return Plan("lift", (13,), "verified lifting: imperative loop → closed form, z3-proved equivalent", probe)
     if isinstance(x, dict) and ("speedup" in x or "validate" in x or "superopt" in x):   # Topic A constant-factor speedup
@@ -398,12 +400,18 @@ def _aperiodic(x):
     return M.aperiodic_grade(x)
 
 
+def _conley(x):
+    from catalog import mech_conley as M
+    return M.conley_grade(x)
+
+
 _SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
            "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a, "quasi_periodic": _exec_quasi,
            "zeilberger": _exec_zeilberger,
            "persistence": _exec_mech("persistence", _persist, 15), "causal": _exec_mech("causal", _causal, 16),
            "sheaf": _exec_mech("sheaf", _sheaf, 17), "flow": _exec_mech("flow", _flow, 18),
-           "knot": _exec_mech("knot", _knot, 19), "aperiodic": _exec_mech("aperiodic", _aperiodic, 20)}
+           "knot": _exec_mech("knot", _knot, 19), "aperiodic": _exec_mech("aperiodic", _aperiodic, 20),
+           "conley": _exec_mech("conley", _conley, 21)}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:
