@@ -2550,6 +2550,49 @@ def test_post_accel_moveB_verified_parallel():
           f"[zero unsafe concurrency])")
 
 
+def test_post_accel_moveC_verified_algo():
+    """ACCEL MOVE C — VERIFIED ALGORITHM/DATA-STRUCTURE CORRECTION (the highest ceiling per fix — fixing genuine
+    O(N²) badness). C1 complexity reduction (linear-search→hashmap) with result-equivalence proof + measured
+    O(N²)→O(N) win. C2 loop-invariant hoist / CSE with invariance proof. C3 early-exit with post-condition-stability
+    proof. ★ A 'faster' structure that returns DIFFERENT results, a non-invariant hoist, or an unsafe early-break is
+    REJECTED — precision = 1.0."""
+    import random
+    import accel.verified_algo as VA
+    import accel.pipeline as PL
+    random.seed(7)
+    battery = [[random.randint(0, 20) for _ in range(n)] for n in (0, 1, 5, 12, 30)]
+    big = [random.randint(0, 500) for _ in range(3000)]
+    # C1: correct O(N²)→O(N) dedup swap PROVED + measured asymptotic win; the result-changing swap REJECTED
+    ok = VA.verified_algo_swap(VA.dedup_slow, VA.dedup_fast, battery, big_input=big)
+    assert ok.applied and ok.clock_c_speedup is not None and ok.clock_c_speedup > 1.0   # genuine asymptotic win
+    bad = VA.verified_algo_swap(VA.dedup_slow, VA.dedup_wrong, battery)
+    assert not bad.applied and "result-equivalence FAILS" in bad.reason
+    # C2: invariant hoist proved; non-invariant hoist REJECTED
+    recompute = lambda n: sum((5 * 2) for _ in range(n))
+    hoisted = lambda n: (lambda t: sum(t for _ in range(n)))(5 * 2)
+    assert VA.verified_hoist(recompute, hoisted, [0, 1, 3, 10]).applied
+    recompute2 = lambda n: sum(i * 2 for i in range(n))
+    bad_hoist = lambda n: (lambda t: sum(t for _ in range(n)))(0)
+    assert not VA.verified_hoist(recompute2, bad_hoist, [0, 1, 3, 10]).applied
+    # C3: safe early-exit (membership) proved; unsafe early-break (sum) REJECTED
+    full_member = lambda lt: any(x == lt[1] for x in lt[0])
+    early_member = lambda lt: next((True for x in lt[0] if x == lt[1]), False)
+    mb = [([1, 2, 3, 4], 3), ([1, 2], 9), ([], 0), ([5, 5, 5], 5)]
+    safe = VA.verified_early_exit(full_member, early_member, mb)
+    full_sum = lambda lst: sum(lst)
+    early_sum = lambda lst: (lst[0] if lst else 0)              # breaks after the first element ⇒ wrong for a sum
+    unsafe = VA.verified_early_exit(full_sum, early_sum, [[1, 2, 3], [5], []])
+    assert safe.applied and not unsafe.applied and "UNSAFE early-exit" in unsafe.reason
+    # ★ precision over the MOVE-C battery: zero result-changing swaps applied
+    prec = PL.precision([(ok, True), (bad, False), (VA.verified_hoist(recompute2, bad_hoist, [0, 1, 3, 10]), False),
+                         (safe, True), (unsafe, False)])
+    assert prec["precision"] == 1.0 and prec["unsafe_applied"] == []
+    print(f"PASS test_post_accel_moveC_verified_algo (C1 dedup O(N²)→O(N) PROVED result-equivalent + measured "
+          f"{ok.clock_c_speedup}× on N=3000 [reordering swap REJECTED]; C2 invariant hoist proved [non-invariant "
+          f"rejected]; C3 membership early-exit proved [breaking a SUM rejected]; ★ precision = {prec['precision']} "
+          f"[zero result-changing accelerations applied])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
