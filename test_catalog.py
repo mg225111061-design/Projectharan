@@ -2302,6 +2302,45 @@ def test_post_consol_p1e_sfa():
           "complete-invariant decision, M9's kind])")
 
 
+def test_post_consol_p2_mpst_edgecover():
+    """POST-CONSOLIDATION PHASE 2 — MPST + edge-cover, adjudicated BY BUILDING (both DEMOTE; M23/M24 NOT admitted).
+    ★ MPST (multiparty session types): global protocol → endpoint projection + synchronous-product deadlock-freedom
+    (in-repo BFS, no external automata). Well-formedness is a LOCAL-TO-GLOBAL gluing (un-projectable choice = a
+    gluing obstruction = M17's H¹) ⇒ FACE of M17. ★ Edge-cover (AGM): fractional-edge-cover ρ* (z3 LP) + the AGM
+    join-size bound — a structure-FORCED size bound = M10's kind ⇒ FACE of M10. Both pass z3-closed/dependency-free
+    but FAIL distinct-in-kind ⇒ no count++."""
+    import catalog.mech_mpst as MP
+    import catalog.mech_edgecover as EC
+    import kernel_verdict as KV
+    # ── MPST: well-formed protocols fold (projection + deadlock-free) ──
+    rr = ("msg", "A", "B", "req", ("msg", "B", "A", "res", ("end",)))
+    v = MP.mpst_grade({"global": rr})
+    assert v.status == KV.EXACT and v.result["roles"] == ["A", "B"] and v.certificate.kind == "mpst_projection_coherence"
+    ring = ("msg", "A", "B", "m", ("msg", "B", "C", "m", ("msg", "C", "A", "m", ("end",))))
+    assert MP.mpst_grade({"global": ring}).result["deadlock_free"] is True
+    ch = ("choice", "A", "B", [("ok", ("msg", "B", "A", "data", ("end",))), ("no", ("end",))])
+    assert MP.mpst_grade({"global": ch}).status == KV.EXACT
+    # DECLINE: un-projectable (uninvolved C behaves differently per branch — gluing obstruction) + deadlock detection
+    bad = ("choice", "A", "B", [("l1", ("msg", "C", "A", "x", ("end",))), ("l2", ("end",))])
+    assert MP.mpst_grade({"global": bad}).status == KV.DECLINE
+    assert MP.safety({"A": ("recv", "B", "m", ("end",)), "B": ("recv", "A", "m", ("end",))})[0] is False  # mutual-wait deadlock
+    assert MP.adjudication()["distinct_in_kind"] is False and "FACE of M17" in MP.adjudication()["verdict"]
+    # ── edge-cover / AGM: ρ* + size bound; the triangle gives ρ*=3/2 ──
+    tri = {"vertices": ["a", "b", "c"], "edges": {"R": ["a", "b"], "S": ["b", "c"], "T": ["a", "c"]},
+           "sizes": {"R": 100, "S": 100, "T": 100}}
+    vt = EC.edgecover_grade(tri)
+    assert vt.status == KV.EXACT and vt.result["rho_star"] == "3/2" and round(vt.result["agm_bound"]) == 1000
+    assert vt.certificate.kind == "fractional_edge_cover"
+    assert EC.edgecover_grade({"vertices": ["a", "b", "c"], "edges": {"R": ["a", "b"], "S": ["b", "c"]}}).result["rho_star"] == "2"
+    # DECLINE: an uncoverable attribute (in no relation) ⇒ unbounded join
+    assert EC.edgecover_grade({"vertices": ["a", "b", "z"], "edges": {"R": ["a", "b"]}}).status == KV.DECLINE
+    assert EC.adjudication()["distinct_in_kind"] is False and "FACE of M10" in EC.adjudication()["verdict"]
+    print("PASS test_post_consol_p2_mpst_edgecover (★ MPST: req-resp/3-ring/choice projected + deadlock-free [FACE of "
+          "M17 — local-to-global gluing]; un-projectable + mutual-wait → DECLINE. ★ edge-cover: triangle ρ*=3/2 AGM "
+          "N^{3/2}=1000, 2-path ρ*=2 [FACE of M10 — structure-forced size bound]; uncoverable attr → DECLINE. BOTH "
+          "adjudicated-by-building: DEMOTE, M23/M24 NOT admitted, no count++)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
