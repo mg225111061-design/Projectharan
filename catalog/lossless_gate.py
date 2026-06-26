@@ -97,6 +97,7 @@ _CONDITION = {
     # POST-CONSOLIDATION Tier-1 DEMOTIONS — real folds that reduce to an existing mechanism's KIND ⇒ registered as faces
     "monomial_closure_linearization": "completeness",  # defective-variable → FACE of M11 (the fold is C-finite)
     "chains_of_recurrences": "completeness",           # Tensor-Evolution/CR → FACE of M13 (polynomial/geometric closed form)
+    "amortized_potential": "refinement",               # AARA → Group-B VERIFICATION (a ∀n-sound potential-method bound)
     # PHASE 3 — faces of existing mechanisms (a face routes to its PARENT mechanism, never a new mechanism)
     "tropical_newton_subdivision": "completeness",  # tropical variety = dual of a regular subdivision (face of M13)
     "legendre_pair": "completeness",                # convex-duality / Legendre witness (face of M4/P1)

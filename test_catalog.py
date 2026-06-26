@@ -2210,6 +2210,33 @@ def test_post_consol_p1b_tensor_evolution():
           "kind])")
 
 
+def test_post_consol_p1c_aara_potential():
+    """POST-CONSOLIDATION PHASE 1c — AARA (amortized resource analysis, the potential method, ∀n-SOUND). Find a
+    potential Φ:state→ℝ≥0 with amortized cost = cost+Φ(next)−Φ(state) ≤ B for every op type over the WHOLE symbolic
+    state region (z3 ∃Φ∀state). ★ SOUNDNESS: the proof is ∀-quantified, NOT over a finite trace (a finite trace
+    lets z3 front-load potential and falsely certify any B — the classic trap; we avoid it). ★ HONEST ADJUDICATION:
+    distinct cert kind ✓ + z3-closed ✓ + dependency-free ✓ but NOT an asymptotic fold (it CERTIFIES a bound, doesn't
+    collapse code) ⇒ ADMIT as a Group-B VERIFICATION cert kind (amortized_potential), NOT a Group-A fold mechanism."""
+    import catalog.mech_aara as AA
+    import kernel_verdict as KV
+    # dynamic array (doubling): true amortized = 3 (Φ = 2·size − cap) certified for ALL n; bound 2 is DECLINEd
+    v3 = AA.aara_grade(AA.dynamic_array_spec(3))
+    assert v3.status == KV.EXACT and v3.certificate.kind == "amortized_potential" and v3.result["sound_for_all_n"]
+    assert AA.aara_grade(AA.dynamic_array_spec(2)).status == KV.DECLINE          # ★ SOUND: 2 is impossible, true is 3
+    # binary counter: amortized 2 (Φ = ones) certified; amortized 1 DECLINEd
+    assert AA.aara_grade(AA.binary_counter_spec(2)).status == KV.EXACT
+    assert AA.aara_grade(AA.binary_counter_spec(1)).status == KV.DECLINE
+    # ★ the adjudication: NOT a fold (verification) — admitted as a Group-B cert kind, no Group-A count++
+    adj = AA.adjudication()
+    assert adj["distinct_in_kind"] and adj["z3_closed"] and adj["dependency_free"]
+    assert adj["asymptotic_fold"] is False and adj["group"] == "B"
+    assert "NOT a Group-A fold mechanism" in adj["verdict"]
+    print("PASS test_post_consol_p1c_aara_potential (∀n-SOUND amortized analysis: dynamic-array amortized 3 [Φ=2·size−"
+          "cap] + binary-counter amortized 2 [Φ=ones] certified for ALL n via z3 ∃Φ∀state + ground re-verify; bounds "
+          "2 & 1 correctly DECLINE [no false amortized bound]; ★ ADJUDICATION: Group-B VERIFICATION cert kind "
+          "[amortized_potential], NOT a Group-A fold mechanism — certifies a bound, does not collapse code)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
