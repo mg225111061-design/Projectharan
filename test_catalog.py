@@ -2176,6 +2176,40 @@ def test_post_consol_p1a_defective_linearization():
           "distinct-in-kind])")
 
 
+def test_post_consol_p1b_tensor_evolution():
+    """POST-CONSOLIDATION PHASE 1b — TENSOR EVOLUTION / CHAINS OF RECURRENCES. A CR is a closed form for a loop-index
+    function; the CR algebra (cr_mul) closes polynomials, geometrics, and their products (tensor-loop index/address
+    expressions), folding O(n) loops to O(1)/O(log n). ★ HONEST ADJUDICATION: passes z3-closed (a GENUINE z3 ∀i
+    finite-difference-recurrence proof for the polynomial case), asymptotic, dependency-free — but FAILS
+    distinct-in-kind (CR closed forms are polynomial=M13 / geometric=M11) ⇒ DEMOTE to a FACE of M13. Neither-poly-
+    nor-geometric (random, OR popcount [M22's class]) ⇒ DECLINE — TeV does NOT fold automatic sequences."""
+    import random
+    import catalog.mech_tev as TV
+    import kernel_verdict as KV
+    # polynomial CRs fold with a z3-proved finite-difference recurrence; degree is exact (trailing zeros trimmed)
+    v1 = TV.tev_grade([i ** 3 for i in range(20)])
+    assert v1.status == KV.EXACT and v1.result["degree"] == 3 and v1.result["z3_recurrence_proved"]
+    assert v1.certificate.kind == "chains_of_recurrences[poly]"
+    assert TV.tev_grade([i * i + 3 * i + 1 for i in range(15)]).status == KV.EXACT
+    # geometric CR
+    v3 = TV.tev_grade([3 ** i for i in range(12)])
+    assert v3.status == KV.EXACT and v3.result["cr_form"] == "geom"
+    # the CR ALGEBRA: cr_mul composes poly × geom (i·2ⁱ) and evaluates exactly
+    mixed = TV.cr_mul(("poly", [0, 1]), ("geom", 1, 2))
+    assert all(TV.cr_eval(mixed, i) == i * 2 ** i for i in range(10))
+    # impossible core: random ⇒ DECLINE; popcount (automatic, M22's class) ⇒ DECLINE (TeV ≠ k-regular)
+    random.seed(3)
+    assert TV.tev_grade([random.randint(0, 99) for _ in range(20)]).status == KV.DECLINE
+    assert TV.tev_grade([bin(n).count("1") for n in range(32)]).status == KV.DECLINE
+    adj = TV.adjudication()
+    assert adj["z3_closed"] and adj["asymptotic"] and adj["dependency_free"] and adj["distinct_in_kind"] is False
+    assert adj["verdict"] == "DEMOTE → FACE of M13"
+    print("PASS test_post_consol_p1b_tensor_evolution (polynomial CRs [i³ deg 3, z3 ∀i finite-difference proof] + "
+          "geometric CRs [3ⁱ] fold O(n)→O(1)/O(log n); cr_mul composes i·2ⁱ; random/popcount → DECLINE [TeV folds "
+          "neither random nor automatic — popcount is M22's]; ★ HONEST DEMOTE → FACE of M13 [CR closed form is M13's "
+          "kind])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
