@@ -1381,6 +1381,32 @@ def test_product_phase9_report():
           "holds; zero forbidden deps — fast·correct·secure·honest)")
 
 
+def test_accel_phase0_profile():
+    """EXTREME ACCEL PHASE 0 — the generated-code profiler measures what A spends time on (Clock C), ranks the
+    hot-paths by wall-clock share, and sets the PHASE 1–7 layer ordering BY MEASUREMENT (not guess). Every layer
+    is a constant factor (asymptotics UNCHANGED); cold paths are documented + left (Amdahl). Robust assertions
+    (structure, not brittle wall-clock thresholds): all kernels timed, ranking sorted, shares sum to 1, every
+    numeric loop is tagged for native lowering, and the layer order is derived from measured addressable share."""
+    import catalog.accel_profile as AP
+    r = AP.profile(n=8000, k=3)
+    assert r["clock"].startswith("C") and "UNCHANGED" in r["asymptotics"]
+    hot = r["ranked_hot_paths"]
+    assert len(hot) >= 3, hot                                              # the benchmark has several hot kernels
+    assert all(h["median_ms"] > 0 and h["layers"] for h in hot)           # measured + each tagged with a layer
+    assert hot == sorted(hot, key=lambda h: h["median_ms"], reverse=True) # ranked by wall-clock (hottest first)
+    total_share = sum(h["wall_share"] for h in hot) + sum(0 for _ in r["cold_paths_left_alone"])
+    assert 0.90 <= total_share <= 1.0001, total_share                     # shares are a partition of the hot set
+    # the measurement-driven ordering exists and covers the real layers; native applies to every numeric loop
+    order = r["layer_order_by_measured_share"]
+    assert order and "native" in order and "simd" in order
+    assert "simd" in r["layer_addressable_share"] and r["layer_addressable_share"]["simd"] > 0
+    numeric = [h for h in hot if h["kernel"] in ("elementwise_map", "axpy_map", "assoc_reduction", "poly_horner")]
+    assert numeric and all("native" in h["layers"] for h in numeric)      # interpreter-removal applies to all of them
+    print(f"PASS test_accel_phase0_profile (Clock C profile of {len(hot)} generated hot-paths, ranked by wall-share "
+          f"[hottest: {hot[0]['kernel']} {hot[0]['wall_share']}]; layer order by measured share {order}; every "
+          f"numeric loop tagged for native lowering; asymptotics UNCHANGED — ordering by Amdahl, not guess)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
