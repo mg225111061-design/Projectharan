@@ -2146,6 +2146,36 @@ def test_post_consol_p1f_kregular_m22():
           f"[precision 1.0]; equality island decided, growth boundary DECLINEs; routes [22], lossless completeness)")
 
 
+def test_post_consol_p1a_defective_linearization():
+    """POST-CONSOLIDATION PHASE 1a — DEFECTIVE-VARIABLE LINEARIZATION (Carleman / monomial closure of a nonlinear
+    loop). A polynomial loop s↦f(s) is linear on an enlarged MONOMIAL basis when each m_i∘f is an exact ℚ-linear
+    combination of the basis ⇒ M(sₙ)=Aⁿ·M(s₀), O(n)→O(log n). ★ HONEST ADJUDICATION: passes z3-closed (polynomial-
+    identity closure), asymptotic, dependency-free — but FAILS distinct-in-kind (the fold is C-FINITE = M11's class)
+    ⇒ DEMOTE to a FACE of M11, NOT a new mechanism. Degree-growing loops (x↦x²) have no finite closure ⇒ DECLINE."""
+    import catalog.mech_defective as DF
+    import native_sequence as NS
+    import kernel_verdict as KV
+    # genuinely NONLINEAR updates that close on monomials ⇒ fold EXACT
+    v1 = DF.defective_grade({"vars": ["p", "q"], "update": {"p": "p", "q": "q + p*p"}, "target": "q"})
+    assert v1.status == KV.EXACT and v1.result["nonlinear"] and v1.certificate.kind == "monomial_closure_linearization"
+    v2 = DF.defective_grade({"vars": ["p", "q", "r"], "update": {"p": "p", "q": "q+p", "r": "r + q*q"}, "target": "r"})
+    assert v2.status == KV.EXACT and v2.result["basis_dim"] == 7 and v2.result["nonlinear"]
+    assert DF.defective_grade({"vars": ["i", "s"], "update": {"i": "i+1", "s": "s + 2*i + 1"}, "target": "s"}).status == KV.EXACT
+    # impossible core: degree-growing maps have NO finite linear monomial closure ⇒ DECLINE
+    for upd in ({"x": "x*x"}, {"x": "x*x + 1"}):
+        assert DF.defective_grade({"vars": ["x"], "update": upd, "target": "x"}).status == KV.DECLINE
+    assert DF.defective_grade({"vars": ["x", "y"], "update": {"x": "x*y", "y": "y"}, "target": "x"}).status == KV.DECLINE
+    # ★ the demotion is HONEST: the fold output is C-finite ⇒ M11 (Berlekamp–Massey) folds the resulting sequence
+    assert NS.bm_grade([i * i for i in range(40)]).status == KV.EXACT
+    adj = DF.adjudication()
+    assert adj["z3_closed"] and adj["asymptotic"] and adj["dependency_free"] and adj["distinct_in_kind"] is False
+    assert adj["verdict"] == "DEMOTE → FACE of M11"
+    print("PASS test_post_consol_p1a_defective_linearization (nonlinear loops q+=p·p [dim 4], r+=q·q [dim 7] linearize "
+          "on a monomial basis → C-finite closed form, O(n)→O(log n); x↦x² has no finite closure → DECLINE; ★ HONEST "
+          "DEMOTE → FACE of M11 [fold is C-finite = M11's class; passes z3-closed/asymptotic/dep-free but NOT "
+          "distinct-in-kind])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

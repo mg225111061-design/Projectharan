@@ -94,6 +94,8 @@ _CONDITION = {
     "aperiodic_cut_project": "completeness",        # cut-and-project scheme + pure-point diffraction
     "conley_index": "full_abstraction",             # H_*(N,L) homological index of an isolated invariant set (M21)
     "kregular_linear_representation": "completeness",  # M22: exact digit-indexed linear-rep recovery on the instance
+    # POST-CONSOLIDATION Tier-1 DEMOTIONS — real folds that reduce to an existing mechanism's KIND ⇒ registered as faces
+    "monomial_closure_linearization": "completeness",  # defective-variable → FACE of M11 (the fold is C-finite)
     # PHASE 3 — faces of existing mechanisms (a face routes to its PARENT mechanism, never a new mechanism)
     "tropical_newton_subdivision": "completeness",  # tropical variety = dual of a regular subdivision (face of M13)
     "legendre_pair": "completeness",                # convex-duality / Legendre witness (face of M4/P1)
