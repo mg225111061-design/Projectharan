@@ -2030,6 +2030,39 @@ def test_consolidation_faces_p3():
           f"{sorted(parents)} — coverage widened, mechanism count NOT incremented)")
 
 
+def test_consolidation_conjectural_gate_p4():
+    """CONSOLIDATION PHASE 4 — the conjectural hard-gate. Any certificate whose soundness depends on an OPEN
+    CONJECTURE (Hodge / mirror symmetry / standard conjectures / Iwasawa / BSD) or an UNCOMPUTABLE core (general
+    circuit lower bounds / Wang-tile tiling / general word problem / higher K-theory) is REJECTED with an explicit
+    conjectural-dependency reason — NEVER emitted EXACT. The constructive ISLANDS (Hodge decomposition, étale of
+    explicit varieties, low-degree K-theory, p-adic L-values, hyperbolic/free word problem) are PERMITTED; an
+    unknown dependency is fail-safe REJECTED."""
+    import catalog.conjectural_gate as CG
+    import kernel_verdict as KV
+    # ★ REJECT: every conjectural / uncomputable dependency DECLINEs (never EXACT) ★
+    for dep in ("hodge_conjecture", "homological_mirror_symmetry", "standard_conjectures", "iwasawa_main_general", "bsd"):
+        v = CG.gate({"name": dep, "depends_on": dep})
+        assert v.status == KV.DECLINE and "conjectural-dependency" in v.reason, dep
+    for dep in ("circuit_lower_bound_general", "wang_tile_tiling", "group_word_problem_general", "higher_k_theory_general"):
+        assert CG.gate({"depends_on": dep}).status == KV.DECLINE
+    # PERMIT: constructive islands are admitted (only the island, the conjectural extension stays rejected)
+    for dep in ("hodge_decomposition", "etale_explicit_variety", "low_degree_k_theory", "padic_L_value", "hyperbolic_word_problem"):
+        assert CG.gate({"depends_on": dep}).status == KV.EXACT
+    # an UNKNOWN dependency is fail-safe REJECTED (only listed islands are admitted)
+    assert CG.gate({"depends_on": "some_unproven_thing"}).status == KV.DECLINE
+    # the real constructive-island computation: the hyperbolic/free word problem via Dehn / free reduction
+    assert CG.word_problem_island("xXyY").result["is_identity"] is True            # free reduction → identity
+    assert CG.word_problem_island("xy").result["is_identity"] is False
+    assert CG.word_problem_island("aa", ["aa"]).result["is_identity"] is True       # ⟨a|a²⟩: a²=1
+    assert CG.word_problem_island("aaa", ["aa"]).result["is_identity"] is False     # a³=a≠1
+    # the étale/Betti island: ℂℙ² Betti numbers 1,0,1,0,1
+    assert CG.betti_projective_space(2) == [1, 0, 1, 0, 1]
+    print("PASS test_consolidation_conjectural_gate_p4 (REJECT every conjectural [Hodge/mirror/motives/Iwasawa/BSD] "
+          "+ uncomputable [circuit-LB/Wang-tile/word-problem/K-theory] dependency — explicit conjectural-dependency "
+          "DECLINE, never EXACT; PERMIT the constructive islands [Hodge decomp / étale / K-theory / p-adic value / "
+          "Dehn word problem]; unknown → fail-safe REJECT — no conjectural certificate ever emitted)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
