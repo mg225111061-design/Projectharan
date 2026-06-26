@@ -1845,6 +1845,31 @@ def test_mech17_sheaf():
           "section [M14's binary obstruction = the H⁰-empty special case]; routes [17] — graded local-to-global)")
 
 
+def test_mech18_flow():
+    """MECHANISM 18 — geometric flow to canonical form, in-repo. The graph-Laplacian heat flow x←x−αLx carries the
+    structure to its canonical decomposition (projection onto ker L), certified by a strictly-MONOTONE Dirichlet-
+    energy Lyapunov witness (the dynamical certificate distinguishing M18 from M6's algebraic lumping). Fold iff the
+    canonical form is nontrivial (≥2 pieces) and the energy strictly descends; a connected structureless graph
+    flows to a single trivial consensus ⇒ DECLINE. SOC is a stochastic self-tuning sub-case, not a new mechanism."""
+    import catalog.mech_flow as MF
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # two disjoint triangles → 2 canonical pieces, monotone energy descent → EXACT
+    v = MF.flow_grade({"n": 6, "edges": [(0, 1), (1, 2), (0, 2), (3, 4), (4, 5), (3, 5)]})
+    assert v.status == KV.EXACT and v.result["canonical_pieces"] == 2 and v.result["monotone"]
+    assert v.result["energy_start"] > v.result["energy_end"] and v.certificate.kind == "flow_canonical_form"
+    # 3 components → 3 pieces
+    assert MF.flow_grade({"n": 6, "edges": [(0, 1), (2, 3), (4, 5)]}).result["canonical_pieces"] == 3
+    # ★ connected structureless graphs → trivial single consensus ⇒ DECLINE ★
+    assert MF.flow_grade({"n": 3, "edges": [(0, 1), (1, 2), (0, 2)]}).status == KV.DECLINE
+    assert MF.flow_grade({"n": 5, "edges": [(0, 1), (1, 2), (2, 3), (3, 4)]}).status == KV.DECLINE
+    # routes as mechanism [18]
+    assert C.route({"flow": {"n": 6, "edges": [(0, 1), (1, 2), (0, 2), (3, 4), (4, 5), (3, 5)]}}).mechanism_path == [18]
+    print(f"PASS test_mech18_flow (two triangles → EXACT canonical form [2 pieces], Lyapunov energy "
+          f"{v.result['energy_start']:.3g}→{v.result['energy_end']:.2g} strictly monotone [the dynamical certificate]; "
+          f"3 components → 3 pieces; connected structureless → trivial consensus DECLINE; routes [18])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
