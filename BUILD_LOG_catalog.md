@@ -548,3 +548,43 @@ gaps all DECLINE); EXACT ledger residual-0-only; C7 re-map verified (M4+M7, not 
 66/66; test_build 273/273 (isolated). No new dependency** (z3+stdlib+numpy+sympy; no TDA/causal/knot libraries; audit
 `forbidden_present == []`). The classification is honestly reopened; the floor stays where the mathematics puts it.
 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §J CONVERGENCE — mechanism-set consolidation to 100%, the final admissible mechanism, the conjectural hard-gate
+
+The three-closure-test program is finished. New-admissible yield collapsed an order of magnitude (~33% → ~20% →
+~2%) with no new blind-spot axis in the third round: the set has **converged** to ≈21 named mechanisms near a
+finite ceiling of 30–33 (counting the 3 primitives + the registered faces). ★ Precision stays measured at exactly
+1.0 across the entire grown set + Conley + the faces + the gate; the impossible core does not move.
+
+**PHASE 1 — 100%-completion audit** (`mechanism_audit.py`): all 20 admitted mechanisms (the original 14 + M15–M20)
+RUN real gated code (0 deferred), each emits a re-checkable certificate (kind recorded), records its
+decidable-island / hard-core boundary, and DECLINEs its impossible core; C7→M4+M7 confirmed.
+
+**PHASE 2 — the one marginal new mechanism: Conley index (M21)** (`mech_conley.py`): the cubical relative homology
+H_*(N,L) of an index pair over 𝔽₂. ★ The honest distinct-vs-forced test: a 1D source and sink share the SAME
+static neighborhood N (⇒ identical M15 barcode AND M14 obstruction) yet have DIFFERENT Conley indices (t¹ vs 1) —
+the exit set L is set by the DYNAMICS, encoding the Morse/unstable dimension neither M14 nor M15 emits ⇒ **GENUINELY
+DISTINCT (M21), net-new = 1**, not a forced M14∘M15 composite. Non-isolating input → DECLINE.
+
+**PHASE 3 — reducible candidates registered as FACES** (`mechanism_faces.py`, NO count++): tropical/(min,+) → M13
+(Newton lower-hull subdivision), multifractal f(α) → M4 (Legendre), rate–distortion R(D) → M4/M12 (exact binary
+closed form), Feigenbaum δ → M6 (validated-numerics ⇒ PROBABILISTIC, never EXACT), Atiyah–Singer → M9/Chern
+(χ = V−E+F characteristic-integral), Boolean-Fourier → M11/M9 (Walsh spectrum + junta), cobordism → M9
+(Stiefel–Whitney numbers). Parents ⊆ {4,6,9,11,13}; coverage widens, the count does not.
+
+**PHASE 4 — the conjectural hard-gate** (`conjectural_gate.py`): REJECTS any certificate depending on Hodge /
+mirror symmetry / standard conjectures / Iwasawa / BSD or an uncomputable core (general circuit lower bounds /
+Wang-tile tiling / general word problem / higher K-theory) — explicit conjectural-dependency DECLINE, never EXACT;
+PERMITS the constructive islands (Hodge decomposition, étale of explicit varieties, low-degree K-theory, p-adic
+L-values, the hyperbolic/free word problem via Dehn / free reduction). Unknown dependency → fail-safe REJECT.
+
+**PHASE 5 — convergence report** (`convergence_report.py`, MEASURED): ≈21 named mechanisms (Conley DISTINCT); the
+yield-collapse record; the **admitted-certificate-kinds list** (14 kinds — the closure criterion: a future
+candidate reopens the classification ONLY by emitting a certificate of a kind NOT on the list); PRECISION = 1.0
+(zero false EXACT across set + Conley + faces + gate); the conjectural cluster permanently quarantined; the
+symmetric/static/algebraic core of the original 14 closed. **test_catalog 71/71; test_build 273/273 (isolated). No
+new dependency** (z3+stdlib+numpy+sympy; audit `forbidden_present == []`). The denominator has grown as far as
+constructive certificates allow; the floor stays exactly where the mathematics puts it; a further mechanism remains
+to be discovered or reduced, never declared. 잘못된 답보다 DECLINE이 항상 옳다.

@@ -2063,6 +2063,36 @@ def test_consolidation_conjectural_gate_p4():
           "Dehn word problem]; unknown → fail-safe REJECT — no conjectural certificate ever emitted)")
 
 
+def test_consolidation_convergence_p5():
+    """CONSOLIDATION §J — the convergence report (MEASURED): the three-closure-test program is finished. The set
+    converged to ≈21 named mechanisms (14 + M15–M20 + M21 Conley) near a 30–33 ceiling; new-admissible yield
+    collapsed ~33%→~20%→~2%; the admitted-certificate-kinds list is the closure criterion (a future candidate
+    reopens only with a NEW kind); the 7 reducible candidates are filed as faces (no count++); the conjectural
+    cluster is quarantined. ★ PRECISION = 1.0 across the FULL set + Conley + faces + the gate (zero false EXACT) —
+    the central invariant held; the impossible core does not move."""
+    import catalog.convergence_report as CR
+    r = CR.report()
+    # final count + Conley adjudication
+    assert r["final_named_mechanism_count"] == 21 and r["conley_net_new"] == 1 and r["conley_verdict"] == "DISTINCT (M21)"
+    # the three-test convergence record + yield collapse
+    assert len(r["three_test_convergence"]) == 3 and "~2%" in r["yield_collapse"]
+    # the admitted-certificate-kinds closure criterion (14 kinds) + reopening criterion
+    assert len(r["admitted_certificate_kinds"]) == 14 and "NOT on the admitted list" in r["reopening_criterion"]
+    # ★ precision 1.0 across mechanisms + Conley + faces + the conjectural gate (zero false EXACT) ★
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["false_exact"] == []
+    assert r["impossible_core_untouched"] and r["conjectural_cluster_quarantined"]
+    # faces registered to existing parents (no new mechanism); zero forbidden deps
+    assert set(r["registered_faces"].values()) <= {4, 6, 9, 11, 13} and len(r["registered_faces"]) == 7
+    assert r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    assert "OPEN" not in r["closure_status"] or "converging" in r["closure_status"]
+    assert "discovered-or-reduced" in r["closure_status"] and "DECLINE이 항상 옳다" in r["one_line"]
+    print(f"PASS test_consolidation_convergence_p5 (MEASURED: {r['final_named_mechanism_count']} named mechanisms "
+          f"[Conley adjudicated DISTINCT, net-new 1] converging to ceiling ~30–33; yield collapse {r['yield_collapse'][:24]}…; "
+          f"{len(r['admitted_certificate_kinds'])} admitted cert-kinds [reopening only via a NEW kind]; 7 faces [no "
+          f"count++]; conjectural cluster quarantined; ★ PRECISION = 1.0 across set+Conley+faces+gate; impossible "
+          f"core unmoved; zero forbidden deps — the three-test program finished, the floor stays put)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
