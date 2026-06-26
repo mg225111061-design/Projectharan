@@ -164,6 +164,9 @@ def plan(x: Any) -> Plan:
         return Plan("aperiodic", (20,), "aperiodic order: cut-and-project scheme + pure-point diffraction", probe)
     if isinstance(x, dict) and "conley" in x:             # M21: Conley index of dynamics (relative homology)
         return Plan("conley", (21,), "Conley index: H_*(N,L) of an isolated invariant set (dynamical Morse index)", probe)
+    if isinstance(x, dict) and "kregular" in x:           # M22: k-regular automatic sequence (digit-indexed linear rep)
+        return Plan("kregular", (22,), "k-regular fold: base-k digit-indexed linear representation (popcount/Stern — a "
+                    "class M11/M1/M13 DECLINE; O(n)→O(log n))", probe)
     if isinstance(x, dict) and ("lift_sum" in x or "lift_code" in x):   # FRONT-END: verified lifting (code → closed form)
         return Plan("lift", (13,), "verified lifting: imperative loop → closed form, z3-proved equivalent", probe)
     if isinstance(x, dict) and ("speedup" in x or "validate" in x or "superopt" in x):   # Topic A constant-factor speedup
@@ -405,13 +408,20 @@ def _conley(x):
     return M.conley_grade(x)
 
 
+def _kregular(x):
+    from catalog import mech_kregular as M
+    if isinstance(x, dict):                                # {"seq": [...], "k": k}
+        return M.kregular_grade(x.get("seq"), k=int(x.get("k", 2)))
+    return M.kregular_grade(x, k=2)                        # bare sequence ⇒ default base 2
+
+
 _SHAPES = {"m7_split": _exec_m7_split, "m9_perp_m14": _exec_m9_perp_m14, "sos": _exec_sos, "mdl": _exec_mdl,
            "detect": _exec_detect, "lift": _exec_lift, "topic_a": _exec_topic_a, "quasi_periodic": _exec_quasi,
            "zeilberger": _exec_zeilberger,
            "persistence": _exec_mech("persistence", _persist, 15), "causal": _exec_mech("causal", _causal, 16),
            "sheaf": _exec_mech("sheaf", _sheaf, 17), "flow": _exec_mech("flow", _flow, 18),
            "knot": _exec_mech("knot", _knot, 19), "aperiodic": _exec_mech("aperiodic", _aperiodic, 20),
-           "conley": _exec_mech("conley", _conley, 21)}
+           "conley": _exec_mech("conley", _conley, 21), "kregular": _exec_mech("kregular", _kregular, 22)}
 
 
 def execute(p: "Plan", x: Any) -> CatalogResult:

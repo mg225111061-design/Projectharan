@@ -93,6 +93,7 @@ _CONDITION = {
     "knot_state_sum": "full_abstraction",           # Kauffman/Jones invariant, Reidemeister-invariant
     "aperiodic_cut_project": "completeness",        # cut-and-project scheme + pure-point diffraction
     "conley_index": "full_abstraction",             # H_*(N,L) homological index of an isolated invariant set (M21)
+    "kregular_linear_representation": "completeness",  # M22: exact digit-indexed linear-rep recovery on the instance
     # PHASE 3 — faces of existing mechanisms (a face routes to its PARENT mechanism, never a new mechanism)
     "tropical_newton_subdivision": "completeness",  # tropical variety = dual of a regular subdivision (face of M13)
     "legendre_pair": "completeness",                # convex-duality / Legendre witness (face of M4/P1)

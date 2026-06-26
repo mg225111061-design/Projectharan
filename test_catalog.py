@@ -2093,6 +2093,59 @@ def test_consolidation_convergence_p5():
           f"core unmoved; zero forbidden deps — the three-test program finished, the floor stays put)")
 
 
+def test_post_consol_p1f_kregular_m22():
+    """POST-CONSOLIDATION PHASE 1f — ★ k-REGULAR SEQUENCE FOLD (M22, the one brand-new mechanism). A sequence is
+    k-regular iff its k-kernel generates a finitely-generated module ⇒ a base-k DIGIT-INDEXED linear representation
+    a(n)=v·∏A_{digit}·w. ★ GENUINELY DISTINCT (the four gates): popcount(n) is 2-regular and FOLDS here (dim 2) but
+    is PROVABLY NOT C-finite, so M11 (Berlekamp–Massey) DECLINEs it — M22 folds a class no existing mechanism folds.
+    Gate-2 (z3-closed): the certificate is a finite conjunction of LIA equalities. Gate-3 (asymptotic): O(n)→O(log n).
+    Gate-4 (dependency-free): in-repo k-kernel closure (Fraction only). DECLINEs random / non-automatic (precision
+    1.0); decidable equality island (Krenn–Shallit); the undecidable growth boundary DECLINEs."""
+    import random
+    import catalog.mech_kregular as KR
+    import catalog.compose as C
+    import native_sequence as NS
+    import kernel_verdict as KV
+
+    def digsum(n, b):
+        s = 0
+        while n > 0:
+            s, n = s + n % b, n // b
+        return s
+    # ── positives: automatic / k-regular sequences fold EXACT with a small linear representation ──
+    pc = [bin(n).count("1") for n in range(128)]                  # popcount: 2-regular, dim 2
+    vpc = KR.kregular_grade(pc, k=2)
+    assert vpc.status == KV.EXACT and vpc.result["dimension"] == 2 and vpc.certificate.kind == "kregular_linear_representation"
+    assert KR.kregular_grade(KR._stern(160), k=2).status == KV.EXACT          # Stern's diatomic, dim 2
+    assert KR.kregular_grade([digsum(n, 3) for n in range(200)], k=3).status == KV.EXACT   # base-3 digit sum
+    assert KR.kregular_grade([sum(bin(i).count("1") for i in range(n + 1)) for n in range(200)], k=2).status == KV.EXACT  # summatory
+    # ── the representation evaluates correctly (digit-indexed matrix product) ──
+    from fractions import Fraction
+    A, v, w, basis = KR.build_representation([Fraction(t) for t in pc], 2, 20, 16)
+    assert all(KR.eval_representation(A, v, w, n, 2) == pc[n] for n in range(128))
+    # ── ★ DISTINCT: popcount folds here but M11 (BM, C-finite) DECLINEs it (not a linear recurrence in n) ──
+    assert NS.bm_grade(pc).status == KV.DECLINE                    # M11 cannot fold popcount
+    adj = KR.distinct_vs_existing()
+    assert adj["verdict"] == "DISTINCT (M22)" and adj["net_new"] == 1
+    assert adj["popcount_kregular"] == KV.EXACT and adj["popcount_M11_bm"] == KV.DECLINE
+    # ── impossible core: random sequences (every base) and non-automatic (primes) DECLINE — precision 1.0 ──
+    random.seed(2)
+    for k in (2, 3, 10):
+        assert KR.kregular_grade([random.randint(0, k - 1) for _ in range(160)], k=k).status == KV.DECLINE
+    primes = [1 if (n > 1 and all(n % d for d in range(2, int(n ** 0.5) + 1))) else 0 for n in range(160)]
+    assert KR.kregular_grade(primes, k=2).status == KV.DECLINE
+    # ── decidable equality ISLAND (Krenn–Shallit) vs the undecidable growth BOUNDARY ──
+    assert KR.representations_equal((A, v, w), (A, v, w), 2) is True
+    assert KR.growth_query((A, v, w), 2).status == KV.DECLINE
+    # ── routes through the engine as mechanism [22], lossless completeness ──
+    r = C.route({"kregular": pc})
+    assert r.grade == KV.EXACT and r.mechanism_path == [22] and r.lossless == "completeness"
+    print(f"PASS test_post_consol_p1f_kregular_m22 (★ M22 admitted: popcount/Stern/digit-sum/summatory fold via a "
+          f"base-k digit-indexed linear representation [dim 2–4], O(n)→O(log n); ★ DISTINCT — popcount folds [dim "
+          f"{vpc.result['dimension']}] but M11/BM DECLINEs it [not C-finite], net-new=1; random/primes DECLINE "
+          f"[precision 1.0]; equality island decided, growth boundary DECLINEs; routes [22], lossless completeness)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
