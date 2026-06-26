@@ -1665,6 +1665,38 @@ def test_gap_p8_p14_probabilistic_tier():
           f"ledger stays residual-0-only)")
 
 
+def test_gap_lift_p9_p12():
+    """GAP CLOSURE (lift P9–P12) — structure reachable by translation the lifter had no target for, each a
+    proposer→EXACT-disposer. P10 affine/geometric loop summary (exact ℚ run-forward), P12 partial lift of a
+    structured inner Σ loop (z3-induction certified, glue unchanged), P9 relational filter-aggregate → comprehension
+    (differential battery), P11 affine index-table alias resolution (z3-certified rewrite). Non-matching / unresolvable
+    code ⇒ DECLINE on every path (the decidable islands are implemented; the undecidable cores are declined)."""
+    import catalog.gap_lift as GL
+    import kernel_verdict as KV
+    # P10 — affine x=2x+3 and geometric p=p*3 loops summarize; non-loop code DECLINEs
+    a = GL.nonlinear_loop_summary("x = 0\nfor k in range(n):\n x = 2*x + 3")
+    assert a.status == KV.EXACT and "2**n" in a.result["closed_form"] and a.certificate.kind.startswith("loop_summary")
+    assert GL.nonlinear_loop_summary("p = 1\nfor k in range(n):\n p = p*3").status == KV.EXACT
+    assert GL.nonlinear_loop_summary("return foo(bar(baz))").status == KV.DECLINE
+    # P12 — partial lift of the inner Σk² loop inside glue; glue counted, fragment certified; unstructured → DECLINE
+    p = GL.partial_lift('print("x")\ns = 0\nfor k in range(1, n+1):\n  s += k*k\nreturn s + 1')
+    assert p.status == KV.EXACT and "2*n**2" in p.result["closed_form"] and p.result["glue_lines"] >= 1
+    assert GL.partial_lift("x = network_call()\nreturn x").status == KV.DECLINE
+    # P9 — relational filter-sum → comprehension (differential battery); a graph traversal → DECLINE (honest island)
+    r = GL.relational_lift("acc = 0\nfor x in xs:\n if x > 5:\n  acc += x")
+    assert r.status == KV.EXACT and r.result["lifted"] == "sum(x for x in xs if x > 5)"
+    assert "differential" in r.certificate.kind
+    assert GL.relational_lift("for x in xs:\n graph_traverse(x)").status == KV.DECLINE
+    # P11 — affine index table resolved (z3); a non-affine table (squares) DECLINEs
+    al = GL.aliased_lift("idx = [0, 2, 4, 6, 8]\nfor k in range(5):\n y += a[idx[k]]")
+    assert al.status == KV.EXACT and al.result["c"] == 2 and "equivalence" in al.certificate.kind
+    assert GL.aliased_lift("idx = [0, 1, 4, 9, 16]\nfor k in range(5):\n y += a[idx[k]]").status == KV.DECLINE
+    print("PASS test_gap_lift_p9_p12 (P10 affine/geometric loop→closed form [run-forward] / P12 partial lift of inner "
+          "Σk² [z3, glue unchanged] / P9 relational filter-sum→comprehension [differential battery] / P11 affine "
+          "index alias→direct [z3 UNSAT]; non-matching code + non-affine table → DECLINE — decidable islands "
+          "implemented, undecidable cores declined)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
