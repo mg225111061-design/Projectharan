@@ -1786,6 +1786,36 @@ def test_mech15_persistence():
           f"DECLINE on every path [0 false EXACT] — precision 1.0, the impossible core does not move)")
 
 
+def test_mech16_causal():
+    """MECHANISM 16 — causal-structure recovery (relational-asymmetric), in-repo (no causal libs). The EXACT ledger
+    is do-calculus back-door identifiability relative to a DECLARED DAG: exact d-separation (moralized ancestral
+    graph) finds an observed adjustment set and emits the do-free estimand. ★ The faithfulness + graph assumptions
+    are DECLARED axioms, emitted in the certificate, NEVER certified from observation (provably uncertifiable).
+    Impossible core: a confounded query with no observed adjustment (latent bow arc) is NON-identifiable ⇒ DECLINE
+    (hedge) — precision preserved (no false EXACT)."""
+    import catalog.mech_causal as MC
+    import catalog.compose as C
+    import kernel_verdict as KV
+    # observed confounder X←Z→Y, X→Y ⇒ adjust {Z} ⇒ identifiable EXACT
+    v = MC.causal_grade({"edges": [("Z", "X"), ("Z", "Y"), ("X", "Y")], "treatment": "X", "outcome": "Y"})
+    assert v.status == KV.EXACT and v.result["adjustment_set"] == ["Z"] and v.certificate.kind == "causal_do_calculus"
+    assert v.result["declared_assumptions"] and any("faithfulness" in a for a in v.result["declared_assumptions"])
+    # chain X→Z→Y ⇒ ∅ adjustment; collider X→C←Y must NOT be adjusted (∅)
+    assert MC.causal_grade({"edges": [("X", "Z"), ("Z", "Y")], "treatment": "X", "outcome": "Y"}).result["adjustment_set"] == []
+    assert MC.causal_grade({"edges": [("X", "Y"), ("X", "C"), ("Y", "C")], "treatment": "X", "outcome": "Y"}).result["adjustment_set"] == []
+    # ★ latent bow arc X←U→Y (U unobserved) ⇒ NON-identifiable ⇒ DECLINE (the impossible core for causal) ★
+    bow = MC.causal_grade({"edges": [("U", "X"), ("U", "Y"), ("X", "Y")], "treatment": "X", "outcome": "Y", "latents": ["U"]})
+    assert bow.status == KV.DECLINE and "identif" in bow.reason.lower()
+    # front-door-only structure (latent confounder + mediator) — back-door cannot ⇒ honest DECLINE
+    assert MC.causal_grade({"edges": [("U", "X"), ("U", "Y"), ("X", "M"), ("M", "Y")], "treatment": "X",
+                            "outcome": "Y", "latents": ["U"]}).status == KV.DECLINE
+    # routes as mechanism [16]
+    assert C.route({"causal": {"edges": [("Z", "X"), ("Z", "Y"), ("X", "Y")], "treatment": "X", "outcome": "Y"}}).mechanism_path == [16]
+    print("PASS test_mech16_causal (observed confounder → adjust {Z} EXACT [estimand + DECLARED faithfulness/graph "
+          "axioms emitted]; chain/collider → ∅ [collider not adjusted]; ★ latent bow arc → NON-identifiable DECLINE "
+          "[hedge]; front-door-only → DECLINE; routes [16] — asymmetric structure, zero-FP relative to declared DAG)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
