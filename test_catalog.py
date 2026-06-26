@@ -2593,6 +2593,32 @@ def test_post_accel_moveC_verified_algo():
           f"[zero result-changing accelerations applied])")
 
 
+def test_post_accel_moveD_verified_serde():
+    """ACCEL MOVE D — VERIFIED SERIALIZATION & ALLOCATION (the quiet per-request tax). D1 serialization fast-path
+    with byte-equivalence + lossless round-trip proof. D2 allocation reduction (pool / copy-elision) with no-aliasing-
+    hazard proof (alias/escape analysis on an event trace). ★ A byte-losing serializer and an aliasing-hazard pool
+    are REJECTED — precision = 1.0."""
+    import accel.verified_serde as VS
+    import accel.pipeline as PL
+    battery = [{"a": "1", "b": "two"}, {"x": "9"}, {}, {"k": "v", "m": "n", "p": "q"}]
+    # D1: byte-equivalent + lossless round-trip proved; the field-dropping fast path REJECTED
+    good = VS.verified_serde_fastpath(battery, VS.ref_serialize, VS.fast_serialize_good, deser=VS.ref_deserialize)
+    lossy = VS.verified_serde_fastpath(battery, VS.ref_serialize, VS.fast_serialize_lossy, deser=VS.ref_deserialize)
+    assert good.applied and "byte-equivalence" in good.certificate
+    assert not lossy.applied and "byte-equivalence FAILS" in lossy.reason
+    # D2: safe reuse (mutate after read / before share) proved; the share→mutate→read aliasing hazard REJECTED
+    safe1 = VS.verified_alloc_reuse([("share", "buf"), ("read", "buf"), ("mutate", "buf")])
+    safe2 = VS.verified_alloc_reuse([("mutate", "buf"), ("share", "buf"), ("read", "buf")])
+    hazard = VS.verified_alloc_reuse([("share", "buf"), ("mutate", "buf"), ("read", "buf")])
+    assert safe1.applied and safe2.applied and not hazard.applied and "ALIASING HAZARD" in hazard.reason
+    # ★ precision over the MOVE-D battery: zero lossy serde / hazard pools applied
+    prec = PL.precision([(good, True), (lossy, False), (safe1, True), (safe2, True), (hazard, False)])
+    assert prec["precision"] == 1.0 and prec["unsafe_applied"] == []
+    print(f"PASS test_post_accel_moveD_verified_serde (D1 serialization fast-path PROVED byte-equivalent + lossless "
+          f"round-trip [field-dropping path REJECTED]; D2 allocation reuse PROVED no-aliasing-hazard [share→mutate→"
+          f"read REJECTED]; ★ precision = {prec['precision']} [zero lossy-serde / hazard-pool applied])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
