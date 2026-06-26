@@ -1990,6 +1990,46 @@ def test_consolidation_conley_m21():
           f"obstruction] but differ in index, the dynamical Morse info neither emits; routes [21])")
 
 
+def test_consolidation_faces_p3():
+    """CONSOLIDATION PHASE 3 — the admissible-but-REDUCIBLE candidates registered as new FACES of existing
+    mechanisms (NOT new mechanisms — coverage widens, the count does NOT). tropical→M13, multifractal→M4(Legendre),
+    rate-distortion→M4/M12, Feigenbaum→M6 (PROBABILISTIC — validated-numerics, never EXACT), Atiyah–Singer→M9/Chern,
+    Boolean-Fourier→M11/M9, cobordism→M9. Each folds its structured input with the recorded certificate and routes
+    to its PARENT mechanism; non-structured inputs DECLINE; the impossible core does not move."""
+    import random
+    import catalog.mechanism_faces as F
+    import kernel_verdict as KV
+    # tropical → M13 (Newton lower-hull corners); single-monomial → DECLINE
+    t = F.tropical_face({"coeffs": {0: 0, 1: -1, 2: 1, 3: 0}})
+    assert t.status == KV.EXACT and t.result["parent_mechanism"] == 13 and t.certificate.kind == "tropical_newton_subdivision"
+    # multifractal → M4 (Legendre); non-convex τ → DECLINE
+    assert F.multifractal_face({"tau": [(0, 0), (1, 1), (2, 4), (3, 9)]}).result["parent_mechanism"] == 4
+    assert F.multifractal_face({"tau": [(0, 0), (1, 5), (2, 1)]}).status == KV.DECLINE
+    # rate-distortion → M4 (binary R(D) closed form)
+    assert F.rate_distortion_face({"p": "1/2", "D": "1/10"}).result["parent_mechanism"] == 4
+    # ★ Feigenbaum → M6 PROBABILISTIC (validated-numerics δ≈4.669, NEVER EXACT) ★
+    fg = F.feigenbaum_face()
+    assert fg.status == KV.PROBABILISTIC and fg.status != KV.EXACT and abs(fg.result["delta_estimate"] - 4.669) < 0.05
+    # Atiyah–Singer → M9/Chern (Euler characteristic = the index integer): sphere χ=2
+    assert F.atiyah_singer_face({"V": 4, "E": 6, "F": 4}).result["euler_char"] == 2
+    # Boolean Fourier → M11/M9 (x0⊕x1 → 2-junta); a random truth table → dense → DECLINE
+    tt = [1 if ((i & 1) ^ ((i >> 1) & 1)) == 0 else -1 for i in range(8)]
+    bf = F.boolean_fourier_face({"truth_table": tt})
+    assert bf.status == KV.EXACT and bf.result["junta_vars"] == [0, 1] and bf.result["parent_mechanism"] == 11
+    random.seed(1)
+    assert F.boolean_fourier_face({"truth_table": [random.choice([-1, 1]) for _ in range(16)]}).status == KV.DECLINE
+    # cobordism → M9 (characteristic numbers): sphere/torus cobordant, sphere/RP² not
+    assert F.cobordism_face({"chi_a": 2, "chi_b": 0}).result["cobordant"] is True
+    assert F.cobordism_face({"chi_a": 2, "chi_b": 1}).result["cobordant"] is False
+    # ★ NO new mechanism: every face routes to an EXISTING parent mechanism ⊆ {4,6,9,11,13} ★
+    parents = {p for _, p in F.FACES.values()}
+    assert parents <= {4, 6, 9, 11, 13} and len(F.FACES) == 7
+    print(f"PASS test_consolidation_faces_p3 (7 reducible candidates registered as FACES: tropical→M13, "
+          f"multifractal/rate-distortion→M4, Feigenbaum→M6 [PROBABILISTIC, never EXACT], Atiyah–Singer→M9, "
+          f"Boolean-Fourier→M11, cobordism→M9; each folds+routes to its parent, non-structured→DECLINE; parents "
+          f"{sorted(parents)} — coverage widened, mechanism count NOT incremented)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
