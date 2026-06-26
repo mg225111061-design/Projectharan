@@ -499,3 +499,52 @@ false EXACT across all new paths on the impossible core); EXACT ledger residual-
 (1), separated; impossible core untouched (6/6 held DECLINE); zero forbidden deps. **test_catalog 60/60; test_build
 273/273 (isolated). No new dependency** (z3+stdlib+numpy+sympy; audit `forbidden_present == []`). The denominator
 grows; the floor stays exactly where the mathematics puts it. 잘못된 답보다 DECLINE이 항상 옳다.
+
+---
+
+## §I MECHANISM GROWTH — adding M15–M18 (+scope M19–M20), reopening the classification where closure broke
+
+The closure test overturned "fourteen, closed": rigorous case-by-case analysis showed four-to-six candidates do
+NOT faithfully reduce — clustering exactly in the predicted blind spots (relational/asymmetric, multiscale-
+topological, local-to-global, dynamic). They are added here as constructive, certificate-bearing fold paths under
+the same proposer→EXACT-disposer discipline. ★ Precision stays measured at exactly 1.0 (zero false EXACT across
+every new mechanism on the impossible core); the symmetric/static/algebraic CORE of the fourteen stays closed; the
+impossible core does not move. The set is now OPEN at ≥17 — a further mechanism to be discovered-or-reduced, never declared.
+
+**M15 persistent homology** (`mech_persistence.py`, no gudhi/ripser): Vietoris–Rips + 𝔽₂ boundary reduction → the
+barcode (exact); a 1-Lipschitz bottleneck-stability witness (distinguishes M15 from M9's discontinuity). Signal gate
+= normalized persistence ≥0.4·diam; random clouds (only noise bars) DECLINE. Multiparameter (no complete invariant)
+is the hard core, never EXACT. → mechanism [15].
+
+**M16 causal recovery** (`mech_causal.py`, no causal libs): do-calculus back-door identifiability relative to a
+DECLARED DAG (exact d-separation via the moralized ancestral graph) → the do-free estimand. ★ Faithfulness + the
+graph are DECLARED axioms EMITTED in the certificate, never certified from observation (Uhler 2013; Verma–Pearl). A
+latent bow arc is non-identifiable ⇒ DECLINE (hedge). → mechanism [16].
+
+**M17 sheaf cohomology** (`mech_sheaf.py`): finite cellular sheaf, coboundary δ⁰ over ℚ, H⁰=global sections /
+H¹=graded obstruction. Local data that glues → EXACT global section; else DECLINE with [δs]∈H¹. ★ GENERALIZES M14:
+the binary "no global section" is the H⁰-empty special case (M14's certs untouched). → mechanism [17].
+
+**M18 geometric flow** (`mech_flow.py`): Laplacian heat flow → canonical decomposition, certified by a strictly-
+MONOTONE Dirichlet-energy Lyapunov witness (the dynamical certificate distinguishing it from M6's algebraic
+lumping). Connected structureless graph → trivial consensus ⇒ DECLINE. SOC is the stochastic self-tuning sub-case,
+not a new mechanism. → mechanism [18].
+
+**M19 knot/Jones** (scope, `mech_knot.py`): Kauffman-bracket state sum → writhe-normalized Jones (verified: trefoil
+= −t⁻⁴+t⁻³+t⁻¹). R-II/R-III invariant by the skein δ=−A²−A⁻², R-I by writhe normalization; NOT a normal form
+(non-confluent ≠ M8), NOT complete (≠ M9); #P-hard large diagrams DECLINE on cost. → mechanism [19].
+
+**M20 aperiodic order** (scope, `mech_aperiodic.py`): cut-and-project quasicrystal recognition — two tiles + a
+BALANCED (Sturmian) order ⇒ pure-point diffraction. Fibonacci chain folds; periodic / random / unbalanced DECLINE.
+Deterministic aperiodic order (≠ M7's structure+noise). → mechanism [20].
+
+**PHASE 21 C7 re-map** (`pass_D.py`): the expander/spectral-gap path corrected from M11 (wrong — not state recovery)
+to M4 (λ₂ = the SDP/Rayleigh relaxation of conductance) + M7 (expander-mixing quasirandomness) — a spectral
+CERTIFICATE of a combinatorial property. Behavior unchanged; labeling fixed.
+
+**§I report** (`mechanisms_report.py`, MEASURED): all new mechanisms recover their seeded structure; **PRECISION =
+1.0** (zero false EXACT on the impossible core: random clouds / latent bow / holonomy / connected blob / random
+gaps all DECLINE); EXACT ledger residual-0-only; C7 re-map verified (M4+M7, not M11); closure OPEN at ≥17. **test_catalog
+66/66; test_build 273/273 (isolated). No new dependency** (z3+stdlib+numpy+sympy; no TDA/causal/knot libraries; audit
+`forbidden_present == []`). The classification is honestly reopened; the floor stays where the mathematics puts it.
+잘못된 답보다 DECLINE이 항상 옳다.

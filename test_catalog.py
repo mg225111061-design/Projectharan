@@ -1916,6 +1916,31 @@ def test_mech19_20_scope():
           "periodic/random/unbalanced → DECLINE, routes [20] — scope mechanisms, certificate-bearing)")
 
 
+def test_mech_growth_report():
+    """MECHANISM GROWTH §I — the report is MEASURED and the central invariant PROVEN under the GROWN set: every new
+    mechanism (M15 persistence, M16 causal, M17 sheaf, M18 flow; M19 knot, M20 aperiodic in scope) recovers its
+    seeded structure, ★ PRECISION = 1.0 (zero false EXACT across ALL new mechanisms on the impossible core), the
+    C7 expander/spectral-gap path is re-mapped to M4+M7 (NOT M11), the EXACT ledger stays residual-0-only, the
+    impossible core is untouched, and there are zero forbidden dependencies. The set is honestly OPEN at ≥17."""
+    import catalog.mechanisms_report as MR
+    r = MR.report()
+    assert r["mechanism_count_floor"] == 17 and r["core_added"] == 4
+    assert all(d["recovered"] for d in r["per_mechanism"].values()) and len(r["per_mechanism"]) >= 6
+    # ★ the headline: precision 1.0, zero false EXACT across all new mechanisms on the impossible core ★
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["false_exact"] == []
+    assert r["impossible_core_untouched"]
+    # C7 correction verified: expander/spectral-gap is M4+M7, not M11
+    assert r["C7_remap_M4_M7_not_M11"]
+    # honest OPEN closure status + zero forbidden deps
+    assert "OPEN" in r["closure_status"] and "discovered-or-reduced" in r["closure_status"]
+    assert r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    assert "DECLINE이 항상 옳다" in r["one_line"]
+    print(f"PASS test_mech_growth_report (MEASURED: {len(r['per_mechanism'])} new mechanisms recover their seeded "
+          f"structure [M15-M18 core + M19/M20 scope]; ★ PRECISION = {r['precision']} (zero false EXACT on the "
+          f"impossible core); C7 re-mapped to M4+M7 not M11; closure OPEN at ≥17 [core stays closed]; zero forbidden "
+          f"deps — the classification honestly reopened, the floor stays where the mathematics puts it)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

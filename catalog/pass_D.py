@@ -49,8 +49,11 @@ reg_many([
       "computation integrity", "arkworks/plonky2 / FRI (★ §8 PHASE G — integrity cert, NOT PQC)", "EXACT", _NEW),
     T("D2.hardness_randomness", "D-2", "complexity", (7,), "cert-bound", "pseudorandom_bound",
       "BPP derandomization", "Nisan–Wigderson / IW", "DECISION", _NEW),
-    T("D2.zigzag_expander", "D-2", "complexity", (7, 2), "finite-invariant", "expander_explicit",
-      "graph connectivity (SL=L)", "zigzag product / explicit expander", "DECISION", _NEW),
+    # PHASE 21 (C7 re-map): the expander / spectral-gap path is M4+M7, NOT M11. λ₂ is the SDP/Rayleigh RELAXATION of
+    # sparsest-cut/conductance (M4 relax+dualize), and a large gap ⇒ quasirandom by the expander mixing lemma (M7
+    # structure+pseudorandomness) — a spectral CERTIFICATE of a combinatorial property, never latent-state recovery.
+    T("D2.zigzag_expander", "D-2", "complexity", (4, 7), "finite-invariant", "spectral_gap_relaxation_certificate",
+      "graph connectivity / conductance (SL=L)", "λ₂ relaxation (M4) + expander mixing quasirandomness (M7)", "DECISION", _NEW),
     T("D2.sos_refutation", "D-2", "proof-complexity", (4, 14), "cert-bound", "refutation_degree",
       "CNF / polynomial system unsatisfiability", "SOS/PC/Nullstellensatz refutation (merges B1.sos)", "DECISION", _NEW),
     T("D2.complexity_barriers", "D-2", "complexity", (14,), "obstruction", "barrier",
