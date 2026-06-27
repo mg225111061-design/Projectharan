@@ -3220,6 +3220,49 @@ def test_io_idea1_semantic_cache():
           "not latency; precision 1.0)")
 
 
+def test_io_ideas2to6_and_compose():
+    """§Q IDEAS 2–6 + compose + Amdahl floor-shrink + the adversarial precision battery. Physical I/O latency is NOT
+    reduced — these cut the I/O COUNT (2 pattern-fold, 5 maximal-batch, 6 dedup), overlap the WAIT (3 speculation), and
+    keep provably-unaffected cache (4 invalidation-min), each z3/exact proof-gated so they apply aggressively where a
+    heuristic must guess. ★ Precision 1.0 extends to I/O: every adversarial case (dependent chain, non-affine pattern,
+    secretly-dependent / racing speculation, affecting write, dependent-in-batch, byte-differing / non-deterministic
+    dedup) is REJECTED. Count-reduction is measured on a deterministic model; latency is modeled-pending-deployment."""
+    import accel.io_pattern_fold as I2
+    import accel.proven_speculation as I3
+    import accel.proven_invalidation as I4
+    import accel.maximal_batch as I5
+    import accel.proven_dedup as I6
+    import accel.proven_io_report as R
+    # IDEA 2: affine request pattern folds; dependent chain / non-affine DECLINE
+    assert I2.io_pattern_fold("2*i+1", 0, 50).applied and not I2.io_pattern_fold("i", 0, 10, carried=True).applied
+    assert not I2.io_pattern_fold("i*i", 0, 10).applied
+    # IDEA 3: independent work overlaps the wait; secretly-dependent / racing DECLINE; proved common prefix runs early
+    assert I3.proven_overlap(["r"], ["a"], ["b"]).applied and not I3.proven_overlap(["r"], ["r"], []).applied
+    assert not I3.proven_overlap(["c"], [], ["c"]).applied and I3.proven_common_prefix(["p", "q", "A"], ["p", "q", "B"]).applied
+    # IDEA 4: provably-unaffected entry survives the write; overlapping write invalidates conservatively
+    assert I4.proven_keep(["t1"], ["t2"]).applied and not I4.proven_keep(["u"], ["u"]).applied
+    # IDEA 5: transitively-independent I/Os coalesce; a dependent request is excluded
+    assert I5.maximal_batch([{"name": "a", "reads": ["x"]}, {"name": "b", "reads": ["y"]}]).applied
+    assert not I5.maximal_batch([{"name": "w", "writes": ["k"]}, {"name": "r", "reads": ["k"]}]).applied
+    # IDEA 6: byte-identical merge; byte-differing / non-deterministic DECLINE
+    assert I6.proven_dedup(b"RES", b"RES").applied and not I6.proven_dedup(b"A", b"B").applied
+    assert not I6.proven_dedup(b"X", b"X", a_deterministic=False).applied
+    # COMPOSE: the I/O floor shrinks on a genuinely-reducible workload (honest Amdahl, never 'X× on everything')
+    rep = R.report()
+    c = rep["composed_floor_shrink"]
+    assert c["io_count_after"] < c["io_count_before"] and 0 < c["io_count_reduction_fraction"] < 1
+    assert c["amdahl"]["io_share_after"] < c["amdahl"]["io_share_before"]
+    assert c["amdahl"]["whole_program_speedup"] <= c["amdahl"]["ceiling_if_io_fully_removed"] + 1e-9   # Amdahl-bounded
+    # ★ the adversarial precision battery across all six — 100% REJECTED
+    assert rep["precision"]["value"] == 1.0 and rep["precision"]["all_adversarial_rejected"] and not rep["precision"]["failed"]
+    assert rep["zero_dep_ok"] is True and "MODELED" in rep["modeled_vs_measured"]
+    print(f"PASS test_io_ideas2to6_and_compose (Ideas 2–6 each apply-on-provable + DECLINE-on-adversarial; compose: "
+          f"I/O count {c['io_count_before']}→{c['io_count_after']} [{c['io_count_reduction_fraction']}], floor 50%→"
+          f"{round(c['amdahl']['io_share_after']*100,1)}%, whole-program {c['amdahl']['whole_program_speedup']}× "
+          f"[Amdahl-bounded by {c['amdahl']['ceiling_if_io_fully_removed']}×]; adversarial battery 100% REJECTED "
+          "[precision 1.0]; count measured, latency modeled-pending-deployment; zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

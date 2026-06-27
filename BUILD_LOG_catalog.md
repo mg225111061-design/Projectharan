@@ -895,3 +895,42 @@ every fold via one of 5 EXISTING certificate kinds. ★ **NO 23rd certificate ki
 non-holonomic) DECLINEs under the augmented detector and the P6 nonlinear/nondeterministic handler sets DECLINE; zero
 false folds anywhere. `test_catalog.py` **101/101**, test_build **273×3** isolated (recall modules not imported by
 test_build). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 새 메커니즘은 없다, 탐지기가 눈을 뜰 뿐이다.
+
+## §Q — PROVEN I/O OPTIMIZATION: six verified ways to shrink the I/O floor (Ideas 1–6)
+
+Physical I/O latency is NOT reducible — a network round-trip or disk seek is bounded by physics. These six ideas do
+ONLY two honest things: cut the COUNT of I/Os (1,2,4,5,6) and overlap the WAIT (3). The unique weapon is PROOF, not a
+guess: every caching/prefetch/dedup system in existence guesses (and discards on miss); each idea here applies ONLY
+when z3 / an exact oracle PROVES it sound, so it can be AGGRESSIVE where heuristics must be timid. Precision = 1.0
+extends to I/O — a wrong cache hit / speculation / kept-stale-entry / false merge is a correctness violation that
+FAILS the build. New modules under `accel/`; never imported by test_build; zero new deps (`forbidden_present == []`).
+The I/O is modeled deterministically in-repo: the I/O-COUNT reduction is exactly measured, while real wall-clock
+latency saved is MODELED-pending-real-deployment (exactly as the GPU throughput was device-pending).
+
+**IDEA 1 — semantic cache-equivalence (`semantic_cache.py`).** z3 proves two differently-spelled requests return the
+identical result for all inputs (∀x: A⟺B predicate / A==B value) → share one cache entry for the whole equivalence
+class. Near-equivalent-but-unequal (`x>5` vs `x>=5`, `a-b` vs `b-a`) proved DISTINCT and kept separate; z3 unknown →
+distinct. Measured: a 6-request stream with semantic dups → 4 I/Os (zero false shares). **IDEA 2 — I/O-pattern fold
+(`io_pattern_fold.py`).** When the REQUESTS follow an affine recurrence (`for page: fetch(page)`), prove the closed-
+form index set (differential, no missing/extra) + independence → N sequential round-trips collapse to 1 batch
+(round-trip COUNT, not transfer). Dependent chains and non-affine patterns DECLINE. **IDEA 3 — proven speculation
+(`proven_speculation.py`).** Prove work is independent of the I/O result (disjoint read/write) → overlap it with the
+wait — NO rollback (proven, not predicted); or execute a proved-identical branch prefix early. Secretly-dependent /
+racing work DECLINEs. Overlaps the wait; never claims the I/O got faster. **IDEA 4 — invalidation-minimization
+(`proven_invalidation.py`).** Prove a write's target set is disjoint from a cache entry's read set → KEEP the entry
+across the write (avoiding the re-fetch conservative invalidation forces); any overlap → invalidate conservatively
+(zero stale-keeps). **IDEA 5 — maximal batching (`maximal_batch.py`).** Prove a set of I/Os transitively pairwise-
+independent (across loops/call-chains/nesting) → coalesce ALL into one round-trip; any dependent request stays
+separate. **IDEA 6 — content-dedup (`proven_dedup.py`).** Prove two requests deterministic AND byte-identical → merge
+into one I/O; byte-differing / non-deterministic (nonce/timestamp) kept separate; semantic-only equivalents route to
+Idea 1.
+
+**§7–§9 COMPOSE + Amdahl + battery (`proven_io_report.py`, MEASURED).** All six compose on a modeled I/O-heavy
+workload with genuinely-reducible structure + irreducible all-distinct I/O: the I/O COUNT drops **87 → 27 (0.69
+reduction)**, shrinking the I/O floor **50% → 15.5%** and lifting whole-program to **1.53×** (honestly Amdahl-bounded
+by the 2.0× ceiling; the 20 all-distinct required I/Os do NOT move — on a workload of only those the result is ~1.0×).
+★ The adversarial precision battery across all six (near-equiv requests, dependent chains, secretly-dependent
+speculation, affecting writes, byte-differing / non-deterministic dedup) is **100% REJECTED — precision = 1.0**, zero
+unsound I/O optimizations applied. I/O-count reduction = measured; wall-clock latency = modeled-pending-deployment,
+never presented as production. `test_catalog.py` **103/103**, test_build **273×3** isolated (accel/ not imported by
+test_build). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 물리적 I/O는 못 빠르게 하지만, 증명된 만큼 덜 한다.
