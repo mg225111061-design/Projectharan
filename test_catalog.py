@@ -2878,9 +2878,10 @@ def test_post_consol_task5_honest_ui_landing():
       (2) the hero 115× no longer MISATTRIBUTES its source — 115.494 is csv_stats (a 'data utility'), NOT the
           'never-profiled' app (which is 47×); the old misattributing phrase is gone and the honest 'not typical' is in;
       (3) honest COVERAGE framing is on the page — big wins are a MINORITY and the 115× is a SELECTED best case;
-      (4) the main UI's STATIC path is honest — nothing-detected ⇒ 1.0× (no fabricated win), it ships ONLY waste types
-          actually detected in the user's code, grades render as truthful EXACT/PROBABILISTIC/DECLINE badges, the
-          per-mode CLOCK is surfaced, and the static-vs-live distinction is disclosed (live per-code run needs server)."""
+      (4) the §S main UI is rebuilt around the three pillars SECURED·FAST·ACCURATE — the design system (3D slabs,
+          float/screen animations, dark mode, the three repurposed accents) is preserved while ALL the old engine
+          internals (grade badges, ceiling meters, ratios, z3 counts, mode-internals tables) are removed; the
+          paste-code + provider flow and the session-only key-safety disclosure are kept (live run needs the server)."""
     land = open("mrjeffrey_landing.html", encoding="utf-8").read()
     # (1) the pedagogical examples are labelled illustrative (and still present, as illustrations not claims)
     assert "illustrativ" in land.lower(), "the 700×/400× pedagogical examples must be labelled illustrative"
@@ -2891,17 +2892,22 @@ def test_post_consol_task5_honest_ui_landing():
     assert "data utility" in land and "not typical" in land            # honest source + honest 'this is the best case'
     # (3) honest coverage framing — big wins are a minority; the headline is selected
     assert "minority" in land.lower() and "selected" in land.lower()
-    # (4) main UI honest STATIC path + truthful badges + per-mode clock + live/static disclosure
+    # (4) the §S main UI rebuild — three pillars (SECURED·FAST·ACCURATE), design system preserved, ALL engine
+    #     internals (grade badges / ceiling meters / ratios / z3 counts / mode-internals tables) removed
     ui = open("mrjeffrey.html", encoding="utf-8").read()
-    assert "shipped.length? shipped[shipped.length-1].ratio : 1.0" in ui   # nothing detected ⇒ honest 1.0×, no fake win
-    assert "types.has(s.waste_type)" in ui                                 # ships ONLY waste types actually detected
-    assert ".grade.exact" in ui and ".grade.probabilistic" in ui and ".grade.decline" in ui  # truthful grade badges
-    assert "클럭 · " in ui and "primary_clock" in ui                        # per-mode clock surfaced
-    assert "/api/optimize" in ui and "정적 빌드" in ui                        # live vs static honestly disclosed
+    assert "SECURED" in ui and "FAST" in ui and "ACCURATE" in ui            # the three pillars are the story
+    assert '[data-mode="secured"]' in ui and '[data-mode="fast"]' in ui and '[data-mode="accurate"]' in ui  # accents repurposed
+    assert "--slab" in ui and "floatIn" in ui and 'data-theme="dark"' in ui  # design system reused (slabs/anim/dark)
+    for gone in (".grade.exact", "meter3", "speedupSlab", "hotspot_fraction", "z3_calls", "cumulative_ratio",
+                 "verifier_tier", "primary_clock", "panel_rows", "천장"):                # all old internals removed
+        assert gone not in ui, f"§S: engine internal must be removed from the UI: {gone}"
+    assert "provider-card" in ui and "get_key_url" in ui and "free_no_card" in ui and "/api/optimize" in ui  # provider flow
+    assert "session-only" in ui and "정적 빌드" in ui                          # key-safety line + static disclosure
     print("PASS test_post_consol_task5_honest_ui_landing (landing: pedagogical 700×/400× LABELLED illustrative; hero "
           "115× re-attributed to its real source [csv_stats=data utility, not 'never-profiled'] + 'not typical'; "
-          "coverage framing [big wins are the MINORITY / 115× SELECTED] present; main UI: nothing-detected⇒1.0×, ships "
-          "only detected waste, truthful EXACT/PROBABILISTIC/DECLINE badges, per-mode clock, static-vs-live disclosed)")
+          "coverage framing [big wins are the MINORITY / 115× SELECTED] present; main UI rebuilt §S around three "
+          "pillars SECURED·FAST·ACCURATE — design reused, ALL engine internals removed, provider flow + session-only "
+          "key safety preserved)")
 
 
 def test_post_consol_task6_accel_maximal_and_stress550():
@@ -3414,6 +3420,44 @@ def test_security_r5_overhead_and_report():
           f"SENSITIVE+flagged path; capstone precision {rep['precision']['value']} [false-safes "
           f"{len(rep['precision']['false_safes_total'])}], recall {rep['logical_verification']['recall_on_provable_safe']} "
           "on provable-safe, hardening gate-bound, zero-dep — 'safe' only when proved, zero overhead where not needed)")
+
+
+def test_s_ui_three_pillars():
+    """§S — the MR.JEFFREY product UI rebuilt around the three words SECURED · FAST · ACCURATE. The design system is
+    REUSED (color tokens, 3D slabs + layered shadow, float/screen animations, dark mode, typography, accessibility,
+    responsive) and the three accent palettes are REPURPOSED to the three pillars; ALL engine internals (measured
+    ratios, Amdahl ceilings, hotspot fractions, z3 counts, latency-ms, grade badges, complexity sweeps, corpus
+    panel-rows, mode-internals tables, waste-class jargon) are REMOVED from the surface; the paste-code + provider
+    flow (free-no-card badges, get-key links, session-only key handling) is preserved; one honest key-safety line
+    stays. Self-contained single HTML artifact (vanilla JS + embedded CSS)."""
+    ui = open("mrjeffrey.html", encoding="utf-8").read()
+    # the three pillars are the organizing story (English words + the Korean product names)
+    for w in ("SECURED", "FAST", "ACCURATE", "안전하게", "빠르게", "정확하게"):
+        assert w in ui, f"§S pillar word missing: {w}"
+    # the three accent palettes repurposed to the three pillars (the [data-mode] mechanism kept)
+    assert '[data-mode="secured"]' in ui and '[data-mode="fast"]' in ui and '[data-mode="accurate"]' in ui
+    # design system reused: tokens + 3D slab + animations + dark mode + a11y + responsive + reduced-motion
+    for tok in ("--slab", "--extend", "--fast", "--normal", ".slab", "floatIn", "screenIn",
+                'data-theme="dark"', ":focus-visible", ".sr-only", "@media(max-width", "prefers-reduced-motion"):
+        assert tok in ui, f"§S design-system token must be preserved: {tok}"
+    # ★ ALL engine internals removed from the surface (no numbers / grades / ceilings / internals tables / jargon)
+    for gone in (".grade.exact", ".grade.probabilistic", ".grade.decline", "meter3", "wall3", "speedupSlab",
+                 "compoundCurve", "hotspot_fraction", "z3_calls", "cumulative_ratio", "latency_ms", "verifier_tier",
+                 "primary_clock", "risk_posture", "stop_condition", "panel_rows", "runs_complexity_sweep",
+                 "list_as_set", "n_plus_1", "accidental_quadratic", "differential PASS", "Amdahl", "천장", "115×"):
+        assert gone not in ui, f"§S: engine internal must be removed from the UI: {gone!r}"
+    # paste-code + provider flow preserved (free-no-card badges, get-key links, session-only key handling)
+    assert ".editor" in ui and "provider-card" in ui and "free_no_card" in ui and "get_key_url" in ui
+    assert "/api/optimize" in ui and "/api/key/validate" in ui                # the real input flow
+    assert "badge-free" in ui                                                 # the free-provider affordance
+    # the one honest key-safety disclosure stays
+    assert "session-only" in ui and ("never logged" in ui or "never stored" in ui)
+    # self-contained single artifact (no external script/style references)
+    assert "<script src=" not in ui and "<link " not in ui
+    print("PASS test_s_ui_three_pillars (UI rebuilt around SECURED·FAST·ACCURATE: design system reused [tokens/slabs/"
+          "animations/dark/a11y/responsive], three accents repurposed to the pillars, ALL engine internals removed "
+          "[ratios/ceilings/grades/z3/latency/corpus/mode-tables/waste-jargon], paste-code + provider flow + "
+          "session-only key safety preserved; self-contained single HTML artifact)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

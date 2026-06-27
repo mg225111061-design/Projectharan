@@ -978,3 +978,34 @@ recall on the provably-safe cases is reported honestly (1.0 here, but a DECLINE 
 `test_catalog.py` **108/108** (+5 §R tests), test_build **273×3** isolated (security/ not imported by test_build). No
 new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — LLM이 필요를 정하고 검증기가 사실을 증명한다: 증명된 것만 "안전",
 필요 없는 곳엔 오버헤드 0.
+
+## §S — UI REBUILD (SECURED · FAST · ACCURATE): keep the design, gut the dashboard
+
+The product UI (`mrjeffrey.html`) is rebuilt around three words — **SECURED · FAST · ACCURATE** — and nothing else.
+The polished design system is REUSED verbatim: the color tokens, the 3D `.slab` cards with their layered shadow stack
+and `::before` sheen / `::after` contact shadow, the perspective tilt + `floatIn`/`screenIn` animations, the dark-mode
+token set + toggle, the typography (sans/mono, clamp-scaled `h1`, mono-caps eyebrow), the sticky blurred topbar with
+the glowing brand dot, `:focus-visible` / `.sr-only` accessibility, and the responsive breakpoints. ★The three accent
+palettes are REPURPOSED to the three pillars via the kept `[data-mode]` mechanism: **SECURED → violet** (trust),
+**FAST → teal** (speed), **ACCURATE → amber** (precision).
+
+★Every engine internal is REMOVED from the surface — the churning build-time numbers that dated the page instantly:
+measured ratios (47×/111×/1.48×), Amdahl ceilings + the `.meter`/`.wall`/`.fill` ceiling visualizations, hotspot
+fractions, z3 call counts, latency-ms, the `exact`/`probabilistic`/`decline` grade badges + legend, complexity-sweep
+flags, the corpus panel-rows with their `differential PASS` notes, the mode-internals tables (detectors / verifier_tier
+/ risk_posture / stop_condition), and the waste-class jargon. The DATA blob now carries ONLY the provider list and the
+session-only key policy. The result is shown as three HUMAN outcomes — "주입·경계·메모리 안전을 점검… 민감한 경로는
+상수 시간으로 보강" / "이미 효율적입니다 — 바꿀 것 없음" / "같은 결과를 내는지 확인" — each pillar a sentence, the honest
+negatives surviving as plain words rather than grade badges, never a fabricated measurement (the static artifact labels
+its outcomes a DEMO; the live engine renders the real per-run result, translated to human words). The paste-code +
+provider flow is preserved (free-no-card badges, get-key links, session-only key handling), and the one honest
+disclosure stays: the API key lives in this tab only — never logged, stored, or sent anywhere but the chosen provider.
+
+The CODE⇄MATH toggle and the MATH screens were retired from this artifact (they were grade-badge UIs, which the new
+rules forbid; "Nothing else" — the three-pillar code product is the whole surface). The MATH ENGINE remains server-side
+(`mathmode/`) and its backend invariants are still test-enforced; only its UI surface is gone. Self-contained single
+HTML artifact (vanilla JS + embedded CSS, no toolchain). The old numeric-pinning UI tests are rewritten to STRUCTURAL
+assertions (`test_s_ui_three_pillars` + the updated §B1/§B2 backend tests + the updated TASK-5 UI block): three pillars
+present, design system reused, all engine internals absent, provider flow + key-safety preserved. `test_catalog.py`
+**109/109**, test_build **273×3** (mrjeffrey.html not imported by the engine; §B1/§B2 now assert the MATH backend, not
+UI markers). No new dependency. 화면은 측정값의 벽이 아니라 — 안전하게 · 빠르게 · 정확하게, 세 단어다.

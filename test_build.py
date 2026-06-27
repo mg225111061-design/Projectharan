@@ -7266,28 +7266,18 @@ def test_mathascent_optimization_and_science():
 
 
 def test_mathascent_b1_mode_toggle():
-    """§B1 — the CODE ⇄ MATH mode toggle. An invariant test: (1) the served UI carries the OUTER toggle (코드/수학)
-    that re-themes (data-top) and re-routes (MATH screen map) while the INNER fast/normal/extend selector is
-    preserved; (2) the backend routes CODE and MATH measurably differently (topmode invariant); (3) the MATH §B
-    grade floor is real — extend is EXACT-or-DECLINE (a PROBABILISTIC answer is rejected), fast/normal accept it.
-    Switching the toggle actually changes which engine handles the input (CODE→optimize, MATH→solver)."""
-    from pathlib import Path
+    """§B1 (backend invariant; the UI surface was retired in §S) — the CODE and MATH engines route measurably
+    differently, and the MATH §B grade floor is real: extend is EXACT-or-DECLINE (a PROBABILISTIC answer is
+    rejected), fast/normal accept it. The §S UI rebuild made the three-pillar code product the whole surface and
+    retired the CODE⇄MATH toggle + MATH screens; the MATH engine remains and these backend invariants still hold."""
     from mathmode import solver as MS
     from mathmode import topmode as TM
     import kernel_verdict as KV
 
-    # (1) the UI wiring is present in the served single-file app
-    html = Path(__file__).with_name("mrjeffrey.html").read_text(encoding="utf-8")
-    for marker in ('topseg', "switchTop", '"코드"', '"수학"', '"data-top"', 'scrMathProblem',
-                   "/api/math/solve", '[data-top="math"]'):
-        assert marker in html, f"B1 UI marker missing: {marker}"
-    # the INNER fast/normal/extend selector is preserved inside MATH (scrMathMode binds S.mathMode)
-    assert "scrMathMode" in html and "S.mathMode" in html, "MATH must keep the inner fast/normal/extend selector"
-
-    # (2) CODE and MATH route measurably differently (the per-commit topmode invariant)
+    # CODE and MATH route measurably differently (the per-commit topmode invariant)
     assert TM.routes_differ(), "CODE and MATH must route differently"
 
-    # (3) the MATH §B grade floor is enforced (extend EXACT-or-DECLINE; fast/normal accept PROBABILISTIC)
+    # the MATH §B grade floor is enforced (extend EXACT-or-DECLINE; fast/normal accept PROBABILISTIC)
     prob = {"domain": "certified_numeric", "op": "montecarlo_pi", "samples": 8000, "delta": 1e-2}
     assert MS.solve_in_mode(prob, "fast").verdict.status == KV.PROBABILISTIC
     assert MS.solve_in_mode(prob, "normal").verdict.status == KV.PROBABILISTIC
@@ -7300,9 +7290,9 @@ def test_mathascent_b1_mode_toggle():
         assert sol.verdict.status == KV.EXACT
         json.dumps(sol.to_dict())
 
-    print("PASS test_mathascent_b1_mode_toggle (served UI carries the OUTER 코드⇄수학 toggle [re-themes via data-top, "
-          "re-routes via MATH screen map] with the INNER fast/normal/extend preserved; CODE/MATH route differently; "
-          "MATH §B floor enforced [extend EXACT-or-DECLINE, fast/normal accept PROBABILISTIC]; to_dict JSON-safe)")
+    print("PASS test_mathascent_b1_mode_toggle (UI toggle retired in §S — the three-pillar code product is the whole "
+          "surface; the MATH engine remains: CODE/MATH route differently; §B floor enforced [extend EXACT-or-DECLINE, "
+          "fast/normal accept PROBABILISTIC]; to_dict JSON-safe)")
 
 
 def test_mathascent_b3_archive_safety():
@@ -7362,7 +7352,6 @@ def test_mathascent_b2_file_attachment():
     drag-drop + picker wiring. Honest 'unsupported' where blocked — never a fabricated extraction."""
     import io
     import zipfile
-    from pathlib import Path
     from mathmode import ingest as ING
     import kernel_verdict as KV
 
@@ -7391,14 +7380,9 @@ def test_mathascent_b2_file_attachment():
     assert ING.analyze_upload("paper.pdf", b"%PDF-1.4")["unverified"]
     assert ING.analyze_upload("eqn.png", b"\x89PNG")["unverified"]
 
-    # the served UI carries the drag-drop + picker wiring
-    html = Path(__file__).with_name("mrjeffrey.html").read_text(encoding="utf-8")
-    for marker in ("attachZone", "handleAttach", "/api/math/ingest", "dropzone", "ondrop"):
-        assert marker in html, f"B2 UI marker missing: {marker}"
-
     print("PASS test_mathascent_b2_file_attachment (XLSX C-finite column → O(log n) companion FOLD «EXACT»; ZIP "
           "bundle unpacked + each inner file analyzed [zip-slip entry refused]; PDF/image ⇒ honest UNVERIFIED; "
-          "served UI has the drag-drop + picker wired to /api/math/ingest)")
+          "the MATH file-ingest engine remains — its drag-drop UI surface was retired in the §S three-pillar rebuild)")
 
 
 def test_mathascent_b4_probability_inequalities():

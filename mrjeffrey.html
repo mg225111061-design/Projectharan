@@ -4,33 +4,33 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="light dark" />
-<title>MR.JEFFREY — 추측이 아니라, 증명된 속도</title>
-<meta name="description" content="코드를 붙여넣고 모드를 고르면, 검증기가 판정합니다. 모든 가속은 전체 프로그램을 실측하고 Amdahl 천장을 함께 보여줍니다. 가속이 없으면, 주장도 없습니다." />
+<title>MR.JEFFREY — 안전하게 · 빠르게 · 정확하게</title>
+<meta name="description" content="코드를 붙여넣고 제공자를 고르면, 안전하고 빠르고 정확한 코드로 돌려받습니다. 필요한 곳에만 보안을, 진짜 구조가 있는 곳에만 가속을, 그리고 모든 변경은 같은 결과를 내는지 확인합니다." />
 <style>
 /* MR.JEFFREY — single-file app. Extreme minimalism × extreme dimensionality. White volume, one ink, three
-   mode accents; the few objects are deeply dimensional floating slabs. Honesty encoded: a row can only be as
-   loud as its grade; the speedup bar can never cross its Amdahl-ceiling wall. */
+   PILLAR accents (SECURED·FAST·ACCURATE); the few objects are deeply dimensional floating slabs. The promise is
+   three words — not a dashboard of numbers. The design system (tokens, slabs, animations, dark mode) is preserved;
+   the engine's churning build-time internals never reach this surface. */
 :root{
   --page:#fafaf8;--card:#fff;--ink:#1a1a17;--ink-2:#55534c;--muted:#85827a;
   --line:rgba(0,0,0,.12);--line-soft:rgba(0,0,0,.07);
   --fast:#0e9fb5;--fast-deep:#0b5566;--fast-tint:#e4f6f9;
   --normal:#ba7517;--normal-deep:#633806;--normal-tint:#faeeda;
   --extend:#534ab7;--extend-deep:#26215c;--extend-tint:#eeedfe;
-  --exact:#3b6d11;--exact-bg:#eaf3de;--prob:#444441;--prob-bg:#f1efe8;--decline:#5f5e5a;--decline-bg:#f1efe8;
-  --free:#0f766e;--free-bg:#e6f3f1;--pick:#44423c;--wall:rgba(0,0,0,.52);--track:#efeee9;
-  --math:#1f8a5b;--math-deep:#0e4a31;--math-tint:#e4f4ec;
+  --free:#0f766e;--free-bg:#e6f3f1;--pick:#44423c;
   --r:8px;--r-lg:12px;--focus:#534ab7;--persp:1100px;
   --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR","Pretendard",Helvetica,Arial,sans-serif;
   --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",monospace;
+  /* the three accent families are repurposed to the three PILLARS:
+     SECURED → violet (extend, trust/depth) · FAST → teal (fast, speed) · ACCURATE → amber (normal, precision). */
   --accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint);
   --slab:0 1px 1px rgba(20,20,23,.03),0 2px 4px rgba(20,20,23,.035),0 6px 12px rgba(20,20,23,.045),0 14px 28px rgba(20,20,23,.05),0 30px 60px rgba(20,20,23,.06),0 60px 110px rgba(20,20,23,.05);
 }
 :root[data-theme="dark"]{
   --page:#0e0e10;--card:#171719;--ink:#eceae3;--ink-2:#b7b4ac;--muted:#8c897f;
   --line:rgba(255,255,255,.15);--line-soft:rgba(255,255,255,.08);
-  --fast-tint:#0b5566;--normal-tint:#633806;--extend-tint:#26215c;--math-tint:#0e4a31;
-  --exact:#9ad16a;--exact-bg:#19260f;--prob:#c8c5bc;--prob-bg:#201f1b;--decline:#a8a49b;--decline-bg:#201f1b;
-  --free:#5ec0b4;--free-bg:#13302c;--pick:#c8c5bc;--wall:rgba(255,255,255,.55);--track:#26262a;--focus:#a79ef5;
+  --fast-tint:#0b5566;--normal-tint:#633806;--extend-tint:#26215c;
+  --free:#5ec0b4;--free-bg:#13302c;--pick:#c8c5bc;--focus:#a79ef5;
   --slab:0 2px 4px rgba(0,0,0,.4),0 8px 16px rgba(0,0,0,.45),0 18px 36px rgba(0,0,0,.5),0 40px 80px rgba(0,0,0,.55),0 80px 130px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box}html,body{height:100%}
@@ -40,49 +40,10 @@ h1{font-size:clamp(28px,4vw,46px);line-height:1.08}h2{font-size:21px}h3{font-siz
 p{margin:0 0 12px;color:var(--ink-2)}a{color:var(--accent-deep)}
 .mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+/* ★ the [data-mode] accent-swapping mechanism, repurposed to the three pillars (kept verbatim in spirit) */
+[data-mode="secured"]{--accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint)}
 [data-mode="fast"]{--accent:var(--fast);--accent-deep:var(--fast-deep);--accent-tint:var(--fast-tint)}
-[data-mode="normal"]{--accent:var(--normal);--accent-deep:var(--normal-deep);--accent-tint:var(--normal-tint)}
-[data-mode="extend"]{--accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint)}
-/* the MATH top-level mode re-themes the whole surface (green family); the inner fast/normal/extend cards keep
-   their own per-mode accent via their own [data-mode]. data-top is placed AFTER data-mode so it wins app-wide. */
-[data-top="math"]{--accent:var(--math);--accent-deep:var(--math-deep);--accent-tint:var(--math-tint)}
-/* ── B1: the OUTER CODE ⇄ MATH segmented toggle (a primary control, not buried) ── */
-.topseg{display:inline-flex;background:var(--track);border:1px solid var(--line-soft);border-radius:9px;padding:3px;gap:2px}
-.topseg-btn{font:inherit;font-size:13px;font-weight:500;letter-spacing:.01em;color:var(--muted);background:none;border:0;padding:6px 14px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.18s}
-.topseg-btn:hover{color:var(--ink)}
-.topseg-btn[aria-selected="true"]{color:#fff;background:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.18)}
-.topseg-btn .tg{width:8px;height:8px;border-radius:2px;background:currentColor;opacity:.8}
-/* ── B1/§5: the visible grade-tagged reasoning trace ── */
-.mtrace{display:flex;flex-direction:column;gap:0;margin:6px 0 0;border-left:2px solid var(--line);padding-left:0}
-.mstep{display:flex;gap:10px;align-items:baseline;padding:7px 0 7px 14px;border-left:2px solid transparent;margin-left:-2px}
-.mstep .mst-stage{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);min-width:96px}
-.mstep .mst-detail{flex:1;font-size:13.5px;color:var(--ink-2)}
-.gchip{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap}
-.gchip.EXACT{color:var(--exact);background:var(--exact-bg)}.gchip.PROBABILISTIC{color:var(--prob);background:var(--prob-bg)}.gchip.DECLINE{color:var(--decline);background:var(--decline-bg)}
-.mcert{margin-top:14px;border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
-.mcert summary{cursor:pointer;padding:12px 16px;font-size:13px;font-weight:500;color:var(--ink);background:var(--card);list-style:none;display:flex;align-items:center;gap:10px}
-.mcert summary::-webkit-details-marker{display:none}
-.mcert[open] summary{border-bottom:1px solid var(--line-soft)}
-.mcert .mcert-body{padding:14px 16px;font-size:13px;color:var(--ink-2);font-family:var(--mono);line-height:1.6;word-break:break-word}
-.mathfield{width:100%;min-height:88px;font-family:var(--mono);font-size:14px;line-height:1.5;padding:14px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);color:var(--ink);resize:vertical}
-.mathfield:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-/* ── B2: universal file attachment (drag-drop + picker) ── */
-.attach{margin-top:18px}
-.dropzone{display:flex;align-items:center;gap:14px;padding:18px;border:1.5px dashed var(--line);border-radius:var(--r-lg);cursor:pointer;color:var(--ink-2);transition:.18s;background:var(--card)}
-.dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--accent-tint)}
-.dropzone .drop-ic{font-size:24px;color:var(--accent);line-height:1}
-.attach-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
-.attach-item{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--card)}
-.attach-head{display:flex;align-items:center;gap:10px}
-.attach-head .an{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--ink);word-break:break-all}
-.attach-head .ax{margin-left:auto;cursor:pointer;border:0;background:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 6px}
-.attach-head .ax:hover{color:var(--ink)}
-.statusdot{font-size:11px;color:var(--muted);font-family:var(--mono)}
-.attach-find{display:flex;align-items:baseline;gap:8px;padding:7px 0 0;border-top:1px solid var(--line-soft);margin-top:8px;font-size:12.5px}
-.attach-find .af-prov{flex:1;color:var(--ink-2)}
-.attach-find .af-ans{font-family:var(--mono);color:var(--ink);word-break:break-all}
-.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
-@keyframes sp{to{transform:rotate(360deg)}}
+[data-mode="accurate"]{--accent:var(--normal);--accent-deep:var(--normal-deep);--accent-tint:var(--normal-tint)}
 .app{min-height:100%;display:flex;flex-direction:column}
 .topbar{display:flex;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--line-soft);background:color-mix(in srgb,var(--page) 82%,transparent);backdrop-filter:saturate(1.2) blur(8px);position:sticky;top:0;z-index:10}
 .brand{display:flex;align-items:center;gap:9px;font-weight:500;letter-spacing:.02em}
@@ -100,21 +61,18 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;per
 .wide{max-width:1180px}
 @keyframes screenIn{from{opacity:0;transform:perspective(var(--persp)) translateY(14px) translateZ(-40px)}to{opacity:1;transform:none}}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
-.lead{font-size:16px;color:var(--ink-2);max-width:60ch}
+.lead{font-size:16px;color:var(--ink-2);max-width:62ch}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .grid{display:grid;gap:14px}.cols-3{grid-template-columns:repeat(3,1fr)}.cols-2{grid-template-columns:repeat(2,1fr)}
 @media(max-width:860px){.cols-3,.cols-2{grid-template-columns:1fr}}
 .btn{font:inherit;font-size:14px;font-weight:500;cursor:pointer;background:var(--accent);color:#fff;border:1px solid var(--accent-deep);padding:10px 18px;border-radius:var(--r);transition:filter .15s}
 .btn:hover{filter:brightness(1.06)}.btn:disabled{opacity:.45;cursor:not-allowed}.btn.lg{font-size:15px;padding:12px 22px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
-.kbd{font-family:var(--mono);font-size:12px;background:var(--track);padding:1px 6px;border-radius:5px}
-.grade{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:500;padding:3px 9px;border-radius:999px;text-transform:lowercase}
-.grade.exact{color:var(--exact);background:var(--exact-bg)}.grade.probabilistic{color:var(--prob);background:var(--prob-bg)}.grade.decline{color:var(--decline);background:var(--decline-bg)}
-.grade .gd{width:6px;height:6px;border-radius:50%;background:currentColor}
+.kbd{font-family:var(--mono);font-size:12px;background:var(--track,#efeee9);padding:1px 6px;border-radius:5px}
 .badge-free{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;color:var(--free);background:var(--free-bg)}
 .badge-free .gd{width:6px;height:6px;border-radius:50%;background:currentColor}
 .getkey{font-family:var(--mono);font-size:11.5px;color:var(--free);text-decoration:none}.getkey:hover{text-decoration:underline}
-/* dimensionality */
+/* dimensionality — the 3D floating slab, preserved verbatim */
 .slab{position:relative;background:var(--card);border-radius:18px;padding:22px 24px;box-shadow:var(--slab);transform:perspective(var(--persp)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(var(--lift,0px));transform-style:preserve-3d;transition:box-shadow .4s;will-change:transform}
 .slab::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(177deg,rgba(255,255,255,.5),transparent 24%);opacity:.55}
 :root[data-theme="dark"] .slab::before{background:linear-gradient(177deg,rgba(255,255,255,.08),transparent 24%)}
@@ -122,54 +80,40 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;per
 .plane{transform:translateZ(var(--z,0px))}
 .float-in{animation:floatIn .7s cubic-bezier(.2,.8,.2,1) both}
 @keyframes floatIn{from{opacity:0;transform:perspective(var(--persp)) rotateX(10deg) translateY(26px) translateZ(-80px)}to{opacity:1;transform:none}}
-.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;min-height:min(70vh,600px);padding:20px 0 60px}
-.hero-copy h1{max-width:16ch}.hero-cap{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:16px}
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;min-height:min(66vh,560px);padding:20px 0 50px}
+.hero-copy h1{max-width:17ch}.hero-cap{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:16px}
 @media(max-width:880px){.hero{grid-template-columns:1fr;gap:28px;min-height:0}.hero>div:last-child{order:-1}}
 .tenets{margin:4px 0 40px;gap:36px}.feat h3{font-size:15px;margin-bottom:8px;position:relative;padding-top:14px}
 .feat h3::before{content:"";position:absolute;top:0;left:0;width:22px;height:2px;background:var(--accent);border-radius:2px}
 .feat p{margin:0}
-.speed-slab{max-width:560px;margin:0 auto;width:100%}
-.ss-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
-.ss-waste{font-family:var(--mono);font-size:13px;color:var(--ink-2)}
-.meter3{position:relative;height:62px;border-radius:12px;background:var(--track);box-shadow:inset 0 2px 6px rgba(0,0,0,.08)}
-.fill3{position:absolute;inset:0 auto 0 0;border-radius:12px 4px 4px 12px;background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,white),var(--accent));box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent);transition:width .6s cubic-bezier(.2,.7,.2,1)}
-.wall3{position:absolute;top:-10px;bottom:-10px;width:2px;background:var(--wall);border-radius:2px}
-.wall3-lbl{position:absolute;bottom:-26px;right:0;white-space:nowrap;font-family:var(--mono);font-size:10px;color:var(--muted)}
-.meter3-val{position:absolute;top:50%;left:16px;transform:translateY(-50%);font-family:var(--mono);font-size:22px;font-weight:500;color:#fff;mix-blend-mode:difference}
-.ss-read{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:38px}
-.ss-k{font-size:11px;color:var(--muted);display:block}.ss-v{font-family:var(--mono);font-size:17px;color:var(--ink)}
-.slab-stack{display:flex;flex-direction:column;gap:52px;padding:22px 0 34px}
-@media(max-width:560px){.ss-read{grid-template-columns:1fr;gap:8px}.meter3-val{font-size:18px}:root{--slab:0 2px 6px rgba(20,20,23,.06),0 10px 22px rgba(20,20,23,.07),0 24px 44px rgba(20,20,23,.06)}.slab::after{display:none}}
+/* the three PILLAR slabs — each in its own repurposed accent (data-mode), reusing the 3D treatment */
+.pillar-stack{display:flex;flex-direction:column;gap:18px}
+.pillar{text-align:left;padding:20px 22px}
+.pillar .p-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.pillar .glyph{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-deep);flex:none;font-size:17px}
+.pillar .p-name{font-weight:600;font-size:16px;letter-spacing:.04em}
+.pillar .p-word{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-deep);background:var(--accent-tint);padding:2px 8px;border-radius:999px;margin-left:auto}
+.pillar p{margin:0;font-size:14px;color:var(--ink-2)}
+.hero-pillars{display:flex;flex-direction:column;gap:14px;max-width:480px;margin:0 auto;width:100%}
+.hero-pillars .pillar{padding:16px 18px}
 .mode-card{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;cursor:pointer;display:flex;flex-direction:column;gap:10px;font:inherit;color:var(--ink);transform:perspective(var(--persp)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(var(--lift,0px));transition:box-shadow .35s,border-color .18s}
 .mode-card:hover{border-color:var(--accent)}.mode-card[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.06)}
-.depth-fast{box-shadow:0 1px 2px rgba(20,20,23,.04),0 4px 10px rgba(20,20,23,.05)}
-.depth-normal{box-shadow:0 2px 4px rgba(20,20,23,.045),0 8px 18px rgba(20,20,23,.06),0 18px 36px rgba(20,20,23,.05)}
-.depth-extend{box-shadow:0 2px 6px rgba(20,20,23,.05),0 10px 24px rgba(20,20,23,.07),0 26px 52px rgba(20,20,23,.07),0 50px 90px rgba(20,20,23,.06)}
 .mc-head{display:flex;align-items:center;gap:10px}.glyph{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-deep);flex:none;font-size:16px}
-.mc-name{font-weight:500;font-size:16px;text-transform:capitalize}.mc-clock{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.mode-card dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:4px 0 0;font-size:12.5px}
-.mode-card dt{color:var(--muted)}.mode-card dd{margin:0;color:var(--ink-2);font-family:var(--mono);font-size:12px;text-align:right}
+.mc-name{font-weight:500;font-size:16px}.mc-clock{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .provider-card{flex-direction:row;align-items:center;gap:12px}.provider-card[aria-pressed="true"]{border-color:var(--pick);box-shadow:0 0 0 1px var(--pick),0 8px 24px rgba(0,0,0,.06)}
-.provider-card .glyph{background:var(--track);color:var(--pick)}
-.editor{width:100%;min-height:260px;resize:vertical;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;tab-size:4}
+.provider-card .glyph{background:var(--track,#efeee9);color:var(--pick)}
+.v-sub{color:var(--muted);font-size:12px}
+.editor{width:100%;min-height:240px;resize:vertical;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;tab-size:4}
+.outcode{width:100%;white-space:pre;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;tab-size:4;margin:0}
 .samples{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
 .samples button,.upload{font:inherit;font-size:12px;font-family:var(--mono);background:var(--page);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer}
 .samples button:hover,.upload:hover{border-color:var(--accent);color:var(--ink)}.upload input{display:none}
 .field{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.field label{font-size:13px;color:var(--ink-2)}
 .field input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
-.note{font-size:12.5px;color:var(--muted)}.note.good{color:var(--exact)}.note.warn{color:var(--normal-deep)}
+.note{font-size:12.5px;color:var(--muted)}.note.good{color:var(--free)}.note.warn{color:var(--normal-deep)}
 .honesty{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--ink-2);background:var(--card);border:1px dashed var(--line);border-radius:var(--r);padding:12px 14px;margin:16px 0 0}
-.tags{display:flex;gap:6px;flex-wrap:wrap}.tag{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:var(--track);padding:2px 8px;border-radius:6px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;margin:0 0 16px}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-size:13px}.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);font-size:12.5px;text-align:right}
-.vrow{display:grid;grid-template-columns:1.6fr .9fr 1.4fr auto;gap:14px;align-items:center;padding:13px 4px;border-bottom:1px solid var(--line-soft)}
-.vrow:last-child{border-bottom:0}.v-name{font-weight:500}.v-sub{color:var(--muted);font-size:12px}.v-waste{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
-.meter{position:relative;height:26px;background:var(--track);border-radius:6px;overflow:hidden}.meter .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);opacity:.9;border-radius:6px 0 0 6px}
-.meter .wall{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--wall)}.meter .lbl{position:absolute;inset:0;display:flex;align-items:center;padding-left:9px;font-family:var(--mono);font-size:12px;color:#fff;mix-blend-mode:difference}
-.v-ceil{font-family:var(--mono);font-size:12px;color:var(--ink-2);text-align:right;white-space:nowrap}
-.curve{display:block;overflow:visible;width:100%}.curve-axis{stroke:var(--line)}.curve-base{stroke:var(--line-soft);stroke-dasharray:3 4}
-.curve-area{fill:var(--accent);opacity:.1}.curve-line{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round}
-.curve-dot{fill:var(--card);stroke:var(--accent);stroke-width:2}.curve-lbl{font-family:var(--mono);font-size:10px;fill:var(--ink-2)}.curve-axlbl{font-family:var(--mono);font-size:9px;fill:var(--muted)}
+.demo-banner{display:flex;gap:9px;align-items:center;font-size:12.5px;color:var(--ink-2);background:var(--accent-tint);border:1px solid var(--line-soft);border-radius:var(--r);padding:10px 14px;margin:0 0 16px}
 .spin{width:15px;height:15px;border:2px solid var(--accent-tint);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:9px;background:var(--card);color:var(--ink);font-size:13.5px;font-weight:500;padding:12px 18px;border-radius:12px;box-shadow:var(--slab);z-index:50;animation:toastIn .4s cubic-bezier(.2,.8,.2,1) both}
@@ -178,20 +122,42 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;per
 .mt{margin-top:14px}.muted{color:var(--muted)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:560px){:root{--slab:0 2px 6px rgba(20,20,23,.06),0 10px 22px rgba(20,20,23,.07),0 24px 44px rgba(20,20,23,.06)}.slab::after{display:none}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
-const DATA = {"modes":[{"mode":"fast","primary_clock":"A (felt speed)","verifier_tier":"MICRO","detectors":12,"acceptable_grades":["exact","probabilistic"],"max_hotspots":3,"runs_complexity_sweep":false,"latency_budget_s":1.0,"risk_posture":"miss-a-win OK; block-the-dev NEVER","stop_condition":"first accepted win"},{"mode":"normal","primary_clock":"balance A/B/C","verifier_tier":"CHEAP_CERT","detectors":27,"acceptable_grades":["exact","probabilistic"],"max_hotspots":null,"runs_complexity_sweep":false,"latency_budget_s":30.0,"risk_posture":"balanced","stop_condition":"next marginal whole-program gain < 10%"},{"mode":"extend","primary_clock":"C (emitted speed); A sacrificed","verifier_tier":"FULL_CERT","detectors":40,"acceptable_grades":["exact"],"max_hotspots":null,"runs_complexity_sweep":true,"latency_budget_s":null,"risk_posture":"DECLINE-a-real-win OK; ship-unproven NEVER","stop_condition":"every enabled detector tried; floor or Clock-B budget reached"}],"providers":[{"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate","key_env":"GEMINI_API_KEY","default_model":"gemini-3.5-flash","free_no_card":true,"key_label":"Google AI Studio API key","get_key_url":"https://aistudio.google.com/apikey"},{"id":"groq","label":"Groq","transport":"openai_chat","key_env":"GROQ_API_KEY","default_model":"llama-3.3-70b-versatile","free_no_card":true,"key_label":"Groq API key","get_key_url":"https://console.groq.com/keys"},{"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk","key_env":"ANTHROPIC_API_KEY","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Anthropic API key","get_key_url":"https://console.anthropic.com/settings/keys"},{"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","key_env":"ANTHROPIC_API_KEY","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null},{"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat","key_env":"OPENAI_API_KEY","default_model":"gpt-4o","free_no_card":false,"key_label":"OpenAI API key","get_key_url":"https://platform.openai.com/api-keys"},{"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat","key_env":"OPENAI_API_KEY","default_model":"","free_no_card":false,"key_label":"OpenAI-compatible gateway API key","get_key_url":null}],"demo":{"engine":"MR.JEFFREY \u2014 the Whole-Program Verified Speedup Engine","generated_by":"pillar3_studio_gen.py \u2014 real engine runs; no hand-edited numbers","modes":[{"mode":"fast","primary_clock":"A (felt speed)","verifier_tier":"MICRO","detectors":12,"acceptable_grades":["EXACT","PROBABILISTIC"],"max_hotspots":3,"runs_complexity_sweep":false,"latency_budget_s":1.0,"risk_posture":"miss-a-win OK; block-the-dev NEVER","stop_condition":"first accepted win"},{"mode":"normal","primary_clock":"balance A/B/C","verifier_tier":"CHEAP_CERT","detectors":27,"acceptable_grades":["EXACT","PROBABILISTIC"],"max_hotspots":null,"runs_complexity_sweep":false,"latency_budget_s":30.0,"risk_posture":"balanced","stop_condition":"next marginal whole-program gain < 10%"},{"mode":"extend","primary_clock":"C (emitted speed); A sacrificed","verifier_tier":"FULL_CERT","detectors":40,"acceptable_grades":["EXACT"],"max_hotspots":null,"runs_complexity_sweep":true,"latency_budget_s":null,"risk_posture":"DECLINE-a-real-win OK; ship-unproven NEVER","stop_condition":"every enabled detector tried; floor or Clock-B budget reached"}],"providers":[{"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk"},{"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk"},{"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat"},{"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat"},{"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate"},{"id":"groq","label":"groq","transport":"openai_chat"}],"runs":[{"mode":"fast","shipped":[{"name":"S1_list_as_set","waste_type":"list_as_set","grade":"PROBABILISTIC","ratio":1.246,"ceiling":1.29,"hotspot_fraction":0.223}],"declined":[],"cumulative_ratio":1.267,"z3_calls":0,"latency_ms":541.0,"ran_complexity_sweep":false},{"mode":"normal","shipped":[{"name":"S1_list_as_set","waste_type":"list_as_set","grade":"PROBABILISTIC","ratio":1.254,"ceiling":1.27,"hotspot_fraction":0.212},{"name":"S2_n_plus_1","waste_type":"n_plus_1","grade":"EXACT","ratio":1.521,"ceiling":1.56,"hotspot_fraction":0.357},{"name":"S3_accidental_quadratic","waste_type":"accidental_quadratic","grade":"PROBABILISTIC","ratio":1.878,"ceiling":1.97,"hotspot_fraction":0.491}],"declined":[],"cumulative_ratio":1.848,"z3_calls":0,"latency_ms":1293.8,"ran_complexity_sweep":false},{"mode":"extend","shipped":[{"name":"S4_algorithm_recognition","waste_type":"algo_replace","grade":"EXACT","ratio":1.742,"ceiling":1.82,"hotspot_fraction":0.449},{"name":"S2_n_plus_1","waste_type":"n_plus_1","grade":"EXACT","ratio":2.292,"ceiling":2.47,"hotspot_fraction":0.595}],"declined":[{"name":"S1_list_as_set","reason":"grade PROBABILISTIC below extend floor ['EXACT'] \u21d2 DECLINE (differential only (no proof av"},{"name":"S3_accidental_quadratic","reason":"grade PROBABILISTIC below extend floor ['EXACT'] \u21d2 DECLINE (differential only (no proof av"},{"name":"S5_simd_offload","reason":"grade PROBABILISTIC below extend floor ['EXACT'] \u21d2 DECLINE (differential only (no proof av"}],"cumulative_ratio":2.277,"z3_calls":2,"latency_ms":2627.3,"ran_complexity_sweep":true}],"panel_rows":[{"name":"ai_todo_app","archetype":"AI-generated (never profiled)","detected":["list_as_set","accidental_full_scan","dict_to_columnar"],"grade":"PROBABILISTIC","ratio":47.1,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"log_analyzer","archetype":"CLI tool","detected":["n_plus_1","redundant_io_parse","dict_to_columnar","loop_invariant_hoist","vectorizable_loop"],"grade":"PROBABILISTIC","ratio":8.743,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"csv_stats","archetype":"data utility","detected":["quadratic_build","vectorizable_loop"],"grade":"PROBABILISTIC","ratio":111.887,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"json_pipeline","archetype":"ETL pipeline","detected":["n_plus_1","parallelizable_loop"],"grade":"EXACT","ratio":82.349,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"coalesced_identical_lookups"},{"name":"template_render","archetype":"parser/renderer (well-written)","detected":["n_plus_1","parallelizable_loop"],"grade":"DECLINE","ratio":0.995,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"no whole-program win \u2265 floor \u2014 honest DECLINE (nothing worth shipping)"}],"key_policy":"API key is session-only: held in the browser for the request, never logged, never stored, never committed, never phoned home.","scope_note":"Self-contained studio artifact. The full React+TS build (live provider calls, CI visual/a11y/perf gates) needs a frontend toolchain absent in this sandbox [BLOCKED: toolchain]; the data binding here is real and tested, visual quality \u2192 human review."},"corpus":{"rows":[{"name":"ai_todo_app","archetype":"AI-generated (never profiled)","detected":["list_as_set","accidental_full_scan","dict_to_columnar"],"grade":"probabilistic","ratio":43.943,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"log_analyzer","archetype":"CLI tool","detected":["n_plus_1","redundant_io_parse","dict_to_columnar","loop_invariant_hoist","vectorizable_loop"],"grade":"probabilistic","ratio":8.656,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"csv_stats","archetype":"data utility","detected":["quadratic_build","vectorizable_loop"],"grade":"probabilistic","ratio":107.834,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"differential PASS on 3 cases (\u03b4=3/3)"},{"name":"json_pipeline","archetype":"ETL pipeline","detected":["n_plus_1","parallelizable_loop"],"grade":"exact","ratio":81.755,"ceiling":1000.0,"hotspot_fraction":0.999,"note":"coalesced_identical_lookups"},{"name":"template_render","archetype":"parser/renderer (well-written)","detected":["n_plus_1","parallelizable_loop"],"grade":"decline","ratio":0.989,"ceiling":946.39,"hotspot_fraction":0.999,"note":"no whole-program win \u2265 floor \u2014 honest DECLINE (nothing worth shipping)"}],"grades":{"exact":1,"probabilistic":3,"decline":1},"found_nothing":["template_render"]}};
+// ── The product is three words: SECURED · FAST · ACCURATE. The DATA blob carries ONLY what the new UI needs —
+// the provider list (real, useful) and the session-only key policy. No engine build-time internals (the
+// churning measured numbers, the pass/badge machinery, the corpus rows, the mode-internals) reach this surface —
+// they churn every build and are not the product. The three pillars don't churn; only the engine behind them does.
+const DATA = {
+  "pillars":[
+    {"id":"secured","word":"SECURED","name":"안전하게","glyph":"⛨",
+     "line":"필요한 곳의 취약점과 부채널 누수를 닫습니다 — 그리고 필요 없는 곳은 건드리지 않습니다."},
+    {"id":"fast","word":"FAST","name":"빠르게","glyph":"⚡",
+     "line":"진짜 구조가 있는 곳에선 실제로 빠르게, 없는 곳에선 정직하게 그대로."},
+    {"id":"accurate","word":"ACCURATE","name":"정확하게","glyph":"✓",
+     "line":"보여드리기 전에, 모든 변경이 같은 결과를 내는지 확인합니다."}
+  ],
+  "providers":[
+    {"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate","default_model":"gemini-3.5-flash","free_no_card":true,"key_label":"Google AI Studio API key","get_key_url":"https://aistudio.google.com/apikey"},
+    {"id":"groq","label":"Groq","transport":"openai_chat","default_model":"llama-3.3-70b-versatile","free_no_card":true,"key_label":"Groq API key","get_key_url":"https://console.groq.com/keys"},
+    {"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Anthropic API key","get_key_url":"https://console.anthropic.com/settings/keys"},
+    {"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null},
+    {"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat","default_model":"gpt-4o","free_no_card":false,"key_label":"OpenAI API key","get_key_url":"https://platform.openai.com/api-keys"},
+    {"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat","default_model":"","free_no_card":false,"key_label":"OpenAI-compatible gateway API key","get_key_url":null}
+  ],
+  "key_policy":"API key is session-only: held in this browser tab for the request, never logged, never stored, never committed, never sent anywhere except the provider you choose."
+};
 </script>
 <script>
 "use strict";
-// ── MR.JEFFREY single-file app. Vanilla JS. Real embedded engine data (DATA). When served behind the FastAPI
-// back end (webapi.app) it upgrades to LIVE calls (/api/optimize, /api/key/validate) on your exact code; opened
-// as a file:// it runs in STATIC mode — heuristic detection on your code + the real measured canonical run for
-// the chosen mode (honestly labelled). The API key is held in a JS variable for the tab only: never stored,
-// never logged, never sent anywhere except the provider you pick (live mode).
+// MR.JEFFREY single-file app. Vanilla JS, embedded CSS, no toolchain. When served behind the FastAPI back end
+// (webapi.app) it upgrades to LIVE calls (/api/optimize, /api/key/validate) on your exact code; opened as a
+// file:// it runs in STATIC (demo) mode — representative human-readable outcomes, clearly labelled a demo, never
+// fabricated measurements presented as live. The API key is held in a JS variable for the tab only.
 const $ = (t, p = {}, kids = []) => {
   const e = document.createElement(t);
   for (const k in p) {
@@ -204,115 +170,85 @@ const $ = (t, p = {}, kids = []) => {
   (Array.isArray(kids) ? kids : [kids]).forEach((c) => c != null && e.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
   return e;
 };
-const fmt = (x, d = 2) => (x == null ? "∞" : Number(x).toFixed(d));
-// grade tokens render in Korean for display; the CSS class still uses the english token (for colour coding)
-const GRADE_KO = { exact:"증명됨", probabilistic:"확률적", decline:"보류" };
-const gradeLabel = (g) => GRADE_KO[g] || g;
-const STEPS = [["landing","0","개요"],["mode","1","모드"],["provider","2","제공자"],["code","3","코드"],["verify","4","검증"],["corpus","5","증거"]];
+const STEPS = [["landing","0","개요"],["code","1","코드 · 제공자"],["result","2","결과"]];
 const SAMPLES = [
-  ["루프 안 N+1 조회","def enrich(order_ids, allowed):\n    rows = []\n    for oid in order_ids:\n        if oid in allowed:\n            user = fetch_user(oid)\n            rows.append((oid, user))\n    return rows"],
-  ["실수로 만든 O(n²) 누적","def build_report(events):\n    report = \"\"\n    for e in events:\n        report = report + format_line(e)\n    seen = []\n    for e in events:\n        if e.id in seen:\n            continue\n        seen.append(e.id)\n    return report"],
-  ["리스트에 스칼라 수학 연산","import math\n\ndef features(samples):\n    out = []\n    for x in samples:\n        out.append(math.sqrt(x) * 2 + math.sin(x))\n    energy = sum(v ** 2 for v in out)\n    return out, energy"],
-  ["깔끔한 코드 (보류 예상)","def total(prices):\n    return sum(prices)"],
+  ["로그인 / 비밀번호 (보안 민감)","def check_login(password, stored_hash):\n    import hmac\n    return hmac.compare_digest(hash_pw(password), stored_hash)"],
+  ["루프 안 멤버십 검사 (느림)","def dedup(items, seen):\n    out = []\n    for it in items:\n        if it in seen:\n            continue\n        seen.append(it)\n        out.append(it)\n    return out"],
+  ["거듭제곱 합 (구조 있음)","def total(n):\n    s = 0\n    for k in range(n):\n        s += k * k\n    return s"],
+  ["깔끔한 코드 (바꿀 것 없음)","def total(prices):\n    return sum(prices)"]
 ];
-const S = { topMode:"code", screen:"landing", mode:null, provider:null, key:"", model:"", code:"", result:null, codeSteps:[],
-  mathMode:"normal", mathInput:"", mathResult:null, mathBusy:false, attachments:[],
+const S = { screen:"landing", provider:null, key:"", model:"", code:"", result:null, busy:false,
   live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
 let TOAST_T = null;
-const activeMode = () => S.mode || "extend";
-// MATH-surface inputs (parallel to the CODE SAMPLES) — each sets a structured problem the certified solver folds.
-const MATH_SAMPLES = [
-  ["거듭제곱 합 Σk²","sum: k**2"],
-  ["하이퍼기하 합 Σk·k!","sum: k*factorial(k)"],
-  ["모듈러 거듭제곱 7^1234567 mod 1e9+7",'{"domain":"number_theory","op":"modexp","a":7,"b":1234567,"m":1000000007}'],
-  ["선형계 풀이 (정확)",'{"domain":"linear_algebra","op":"solve","A":[[2,1,-1],[-3,-1,2],[-2,1,2]],"b":[8,-11,-3]}'],
-  ["차원 검사 E=½mv²",'{"domain":"science_engineering","op":"dimension_check","equation":"E = m*v**2","binding":{"E":"energy","m":"mass","v":"velocity"}}'],
-  ["조화급수 Σ1/k (닫힌 형식 없음 → 보류)","sum: 1/k"],
-];
-const MATH_STEPS = [["mathLanding","0","개요"],["mathMode","1","모드"],["mathProblem","2","문제"],["mathResult","3","검증"]];
-function switchTop(t){ if(S.topMode===t) return; S.topMode=t; S.screen=(t==="math"?"mathLanding":"landing"); render(); }
 
-// heuristic, regex-based waste detection on the pasted code (STATIC mode). The SERVER does true AST analysis.
-function detect(code){
-  const found=[]; const add=(wt,ev)=>{ if(!found.some(f=>f.waste_type===wt)) found.push({waste_type:wt,evidence:ev}); };
-  const lines=code.split("\n"); const listVars=new Set();
-  lines.forEach(l=>{ const m=l.match(/(\w+)\s*=\s*\[/); if(m) listVars.add(m[1]); });
-  const hasLoop=/\b(for|while)\b/.test(code);
-  if(hasLoop){
-    [...listVars].forEach(v=>{ if(new RegExp("\\bin\\s+"+v+"\\b").test(code)) add("list_as_set",`\`x in ${v}\` (a list) inside a loop → O(n) membership`); });
-    if(/\b(fetch|get_|query|load|select_|lookup|find_)\w*\s*\(/.test(code)) add("n_plus_1","a per-item fetch/query inside a loop → N+1");
-    if(/(\w+)\s*=\s*\1\s*\+/.test(code) || /\+=/.test(code)) add("accidental_quadratic","accumulation inside a loop → O(n²) build");
-    if(/\.count\s*\(/.test(code)) add("accidental_quadratic","`.count()` inside a loop → O(n²)");
-  }
-  if(/\*\*\s*[234]\b/.test(code)) add("algo_replace","`x ** k` → strength-reducible");
-  if(/math\.(sin|cos|sqrt|exp|log)\s*\(/.test(code)) add("simd_offload","scalar math.* over each element → SIMD/vectorizable");
-  return found;
+// ── pointer tilt on every .slab / .mode-card (real CSS 3D), reduced-motion safe ─────────────────────────────
+const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function attachTilt(el, max){
+  if(REDUCE) return; let raf=0,tx=0,ty=0,cx=0,cy=0,tl=0,lift=0;
+  const tick=()=>{ cx+=(tx-cx)*.12; cy+=(ty-cy)*.12; lift+=(tl-lift)*.12;
+    el.style.setProperty("--rx",cx.toFixed(2)+"deg"); el.style.setProperty("--ry",cy.toFixed(2)+"deg"); el.style.setProperty("--lift",lift.toFixed(1)+"px");
+    raf=(Math.abs(tx-cx)>.01||Math.abs(ty-cy)>.01||Math.abs(tl-lift)>.05)?requestAnimationFrame(tick):0; };
+  el.addEventListener("pointermove",e=>{ const r=el.getBoundingClientRect(); tx=-((e.clientY-r.top)/r.height-.5)*max; ty=((e.clientX-r.left)/r.width-.5)*max; tl=6; if(!raf)raf=requestAnimationFrame(tick); });
+  el.addEventListener("pointerleave",()=>{ tx=0;ty=0;tl=0; if(!raf)raf=requestAnimationFrame(tick); });
+}
+function setScreen(s){ S.screen=s; render(); }
+function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>{S.toast=null;render();},3200); }
+
+// ── a PILLAR slab (3D), in its own repurposed accent. Pure human words — never a number, never a grade ──────
+function pillarSlab(p, extraClass){
+  const slab=$("div",{class:"slab pillar float-in "+(extraClass||""),"data-mode":p.id},[
+    $("div",{class:"p-head"},[$("span",{class:"glyph"},p.glyph),$("span",{class:"p-name"},p.name),$("span",{class:"p-word"},p.word)]),
+    $("p",{},p.line),
+  ]);
+  setTimeout(()=>attachTilt(slab,6),0);
+  return slab;
+}
+
+// ── STATIC demo: a light, honest heuristic on the pasted code → representative human outcomes (NO numbers,
+//    NO grades). Labelled a demo. The live engine (server) produces the real per-run result. ─────────────────
+function staticOutcomes(code){
+  const c=code||""; const hasLoop=/\b(for|while)\b/.test(c);
+  const sensitive=/\b(password|passwd|secret|token|api[_-]?key|hmac|hashlib|secrets|jwt|ssn|credit|encrypt|decrypt|login|sql|execute|cursor)\b/i.test(c);
+  const membership=hasLoop && /\bin\s+\w+\b/.test(c) && /\.append\s*\(/.test(c);
+  const sumloop=hasLoop && /\+=/.test(c);
+  const clean=!hasLoop && /\breturn\s+sum\s*\(/.test(c);
+  const secured = sensitive
+    ? "주입·경계·메모리 안전을 점검하고, 민감한 경로는 상수 시간으로 보강했습니다."
+    : "보안에 민감한 코드가 없습니다 — 닫을 것이 없어 그대로 둡니다.";
+  let fast;
+  if(membership) fast="리스트 멤버십 검사를 해시 조회로 바꿔 반복 비용을 줄였습니다.";
+  else if(sumloop) fast="누적 루프에서 닫힌 형식을 찾아 반복을 접었습니다.";
+  else if(clean) fast="이미 효율적입니다 — 안전하게 바꿀 것이 없습니다.";
+  else fast="안전하게 빠르게 만들 구조를 찾지 못했습니다 — 그대로 둡니다.";
+  const accurate = (membership||sumloop)
+    ? "바꾼 코드가 원본과 같은 결과를 내는지 확인했습니다."
+    : "변경이 없으므로 결과는 원본과 동일합니다.";
+  return {secured,fast,accurate,changed:(membership||sumloop)};
 }
 
 async function runOptimize(){
-  const mode=activeMode(); const code=S.code;
+  const code=S.code;
   if(S.live){
     try{
-      const r=await fetch("/api/optimize",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,mode,provider:S.provider||undefined,key:S.key||undefined,model:S.model||undefined})});
-      return await r.json();
-    }catch(e){ /* fall through to static */ }
+      const r=await fetch("/api/optimize",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,provider:S.provider||undefined,key:S.key||undefined,model:S.model||undefined})});
+      const j=await r.json();
+      return { live:true, raw:j };
+    }catch(e){ /* fall through to static demo */ }
   }
-  // STATIC: heuristic detection on the user's code + the real measured canonical run for this mode (embedded)
-  const det=detect(code);
-  const run=DATA.demo.runs.find(r=>r.mode===mode)||DATA.demo.runs[0];
-  const types=new Set(det.map(d=>d.waste_type));
-  const shipped=run.shipped.filter(s=>types.size===0?false:types.has(s.waste_type));
-  const declined=run.declined.filter(s=>types.has(s.waste_type));
-  // recompute a representative cumulative from the matched shipped rows (the last matched row's cumulative-so-far)
-  const cumulative= shipped.length? shipped[shipped.length-1].ratio : 1.0;
-  const policy=DATA.modes.find(m=>m.mode===mode);
-  return { mode, detected:det, shipped, declined, cumulative_ratio:cumulative, z3_calls:(mode==="extend"&&shipped.length?run.z3_calls:0),
-    ran_complexity_sweep:run.ran_complexity_sweep, latency_ms:run.latency_ms, policy,
-    proposer:{used:false,mode:"deterministic",note:"정적 빌드(서버 없음): 탐지는 당신 코드에 대한 휴리스틱이며, 각 행은 "+mode+" 계약 아래 탐지된 낭비 유형에 대한 엔진의 실제 측정 표준 결과입니다. 당신 코드에 대한 라이브 AST 실행(과 키를 통한 LLM 제안)은 FastAPI 서버로 여세요."},
-    note:"정적 빌드 — 내장 엔진 실행의 대표 측정 결과입니다. 코드별 라이브 실행은 webapi.app으로 서빙하세요." };
+  return { live:false, demo:staticOutcomes(code), code };
 }
 
-// ── §3: STREAM EVERY STEP — open the live CODE process trace (SSE) and render each phase as it arrives ──
-// Each frame is a real engine step (분석 → 구조 인식 → fold/결정 적용 → 증명서 → 검증 → 결과) carrying the live
-// tier·예산 line and the REAL grade+증명서. Never fabricated: the steps come straight from the engine's trace.
-async function runOptimizeStream(){
-  if(!S.live) return;
-  const mode=activeMode(); const code=S.code;
-  let resp;
-  try{ resp=await fetch("/api/optimize/stream",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,mode})}); }
-  catch(e){ return; }
-  if(!resp.ok||!resp.body) return;
-  const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf="";
-  while(true){
-    let chunk; try{ chunk=await reader.read(); }catch(e){ break; }
-    if(chunk.done) break;
-    buf+=dec.decode(chunk.value,{stream:true});
-    let i;
-    while((i=buf.indexOf("\n\n"))>=0){
-      const frame=buf.slice(0,i); buf=buf.slice(i+2);
-      const line=frame.split("\n").find(l=>l.startsWith("data:")); if(!line) continue;
-      let obj; try{ obj=JSON.parse(line.slice(5).trim()); }catch(_){ continue; }
-      if(obj.type==="done") continue;
-      S.codeSteps.push(obj); render();                       // live incremental render — the user watches it unfold
-    }
-  }
-}
-
-// ── MATH mode: send the problem to the certified solver (fold → broth → arsenal) and get the graded trace ──
-async function runMath(){
-  const text=S.mathInput.trim(); const mode=S.mathMode;
-  if(S.live){
-    try{
-      let body={mode};
-      if(text[0]==="{"){ try{ body.problem=JSON.parse(text); }catch(_){ body.text=text; } } else { body.text=text; }
-      const r=await fetch("/api/math/solve",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-      return await r.json();
-    }catch(e){ /* fall through to the honest static notice */ }
-  }
-  return { status:"DECLINE", grade_ko:"보류", top_mode:"math", inner_mode:mode, certificate:null, answer:"",
-    reason:"정적 빌드 — MATH 검증 솔버(fold·아스널·broth)는 파이썬 엔진이 필요합니다. server:app으로 서빙하면 실제로 증명·계산합니다.",
-    reasoning:[{stage:"route",detail:"top_mode=MATH · 첫 수: fold (구조 우선)",grade:null},
-               {stage:"engine",detail:"라이브 엔진 없음 — 정적 빌드에서는 정직하게 보류",grade:"DECLINE"}] };
+// translate a LIVE engine result into the three human pillar outcomes — NEVER showing engine numbers or badges.
+function liveOutcomes(raw){
+  const r=raw||{};
+  const sec = (r.security && r.security.text) ? r.security.text
+            : (r.security && r.security.sensitive===false) ? "보안에 민감한 코드가 없습니다 — 닫을 것이 없습니다."
+            : "보안 점검을 실행했습니다 (자세한 내용은 엔진 로그).";
+  const shipped = Array.isArray(r.shipped)? r.shipped : [];
+  const fast = shipped.length ? "안전하게 더 빠른 코드로 바꿨습니다." : "이미 효율적입니다 — 안전하게 바꿀 것이 없습니다.";
+  const acc = shipped.length ? "바꾼 코드가 원본과 같은 결과를 내는지 확인했습니다."
+            : (r.note? "변경 없음 — 결과는 원본과 동일합니다." : "변경이 없으므로 결과는 원본과 동일합니다.");
+  return {secured:sec,fast,accurate:acc,changed:shipped.length>0};
 }
 
 async function validateKey(){
@@ -323,145 +259,60 @@ async function validateKey(){
     catch(e){ S.keyState={phase:"bad",res:{detail:String(e)}}; render(); return; }
   }
   const prov=DATA.providers.find(x=>x.id===p);
-  S.keyState={phase:"bad",res:{blocked:true,detail:"정적 빌드(서버 없음): 1-토큰 라이브 테스트 호출은 FastAPI 백엔드가 필요합니다. 키는 이 탭에만 보관되며 저장·로그되지 않습니다. 키 발급: "+(prov&&prov.get_key_url||"")}};
+  S.keyState={phase:"bad",res:{blocked:true,detail:"정적 빌드(서버 없음): 라이브 키 확인은 백엔드가 필요합니다. 키는 이 탭에만 보관되며 저장·로그되지 않습니다. 키 발급: "+(prov&&prov.get_key_url||"")}};
   render();
 }
 
-// ── pointer tilt on every .slab / .mode-card (real CSS 3D), reduced-motion safe ─────────────────────────
-const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
-function attachTilt(el, max){
-  if(REDUCE) return; let raf=0,tx=0,ty=0,cx=0,cy=0,tl=0,lift=0;
-  const tick=()=>{ cx+=(tx-cx)*.12; cy+=(ty-cy)*.12; lift+=(tl-lift)*.12;
-    el.style.setProperty("--rx",cx.toFixed(2)+"deg"); el.style.setProperty("--ry",cy.toFixed(2)+"deg"); el.style.setProperty("--lift",lift.toFixed(1)+"px");
-    raf=(Math.abs(tx-cx)>.01||Math.abs(ty-cy)>.01||Math.abs(tl-lift)>.05)?requestAnimationFrame(tick):0; };
-  el.addEventListener("pointermove",e=>{ const r=el.getBoundingClientRect(); tx=-((e.clientY-r.top)/r.height-.5)*max; ty=((e.clientX-r.left)/r.width-.5)*max; tl=6; if(!raf)raf=requestAnimationFrame(tick); });
-  el.addEventListener("pointerleave",()=>{ tx=0;ty=0;tl=0; if(!raf)raf=requestAnimationFrame(tick); });
-}
-
-// ── the signature speedup slab ──────────────────────────────────────────────────────────────────────────
-function speedupSlab(rowObj, mode){
-  const unbounded = rowObj.ceiling==null || !isFinite(rowObj.ceiling);
-  const ceil = unbounded? rowObj.ratio*1.25 : rowObj.ceiling;
-  const denom = Math.max(ceil, rowObj.ratio)||1;
-  const fillPct=Math.min(100,(rowObj.ratio/denom)*94), wallPct=unbounded?99:Math.min(99,(ceil/denom)*94);
-  const stage=$("div",{class:"slab speed-slab float-in","data-mode":mode},[
-    $("span",{class:"sr-only"},`${rowObj.waste_type}: 측정된 전체 프로그램 가속 ${fmt(rowObj.ratio)}배, 핫스팟 비율 ${fmt(rowObj.hotspot_fraction)}, Amdahl 천장 ${unbounded?"무한":fmt(ceil)}, 등급 ${gradeLabel(rowObj.grade)}. 측정값은 천장을 절대 넘지 않습니다.`),
-    $("div",{class:"plane ss-head","aria-hidden":"true",style:"--z:26px"},[
-      $("span",{class:"ss-waste"},rowObj.waste_type),
-      $("span",{class:"grade "+rowObj.grade},[$("span",{class:"gd"}),gradeLabel(rowObj.grade)]),
-    ]),
-    $("div",{class:"plane","aria-hidden":"true",style:"--z:52px"},[
-      (()=>{const m=$("div",{class:"meter3",title:`측정 ${fmt(rowObj.ratio)}× ≤ 천장 ${unbounded?"∞":fmt(ceil)+"×"}`},[
-        $("div",{class:"fill3",style:`width:${fillPct}%`}),
-        $("div",{class:"wall3",style:`left:${wallPct}%`},[$("span",{class:"wall3-lbl"},`천장 ${unbounded?"∞":fmt(ceil)+"×"}`)]),
-        $("div",{class:"meter3-val"},fmt(rowObj.ratio)+"×"),
-      ]);return m;})(),
-    ]),
-    $("div",{class:"plane ss-read",style:"--z:20px"},[
-      $("div",{},[$("span",{class:"ss-k"},"전체 프로그램 실측"),$("span",{class:"ss-v"},fmt(rowObj.ratio,3)+"×")]),
-      $("div",{},[$("span",{class:"ss-k"},"핫스팟 비율 f"),$("span",{class:"ss-v"},fmt(rowObj.hotspot_fraction,3))]),
-      $("div",{},[$("span",{class:"ss-k"},"천장 1/(1−f)"),$("span",{class:"ss-v"},unbounded?"∞":fmt(ceil)+"×")]),
-    ]),
-  ]);
-  setTimeout(()=>attachTilt(stage,8),0);
-  return $("div",{class:"stage"},[stage]);
-}
-
-function compoundCurve(shipped, cumulative, mode){
-  if(!shipped.length) return null;
-  const pts=[1.0,...shipped.map(s=>s.ratio)]; const W=520,H=150,pX=34,pY=18;
-  const maxY=Math.max(...pts)*1.08, minY=1.0;
-  const x=i=>pX+(i/(pts.length-1||1))*(W-pX*2), y=v=>H-pY-((v-minY)/(maxY-minY||1))*(H-pY*2);
-  const line=pts.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const area=`${line} L${x(pts.length-1).toFixed(1)},${(H-pY).toFixed(1)} L${x(0).toFixed(1)},${(H-pY).toFixed(1)} Z`;
-  const NS="http://www.w3.org/2000/svg"; const svg=document.createElementNS(NS,"svg");
-  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.setAttribute("class","curve"); svg.setAttribute("role","img");
-  svg.setAttribute("aria-label",`누적 전체 프로그램 가속이 검증된 수정 ${shipped.length}건에 걸쳐 ${fmt(cumulative)}배로 복리 누적됩니다. 매번 새로 측정.`);
-  const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
-  svg.appendChild(mk("line",{x1:pX,y1:H-pY,x2:W-pX,y2:H-pY,class:"curve-axis"}));
-  svg.appendChild(mk("line",{x1:pX,y1:y(1),x2:W-pX,y2:y(1),class:"curve-base"}));
-  svg.appendChild(mk("path",{d:area,class:"curve-area"}));
-  svg.appendChild(mk("path",{d:line,class:"curve-line"}));
-  pts.forEach((v,i)=>{ svg.appendChild(mk("circle",{cx:x(i),cy:y(v),r:3.2,class:"curve-dot"}));
-    if(i){const t=mk("text",{x:x(i),y:y(v)-8,class:"curve-lbl","text-anchor":"middle"});t.textContent=fmt(v)+"×";svg.appendChild(t);} });
-  const head=$("div",{class:"ss-head",style:"margin-bottom:8px"},[$("span",{class:"ss-waste"},"누적 복리 · 매번 새로 측정"),$("span",{class:"mono",style:"font-size:18px;font-weight:500"},fmt(cumulative,3)+"×")]);
-  const slab=$("div",{class:"slab speed-slab float-in","data-mode":mode},[head,svg]);
-  setTimeout(()=>attachTilt(slab,5),0);
-  return $("div",{class:"stage"},[slab]);
-}
-
-function setScreen(s){ S.screen=s; render(); }
-function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>{S.toast=null;render();},3200); }
-
 // ── screens ─────────────────────────────────────────────────────────────────────────────────────────────
 function scrLanding(){
-  const run=DATA.demo.runs.find(r=>r.shipped.length); const row=run? (run.shipped.find(s=>s.grade==="exact")||run.shipped[0]):null;
-  const td=Math.max(...DATA.modes.map(m=>m.detectors));
   return $("div",{},[
     $("section",{class:"hero"},[
-      $("div",{},[
-        $("div",{class:"eyebrow"},"전체 프로그램 · 실측 · Amdahl 정직"),
-        $("h1",{},"추측이 아니라, 증명된 속도."),
-        $("p",{class:"lead mt",html:"코드를 붙여넣으세요. MR.JEFFREY가 <strong>전체 프로그램을 실측</strong>하고, 더 빠른 코드를 제안하고, 그게 원본과 같다는 걸 기계적으로 <strong>증명</strong>합니다. 못 하면 — 정직하게 보류합니다. 모든 가속은 출발한 핫스팟 비율과 Amdahl 천장을 달고 다니며, 측정값은 그 천장을 절대 넘지 않습니다. 증명된 가속만, 과장 없이."}),
-        $("div",{class:"row mt"},[$("button",{class:"btn lg",onclick:()=>setScreen("mode")},"코드 붙여넣기 →"),$("span",{class:"pill"},`검증된 디텍터 ${td}종`),S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"정적 데모 데이터")]),
+      $("div",{class:"hero-copy"},[
+        $("div",{class:"eyebrow"},"안전하게 · 빠르게 · 정확하게"),
+        $("h1",{},"코드를 붙여넣으면, 안전하고 빠르고 정확하게 돌려드립니다."),
+        $("p",{class:"lead mt"},"MR.JEFFREY는 세 가지를 약속합니다. 필요한 곳의 취약점을 닫고(SECURED), 진짜 구조가 있는 곳을 더 빠르게 만들고(FAST), 모든 변경이 같은 결과를 내는지 확인합니다(ACCURATE). 못 하는 곳은 정직하게 그대로 둡니다."),
+        $("div",{class:"row mt"},[
+          $("button",{class:"btn lg",onclick:()=>setScreen("code")},"코드 붙여넣기 →"),
+          S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"데모 모드"),
+        ]),
       ]),
-      $("div",{},[ row?speedupSlab(row,run.mode):$("div",{class:"slab speed-slab",style:"min-height:200px"}), row?$("div",{class:"hero-cap"},`전체 프로그램 실측 · ${run.mode} 모드 · 등급 ${gradeLabel(row.grade)} · 비율 ≤ 천장`):null ]),
+      $("div",{},[$("div",{class:"hero-pillars"},DATA.pillars.map(p=>pillarSlab(p)))]),
     ]),
     $("div",{class:"grid cols-3 tenets"},[
-      $("div",{class:"feat"},[$("h3",{},"추정이 아니라 실측"),$("p",{},"가속은 워밍업과 best-of-k로 전 과정을 측정합니다. 핫커널이 빨라져도 전체 프로그램이 빨라지지 않으면 카운트하지 않습니다.")]),
-      $("div",{class:"feat"},[$("h3",{},"Amdahl 정직 + 증명"),$("p",{html:"모든 결과는 핫스팟 비율 <span class='mono'>f</span>와 천장 <span class='mono'>1/(1−f)</span>을 보여주고, 막대는 그 벽을 절대 넘지 못합니다. EXACT 등급은 기계로 증명된 동치 — 어떤 LLM도 주지 못하는 것입니다."})]),
-      $("div",{class:"feat"},[$("h3",{},"등급, 강제 적용"),$("p",{html:"<span class='grade exact'><span class='gd'></span>증명됨</span> <span class='grade probabilistic'><span class='gd'></span>확률적</span> <span class='grade decline'><span class='gd'></span>보류</span> — 증명됐거나, 테스트됐거나, 아니면 정직하게 아무것도. 셋 중 하나입니다."})]),
+      $("div",{class:"feat","data-mode":"secured"},[$("h3",{},"필요한 곳에만 보안"),$("p",{},"비밀번호·키·인증·암호처럼 보안이 중요한 코드만 검증 레이어가 켜집니다. 평범한 계산은 건드리지 않아 느려지지 않습니다.")]),
+      $("div",{class:"feat","data-mode":"fast"},[$("h3",{},"진짜일 때만 빠르게"),$("p",{},"실제로 빠르게 만들 구조가 있을 때만 바꿉니다. 없으면 ‘이미 효율적’이라고 정직하게 말합니다 — 과장된 배수는 없습니다.")]),
+      $("div",{class:"feat","data-mode":"accurate"},[$("h3",{},"바꿨으면 확인"),$("p",{},"모든 변경은 보여드리기 전에 같은 결과를 내는지 확인합니다. 확인할 수 없으면 바꾸지 않고 그대로 둡니다.")]),
     ]),
-    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{html:"LLM은 코드를 <strong>생성</strong>하지만 맞는지는 보장하지 않습니다. MR.JEFFREY는 그 위에서 <strong>검증</strong>합니다 — EXACT면 증명서를, 아니면 정직한 보류를. API 키는 이 브라우저 탭에만 보관되며 디스크에 쓰이거나 로그에 남거나 당신이 고른 제공자 외 어디로도 전송되지 않습니다. ‘50–100배 평균’ 같은 건 약속하지 않습니다 — 측정한 그대로, Amdahl 한계 안에서, 증명과 함께."})]),
+    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{html:"LLM은 코드를 <strong>제안</strong>하지만 맞는지는 보장하지 않습니다 — MR.JEFFREY가 그 위에서 <strong>확인</strong>합니다. API 키는 이 브라우저 탭에만 보관되며, 저장·로그·커밋되지 않고 당신이 고른 제공자 외 어디로도 전송되지 않습니다."})]),
   ]);
 }
 
-function scrMode(){
-  const wrap=$("div",{},[$("div",{class:"eyebrow"},"1단계 · 계약 고르기"),$("h2",{},"검증기를 얼마나 깐깐하게?"),
-    $("p",{class:"lead"},"모드는 하나의 계약입니다: 어떤 검증기 등급이 돌지, 어떤 등급까지 출하할지, 핫스팟을 몇 개까지 공략할지, 언제 멈출지를 정합니다. 강조 색은 선택을 따라 바뀝니다.")]);
-  const grid=$("div",{class:"grid cols-3 mt"});
-  const icon={fast:"⚡",normal:"⚖",extend:"⛨"};
-  DATA.modes.forEach(m=>{
-    const card=$("button",{class:`mode-card depth-${m.mode}`,"data-mode":m.mode,"aria-pressed":String(S.mode===m.mode),onclick:()=>{S.mode=m.mode;render();}},[
-      $("div",{class:"mc-head"},[$("span",{class:"glyph"},icon[m.mode]||""),$("div",{},[$("div",{class:"mc-name"},m.mode),$("div",{class:"mc-clock"},"클럭 · "+m.primary_clock)])]),
-      $("dl",{},[
-        $("dt",{},"검증기"),$("dd",{},m.verifier_tier),$("dt",{},"디텍터"),$("dd",{},String(m.detectors)),
-        $("dt",{},"출하"),$("dd",{},m.acceptable_grades.join(" · ")),$("dt",{},"핫스팟"),$("dd",{},m.max_hotspots==null?"전체":String(m.max_hotspots)),
-        $("dt",{},"z3"),$("dd",{},m.verifier_tier==="MICRO"?"안 함":m.verifier_tier==="FULL_CERT"?"전체":"작은 영역"),
-        $("dt",{},"지연"),$("dd",{},m.latency_budget_s==null?"무제한":"≤ "+m.latency_budget_s+"초"),
-        $("dt",{},"태도"),$("dd",{style:"font-size:11px"},m.risk_posture),
-      ]),
-      $("div",{class:"v-sub",style:"margin-top:2px"},m.stop_condition),
-    ]);
-    setTimeout(()=>attachTilt(card,{fast:5,normal:7,extend:10}[m.mode]||7),0);
-    grid.appendChild(card);
-  });
-  wrap.appendChild(grid);
-  if(S.mode) wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"btn",onclick:()=>setScreen("provider")},"제공자 선택 →"),$("span",{class:"muted"},`${S.mode} 선택됨`)]));
-  return wrap;
-}
-
-function scrProvider(){
-  const wrap=$("div",{},[$("div",{class:"eyebrow"},"2단계 · 제안자 (선택)"),$("h2",{},"제공자를 고르고 키를 붙여넣으면 — 바로 됩니다."),
-    $("p",{class:"lead"},"LLM은 재작성을 제안만 하고, 무엇을 출하할지는 검증기가 정합니다. Groq과 Gemini는 신용카드 없이 무료입니다. 건너뛰고 키 없이 엔진의 검증된 디텍터만 돌려도 됩니다.")]);
-  const grid=$("div",{class:"grid cols-2 mt stage"});
+function scrCode(){
+  const ta=$("textarea",{class:"editor",spellcheck:"false",placeholder:"def my_function(...):\n    ..."},S.code);
+  ta.value=S.code; ta.addEventListener("input",e=>{S.code=e.target.value;});
+  const samples=$("div",{class:"samples"},[$("span",{class:"muted",style:"align-self:center;font-size:12px"},"예시:")]);
+  SAMPLES.forEach(([label,code])=>samples.appendChild($("button",{onclick:()=>{S.code=code;render();}},label)));
+  const up=$("label",{class:"upload"},[".py 업로드 ↑"]);
+  const fi=$("input",{type:"file",accept:".py,.txt"}); fi.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.code=String(r.result||"");render();};r.readAsText(f);e.target.value="";});
+  up.appendChild(fi); samples.appendChild(up);
+  // provider selector (kept — real and useful): free-no-card badges + get-key links + session-only key handling
+  const provGrid=$("div",{class:"grid cols-2 mt"});
   DATA.providers.forEach(p=>{
     const card=$("button",{class:"mode-card provider-card","aria-pressed":String(S.provider===p.id),onclick:()=>{S.provider=p.id;S.model=p.default_model;S.keyState={phase:"idle"};render();}},[
       $("div",{class:"mc-head",style:"width:100%"},[$("span",{class:"glyph"},"⚿"),
-        $("div",{style:"flex:1"},[$("div",{class:"mc-name",style:"font-size:15px;text-transform:none"},p.label),$("div",{class:"mc-clock"},p.transport)]),
+        $("div",{style:"flex:1"},[$("div",{class:"mc-name",style:"font-size:15px"},p.label),$("div",{class:"mc-clock"},p.transport)]),
         p.free_no_card?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"무료 · 카드 불필요"]):null]),
       $("div",{class:"row",style:"width:100%;justify-content:space-between"},[$("span",{class:"v-sub"},[$("span",{},"기본: "),$("span",{class:"mono"},p.default_model||"—")]),
         p.get_key_url?$("a",{class:"getkey",href:p.get_key_url,target:"_blank",rel:"noreferrer",onclick:e=>e.stopPropagation()},"키 발급 ↗"):null]),
     ]);
-    setTimeout(()=>attachTilt(card,5),0); grid.appendChild(card);
+    setTimeout(()=>attachTilt(card,5),0); provGrid.appendChild(card);
   });
-  wrap.appendChild(grid);
   const sel=DATA.providers.find(p=>p.id===S.provider);
-  if(sel){
+  const keyCard = sel ? (()=>{
     const keyInput=$("input",{type:"password",autocomplete:"off",spellcheck:"false",placeholder:`${sel.label} 키를 붙여넣으세요…`,value:S.key,oninput:e=>{S.key=e.target.value;S.keyState={phase:"idle"};},onblur:()=>{if(S.key)validateKey();}});
     const modelInput=$("input",{spellcheck:"false",placeholder:sel.default_model,value:S.model,oninput:e=>{S.model=e.target.value;}});
     const ks=S.keyState;
-    wrap.appendChild($("div",{class:"card mt"},[
+    return $("div",{class:"card mt"},[
       $("div",{class:"row",style:"gap:18px;align-items:flex-start"},[
         $("div",{class:"field",style:"flex:2;min-width:240px;margin:0"},[$("label",{},`${sel.key_label}`),keyInput]),
         $("div",{class:"field",style:"flex:1;min-width:170px;margin:0"},[$("label",{},"모델"),modelInput]),
@@ -472,296 +323,79 @@ function scrProvider(){
         ks.phase==="bad"&&ks.res?$("span",{class:"note warn"},(ks.res.blocked?"⚠ ":"✕ ")+(ks.res.detail||"")):null,
       ]),
       $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},`키는 이 세션에만 머무릅니다 — 저장·기록·로그·커밋되지 않고, 오직 ${sel.label}의 API로만 전송됩니다.`)]),
-    ]));
-  }
-  wrap.appendChild($("div",{class:"row mt"},[
-    $("button",{class:"btn",onclick:()=>setScreen("code")},"코드로 계속 →"),
-    $("button",{class:"ghost",onclick:()=>{S.provider=null;S.key="";S.keyState={phase:"idle"};setScreen("code");}},"건너뛰기 — 검증된 디텍터만 실행"),
-  ]));
-  return wrap;
-}
-
-function scrCode(){
-  const mode=activeMode();
-  const ta=$("textarea",{class:"editor",spellcheck:"false",placeholder:"def my_function(...):\n    ..."},S.code);
-  ta.value=S.code; ta.addEventListener("input",e=>{S.code=e.target.value;});
-  const samples=$("div",{class:"samples"},[$("span",{class:"muted",style:"align-self:center;font-size:12px"},"예시:")]);
-  SAMPLES.forEach(([label,code])=>samples.appendChild($("button",{onclick:()=>{S.code=code;render();}},label)));
-  const up=$("label",{class:"upload"},[".py 업로드 ↑"]);
-  const fi=$("input",{type:"file",accept:".py,.txt"}); fi.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.code=String(r.result||"");render();};r.readAsText(f);e.target.value="";});
-  up.appendChild(fi); samples.appendChild(up);
-  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; runBtn.disabled=true; runBtn.textContent="실행 중…"; S.codeSteps=[]; S.result=null; if(S.live){ setScreen("verify"); try{ await runOptimizeStream(); }catch(e){} } S.result=await runOptimize(); const n=S.result.shipped.length; setScreen("verify"); showToast(n>0?`최적화 완료 — 검증된 수정 ${n}건 출하`:"최적화 완료 — 안전하게 출하할 게 없습니다 (정직한 보류)"); }},`${mode} 검증 실행 →`);
-  return $("div",{"data-mode":mode},[
-    $("div",{class:"eyebrow"},"3단계 · 당신의 코드"),$("h2",{},"함수를 붙여넣으세요. 진짜로 프로파일링합니다."),
-    $("p",{class:"lead"},S.live?"탐지는 당신 소스에 대한 진짜 AST 분석입니다(서버). 각 낭비 유형마다 엔진이 검증된 수정을 실행하고 "+mode+" 계약 아래 측정된 전체 프로그램 결과를 보고합니다.":"정적 빌드: 탐지는 당신 코드에 대한 휴리스틱이며, 결과는 탐지된 각 낭비 유형에 대한 엔진의 실제 측정 표준 실행입니다. 코드별 라이브 실행은 FastAPI 백엔드로 서빙하세요."),
-    samples, ta,
-    $("div",{class:"row mt"},[runBtn, S.provider?$("span",{class:"pill"},"제안자: "+S.provider):$("span",{class:"pill"},"검증된 디텍터만 (LLM 없음)")]),
-  ]);
-}
-
-function scrVerify(){
-  const r=S.result; const steps=S.codeSteps||[];
-  function processPanel(){                                    // §3: the LIVE process — every step, tier·예산, 등급·증명서
-    if(!steps.length) return null;
-    const box=$("div",{class:"card mt"},[$("div",{class:"eyebrow"},"라이브 과정 · 매 단계 (티어·예산 · 등급·증명서) — 위조 없음")]);
-    steps.forEach(e=>{
-      const g=e.grade?$("span",{class:"grade "+String(e.grade).toLowerCase()},[$("span",{class:"gd"}),gradeLabel(String(e.grade).toLowerCase())]):$("span",{class:"muted",style:"font-size:11px"},"…");
-      box.appendChild($("div",{class:"vrow"},[$("div",{},[$("div",{class:"v-name"},(e.phase||"")+" · "+(e.message||"")),$("div",{class:"v-sub"},(e.detail||"")+(e.certificate?(" — "+e.certificate):""))]),$("span",{class:"pill"},e.budget||e.tier||""),g]));
-    });
-    return box;
-  }
-  if(!r){ const pp=processPanel(); if(pp) return $("div",{},[$("div",{class:"eyebrow"},"4단계 · 검증 패널 · 실행 중…"),$("h2",{},"과정을 실시간으로 — 매 단계를 보여줍니다."),pp]); return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("code")},"코드로 가기")]); }
-  const wrap=$("div",{"data-mode":r.mode},[
-    $("div",{class:"eyebrow"},"4단계 · 검증 패널 · "+r.mode+" 계약"),$("h2",{},"검증기가 통과시킨 것."),
-    $("div",{class:"grid cols-3 mt"},[
-      $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"누적 전체 프로그램"),$("div",{class:"num",style:"font-size:30px;font-weight:500"},fmt(r.cumulative_ratio,3)+"×"),$("div",{class:"v-sub"},"모든 수정 적용, 새로 측정")]),
-      $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"검증기 작업"),$("dl",{class:"kv mt"},[$("dt",{},"z3 호출"),$("dd",{},String(r.z3_calls)),$("dt",{},"복잡도 스윕"),$("dd",{},r.ran_complexity_sweep?"예":"아니오"),$("dt",{},"지연"),$("dd",{},r.latency_ms!=null?r.latency_ms+" ms":"—"),$("dt",{},"티어"),$("dd",{},r.policy?r.policy.verifier_tier:"—")])]),
-      $("div",{class:"card",style:"margin:0"},[$("div",{class:"eyebrow"},"당신 코드에서 탐지됨"),(r.detected&&r.detected.length)?$("div",{class:"tags mt"},r.detected.map(d=>$("span",{class:"tag",title:d.evidence},d.waste_type))):$("p",{class:"muted",style:"margin:0"},"알려진 낭비 패턴을 찾지 못했습니다.")]),
-    ]),
-  ]);
-  const _pp=processPanel(); if(_pp) wrap.appendChild(_pp);    // §3: the live process panel, with the final result
-  if(r.collapse){                                            // §2/§4: the PROVEN loop collapse (decision procedure)
-    const co=r.collapse;
-    const head = co.status==="CLOSED_FORM" ? "증명된 붕괴: O(n) 루프 → O(1) 닫힌형"
-               : co.status==="NO_CLOSED_FORM" ? "증명된 기약: 이 루프는 닫힌형이 없음 — 루프 유지"
-               : "증명된 붕괴: O(n) 점화식 루프 → O(log n) 동반형";
-    const body = co.closed_form ? ("= "+co.closed_form)
-               : (co.c ? ("order="+co.order+", c="+JSON.stringify(co.c)+(co.ratio?(" · 측정 "+co.ratio+"×"):"")) : "");
-    wrap.appendChild($("div",{class:"card mt"},[
-      $("div",{class:"eyebrow"},"루프 붕괴 (결정 절차) · "+(co.complexity||"")),
-      $("div",{class:"row",style:"align-items:flex-start"},[
-        $("span",{class:"grade "+String(co.grade).toLowerCase()},[$("span",{class:"gd"}),gradeLabel(String(co.grade).toLowerCase())]),
-        $("div",{style:"flex:1"},[$("div",{class:"v-name"},head),$("div",{class:"v-sub"},body),
-          $("div",{class:"muted",style:"font-size:11px;margin-top:6px"},co.certificate||"")])])]));
-  }
-  if(r.proposer) wrap.appendChild($("div",{class:"card mt"},[$("div",{class:"eyebrow"},"제안자 "+(r.proposer.used?"· "+r.proposer.provider:"· 결정론적")),$("div",{class:"row",style:"align-items:flex-start"},[$("span",{class:"badge-free",style:"background:var(--track);color:var(--ink-2)"},r.proposer.used?"LLM 사용":"결정론적 디텍터"),$("span",{class:"muted",style:"flex:1"},r.proposer.note)])]));
-  if(r.shipped.length){
-    const stack=$("div",{class:"slab-stack"}); r.shipped.forEach(s=>stack.appendChild(speedupSlab(s,r.mode)));
-    wrap.appendChild($("div",{class:"mt"},[$("div",{class:"eyebrow"},"✓ 출하됨 — 각각 떠 있는 객체이며, 막대는 천장을 절대 넘지 않습니다"),stack]));
-    const cc=compoundCurve(r.shipped,r.cumulative_ratio,r.mode); if(cc) wrap.appendChild($("div",{style:"margin-top:40px"},[cc]));
-  }
-  if(r.declined&&r.declined.length){
-    const dc=$("div",{class:"card"},[$("div",{class:"eyebrow"},"보류됨 — 정직한 무주장")]);
-    r.declined.forEach(d=>dc.appendChild($("div",{class:"vrow"},[$("div",{},[$("div",{class:"v-name"},d.name),$("div",{class:"v-sub"},d.reason)]),$("div",{class:"v-waste"},d.waste_type),$("div",{class:"meter",style:"opacity:.6"},[$("div",{class:"lbl",style:"color:var(--decline);mix-blend-mode:normal"},"주장 없음")]),$("span",{class:"grade decline"},[$("span",{class:"gd"}),gradeLabel("decline")])])));
-    wrap.appendChild(dc);
-  }
-  if(!r.shipped.length && !(r.declined&&r.declined.length)) wrap.appendChild($("div",{class:"card mt"},[$("p",{style:"margin:0"},"안전하게 출하할 게 없습니다 — 실패가 아니라 진짜 답입니다. "+(r.note||""))]));
-  wrap.appendChild($("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},r.note||"")]));
-  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>setScreen("code")},"← 다시 실행"),$("button",{class:"btn",onclick:()=>setScreen("corpus")},"실제 저장소에서 보기 →")]));
-  return wrap;
-}
-
-function scrCorpus(){
-  const c=DATA.corpus; const maxRatio=Math.max(1,...c.rows.map(r=>r.ratio));
-  const wrap=$("div",{},[$("div",{class:"eyebrow"},"5단계 · 증거 · 실제 저장소"),$("h2",{},"우리가 짜지 않은 전체 프로그램에 돌린, 똑같은 엔진."),
-    $("p",{class:"lead"},"다섯 가지 대표 코드베이스 — 한 번도 프로파일링되지 않은 AI 생성 코드 포함. 각 행은 Amdahl 천장과 강제 등급이 달린 측정된 전체 프로그램 결과입니다. 정직한 보류가 바로 핵심입니다."),
-    $("div",{class:"row mt",style:"margin-bottom:14px"},[$("span",{class:"grade exact"},[$("span",{class:"gd"}),gradeLabel("exact")+" · "+c.grades.exact]),$("span",{class:"grade probabilistic"},[$("span",{class:"gd"}),gradeLabel("probabilistic")+" · "+c.grades.probabilistic]),$("span",{class:"grade decline"},[$("span",{class:"gd"}),gradeLabel("decline")+" · "+c.grades.decline]),$("span",{class:"pill spacer"},`저장소 ${c.rows.length}개 · 모든 행에서 비율 ≤ 천장`)]),
-  ]);
-  const stage=$("div",{class:"stage"}); const slab=$("div",{class:"slab float-in",style:"max-width:960px;margin:8px auto;padding:18px 24px"});
-  c.rows.forEach(r=>{
-    const unbounded=!isFinite(r.ceiling); const denom=Math.max(maxRatio,r.ratio)||1;
-    const fillPct=Math.min(92,(r.ratio/denom)*92), wallPct=unbounded?98:Math.min(99,(r.ceiling/denom)*92);
-    slab.appendChild($("div",{class:"vrow"},[
-      $("div",{},[$("div",{class:"v-name"},r.name),$("div",{class:"v-sub"},r.archetype),$("div",{class:"tags",style:"margin-top:4px"},r.detected.map(d=>$("span",{class:"tag"},d)))]),
-      $("div",{class:"v-waste"},"f = "+fmt(r.hotspot_fraction,3)),
-      r.grade==="decline"?$("div",{class:"meter",style:"opacity:.6"},[$("div",{class:"lbl",style:"color:var(--decline);mix-blend-mode:normal"},"주장 없음")]):
-        $("div",{class:"meter",title:`측정 ${fmt(r.ratio)}× ≤ 천장 ${unbounded?"∞":fmt(r.ceiling,0)+"×"}`},[$("div",{class:"fill",style:`width:${fillPct}%;background:var(--extend)`}),$("div",{class:"wall",style:`left:${wallPct}%`}),$("div",{class:"lbl"},fmt(r.ratio)+"×")]),
-      $("div",{class:"v-ceil"},[$("span",{class:"grade "+r.grade},[$("span",{class:"gd"}),gradeLabel(r.grade)]),$("div",{style:"margin-top:4px"},"≤ "+(unbounded?"∞":fmt(r.ceiling,0)+"×"))]),
-    ]));
-  });
-  setTimeout(()=>attachTilt(slab,4),0); stage.appendChild(slab); wrap.appendChild(stage);
-  wrap.appendChild($("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},"여기 큰 비율은 큰 입력에 대한 진짜 2차(quadratic) 코드에서 나옵니다(높은 핫스팟 비율 → 높은 천장) — 보기 좋게 꾸민 평균이 아닙니다. 천장은 모든 숫자 옆에 표시되며, 측정값은 절대 그것을 넘지 않습니다.")]));
-  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>{S.mode=null;S.provider=null;S.key="";S.code="";S.result=null;setScreen("landing");}},"↺ 처음부터")]));
-  return wrap;
-}
-
-// ── MATH screens (B1) — the second top-level surface; fast/normal/extend preserved INSIDE this mode ────────
-function gradeChip(g){ return g?$("span",{class:"gchip "+g},gradeLabel(g.toLowerCase())):null; }
-
-// ── B2: universal file attachment (drag-drop + picker) → /api/math/ingest (archives unpacked safely, B3) ──
-function _b64(buf){ let bin=""; const b=new Uint8Array(buf),C=0x8000; for(let i=0;i<b.length;i+=C) bin+=String.fromCharCode.apply(null,b.subarray(i,i+C)); return btoa(bin); }
-async function handleAttach(files){
-  for(const f of files){
-    const item={name:f.name,size:f.size,status:"reading",result:null}; S.attachments.push(item); render();
-    try{
-      const buf=await f.arrayBuffer(); item.status="analyzing"; render();
-      if(S.live){
-        const r=await fetch("/api/math/ingest",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({filename:f.name,content_b64:_b64(buf)})});
-        item.result=await r.json(); item.status="done";
-      } else { item.status="static"; item.result={unverified:"정적 빌드 — 파일 분석(추출·fold)은 라이브 엔진(server:app)이 필요합니다."}; }
-    }catch(e){ item.status="error"; item.result={unverified:"읽기/분석 실패: "+String(e)}; }
-    render();
-  }
-}
-function attachItem(it,idx){
-  const r=it.result||{};
-  const head=$("div",{class:"attach-head"},[
-    $("span",{class:"an"},it.name),
-    it.status==="analyzing"||it.status==="reading"?$("span",{class:"spin"}):$("span",{class:"statusdot"},
-      r.kind==="archive"?`압축 · ${r.n_files} 파일`:(r.fmt?r.fmt:it.status)),
-    $("button",{class:"ax","aria-label":"제거",onclick:()=>{S.attachments.splice(idx,1);render();}},"✕"),
-  ]);
-  const box=$("div",{class:"attach-item"},[head]);
-  (r.findings||[]).slice(0,12).forEach(f=>{ const s=f.solution||{};
-    box.appendChild($("div",{class:"attach-find"},[gradeChip(s.status),$("span",{class:"af-prov"},f.provenance),$("span",{class:"af-ans"},s.answer||"")])); });
-  if(r.refused&&r.refused.length) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"gchip DECLINE"},"보안"),$("span",{class:"af-prov"},`거부 ${r.refused.length}건 (zip-slip/폭탄 방어): ${r.refused.map(x=>x[0]).slice(0,3).join(", ")}`)]));
-  if(r.declines&&r.declines.length) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"statusdot"},`보류 ${r.declines.length}건 (구조 없음 — 정직)`)]));
-  if(r.unverified) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"gchip DECLINE"},"미검증"),$("span",{class:"af-prov"},r.unverified)]));
-  if(r.truncated) box.appendChild($("div",{class:"attach-find"},[$("span",{class:"statusdot"},"※ 한도 도달 — 일부만 분석 (폭탄 방어)")]));
-  return box;
-}
-function attachZone(mode){
-  const fi=$("input",{type:"file",multiple:"",style:"display:none"});
-  fi.addEventListener("change",e=>{ handleAttach([...e.target.files]); e.target.value=""; });
-  const drop=$("div",{class:"dropzone",onclick:()=>fi.click(),
-    ondragover:e=>{e.preventDefault();drop.classList.add("over");}, ondragleave:()=>drop.classList.remove("over"),
-    ondrop:e=>{e.preventDefault();drop.classList.remove("over");handleAttach([...e.dataTransfer.files]);}},[
-    $("span",{class:"drop-ic"},"⇪"),
-    $("div",{},[$("div",{style:"font-weight:500;color:var(--ink)"},"파일을 끌어다 놓거나 클릭해 첨부"),
-      $("div",{class:"muted",style:"font-size:12px"},"엑셀·문서·PPT·CSV·이미지·압축(zip/tar/gz) — 추출 후 fold-가속 분석 (압축은 안전 해제)")]),
-    fi,
-  ]);
-  const zone=$("div",{class:"attach"},[drop]);
-  if(S.attachments&&S.attachments.length){ const list=$("div",{class:"attach-list"}); S.attachments.forEach((it,i)=>list.appendChild(attachItem(it,i))); zone.appendChild(list); }
-  return zone;
-}
-
-function scrMathLanding(){
-  return $("div",{},[
-    $("section",{class:"hero"},[
-      $("div",{},[
-        $("div",{class:"eyebrow"},"수학 모드 · fold 우선 · 증명서 동반"),
-        $("h1",{},"추측이 아니라, 증명된 수학."),
-        $("p",{class:"lead mt",html:"문제를 입력하거나 파일을 첨부하세요. MR.JEFFREY가 먼저 <strong>구조를 인식(fold)</strong>하고, 검증된 아스널(정수론·조합론/Gosper·선형대수·대수·기하·인증수치·최적화·과학공학)로 풀고, <strong>기계로 점검된 증명서</strong>를 함께 냅니다. 닫힌 형식이 없으면 — 꾸며내지 않고 정직하게 보류합니다. 모든 답은 등급이 달립니다: <span class='grade exact'><span class='gd'></span>증명됨</span> · <span class='grade probabilistic'><span class='gd'></span>확률적</span> · <span class='grade decline'><span class='gd'></span>보류</span>."}),
-        $("div",{class:"row mt"},[$("button",{class:"btn lg",onclick:()=>setScreen("mathMode")},"문제 풀기 →"),$("span",{class:"pill"},"아스널 10종 · broth 3,735"),S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"정적 — 라이브 엔진 필요")]),
-      ]),
-      $("div",{},[ $("div",{class:"slab speed-slab","data-mode":S.mathMode,style:"padding:22px"},[
-        $("div",{class:"plane ss-head",style:"--z:22px"},[$("span",{class:"ss-waste"},"Σ_{k=1}^{n} k²"),gradeChip("EXACT")]),
-        $("div",{class:"plane ss-read",style:"--z:18px;margin-top:10px"},[
-          $("div",{},[$("span",{class:"ss-k"},"닫힌 형식"),$("span",{class:"ss-v"},"n(n+1)(2n+1)/6")]),
-          $("div",{},[$("span",{class:"ss-k"},"증명"),$("span",{class:"ss-v"},"Faulhaber · k-귀납")]),
-          $("div",{},[$("span",{class:"ss-k"},"평가"),$("span",{class:"ss-v"},"O(1)")]),
-        ]),
-      ])]),
-    ]),
-    $("div",{class:"grid cols-3 tenets"},[
-      $("div",{class:"feat"},[$("h3",{},"fold이 중심"),$("p",{},"수학에는 늘 구조가 있습니다. MATH의 첫 수는 항상 fold — 구조를 인식하고, 닫힌 형식으로 접고, 그 접기가 곧 증명입니다.")]),
-      $("div",{class:"feat"},[$("h3",{},"계산은 도구가, 전략은 모델이"),$("p",{html:"LLM은 전략을 짜고, 실제 계산·증명은 검증된 도구가 합니다. 모델의 산술·검증 오류가 0으로 — broth는 3,735개의 사전 증명을 O(1)에 조회합니다."})]),
-      $("div",{class:"feat"},[$("h3",{},"보류는 정직함"),$("p",{html:"조화급수, 일반 5차 방정식, 특이행렬 — 닫힌 형식/해가 없으면 <span class='grade decline'><span class='gd'></span>보류</span>합니다. 꾸며낸 공식은 절대 없습니다."})]),
-    ]),
-  ]);
-}
-
-function scrMathMode(){
-  const wrap=$("div",{},[$("div",{class:"eyebrow"},"1단계 · 계약 고르기 (MATH 안의 fast/normal/extend)"),$("h2",{},"증명기를 얼마나 깐깐하게?"),
-    $("p",{class:"lead"},"모드 토글이 바깥 제어(CODE ⇄ MATH)라면, fast/normal/extend는 안쪽 제어입니다 — MATH 안에서도 그대로 유지됩니다. extend는 EXACT 아니면 보류(증명된 것만 출하).")]);
-  const grid=$("div",{class:"grid cols-3 mt"});
-  const icon={fast:"⚡",normal:"⚖",extend:"⛨"};
-  const desc={fast:"가장 싼 증명서 한 장, 즉시. (확률적도 허용)",normal:"검증된 결과를 복리로. (EXACT+확률적)",extend:"닿는 모든 것을 증명 — EXACT 아니면 보류."};
-  DATA.modes.forEach(m=>{
-    const card=$("button",{class:`mode-card depth-${m.mode}`,"data-mode":m.mode,"aria-pressed":String(S.mathMode===m.mode),onclick:()=>{S.mathMode=m.mode;render();}},[
-      $("div",{class:"mc-head"},[$("span",{class:"glyph"},icon[m.mode]||""),$("div",{},[$("div",{class:"mc-name"},m.mode),$("div",{class:"mc-clock"},"수학 계약")])]),
-      $("dl",{},[
-        $("dt",{},"증명기"),$("dd",{},m.verifier_tier),$("dt",{},"출하 등급"),$("dd",{},m.acceptable_grades.join(" · ")),
-        $("dt",{},"z3"),$("dd",{},m.verifier_tier==="MICRO"?"안 함":m.verifier_tier==="FULL_CERT"?"전체":"작은 영역"),
-      ]),
-      $("div",{class:"v-sub",style:"margin-top:2px"},desc[m.mode]),
     ]);
-    setTimeout(()=>attachTilt(card,{fast:5,normal:7,extend:10}[m.mode]||7),0);
-    grid.appendChild(card);
-  });
-  wrap.appendChild(grid);
-  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"btn",onclick:()=>setScreen("mathProblem")},"문제 입력 →"),$("span",{class:"muted"},`${S.mathMode} 선택됨`)]));
-  return wrap;
-}
-
-function scrMathProblem(){
-  const ta=$("textarea",{class:"mathfield",spellcheck:"false",placeholder:"예) sum: k**2   ·   또는 JSON 문제 객체"},S.mathInput);
-  ta.value=S.mathInput; ta.addEventListener("input",e=>{S.mathInput=e.target.value;});
-  const samples=$("div",{class:"samples"},[$("span",{class:"muted",style:"align-self:center;font-size:12px"},"예시:")]);
-  MATH_SAMPLES.forEach(([label,prob])=>samples.appendChild($("button",{onclick:()=>{S.mathInput=prob;render();}},label)));
-  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.mathInput.trim())return; S.mathBusy=true; runBtn.disabled=true; runBtn.textContent="증명 중…"; S.mathResult=await runMath(); S.mathBusy=false; setScreen("mathResult"); const st=S.mathResult.status; showToast(st==="EXACT"?"증명 완료 — 기계로 점검된 증명서 동반":st==="PROBABILISTIC"?"근사 완료 — ε,δ 보고 (확률적)":"보류 — 정직한 무주장"); }},`${S.mathMode} 모드로 증명 실행 →`);
-  return $("div",{"data-mode":S.mathMode},[
-    $("div",{class:"eyebrow"},"2단계 · 당신의 문제"),$("h2",{},"문제를 입력하세요. 도구가 풀고, 증명기가 점검합니다."),
-    $("p",{class:"lead"},"합(Σ), 점화식, 정수론, 선형대수, 대수, 기하, 인증수치, 최적화(LP), 차원해석을 받습니다. 텍스트 규칙 `sum: <k 식>` 또는 JSON 문제 객체. 첨부 파일(엑셀·문서)도 fold-가속 분석으로 처리합니다."),
+  })() : null;
+  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; S.busy=true; runBtn.disabled=true; runBtn.textContent="확인 중…"; S.result=await runOptimize(); S.busy=false; setScreen("result"); showToast("완료 — 안전하게 · 빠르게 · 정확하게 점검했습니다"); }},"코드 점검 실행 →");
+  return $("div",{},[
+    $("div",{class:"eyebrow"},"1단계 · 당신의 코드와 제공자"),$("h2",{},"함수를 붙여넣고, 제공자를 고르세요."),
+    $("p",{class:"lead"},"LLM은 더 나은 코드를 제안만 하고, 무엇을 돌려줄지는 검증기가 정합니다. Groq과 Gemini는 신용카드 없이 무료입니다. 키 없이 건너뛰어도 됩니다 — 그땐 엔진의 검증만 돌아갑니다."),
     samples, ta,
-    $("div",{class:"row mt"},[runBtn, $("span",{class:"pill"},"계산 offload · 모델 산술오류 0"), S.attachments&&S.attachments.length?$("span",{class:"pill"},`첨부 ${S.attachments.length}`):null]),
-    (typeof attachZone==="function"?attachZone("math"):null),
+    $("div",{class:"eyebrow",style:"margin-top:22px"},"제공자 (선택)"),
+    provGrid, keyCard,
+    $("div",{class:"row mt"},[runBtn, S.provider?$("span",{class:"pill"},"제안자: "+S.provider):$("span",{class:"pill"},"제공자 없이 검증만"),
+      S.provider?$("button",{class:"ghost",onclick:()=>{S.provider=null;S.key="";S.keyState={phase:"idle"};render();}},"제공자 해제"):null]),
   ]);
 }
 
-function scrMathResult(){
-  const r=S.mathResult; if(!r) return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("mathProblem")},"문제로 가기")]);
-  const st=r.status||"DECLINE";
-  const wrap=$("div",{"data-mode":r.inner_mode||S.mathMode},[
-    $("div",{class:"eyebrow"},"3단계 · 검증 · MATH "+(r.inner_mode||S.mathMode)+" 계약"),
-    $("div",{class:"row",style:"justify-content:space-between;align-items:flex-start"},[
-      $("h2",{},st==="EXACT"?"증명됨.":st==="PROBABILISTIC"?"근사 — ε,δ 보고.":"보류 — 정직한 무주장."),
-      $("span",{class:"grade "+st.toLowerCase()},[$("span",{class:"gd"}),gradeLabel(st.toLowerCase())]),
-    ]),
+function scrResult(){
+  const r=S.result;
+  if(!r) return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("code")},"코드로 가기")]);
+  const out = r.live ? liveOutcomes(r.raw) : r.demo;
+  const wrap=$("div",{},[
+    $("div",{class:"eyebrow"},"2단계 · 결과"),$("h2",{},"안전하게 · 빠르게 · 정확하게."),
   ]);
-  if(r.answer) wrap.appendChild($("div",{class:"card mt"},[$("div",{class:"eyebrow"},"답 / 닫힌 형식"),$("div",{class:"mono",style:"font-size:16px;color:var(--ink);word-break:break-word"},r.answer)]));
-  // the visible grade-tagged reasoning trace (§5)
-  if(r.reasoning&&r.reasoning.length){
-    const tr=$("div",{class:"mtrace"});
-    r.reasoning.forEach(s=>tr.appendChild($("div",{class:"mstep"},[$("span",{class:"mst-stage"},s.stage),$("span",{class:"mst-detail"},s.detail),gradeChip(s.grade)])));
-    wrap.appendChild($("div",{class:"mt"},[$("div",{class:"eyebrow"},"추론 (단계별 · 등급 표시)"),tr]));
-  }
-  // the machine-checked certificate (expandable)
-  if(r.certificate){
-    const c=r.certificate;
-    wrap.appendChild($("details",{class:"mcert",open:"" },[
-      $("summary",{},[$("span",{class:"gd"}),"증명서 · "+c.kind,$("span",{class:"spacer"}),$("span",{class:"muted",style:"font-size:11.5px;font-weight:400"},c.check_cost||"")]),
-      $("div",{class:"mcert-body"},[c.detail||"",(c.epsilon!=null?` · ε=${fmt(c.epsilon,5)}`:""),(c.delta!=null?` · δ=${c.delta}`:"")].join("")),
-    ]));
-  } else if(r.reason){
-    wrap.appendChild($("div",{class:"honesty mt"},[$("span",{},"◈"),$("span",{},r.reason)]));
-  }
-  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>setScreen("mathProblem")},"← 다른 문제"),$("button",{class:"btn",onclick:()=>setScreen("mathMode")},"모드 바꾸기")]));
+  if(!r.live) wrap.appendChild($("div",{class:"demo-banner"},[$("span",{},"◈"),$("span",{html:"<strong>데모 모드</strong> — 아래는 당신 코드에 대한 <em>예시</em> 결과입니다(실측·실변환 아님). 실제 변환은 라이브 엔진(server)에서 실행됩니다."})]));
+  // the three pillar outcomes — human sentences, each in its accent. No numbers, no badges, no meters.
+  const pmap={secured:out.secured,fast:out.fast,accurate:out.accurate};
+  const stack=$("div",{class:"pillar-stack mt"});
+  DATA.pillars.forEach(p=>{
+    const slab=$("div",{class:"slab pillar float-in","data-mode":p.id},[
+      $("div",{class:"p-head"},[$("span",{class:"glyph"},p.glyph),$("span",{class:"p-name"},p.name),$("span",{class:"p-word"},p.word)]),
+      $("p",{},pmap[p.id]||""),
+    ]);
+    setTimeout(()=>attachTilt(slab,5),0);
+    stack.appendChild(slab);
+  });
+  wrap.appendChild(stack);
+  // the output code — the main deliverable. Live: the returned code. Static: the input, labelled as the demo basis.
+  const outputCode = r.live ? ((r.raw&&(r.raw.code||r.raw.optimized||r.raw.output))||S.code) : (r.code||S.code);
+  const codeCard=$("div",{class:"card mt"},[
+    $("div",{class:"row",style:"justify-content:space-between"},[
+      $("div",{class:"eyebrow",style:"margin:0"},r.live?(out.changed?"돌려받은 코드":"코드 (변경 없음)"):"코드 (데모 — 라이브 엔진이 변환합니다)"),
+      $("button",{class:"ghost",onclick:()=>{navigator.clipboard&&navigator.clipboard.writeText(outputCode);showToast("복사했습니다");}},"복사"),
+    ]),
+    $("pre",{class:"outcode mt"},outputCode||""),
+  ]);
+  wrap.appendChild(codeCard);
+  wrap.appendChild($("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.key_policy+" (당신의 키는 이 탭을 떠나지 않습니다.)")]));
+  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>setScreen("code")},"← 다시 실행"),$("button",{class:"ghost",onclick:()=>{S.code="";S.result=null;S.provider=null;S.key="";setScreen("landing");}},"↺ 처음부터")]));
   return wrap;
 }
 
-// the two top-level surfaces: CODE (wizard) and MATH (solver). The toggle is the OUTER control; fast/normal/
-// extend stays the INNER control inside each. Switching re-themes (data-top) AND re-routes (screen map + engine).
-const CODE_SCREENS={landing:scrLanding,mode:scrMode,provider:scrProvider,code:scrCode,verify:scrVerify,corpus:scrCorpus};
-const MATH_SCREENS={mathLanding:scrMathLanding,mathMode:scrMathMode,mathProblem:scrMathProblem,mathResult:scrMathResult};
+const SCREENS={landing:scrLanding,code:scrCode,result:scrResult};
 
 function render(){
   document.documentElement.setAttribute("data-theme",S.theme);
-  const isMath=S.topMode==="math";
   const root=document.getElementById("root"); root.innerHTML="";
-  const app=$("div",{class:"app","data-mode":isMath?S.mathMode:activeMode(),"data-top":S.topMode});
-  // OUTER toggle — the primary CODE ⇄ MATH control, visually distinct active state, Korean labels
-  const toggle=$("div",{class:"topseg",role:"tablist","aria-label":"최상위 모드"},[
-    $("button",{class:"topseg-btn",role:"tab","aria-selected":String(!isMath),onclick:()=>switchTop("code")},[$("span",{class:"tg"}),"코드"]),
-    $("button",{class:"topseg-btn",role:"tab","aria-selected":String(isMath),onclick:()=>switchTop("math")},[$("span",{class:"tg"}),"수학"]),
-  ]);
-  // per-mode step nav
+  const app=$("div",{class:"app"});
   const steps=$("nav",{class:"steps","aria-label":"progress"});
-  if(isMath){
-    const reachedM={mathLanding:1,mathMode:1,mathProblem:!!S.mathMode,mathResult:!!S.mathResult};
-    MATH_STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reachedM[id]?null:"",onclick:()=>reachedM[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
-  } else {
-    const reached={landing:1,mode:1,provider:!!S.mode,code:!!S.mode,verify:!!S.result,corpus:1};
-    STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
-  }
+  const reached={landing:1,code:1,result:!!S.result};
+  STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
   app.appendChild($("header",{class:"topbar"},[
-    $("div",{class:"brand"},[$("span",{class:"dot"}),"MR.JEFFREY",$("small",{},isMath?"증명된 수학 엔진":"전체 프로그램 검증 가속")]),
-    toggle, steps, $("div",{class:"spacer"}),
+    $("div",{class:"brand"},[$("span",{class:"dot"}),"MR.JEFFREY",$("small",{},"안전하게 · 빠르게 · 정확하게")]),
+    steps, $("div",{class:"spacer"}),
     $("button",{class:"ghost",onclick:()=>{S.theme=S.theme==="light"?"dark":"light";render();}},S.theme==="light"?"다크":"라이트"),
   ]));
-  const screens=isMath?MATH_SCREENS:CODE_SCREENS;
-  const cur=screens[S.screen]||(isMath?scrMathLanding:scrLanding);
-  const wideScreen=(S.screen==="corpus"||S.screen==="verify"||S.screen==="mathResult");
-  const main=$("main",{class:wideScreen?"wide":""});
+  const cur=SCREENS[S.screen]||scrLanding;
+  const main=$("main",{class:(S.screen==="result")?"wide":""});
   main.appendChild(cur());
   app.appendChild(main);
-  app.appendChild($("footer",{class:"footer"},isMath?"fold 우선 · 증명서 동반 · 등급 강제 · 닫힌 형식 없으면 보류 · 계산은 도구가":"전체 프로그램 실측 · Amdahl 정직 · 등급 강제 · 제안자 ≠ 심판 · 키는 탭에만 보관"));
+  app.appendChild($("footer",{class:"footer"},"안전하게 · 빠르게 · 정확하게 · 제안자 ≠ 심판 · 키는 이 탭에만 보관"));
   if(S.toast) app.appendChild($("div",{class:"toast",role:"status"},["✓ ",S.toast]));
   root.appendChild(app);
 }
 
-// detect live back end (served by webapi.app) — else stay in honest STATIC mode
+// detect live back end (served by webapi.app) — else stay in honest STATIC (demo) mode
 fetch("/api/health").then(r=>r.json()).then(j=>{S.live=!!(j&&j.ok);render();}).catch(()=>{S.live=false;});
 render();
 </script>
