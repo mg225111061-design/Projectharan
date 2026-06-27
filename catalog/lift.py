@@ -93,7 +93,15 @@ def lift_sum(body_expr: str, var: str = "k", base_n: int = 1) -> KV.Verdict:
     def body_z3(zk):
         return _sympy_to_z3(body_sym.xreplace({k: sp.Symbol("__n")}), zk, "__n")
 
-    res = EC.inductive_sum_equiv(closed_z3, body_z3, base_value=0, base_n=base_n - 1, var="n", sort="Real")
+    # TASK-4 gap fix: a closed form can be MATHEMATICALLY valid yet outside the z3 PROOF substrate (polynomials over
+    # ℝ) — e.g. a geometric body 2**k folds to 2**(n+1)−1, which _sympy_to_z3 cannot encode. The encoder raises
+    # there; an uncaught exception is a CRASH, not a DECLINE, and "sound-or-DECLINE" forbids it. Catch the
+    # non-encodable case and DECLINE honestly: we have a candidate closed form but no proof in-substrate.
+    try:
+        res = EC.inductive_sum_equiv(closed_z3, body_z3, base_value=0, base_n=base_n - 1, var="n", sort="Real")
+    except (ValueError, TypeError) as e:  # noqa: BLE001 — encoding outside the polynomial z3 substrate
+        return KV.decline(f"lift_sum: closed form {closed} is outside the z3 proof substrate ({e}) — "
+                          "unprovable here ⇒ DECLINE", "lift")
     if not res.proved:
         return KV.decline(f"lift_sum: closed form {closed} NOT proved by induction — {res.detail} ⇒ DECLINE", "lift")
     cert = KV.Cert(KV.EXACT, f"lift_equivalence[{res.tier}]", passed=True, check_cost="z3 induction (base + step UNSAT)",
@@ -102,23 +110,27 @@ def lift_sum(body_expr: str, var: str = "k", base_n: int = 1) -> KV.Verdict:
                     "verified lifting (sum→closed form)", cert)
 
 
+# TASK-4 gap fix: accept BOTH range(hi) [single-arg, lo defaults to 0 — the most common real-code form] AND
+# range(lo, hi) [two-arg]. The lo group is optional; the z3 inductive-sum proof still gates correctness (a wrong
+# lift fails the proof ⇒ DECLINE), so widening what is ATTEMPTED never widens what is wrongly ACCEPTED.
 _SUM_LOOP = re.compile(
-    r"for\s+(\w+)\s+in\s+range\(\s*([^,]+?)\s*,\s*([^)]+?)\s*\)\s*:\s*\n?\s*\w+\s*\+=\s*(.+)", re.MULTILINE)
+    r"for\s+(\w+)\s+in\s+range\(\s*(?:([^,]+?)\s*,\s*)?([^)]+?)\s*\)\s*:\s*\n?\s*\w+\s*\+=\s*(.+)", re.MULTILINE)
 
 
 def lift_code(code: str) -> KV.Verdict:
-    """Identify a liftable accumulation loop `for k in range(a, b): s += body` and lift the sum. Routing probe +
-    synthesis + proof. Non-matching / non-liftable code ⇒ honest DECLINE (fall back to Topic A or DECLINE)."""
+    """Identify a liftable accumulation loop `for k in range(n): s += body` or `for k in range(a, b): s += body` and
+    lift the sum. Routing probe + synthesis + proof. Non-matching / non-liftable code ⇒ honest DECLINE."""
     m = _SUM_LOOP.search(code)
     if not m:
-        return KV.decline("lift_code: no liftable accumulation loop (for k in range(a,b): s += body) found ⇒ DECLINE", "lift")
-    var, lo, hi, body = m.group(1), m.group(2).strip(), m.group(3).strip(), m.group(4).strip().rstrip(":")
-    # range(lo, hi) sums k from lo to hi-1; lift Σ_{k=lo}^{hi-1} body with the upper limit symbolic (hi = n+1 ⇒ to n)
-    base_n = 1
-    try:
-        base_n = int(lo)
-    except ValueError:
-        base_n = 1
+        return KV.decline("lift_code: no liftable accumulation loop (for k in range([a,]b): s += body) found ⇒ DECLINE", "lift")
+    var, lo, hi, body = m.group(1), m.group(2), m.group(3).strip(), m.group(4).strip().rstrip(":")
+    # range(n) sums k from 0 to n-1 (lo defaults to 0); range(lo, hi) sums k from lo to hi-1
+    base_n = 0
+    if lo is not None:
+        try:
+            base_n = int(lo.strip())
+        except ValueError:
+            base_n = 1
     return lift_sum(body, var=var, base_n=base_n)
 
 

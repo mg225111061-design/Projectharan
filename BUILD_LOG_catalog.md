@@ -753,3 +753,42 @@ optimizations rejected. Honest scope: "We do NOT beat cuBLAS on dense — we bui
 itself; we win on op-count where structure exists; we optimize systems/mobile real hot paths to the provable limit;
 network RTT and kernel-crossing latency are the irreducible floors." `test_catalog.py` **90/90**, test_build 273
 영향 없음. No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 이제 GPU에서도.
+
+## §N — FINISH-EVERYTHING (QUIET-MACHINE): PRODUCTION FOLD-COVERAGE + REAL-USAGE TEST OF MR.JEFFREY
+
+The "finish everything pending" pass closed the deterministic-verification debts honestly. T1 confirmed the suite on a
+quiet machine (273×3 ALL CLEAN — the earlier perf-gate jitter was load, never a regression); T2 was the §M GPU work.
+The two NEW deterministic deliverables are below; T5 (honest UI) follows.
+
+**T3 — fold-coverage on a PRODUCTION-representative corpus (`catalog/fold_coverage_production.py`, MEASURED).** The §K
+meter's 0.60 was on a CURATED probe — "how the engine behaves on deliberately-structured code", NOT the real-world
+number. This meter runs the real fold/lift engine over a NAMED corpus (`PRODUCTION_BACKEND_CORPUS_v1`, 35 functions in
+the shapes of real CRUD-backend code: DB access, string/JSON, dict aggregation, validation, control flow, I/O, crypto)
+and partitions into three regions without mixing clocks — **asymptotic fold** (EXACT) vs **constant-factor** (region-3,
+asymptotics unchanged) vs **DECLINE floor**. ★ THE HONEST RESULT: production asymptotic-fold ≈ **5.7% raw / 7.25%
+cost-weighted** — LOW single digits, exactly the ~1–3% the research always estimated, FAR below the 0.60 probe number,
+because most backend code is I/O wait, string/data-structure work and control flow with no foldable asymptotic
+structure. The corpus is composed to REPRESENT real code, NOT massaged to inflate — a high number here would be the
+lie. Precision 1.0: only the genuine arithmetic-accumulation loops fold; the I/O/crypto/control functions correctly do
+NOT. The probe-vs-production gap is stated explicitly in the report.
+
+**T4 — REAL-USAGE TEST of MR.JEFFREY + the honest gap report (`mrjeffrey_gap_report.py`, MEASURED).** Not a summary —
+the product was actually DRIVEN on real inputs across its deterministic surface, and what broke was written down and
+fixed. ★ WHAT IS LIVE-TESTABLE: the propose half (the LLM writing HARAN from a spec) needs a key + egress, absent here
+⇒ Clock-A call latency is **[BLOCKED]** and is NEVER faked (reported only as the spec-size proxy). Everything
+downstream — parse → **verify (Clock B)** → **fold/lift (Clock C)** → accelerate — is deterministic and IS exercised
+live. ★ WHAT REAL-USAGE TESTING FOUND — TWO GENUINE BUGS, BOTH FIXED: **GAP-1** the verified lifter only matched
+two-arg `range(lo, hi)`; the SINGLE-arg `range(n)` form (the single most common accumulation loop) silently DECLINED —
+fix: the lo-group of the loop regex is now optional (base defaults to 0), and the z3 inductive-sum proof still gates
+correctness, so the ATTEMPT widened but the ACCEPT set did not (`for k in range(n): s += k` now folds to n·(n+1)/2).
+**GAP-2** a non-polynomial body (`s += 2**k`) raised an UNCAUGHT `ValueError` from the z3 encoder (2**n is outside the
+polynomial substrate) instead of DECLINING — an uncaught crash violates sound-or-DECLINE — fix: the encode/prove step
+now catches the out-of-substrate case and DECLINEs honestly (a candidate closed form exists but no in-substrate proof).
+Both bugs are guarded by live batteries: the VERIFY battery (6 labeled HARAN programs — every wrong implementation
+caught, **0 false VERIFIED**, accuracy 1.0 on a quiet run) and the FOLD battery (real loops — polynomials fold, the
+geometric body and the no-loop case DECLINE, **0 crashes**). The Clock-C fold win is measured directly (naive O(n) loop
+vs the O(1) closed form, correctness-checked before timing — ~2300× at n=20000, a genuine asymptotic collapse, never a
+faster-but-wrong answer). The impact-ranked ledger also records the BLOCKED propose step (GAP-3), the inclusive-Σ
+boundary convention (GAP-4, by-design, identical for single/two-arg) and the honest low-single-digit fold ceiling
+(GAP-5, by-design, = T3). `test_catalog.py` **92/92**, test_build 273 영향 없음 (lift.py 변경 후 재확인). No new
+dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 제품을 실제로 굴려 버그 둘을 찾아 고치고, 막힌 시계와 정직한 천장을 덮지 않고 적었다.
