@@ -2730,6 +2730,60 @@ def test_gpu_move2_hidden_structure():
           f"dense=TIE cuBLAS + validation proof — never 'beat cuBLAS on dense')")
 
 
+def test_gpu_move3_soul_deep():
+    """GPU §M MOVE 3 — SOUL-DEEP optimization of systems + mobile, A/B/C/D to the provable per-domain limit. Systems:
+    locks→lock-free (single-location commutative RMW; multi-location kept locked), alloc→pool, syscall→batch, DS→
+    correct. Mobile: network→cache (cut call COUNT, never RTT), render→recompute-elim, serde→fast-path, battery→
+    dead-elim. ★ Each proved safe; adversarial (multi-location lock-free, impure cache, non-commutative, live-as-dead)
+    rejected 100% — precision = 1.0."""
+    import soul.systems as SY
+    import soul.mobile as MO
+    s = SY.systems_limit_pass()
+    assert s["applied"]["locks"] and not s["applied"]["locks_adversarial_multiloc"]    # single-loc OK, multi-loc kept locked
+    assert s["applied"]["allocation"] and s["applied"]["syscalls"] and s["applied"]["data_structures"]
+    assert "irreducible kernel-crossing latency" in s["limit_statement"]
+    m = MO.mobile_limit_pass()
+    assert m["applied"]["network"] and not m["applied"]["network_adversarial_impure"]   # pure cacheable, impure rejected
+    assert m["applied"]["render"] and m["applied"]["serialization"] and m["applied"]["battery"]
+    assert "network RTT is the IRREDUCIBLE physical floor" in m["limit_statement"]      # honest: cut count, not latency
+    # adversarial extras: non-commutative lock-free + removing a LIVE computation as dead ⇒ rejected
+    assert not SY.verified_lock_free({"locations": {"x"}, "reads_external": False, "update": lambda a, b: a - b}).applied
+    assert not MO.verified_battery_dead(lambda x: x[0] + x[1], lambda x: x[0], [(3, 9), (1, 4)]).applied
+    print("PASS test_gpu_move3_soul_deep (SYSTEMS: lock-free [single-loc commutative; multi-loc kept locked], pool, "
+          "syscall-batch, DS-correct; MOBILE: network-cache [cut COUNT not RTT], render-hoist, serde-fast, dead-elim; "
+          "★ adversarial [multi-loc lock-free, impure cache, non-commutative, live-as-dead] rejected — precision 1.0; "
+          "network RTT named the irreducible physical floor)")
+
+
+def test_gpu_report_and_battery():
+    """GPU §M — the report + the adversarial precision battery (MEASURED). ★ THE SAFETY PROOF on the GPU: every wrong
+    kernel fails validation, every false structure fails its proof and falls through to dense, every unsafe
+    optimization is rejected — precision = 1.0. Honest framing enforced: dense = tie cuBLAS + proof (never 'beat'),
+    structured = win on op-count + proof; zero cuBLAS/cuDNN/external-BLAS dependency."""
+    import gpu.gpu_acceleration_report as GR
+    r = GR.report()
+    # MOVE 1: all kernels translation-validated; no BLAS dep; throughput honestly device-pending
+    assert all(v["validated"] for v in r["move1_kernels"].values()) and r["move1_no_blas_dep"]
+    assert not r["move1_device"]["device"]                                  # no GPU here → device-pending (honest)
+    # MOVE 2: structured input collapses (op-win), dense input falls through (tie cuBLAS), honest framing
+    assert r["move2_structural"]["low_rank_path"] == "structural_collapse" and r["move2_structural"]["low_rank_op_reduction"] > 1.0
+    assert r["move2_structural"]["dense_path"] == "dense_fallthrough" and "do NOT beat cuBLAS on dense" in r["move2_structural"]["framing"]
+    # MOVE 3: both domains driven to the provable limit, irreducible floors named honestly
+    assert "irreducible" in r["move3_systems_limit"] and "IRREDUCIBLE physical floor" in r["move3_mobile_limit"]
+    assert r["move3_applied"]["systems"]["locks"] and r["move3_applied"]["mobile"]["network"]
+    # ★ precision = 1.0 across the GPU-extended adversarial battery (wrong kernels / false structure / unsafe opts)
+    assert r["precision"] == 1.0 and r["precision_is_one"] and r["unsafe_applied"] == []
+    assert r["battery_size"] >= 8 and r["applied"] >= 4
+    # honest scope + zero forbidden deps (no cuBLAS/cuDNN/external BLAS)
+    assert "do NOT beat cuBLAS on dense" in r["scope_statement"] and "WIN on operation count" in r["scope_statement"]
+    assert r["zero_dep_ok"] and r["zero_dep_forbidden_present"] == []
+    print(f"PASS test_gpu_report_and_battery (MOVE 1: all PTX kernels translation-validated, no cuBLAS/cuDNN dep, "
+          f"throughput device-pending [honest]; MOVE 2: low-rank op-win {r['move2_structural']['low_rank_op_reduction']}× "
+          f"[structured=win], dense fall-through [tie cuBLAS+proof]; MOVE 3: systems+mobile driven to provable limit, "
+          f"irreducible floors named; ★ precision = {r['precision']} over the {r['battery_size']}-case adversarial "
+          f"battery [wrong kernels/false structure/unsafe opts rejected]; never 'beat cuBLAS on dense'; zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
