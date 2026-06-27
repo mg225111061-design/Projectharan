@@ -3194,6 +3194,32 @@ def test_recall_final_report():
           f"genuinely non-foldable]; NO 23rd kind; precision 1.0 [zero false folds]; zero-dep [forbidden_present==[]])")
 
 
+def test_io_idea1_semantic_cache():
+    """§Q IDEA 1 — semantic cache-equivalence (PROVEN, not guessed): z3 proves two differently-spelled requests return
+    the IDENTICAL result for all inputs → share one cache entry (one I/O for the whole equivalence class). ★ Precision
+    extends to I/O: near-equivalent-but-unequal requests are proved DISTINCT and kept as separate I/Os (zero false
+    shares); z3 unknown → distinct. Honest: physical I/O latency is NOT reduced — only the I/O COUNT, measured on a
+    deterministic model (real latency saved is modeled-pending-deployment)."""
+    import accel.semantic_cache as SC
+    V = {"x": "Int", "a": "Int", "b": "Int"}
+    assert SC.prove_request_equiv("x > 5 and x > 3", "x > 5", V)[0] is True
+    assert SC.prove_request_equiv("a + b", "b + a", V)[0] is True
+    assert SC.prove_request_equiv("(x > 0) and (x > 0)", "x > 0", V)[0] is True
+    # ★ near-equivalent-but-unequal kept DISTINCT (zero false shares — a wrong share = stale data = build fails)
+    assert SC.prove_request_equiv("x > 5", "x >= 5", V)[0] is False
+    assert SC.prove_request_equiv("a - b", "b - a", V)[0] is False
+    assert SC.prove_request_equiv("x > 5 or x < 0", "x > 5", V)[0] is False
+    assert SC.prove_request_equiv("a + b", "a > b", V)[0] is False        # value vs predicate — trivially distinct
+    # the stream collapses proven equivalence classes to fewer I/Os
+    m = SC.measure_stream(["x > 5 and x > 3", "x > 5", "a + b", "b + a", "x >= 5", "x > 5 or x < 0", "x > 5 and x > 3"], V)
+    assert m["io_avoided_by_semantic_share"] == 2 and m["semantic_io"] < m["exact_key_io"]
+    print(f"PASS test_io_idea1_semantic_cache (z3 proves semantically-equivalent differently-spelled requests "
+          f"[x>5∧x>3≡x>5, a+b≡b+a, idempotent-and] share ONE I/O; near-equivalent look-alikes [x>5 vs x>=5, a-b vs "
+          f"b-a, value-vs-predicate] proved DISTINCT and kept separate [zero false shares]; modeled stream avoided "
+          f"{m['io_avoided_by_semantic_share']}/{m['exact_key_io']} I/Os [{m['reduction_fraction']}] — COUNT reduction, "
+          "not latency; precision 1.0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
