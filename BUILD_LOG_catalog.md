@@ -808,3 +808,43 @@ I/O / control flow with no foldable asymptotic structure, only a low-single-digi
 is a SELECTED best case, not a uniform promise. `test_post_consol_task5_honest_ui_landing` enforces all three plus the
 main-UI honesty markers; PHASE-8 pinning still holds (23 numbers backed). `test_catalog.py` **93/93**; test_build
 unaffected (T5 touches only HTML + test_catalog, neither read by test_build). No new dependency.
+
+## §O — A/B/C/D TO THE LIMIT, COMPOSED TO A FIXPOINT, + THE 550-CASE STRESS TEST
+
+The acceleration engine (§L) proved ONE local transform at a time. §O pushes three of the moves to their reachable
+limit, COMPOSES proved transforms to a fixpoint with a single end-to-end guarantee, and stress-tests the whole thing
+at scale — with PRECISION as the build gate. Modules `accel/maximal.py` + `accel/stress_550.py`; never imported by
+test_build; zero new deps (audit `forbidden_present == []`).
+
+**MAXIMAL A/B/C/D (`accel/maximal.py`).** Each extension widens what is ATTEMPTED without widening what is wrongly
+ACCEPTED (applied ⇔ proved). **A.transitive_purity** — the base A1 conservatively rejected any call to a non-builtin;
+here we take the whole call graph and prove a function PURE iff it is locally clean (no clock/RNG/IO/global/arg-
+mutation) AND every callee is transitively pure, via a monotone fixpoint (cycles resolve soundly) — so a function
+calling user-defined pure helpers is now cacheable, while an impure leaf keeps the whole graph impure. **A.nested_batch**
+— batch across NESTED loops by proving no carried dependency + result-equivalence of the flattened batched call vs the
+nested per-item calls in order (a carried/reordering one DECLINEs). **B.prefetch_overlap** — overlap stage i+1's I/O
+with stage i's compute, SAFE iff the next I/O neither writes what the current compute touches nor reads what it writes
+(a dependent prefetch DECLINEs); the proof unlocks safety, the latency win is the honest max(io,compute)-vs-(io+compute)
+overlap model, never a fabricated number. **compose_to_fixpoint** — apply every proposer to the program repeatedly,
+applying each PROVED transform whose end-to-end differential against the current program holds, until a full pass adds
+nothing new (the FIXPOINT). The end-to-end equivalence is original ≡ final BY TRANSITIVITY of ≡ (each step is proved
+equivalent) AND a differential re-check original-vs-final on samples; a step whose differential disagrees with its
+claim is REFUSED (precision first). The demo folds a slow pipeline [dedup O(N²) → square-recompute → sum] to
+[dedup O(N) → square-map → sum] in 2 proved steps, fixpoint reached, end-to-end ≡ confirmed.
+
+**THE 550-CASE STRESS TEST (`accel/stress_550.py`, MEASURED).** 500 MIXED cases (a balanced spread across all the
+moves: pure/impure cache, transitive pure/impure, independent/carried batch & nested-batch, redundant/none dedup,
+disjoint/conflicting async, disjoint/dependent prefetch, safe/unsafe parallel, equivalent/result-changing algo swap,
+lossless/lossy serde, hazard-free/hazard alloc) + 50 UNSTRUCTURED impossible-core cases (CSPRNG, true RNG, wall-clock,
+real I/O, cyclic-lock deadlocks, order-changing "fast" batches, aliasing hazards). ★ THE BINDING GATE IS PRECISION:
+every case whose ground truth is "leave it alone" MUST DECLINE, and a single FALSE APPLY fails the build; all 50
+impossible-core cases decline. ★ WE NEVER REPORT 550/550 — that would be the lie, since ~half the corpus SHOULD
+decline. The measured honest split: **250 accelerated (every one proved) / 300 correctly declined (incl. all 50
+impossible-core); precision 1.0 (zero false applies, zero crashes); recall 1.0 on the genuinely-accelerable subset.**
+One honest self-correction during the build: the serde "should-apply" cases initially DECLINED because the reference
+encoder stringifies values (int inputs round-trip lossily — the verifier was RIGHT to decline); the fix was to make
+the test cases genuinely lossless (string values), matching the "apply" label to reality rather than weakening the
+verifier. `test_post_consol_task6_accel_maximal_and_stress550` enforces the maximal apply-safe/decline-unsafe pairs,
+the fixpoint + end-to-end equivalence, and the full stress gate. `test_catalog.py` **94/94**; test_build unaffected
+(accel/ is never imported by test_build). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 550케이스에서도, 정밀도가
+빌드 게이트다.

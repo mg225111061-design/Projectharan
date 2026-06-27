@@ -2904,6 +2904,52 @@ def test_post_consol_task5_honest_ui_landing():
           "only detected waste, truthful EXACT/PROBABILISTIC/DECLINE badges, per-mode clock, static-vs-live disclosed)")
 
 
+def test_post_consol_task6_accel_maximal_and_stress550():
+    """DIRECTIVE 5 — A/B/C/D to the limit, composed to a fixpoint, and the 550-case stress test.
+    (1) the MAXIMAL extensions widen what is ATTEMPTED without widening what is ACCEPTED (applied ⇔ proved):
+        A.transitive_purity (a pure call-graph caches; an impure leaf does NOT), A.nested_batch (independent nested
+        loops batch; a carried one declines), B.prefetch_overlap (independent next-I/O overlaps; a dependent one
+        declines).
+    (2) compose_to_fixpoint applies every PROVED transform until none remains (a FIXPOINT) and carries an end-to-end
+        equivalence guarantee (transitivity of ≡ + a differential original-vs-final check).
+    (3) the 550-case STRESS test (500 mixed + 50 impossible-core): ★ the BINDING gate is PRECISION — ZERO false
+        applies, and all 50 impossible-core cases DECLINE; a single false apply fails the build. We NEVER report
+        550/550 (that would be the lie — roughly half the corpus SHOULD decline); the honest split is reported."""
+    import accel.maximal as MAX
+    import accel.stress_550 as S550
+    # (1) maximal — apply on the safe case, DECLINE on the unsafe one (reach widens, precision preserved)
+    assert MAX.verified_cache_transitive({"h": "def h(x):\n    return x+1",
+                                          "f": "def f(x):\n    return h(x)*2"}, "f").applied
+    assert not MAX.verified_cache_transitive({"h": "def h(x):\n    return x+random.random()",
+                                              "f": "def f(x):\n    return h(x)*2"}, "f").applied
+    assert MAX.verified_nested_batch([1, 2], lambda o: [o, o + 1], lambda o, j: o * j,
+                                     lambda its: [o * j for (o, j) in its]).applied
+    assert not MAX.verified_nested_batch([1, 2], lambda o: [o, o + 1], lambda o, j: o * j,
+                                         lambda its: [o * j for (o, j) in its], carried=True).applied
+    assert MAX.verified_prefetch_overlap([{"name": "a", "compute_writes": ["x"]},
+                                          {"name": "b", "io_reads": ["y"]}]).applied
+    assert not MAX.verified_prefetch_overlap([{"name": "a", "compute_writes": ["x"]},
+                                              {"name": "b", "io_reads": ["x"]}]).applied
+    # (2) compose to fixpoint with end-to-end equivalence (transitivity + differential)
+    fx = MAX.compose_fixpoint_demo()
+    assert fx["fixpoint_reached"] and fx["applied_count"] == 2 and fx["end_to_end_equiv"] is True and not fx["refused"]
+    # (3) the 550-case stress test — PRECISION is the build gate; never 550/550
+    r = S550.run_stress()
+    assert r["total"] == 550 and r["structured"] == 500 and r["unstructured"] == 50
+    assert r["precision"] == 1.0 and r["false_applies"] == [] and r["crashes"] == []        # ★ zero false applies
+    assert r["unstructured_all_declined"] is True                                            # all 50 impossible-core DECLINE
+    assert r["accelerated"] != 550                                                           # ★ NEVER 550/550
+    assert r["accelerated"] == r["expected_apply"] and r["declined"] == r["expected_decline"]
+    assert r["recall_on_accelerable"] == 1.0                                                 # every genuinely-accelerable applied
+    assert "NOT 550/550" in r["never_550_550"] and r["build_gate"].startswith("PASS")
+    print(f"PASS test_post_consol_task6_accel_maximal_and_stress550 (maximal A/B/C/D: transitive-purity / nested-batch "
+          f"/ prefetch-overlap each apply-safe + DECLINE-unsafe; compose_to_fixpoint: {fx['applied_count']} proved "
+          f"steps → fixpoint, end-to-end ≡ by transitivity+differential; STRESS 550 [{r['structured']} mixed + "
+          f"{r['unstructured']} impossible-core]: {r['accelerated']} accelerated (all proved) / {r['declined']} declined "
+          f"[incl. all {r['unstructured']} impossible-core], PRECISION {r['precision']} [ZERO false applies — the build "
+          f"gate], recall {r['recall_on_accelerable']}, NEVER 550/550)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

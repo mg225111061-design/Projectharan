@@ -11,6 +11,8 @@ always a measured X× on named hot paths with an Amdahl breakdown and an irreduc
 everything"; the limit is the measured limit, never infinity.
 
 Modules: pipeline (orchestrator) · verified_io (A) · verified_parallel (B) · verified_algo (C) · verified_serde (D)
-· limit_pass · acceleration_report. Zero external deps (z3 + stdlib + numpy + grandfathered sympy). Never imported by
-test_build.
+· limit_pass · acceleration_report · maximal (A/B/C/D to the limit: transitive purity, nested batching, prefetch/
+overlap, compose-to-fixpoint with an end-to-end equivalence proof) · stress_550 (the 550-case precision stress test:
+500 mixed + 50 impossible-core, every unstructured case MUST decline, precision is the build gate, never 550/550).
+Zero external deps (z3 + stdlib + numpy + grandfathered sympy). Never imported by test_build.
 """
