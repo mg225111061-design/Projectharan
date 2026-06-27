@@ -848,3 +848,50 @@ verifier. `test_post_consol_task6_accel_maximal_and_stress550` enforces the maxi
 the fixpoint + end-to-end equivalence, and the full stress gate. `test_catalog.py` **94/94**; test_build unaffected
 (accel/ is never imported by test_build). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 550케이스에서도, 정밀도가
 빌드 게이트다.
+
+## §P — DETECTOR RECALL: closing the probe-to-production gap (P0–P6), NOT new mechanisms
+
+The mechanism set is converged at 22 (k-regular was the last; six models + three deep sessions independently reached
+"zero new *kinds*"). §P does NOT add a 23rd mechanism — it raises the **fold fraction** by making the proposer
+recognize disguised instances of the existing 22, each fold still gated by the SAME exact certifier (precision 1.0).
+The proposer becomes liberal; the certifier stays exact; false folds stay structurally impossible. New modules under
+`catalog/` (blackbox_fallback, lazy_decline, holonomic_sum, bitvector_ring, mobius_fold, distributed_state,
+recall_detect, recall_report); none imported by test_build; zero new deps (`forbidden_present == []`).
+
+**P0 — baseline.** The prior 272/1 was definitively classified a load-flake of the `test_native_s3_triage_layer`
+wall-clock perf gate (it fails only when test_build runs right after the heavier test_catalog); isolated from the repo
+cwd it is **273×3 ALL CLEAN**. Baseline = 273.
+
+**P1 — black-box fallback (`blackbox_fallback.py`).** When white-box lifting is blinded by REPRESENTATIONAL disguise
+(recursion / closure / CPS / object-state / …), recover the structure from the OUTPUT sequence — execute the function
+as a pure oracle, recover the minimal linear recurrence with Berlekamp–Massey (reusing native_sequence) + Hankel-rank
+corroboration → EXISTING `linear_recurrence` kind. PURITY GUARD (transitive; handles self/mutual recursion + nested
+CPS helpers) excludes side-effecting/non-deterministic functions (the distributed-state disguise → P6). DISPOSER: the
+recovered recurrence must predict a block of HELD-OUT terms the recovery never saw, EXACTLY — catching the
+fit-only-on-window adversary (Fibonacci-then-diverge). **P2 — lazy-decline (`lazy_decline.py`).** Periodic-conditional
+(`s+=k%2`) and mod-k state (`s+=k%3`) have C-finite partial sums → black-box → `linear_recurrence` (⑩/⑪); telescoping
+(`s+=1/(k(k+1))`) → Gosper rational antidifference → `gosper_antidifference` (⑫), proved by the exact symbolic
+telescoping identity (harmonic 1/k → non-summable → DECLINE). **P3 — Zeilberger holonomic-sum face of ⑬
+(`holonomic_sum.py`).** Nested 2-variable definite sums Σ_k F(n,k) (binomial / DP-fill) routed to the EXISTING
+Zeilberger WZ engine (`gap_telescope`) → `zeilberger_telescoping`; O(N²)→O(N) (measured 20301 vs 201 op-count);
+non-holonomic 2^(k²) → DECLINE. **P4 — QF_BV bitvector-ring (`bitvector_ring.py`).** Affine Z_{2^w} loops (LCG /
+checksum: x←(a·x+b) mod 2^w) — invisible to both the real-valued lifter and the ℝ-based black-box (Z_{2^w} has
+zero-divisors) — folded to the O(log N) matrix-power, proved bit-exact by **z3 QF_BV** ∀x → EXISTING
+`verified_modular_recurrence_collapse`; nonlinear/cryptographic bit-mix → DECLINE (the Ω(N) wall). **P5 — Möbius face
+of ⑬ (`mobius_fold.py`).** Homographic x←(a·x+b)/(c·x+d) lifted to the projective line, folded to M^N, proved by the
+cleared-denominator z3 polynomial identity → EXISTING `matrix_recurrence`; degenerate ad−bc=0 and degree-≥2 (Galois)
+→ DECLINE. **P6 — distributed/async state (`distributed_state.py`, hardest).** Cross-function taint reassembles an
+affine accumulator spread across event handlers, composes along a FIXED schedule into one round map, folds N rounds
+via matrix-power, z3-proves equivalence to the sequential handler semantics → EXISTING `matrix_recurrence`. ★ The hard
+honest boundary: NONLINEAR handlers, a NONDETERMINISTIC schedule, and unextractable handlers all DECLINE — most real
+async state is outside the provable island, and that DECLINE is correct.
+
+**FINAL — recall report (`recall_report.py`, MEASURED).** Two corpora, honestly: the FIXED PRODUCTION_BACKEND_CORPUS_v1
+is **8.6% → 8.6%** under the recall fallbacks (Δ0 — it is genuinely mostly non-foldable I/O / control-flow backend
+code; the 5.7%→8.6% rise this session was GAP-1's single-arg-range fix, already in the baseline), while the
+DISGUISE_STRUCTURE corpus (production-SHAPED disguised/structured code) goes **0.0 → 0.733** (the real recall gain),
+every fold via one of 5 EXISTING certificate kinds. ★ **NO 23rd certificate kind** (routed kinds ⊆ the existing set).
+★ **Precision = 1.0** across all priorities — every negative control (Kolmogorov-random, harmonic, nonlinear bit-mix,
+non-holonomic) DECLINEs under the augmented detector and the P6 nonlinear/nondeterministic handler sets DECLINE; zero
+false folds anywhere. `test_catalog.py` **101/101**, test_build **273×3** isolated (recall modules not imported by
+test_build). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 새 메커니즘은 없다, 탐지기가 눈을 뜰 뿐이다.

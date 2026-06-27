@@ -110,15 +110,38 @@ def detect(src: str) -> KV.Verdict:
                       "recall_detect")
 
 
-def measure_corpus(corpus: List[Dict]) -> dict:
+def baseline_detect(src: str) -> KV.Verdict:
+    """The PRE-RECALL detector: the existing white-box lifter + structure recognizer ONLY (steps 1–2). Used by the
+    recall report to measure the GAIN the recall fallbacks add (augmented `detect` minus this baseline)."""
+    try:
+        import catalog.lift as LIFT
+        v = LIFT.lift_grade({"lift_code": src, "hot": True, "reused": True})
+        if v.status == KV.EXACT:
+            return v
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import structure_recognizer as SR
+        d = SR.dispatch(src)
+        if getattr(d, "status", "") == "OFFLOADED" and getattr(d, "closed_form", ""):
+            cert = KV.Cert(KV.EXACT, "structure_recognizer", passed=True, check_cost="differential-gated dispatch",
+                           detail="structure_recognizer fold")
+            return KV.exact({"via": "structure_recognizer"}, "baseline_detect", "structure_recognizer", cert)
+    except Exception:  # noqa: BLE001
+        pass
+    return KV.decline("baseline_detect: white-box lifter + structure recognizer both DECLINE", "baseline_detect")
+
+
+def measure_corpus(corpus: List[Dict], detector=None) -> dict:
     """Run `detect` over a corpus of {name, category, cost, src}; report the asymptotic-fold fraction (raw + cost-
     weighted) and the folded function names. Same partitioning convention as fold_coverage_production (so the numbers
     are comparable to the 5.7%/8.6% baseline) — this is the augmented measurement."""
+    det = detector or detect
     folded, fold_cost, total_cost, by_kind = [], 0, 0, {}
     for it in corpus:
         cost = it.get("cost", 1)
         total_cost += cost
-        v = detect(it["src"])
+        v = det(it["src"])
         if v.status == KV.EXACT:
             folded.append(it["name"])
             fold_cost += cost

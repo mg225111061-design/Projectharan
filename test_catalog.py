@@ -3165,6 +3165,35 @@ def test_recall_p6_distributed_state():
           "unknown-handler DECLINE [the hard honest boundary — most async state is outside the island]; precision 1.0)")
 
 
+def test_recall_final_report():
+    """§P FINAL — the detector-recall report, MEASURED: the fold fraction rose by RECOGNIZING disguised instances of
+    the existing 22 mechanisms (NO 23rd certificate kind), the certifier never weakened, precision held at 1.0.
+      • fixed PRODUCTION_BACKEND_CORPUS_v1: the recall fallbacks add ~0 (genuinely non-foldable backend code) —
+        reported honestly, augmented ≥ baseline with delta ≥ 0 (no false inflation);
+      • DISGUISE_STRUCTURE corpus: the pre-recall detector folds ~nothing, the augmented detector folds the structured
+        majority — the real measured recall gain — and every routed kind is an EXISTING catalog kind."""
+    import catalog.recall_report as RR
+    r = RR.report()
+    ds = r["disguise_structure_corpus"]
+    assert ds["recall_gain"] > 0.4 and ds["augmented_fold_raw"] > ds["pre_recall_fold_raw"], ds
+    assert ds["pre_recall_fold_raw"] <= 0.1, ds          # the pre-recall detector is blind to the disguises
+    fp = r["fixed_production_corpus"]
+    assert fp["augmented_fold_raw"] >= fp["pre_recall_fold_raw"] and fp["delta"] >= 0   # honest, no false inflation
+    # ★ NO 23rd certificate kind — every routed kind is an EXISTING catalog kind
+    assert r["no_new_certificate_kind"] is True
+    existing = {"linear_recurrence", "gosper_antidifference", "zeilberger_telescoping",
+                "verified_modular_recurrence_collapse", "matrix_recurrence"}
+    assert set(r["routed_certificate_kinds"]) <= existing, r["routed_certificate_kinds"]
+    # ★ precision = 1.0 across all priorities (zero false folds on negatives + P6 cross-function boundary)
+    assert r["precision"]["value"] == 1.0 and r["precision"]["false_folds_on_negatives"] == []
+    assert r["precision"]["p6_cross_function_precision_ok"] is True
+    assert r["zero_dep_ok"] is True
+    print(f"PASS test_recall_final_report (DISGUISE/STRUCTURE corpus recall {ds['pre_recall_fold_raw']}→"
+          f"{ds['augmented_fold_raw']} [gain {ds['recall_gain']}], all via EXISTING kinds {r['routed_certificate_kinds']}; "
+          f"FIXED production corpus honestly {fp['pre_recall_fold_raw']}→{fp['augmented_fold_raw']} [Δ{fp['delta']}, "
+          f"genuinely non-foldable]; NO 23rd kind; precision 1.0 [zero false folds]; zero-dep [forbidden_present==[]])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
