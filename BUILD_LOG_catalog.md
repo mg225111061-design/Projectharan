@@ -1235,3 +1235,53 @@ closed_form / linear_recurrence / matrix_recurrence + the min/max incremental_pa
 **124/124** (+3 §Z), test_build **273×3** (newlens/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 —
 합성곱은 곱, 창은 다시 더할 필요 없는 불변식, 분수는 행렬; Möbius는 우리 §P P5라 새 기여 0(이중계산 금지), float은 DECLINE,
 적용된 fold만 세고 가속과 분리한다.
+
+## §AA — FIVE FOLD-RATE WEAPONS: not new structure to recognize, but better EXTRACTION of structure already there
+
+Fold rate = (recognizable structure) × (ability to surface it). Every prior directive grew the first factor toward its
+~15% ceiling; these five grow the SECOND. ★ All five are LLM-FREE, z3-verified, deterministic — they touch the compiler's
+structural machinery, not the proposer's intelligence, so they work identically with a weak LLM (the binding design
+constraint, verified structurally via AST in the report: no foldrate module imports an LLM client). New package
+`foldrate/` (never imported by test_build; zero deps, `forbidden_present == []`). No new certificate kind.
+
+**WEAPON 1 — CANONICALIZATION** (`canonicalize.py`, the MULTIPLIER, built first): the same foldable structure is written
+many ways (`i*2` vs `2*i`, `(x+1)*(x-1)` vs `x*x-1`); a brittle pattern-matcher misses the variants. A semantics-preserving
+normal form BEFORE fold lifts EVERY lens/mechanism's hit rate AT ONCE. Proposer–disposer: sympy proposes the normal form
+(expand + AC-order), z3 DISPOSES (`prove_equiv_z3` proves ∀ inputs original==canonical); an unprovable rewrite is REJECTED
+(original kept). ★ Float non-associativity respected — algebraic reassociation is integer/rational only; float DECLINED.
+Measured BEFORE/AFTER on the same corpus: **1→8 hits = 8.0× multiplier** (the float item correctly NOT rewritten, honesty
+visible). A multiplier across all detectors, not an addition to one.
+
+**WEAPON 2 — LENS COMPOSITION** (`compose.py`): chain lenses so one transform exposes structure another folds —
+canonicalize rewrites a variant summand to the canonical `2*i` that Faulhaber folds, where Faulhaber alone DECLINED the
+variant. Each link proved; the FINAL fold z3-proved against the ORIGINAL (canon proved + Faulhaber closed form z3-proved
+by induction). ★ Additive-with-overlap, NEVER multiplicative: on a 7-item corpus, **3 single-lens + 4 composition-only =
+7 composed** (the lift is composition-only, overlap subtracted; composed_rate ≤ single+lift, a union not a product) — no
+"30–50%" overclaim.
+
+**WEAPON 3 — SPECULATIVE/CONDITIONAL FOLD** (`speculative.py`, full §X-P1): guard the one dynamic parameter, emit dual-path
+(folded under Φ + original fallback), check Φ at RUNTIME. ★ The fallback invariant (verified): correctness NEVER depends on
+the guard — a guard-miss runs the original (correct, slower); only SPEED depends on Φ (dispatch k=4→folded 20, k=9→fallback
+45, both correct). ★ Runtime-information, not the LLM (the honest Maxwell's-demon — the runtime is the observer); structured
+inputs only — a genuinely input-dependent computation gets NO sound guard ⇒ DECLINE (pigeonhole). issued ≠ applied. Uses
+§X-P1's guard field — no new kind.
+
+**WEAPON 4 — MEMOIZATION CACHE** (`foldcache.py`, §V extension): the same fold proved once, served O(1) — fold results,
+proof obligations, canonical forms. ★ Sound keys (`canonical_ast_key` α-normalized hash, or `content_key`): a wrong hit is
+impossible (different code ⇒ different key); α-equivalent code shares soundly. ★ Cold-vs-warm separated: cold **1 compute**,
+warm **0 recomputes** (0.99 hit-rate) — raises VALUE/throughput, NOT the fold rate (the §V honesty, stated).
+
+**WEAPON 5 — DOMAIN-IDIOM LIBRARY** (`domain_idioms.py`): register recurring idioms — prefix-sum (numeric), sum-of-squares
+(statistical), running accumulator, power-of-two normalization (ml_preproc) — each mapped to an EXISTING mechanism and
+z3-PROVED sound (a syntactic-but-unsound idiom, `x*3==x<<3`, REJECTED). ★ Corpus honesty: a domain idiom lifts the DOMAIN
+rate (**0.571** measured) NOT the backend 5.7% (**0.125**, the one rare idiom) — reported SEPARATELY, no corpus-swap.
+
+**COMPOSE + measure** (`foldrate_report.py`, MEASURED): the headline is a DECOMPOSITION, never one inflated number — W1
+multiplier (8.0×, before/after), W2 additive lift (4, overlap subtracted), W3 issued≠applied + fallback-invariant + runtime-
+not-LLM, W4 cold-vs-warm (value not rate), W5 domain-vs-backend (no corpus-swap); plus a shared baseline→canonicalized→full
+decomposition (0.43→1.0→1.0 on the demo corpus — canonicalization the dominant extraction lever). ★ LLM-free VERIFIED
+structurally (AST: no LLM import in any weapon). ★ Precision **1.0** across all five adversarial batteries; NO new certificate
+kind (22 mechanisms / 14 kinds unchanged); the pigeonhole wall stands (none folds random); float non-associativity respected.
+`test_catalog.py` **129/129** (+5 §AA), test_build **273×3** (foldrate/ not imported). No new dependency. 잘못된 답보다
+DECLINE이 항상 옳다 — 인식이 아니라 추출을 키운다; 정규화는 곱셈기, 합성은 가산, 추측은 런타임-가드(LLM 아님), 캐시는
+value-not-rate, 도메인 관용구는 도메인율, 전부 LLM-free·새 인증서 종류 0.

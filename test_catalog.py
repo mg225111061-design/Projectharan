@@ -3900,6 +3900,113 @@ def test_z_mobius_lens_and_report():
           f"window largest, no-overlap verified, NO new kind [22/14], zero-dep)")
 
 
+def test_aa_w1_canonicalization():
+    """§AA WEAPON 1 — canonicalization, the MULTIPLIER: normalize before fold so every detector catches more at once.
+    ★ sympy proposes, z3 disposes (prove_equiv_z3 proves ∀ inputs original==canonical); ★ float reassociation DECLINED
+    (IEEE-754 non-associative); ★ multiplier measured BEFORE/AFTER on the same corpus. LLM-free; no new cert kind."""
+    import foldrate.canonicalize as W1
+    r = W1.canonicalize_expr("i*2", ["i"], "integer")
+    assert r.proved and r.canonical == "2*i" and r.rewritten                  # variant normalized, z3-proved
+    assert W1.canonicalize_expr("(x+1)*(x-1)", ["x"], "integer").canonical == "x**2 - 1"
+    # ★ float reassociation DECLINED (no rewrite) — IEEE-754 non-associativity respected
+    flt = W1.canonicalize_expr("a + b + x", ["a", "b", "x"], "float")
+    assert (not flt.proved) and "DECLINED" in flt.detail
+    # ★ the multiplier: before/after on the same corpus (more detectors hit once normalized)
+    m = W1.multiplier_measurement()
+    assert m["hits_with_canon"] > m["hits_without_canon"] and m["multiplier"] >= 2.0 and m["float_item_not_rewritten"]
+    b = W1.adversarial_battery()
+    assert b["all_ok"], f"W1 battery failed: {b['failed']}"
+    print(f"PASS test_aa_w1_canonicalization (sympy-proposes/z3-disposes normal form; ★ multiplier "
+          f"{m['rate_without']}→{m['rate_with']} = {m['multiplier']}× BEFORE/AFTER on the same corpus [lifts every "
+          f"detector at once]; ★ float reassociation DECLINED [IEEE-754]; unsound rewrite z3-rejected; LLM-free; battery 5/5)")
+
+
+def test_aa_w2_composition():
+    """§AA WEAPON 2 — lens composition: chain so one transform exposes structure another folds. ★ additive-with-overlap,
+    NEVER multiplicative — real lift measured, overlap subtracted; each link proved, final fold z3-proved vs original."""
+    import foldrate.compose as W2
+    variant = W2.compose_fold("i*2")                                          # folds only via canonicalize→faulhaber
+    assert variant.folded and variant.path == "canonicalize→faulhaber" and variant.proved_against_original
+    assert W2.faulhaber_fold("2*i").folded                                    # single-lens still works (canonical)
+    assert not W2.compose_fold("i*i").folded                                  # nonlinear declines even composed
+    m = W2.measure_composition()
+    # ★ additive: composition-only lift == composed − single (overlap subtracted); not multiplicative
+    assert m["composition_only_lift"] == m["composed_folds"] - m["single_lens_folds"] and m["composition_only_lift"] >= 1
+    assert m["composed_rate"] <= m["single_lens_rate"] + m["lift_rate"] + 1e-9   # a union, not a product
+    b = W2.adversarial_battery()
+    assert b["all_ok"], f"W2 battery failed: {b['failed']}"
+    print(f"PASS test_aa_w2_composition (variant folds only via canonicalize→faulhaber, z3-proved vs original; "
+          f"★ additive-with-overlap: {m['single_lens_folds']} single + {m['composition_only_lift']} composition-only "
+          f"= {m['composed_folds']} composed [overlap subtracted, NOT multiplicative]; nonlinear declines; battery 7/7)")
+
+
+def test_aa_w3_speculative():
+    """§AA WEAPON 3 — speculative/conditional fold (full §X-P1): guard the dynamic parameter, dual-path, runtime check.
+    ★ fallback invariant — correctness independent of the guard (a miss runs the original, still correct); ★ runtime-
+    info not LLM; structured inputs only (random rejected); issued≠applied."""
+    import foldrate.speculative as W3
+    folded = lambda e: e["x"] * 4
+    original = lambda e: e["x"] * e["k"]
+    sf = W3.synthesize(folded, original, ["x", "k"], "k", [2, 3, 4, 5])
+    assert sf.issued and sf.guard == "k == 4" and sf.guard_const == 4
+    # ★ dual-path: guard holds → folded; guard misses → fallback (BOTH correct — fallback invariant)
+    assert W3.runtime_dispatch(sf, folded, original, {"x": 5, "k": 4}) == (20, "folded")
+    assert W3.runtime_dispatch(sf, folded, original, {"x": 5, "k": 9}) == (45, "fallback")   # correct despite miss
+    assert W3.verify_fallback_invariant(sf, folded, original, ["x", "k"], {"x": 7, "k": 4}, {"x": 7, "k": 9})
+    # ★ genuinely input-dependent ⇒ no sound guard ⇒ DECLINE (pigeonhole); issued≠applied
+    assert not W3.synthesize(lambda e: e["x"] * 4, lambda e: e["x"] * e["k"] + e["x"] % 3, ["x", "k"], "k", [2, 3, 4, 5]).issued
+    assert W3.apply_at_callsite(sf, "k4", 4) and not W3.apply_at_callsite(sf, "k7", 7)
+    b = W3.adversarial_battery()
+    assert b["all_ok"], f"W3 battery failed: {b['failed']}"
+    print("PASS test_aa_w3_speculative (guard k==4 synthesized [§X-P1, z3-proved]; dual-path runtime dispatch [k=4→folded "
+          "20, k=9→fallback 45, both correct]; ★ fallback invariant — correctness guard-independent; runtime-info not LLM; "
+          "input-dependent DECLINED [pigeonhole]; issued≠applied; battery 5/5)")
+
+
+def test_aa_w4_foldcache():
+    """§AA WEAPON 4 — memoization cache (§V extension): the same fold proved once, served O(1). ★ sound keys (α-equiv
+    shares, different code distinct — wrong hit impossible); ★ cold-vs-warm separated; raises VALUE not rate."""
+    import foldrate.foldcache as W4
+    cw = W4.cold_warm_measurement()
+    assert cw["cold_computes"] == 1 and cw["warm_recomputes"] == 0 and cw["hit_rate"] >= 0.98   # cold zero, warm win
+    sk = W4.sound_key_check()
+    assert sk["alpha_equivalent_shares"] and sk["different_code_distinct"] and sk["total_computes"] == 2
+    b = W4.adversarial_battery()
+    assert b["all_ok"], f"W4 battery failed: {b['failed']}"
+    print(f"PASS test_aa_w4_foldcache (§V cache extended to folds/proofs/canonical-forms; cold {cw['cold_computes']} "
+          f"compute / warm {cw['warm_recomputes']} recompute [hit-rate {cw['hit_rate']}], raises VALUE not rate; "
+          f"★ sound keys — α-equivalent shares, different code distinct, wrong hit impossible; battery 5/5)")
+
+
+def test_aa_w5_domain_idioms_and_report():
+    """§AA WEAPON 5 — domain-idiom library: register numeric/stats/ml idioms, each z3-proved. ★ corpus honesty —
+    domain-corpus rate vs backend-corpus rate reported SEPARATELY (no corpus-swap). Plus the §AA compose report:
+    multiplier, additive composition, issued≠applied, cold-vs-warm, domain-vs-backend, LLM-free, precision 1.0."""
+    import foldrate.domain_idioms as W5
+    import foldrate.foldrate_report as R
+    assert all(W5.verify_all_idioms().values())                               # every registered idiom z3-proves sound
+    cm = W5.corpus_measurement()
+    assert cm["domain_corpus_idiom_rate"] > cm["backend_corpus_idiom_rate"]   # ★ domain lift, NOT backend (no swap)
+    assert W5.adversarial_battery()["all_ok"]
+    # ── §AA compose report ──
+    rep = R.report()
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    assert rep["W1_canonicalization_multiplier"]["multiplier"] >= 2.0          # the multiplier headline
+    assert rep["W2_composition_additive"]["composition_only_lift"] >= 1        # additive lift
+    assert rep["W4_cache_cold_vs_warm"]["cold_computes"] == 1                  # cold-vs-warm
+    assert rep["W5_idioms_domain_vs_backend"]["domain_corpus_idiom_rate"] > rep["W5_idioms_domain_vs_backend"]["backend_corpus_idiom_rate"]
+    assert rep["llm_free"]["llm_free"] and rep["llm_free"]["offenders"] == {}  # ★ LLM-free verified structurally (AST)
+    d = rep["shared_decomposition"]
+    assert d["baseline_rate"] <= d["canonicalized_rate"] <= d["full_pipeline_rate"]   # baseline→canon→full, honest
+    assert rep["no_new_certificate_kind"] and rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_aa_w5_domain_idioms_and_report (idioms z3-proved, ★ domain rate {cm['domain_corpus_idiom_rate']} > "
+          f"backend {cm['backend_corpus_idiom_rate']} [no corpus-swap]; §AA report: multiplier "
+          f"{rep['W1_canonicalization_multiplier']['multiplier']}×, additive lift {rep['W2_composition_additive']['composition_only_lift']}, "
+          f"decomposition {d['baseline_rate']}→{d['canonicalized_rate']}→{d['full_pipeline_rate']}, ★ LLM-free verified, "
+          f"precision 1.0, NO new kind [22/14], zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
