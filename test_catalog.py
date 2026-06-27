@@ -2987,6 +2987,50 @@ def test_recall_p1_blackbox_fallback():
           "DECLINEs; Hankel rank corroborates the order — precision 1.0, no 23rd kind)")
 
 
+def test_recall_p2_lazy_decline():
+    """§P P2 — finish the LAZY-DECLINE cases the detector wrongly fears (RECALL, existing kinds only): the white-box
+    lifter declines a sum because of a branch/state/nonlinearity it can't symbolically handle, yet the sum folds.
+      • PERIODIC-conditional (s += k%2) and MOD-k state (s += k%3): the partial-sum SEQUENCE is C-finite → recovered
+        by the black-box fallback → `linear_recurrence` (⑪/⑩).
+      • TELESCOPING (s += 1/(k(k+1))): Gosper rational antidifference → `gosper_antidifference` (⑫), closed form
+        n/(n+1), proved by the EXACT symbolic telescoping identity.
+    ★ Precision unchanged: a non-summable body (1/k → harmonic) and a non-telescoping rational DECLINE; the white-box
+    lifter for these declined first (no regression to its behavior). The augmented detector adds NO false fold on the
+    fixed production corpus (it stays at the GAP-1 baseline — those 32 functions are genuinely non-foldable)."""
+    import kernel_verdict as KV
+    import catalog.lazy_decline as LD
+    import catalog.lift as LIFT
+    # the three lazy-decline shapes all DECLINE in the white-box lifter (the "scared" baseline) ...
+    for code in ("for k in range(n):\n    s += k % 2", "for k in range(n):\n    s += k % 3",
+                 "for k in range(1, n):\n    s += 1/(k*(k+1))"):
+        assert LIFT.lift_code(code).status == KV.DECLINE, f"white-box should decline: {code!r}"
+    # ... and FOLD under the recall path, each via an EXISTING certificate kind
+    per = LD.lazy_decline_grade("for k in range(n):\n    s += k % 2")
+    mod = LD.lazy_decline_grade("for k in range(n):\n    s += k % 3")
+    tel = LD.lazy_decline_grade("for k in range(1, n):\n    s += 1/(k*(k+1))")
+    assert per.status == KV.EXACT and per.certificate.kind == "linear_recurrence"
+    assert mod.status == KV.EXACT and mod.certificate.kind == "linear_recurrence"
+    assert tel.status == KV.EXACT and tel.certificate.kind == "gosper_antidifference"
+    assert tel.result["closed_form"].replace(" ", "") == "n/(n+1)", tel.result["closed_form"]
+    # ★ precision: non-summable / non-telescoping bodies DECLINE (never a wrong fold)
+    assert LD.telescoping_grade("for k in range(1, n):\n    s += 1/k").status == KV.DECLINE          # harmonic
+    assert LD.telescoping_grade("for k in range(1, n):\n    s += 1/(k*k+1)").status == KV.DECLINE    # not telescoping
+    assert LD.lazy_decline_grade("return x + 1").status == KV.DECLINE                                # no loop
+    # the augmented detector routes polynomial→lift, telescoping→gosper, and adds NO false fold on the production corpus
+    import catalog.recall_detect as RD
+    assert RD.detect("for k in range(n):\n    s += k").status == KV.EXACT                            # polynomial via lift
+    aug = RD.measure_production()
+    import catalog.fold_coverage_production as FP
+    base = FP.measure()
+    assert set(aug["folded"]) == set(base["folded_functions"]), (aug["folded"], base["folded_functions"])
+    assert aug["fold_raw"] == base["production_asymptotic_fold_raw"]   # no false fold added on the fixed corpus
+    print(f"PASS test_recall_p2_lazy_decline (white-box DECLINEs periodic/mod-k/telescoping; recall folds them — "
+          f"periodic L via linear_recurrence [⑩/⑪], mod-k via linear_recurrence [⑪], telescoping via "
+          f"gosper_antidifference [⑫] → {tel.result['closed_form']}; harmonic/non-telescoping/no-loop DECLINE; "
+          f"augmented detector adds ZERO false folds on the fixed production corpus [stays {aug['fold_raw']}]; "
+          "precision 1.0, no 23rd kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
