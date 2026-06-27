@@ -3101,6 +3101,33 @@ def test_recall_p4_bitvector_ring():
           "a wrong matrix constant is QF_BV-refuted — precision 1.0, no 23rd kind)")
 
 
+def test_recall_p5_mobius_fold():
+    """§P P5 — Möbius rational-recurrence FACE of ⑬ (recall, existing kind): a homographic recurrence
+    x ← (a·x+b)/(c·x+d) (IIR feedback / continued fraction / compound interest) is NOT C-finite — the C-finite
+    detector is blinded by the division. Lift to the projective line P¹: [u;v] ← [[a,b],[c,d]]·[u;v], fold to M^N
+    (O(N)→O(log N)), proved by the cleared-denominator z3 polynomial identity (residual=0) → cert `matrix_recurrence`
+    (existing). ★ Boundary: degenerate ad−bc=0 and degree-≥2 rational recurrences (Galois barrier) DECLINE."""
+    import kernel_verdict as KV
+    import catalog.mobius_fold as MF
+    for code in ("for _ in range(n):\n    x = (0*x + 1) / (1*x + 1)",       # continued fraction 1/(1+x)
+                 "for _ in range(n):\n    x = (2*x + 1) / (1*x + 1)",
+                 "for _ in range(n):\n    x = (3*x + -1) / (2*x + 5)"):
+        v = MF.mobius_recurrence_grade(code)
+        assert v.status == KV.EXACT and v.certificate.kind == "matrix_recurrence", (code, v.status)
+        assert v.result["asymptotic"] == "O(N)→O(log N)" and v.result["det"] != 0
+    # ★ boundary: degenerate (ad−bc=0), degree-≥2 (Galois), no-recurrence DECLINE
+    assert MF.mobius_recurrence_grade("for _ in range(n):\n    x = (2*x + 4) / (1*x + 2)").status == KV.DECLINE  # det=0
+    assert MF.mobius_recurrence_grade("for _ in range(n):\n    x = (x*x + 1) / (x + 1)").status == KV.DECLINE   # degree-2
+    assert MF.mobius_fold_grade(1, 0, 0, 1).status == KV.EXACT          # identity-ish (det=1) folds
+    assert MF.mobius_fold_grade(2, 4, 1, 2).status == KV.DECLINE        # det = 2*2-4*1 = 0
+    # routed through the augmented detector
+    import catalog.recall_detect as RD
+    assert RD.detect("for _ in range(n):\n    x = (2*x + 1) / (1*x + 1)").certificate.kind == "matrix_recurrence"
+    print("PASS test_recall_p5_mobius_fold (homographic recurrences [1/(1+x), (2x+1)/(x+1), (3x-1)/(2x+5)] fold via "
+          "the projective P¹ matrix-power, proved by the cleared-denominator z3 polynomial identity → matrix_recurrence "
+          "[⑬ projective face]; degenerate ad−bc=0 + degree-≥2 [Galois] DECLINE; O(N)→O(log N); precision 1.0, no 23rd kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

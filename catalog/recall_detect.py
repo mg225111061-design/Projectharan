@@ -71,6 +71,15 @@ def detect(src: str) -> KV.Verdict:
                 return v
     except Exception:  # noqa: BLE001
         pass
+    # 2.6) P5 Möbius face of ⑬: homographic rational recurrences x=(a*x+b)/(c*x+d) (projective matrix-power)
+    try:
+        import catalog.mobius_fold as MF
+        if "/" in src and "*" in src and "=" in src:
+            v = MF.mobius_recurrence_grade(src, label="recall_detect")
+            if v.status == KV.EXACT:
+                return v
+    except Exception:  # noqa: BLE001
+        pass
     # 3) P2 lazy-decline: telescoping (Gosper ⑫) + periodic/mod-k partial sums (C-finite via black-box ⑪)
     try:
         import catalog.lazy_decline as LD
