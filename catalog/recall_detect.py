@@ -62,6 +62,15 @@ def detect(src: str) -> KV.Verdict:
             return KV.exact({"via": "structure_recognizer"}, "recall_detect", "structure_recognizer", cert)
     except Exception:  # noqa: BLE001
         pass
+    # 2.5) P4 bitvector-ring: affine Z_2^w state-advance loops (LCG / checksum) — QF_BV matrix-power
+    try:
+        import catalog.bitvector_ring as BVR
+        if ("% (2" in src or "%(2" in src or "&" in src) and "*" in src:
+            v = BVR.bitvector_ring_grade(src, label="recall_detect")
+            if v.status == KV.EXACT:
+                return v
+    except Exception:  # noqa: BLE001
+        pass
     # 3) P2 lazy-decline: telescoping (Gosper ⑫) + periodic/mod-k partial sums (C-finite via black-box ⑪)
     try:
         import catalog.lazy_decline as LD

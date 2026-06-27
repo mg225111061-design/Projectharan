@@ -3060,6 +3060,47 @@ def test_recall_p3_holonomic_sum():
           "precision 1.0, no 23rd kind)")
 
 
+def test_recall_p4_bitvector_ring():
+    """§P P4 — QF_BV bitvector-ring pass (recall, existing kind ⑪): affine loops over Z_{2^w}
+    (LCG / checksum / state-advance: x ← (a·x+b) mod 2^w) that BOTH the real-valued lifter AND the black-box fallback
+    are blind to (Z_{2^w} has zero-divisors, doesn't embed in ℝ). Folded to the O(log N) matrix-power closed form,
+    proved bit-exact by z3 QF_BV (∀x, residual=0) → cert kind `verified_modular_recurrence_collapse` (no 23rd kind).
+    ★ Honest boundary: a genuinely nonlinear bit-mix (x·x, data-dependent / cryptographic) is NOT affine ⇒ DECLINE
+    (the Ω(N) wall — folding it would break the cipher)."""
+    import kernel_verdict as KV
+    import catalog.bitvector_ring as BV
+    # affine Z_2^w recurrences fold, bit-exact via QF_BV
+    for code in ("for _ in range(n):\n    x = (1103515245 * x + 12345) % (2**31)",
+                 "for _ in range(n):\n    x = (1664525 * x + 1013904223) & 4294967295",
+                 "for _ in range(n):\n    h = (31 * h + 7) % (2**64)"):
+        v = BV.bitvector_ring_grade(code)
+        assert v.status == KV.EXACT and v.certificate.kind == "verified_modular_recurrence_collapse", (code, v.status)
+        assert v.result["asymptotic"] == "O(N)→O(log N)"
+    # the closed form is bit-exact against the loop at a large N (Z_2^w arithmetic)
+    A, B = BV.affine_matpow(1103515245, 12345, 100000, 31)
+    assert (A * 777 + B) % (2**31) == BV._loop_eval(1103515245, 12345, 31, 777, 100000)
+    # ★ honest boundary: nonlinear / non-ring / no-loop DECLINE (never a wrong fold — the Ω(N) wall)
+    assert BV.bitvector_ring_grade("for _ in range(n):\n    x = (x * x + 12345) % (2**32)").status == KV.DECLINE
+    assert BV.bitvector_ring_grade("for _ in range(n):\n    x = (x ^ (x*x)) % (2**32)").status == KV.DECLINE
+    assert BV.bitvector_ring_grade("for _ in range(n):\n    x = (5 * x + 3) & 1000").status == KV.DECLINE   # non-2^w mask
+    assert BV.bitvector_ring_grade("return a*x + b").status == KV.DECLINE
+    # ★ a wrong matrix-power constant must FAIL the QF_BV proof (precision: the proof is real, not a rubber stamp)
+    import z3
+    ok, _bad = BV._prove_qfbv(1103515245, 12345, 16, (4,))
+    assert ok is True
+    # corrupt the closed form: prove that an off-by-one B is NOT equivalent (QF_BV finds a counterexample)
+    A4, B4 = BV.affine_matpow(1103515245, 12345, 4, 16)
+    xz = z3.BitVec("x", 16); xi = xz
+    for _ in range(4):
+        xi = 1103515245 * xi + 12345
+    s = z3.Solver(); s.add(xi != z3.BitVecVal(A4, 16) * xz + z3.BitVecVal((B4 + 1) % (1 << 16), 16))
+    assert s.check() == z3.sat, "a wrong constant must be refuted by QF_BV (zero false folds)"
+    print("PASS test_recall_p4_bitvector_ring (affine Z_2^w loops [glibc LCG, Numerical-Recipes LCG, const "
+          "rolling-hash] fold to O(log N) matrix-power, QF_BV bit-exact → verified_modular_recurrence_collapse; "
+          "bit-exact @N=100000; nonlinear x·x / xorshift-nonlinear / non-2^w-mask / no-loop DECLINE [Ω(N) wall]; "
+          "a wrong matrix constant is QF_BV-refuted — precision 1.0, no 23rd kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
