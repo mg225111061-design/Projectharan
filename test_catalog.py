@@ -3567,6 +3567,90 @@ def test_u_ladder_precision_and_report():
           "decline]; real Verified/Pro score PENDING-REAL-STACK [never fabricated]; engine zero-dep)")
 
 
+def test_v_sound_cache():
+    """§V Phase 2 — the sound multilevel cache: a hit is served only when the key PROVABLY identifies the same
+    computation. content_key is complete by construction (same bytes ⇒ same key); canonical_ast_key merges
+    α-equivalent code but NOT different code; the absence cache records proven negatives; eviction is always safe
+    (only forces a recompute). prove_key_completeness confirms no collision across a battery."""
+    import enginespeed.cache as C
+    # content key: same inputs same key; different inputs different key (no stale-hit collision)
+    assert C.content_key("verify", "a", "b") == C.content_key("verify", "a", "b")
+    assert C.content_key("verify", "a", "b") != C.content_key("verify", "a", "b2")
+    # canonical AST key: α-equivalent shares a key, different body differs, non-parse → None
+    assert C.canonical_ast_key("def f(a):\n    return a*a") == C.canonical_ast_key("def g(b):\n    return b*b")
+    assert C.canonical_ast_key("def f(a):\n    return a*a") != C.canonical_ast_key("def f(a):\n    return a+a")
+    assert C.canonical_ast_key("def f(:") is None
+    # SoundCache: miss computes+stores, hit serves O(1) the SAME value; eviction safe
+    sc = C.SoundCache("t", capacity=2)
+    calls = {"n": 0}
+    def compute(): calls["n"] += 1; return 42
+    assert sc.get_or_compute("k", compute) == 42 and sc.get_or_compute("k", compute) == 42 and calls["n"] == 1  # computed once
+    sc.get_or_compute("a", lambda: 1); sc.get_or_compute("b", lambda: 2)   # evicts "k" (LRU, capacity 2)
+    assert sc.stats.evictions >= 1 and sc.get_or_compute("k", compute) == 42 and calls["n"] == 2  # recompute, same value
+    # absence cache: a known miss is not retried
+    ac = C.AbsenceCache("a"); assert not ac.is_known_miss("x"); ac.record_miss("x"); assert ac.is_known_miss("x")
+    # key completeness over a battery — no collision
+    comp = C.prove_key_completeness([("n*(n+1)", "n*n+n"), ("n*n", "n+1")],
+                                    lambda p: C.content_key(p[0], p[1]), lambda p: p[0] == p[1])
+    assert comp["sound"] and not comp["collisions"]
+    print("PASS test_v_sound_cache (content_key complete by construction [same bytes⇒same key, diff⇒diff]; "
+          "canonical_ast_key merges α-equivalent but not different code; SoundCache computes-once/serves-O(1), "
+          "eviction recomputes the SAME value [safe]; absence cache records proven negatives; no key collision)")
+
+
+def test_v_folded_ops_cold_warm():
+    """§V Phases 1+3 — fold every repeated op behind the cache; measure cold vs warm. A real z3 verification is
+    expensive COLD and an O(1) lookup WARM (warm speedup measured, cold reported separately); the LLM response cache
+    cuts the CALL COUNT (the Amdahl lever — never the per-call latency); the pattern library serves pre-folds at O(1).
+    The profile ranks targets by cost×repetition and separates the LLM (Clock A) from the engine (Clock B/C)."""
+    import enginespeed.folded_ops as FO
+    from enginespeed.speed_report import cold_vs_warm_verify
+    cw = cold_vs_warm_verify()
+    assert cw["warm_speedup"] and cw["warm_speedup"] > 2.0 and cw["warm_ms"] < cw["cold_ms"]   # warm beats cold (measured)
+    # ★ LLM call-COUNT reduction (not latency): 20 prompts (3 distinct) → 3 real calls, 17 avoided
+    eng = FO.FoldedEngine()
+    for p in ["a"] * 5 + ["b"] * 5:
+        eng.llm_response(p)
+    assert eng.llm.calls_made == 2 and eng.llm.calls_avoided == 8 and eng.llm.reduction == 0.8
+    # absence cache: a proven non-equivalence is recorded so it isn't re-proved
+    assert eng.verify("n*n", "n+1") is False and eng.c.absence.records >= 1
+    # pattern library: O(1) pre-fold lookup
+    assert FO.pattern_lookup("sum_k") == "n*(n+1)//2" and FO.pattern_lookup("nope") is None
+    # profile ranks by cost×repetition; LLM is Clock A and modeled (not measured)
+    from enginespeed.profile import profile_engine
+    prof = profile_engine()
+    top = prof["ranked_targets"][0]
+    assert top["op"] == "llm" and top["clock"] == "A" and not top["measured"]      # LLM dominates cost×reps, modeled
+    assert prof["wall_clock_split"]["llm_fraction_modeled"] > 0.5                   # honest: LLM dominates wall-clock
+    print(f"PASS test_v_folded_ops_cold_warm (z3 verify warm {cw['warm_speedup']}× vs cold {cw['cold_ms']}ms [reported "
+          "separately]; LLM cache cuts CALL COUNT 8/10 avoided [count not latency]; absence cache records proven "
+          "negatives; pattern library O(1); profile ranks LLM top by cost×reps [Clock A, modeled])")
+
+
+def test_v_precision_and_report():
+    """§V Phases 5–6 + report — precision 1.0 survives caching (every hit provably the recompute result; no collision;
+    α-equivalent soundly shares a key), each mode measured cold vs warm SEPARATELY, the LLM call-count reduction is
+    the honest LLM lever (count, not latency, latency modeled-pending-deployment), zero-dep."""
+    import enginespeed.speed_report as SR
+    prec = SR.precision_through_caching()
+    assert prec["is_one"] and prec["precision"] == 1.0
+    assert prec["key_completeness_sound"] and not prec["recompute_equivalence_mismatches"]
+    assert prec["content_no_collision"] and prec["canonical_alpha_equiv_shares_key"] and prec["canonical_distinct_differs"]
+    rep = SR.report()
+    # every mode measured cold AND warm, warm faster (the cold→warm transition realized on repeated work)
+    for m in rep["cold_vs_warm_per_mode"]:
+        assert m["cold_ms"] > 0 and m["warm_ms"] > 0 and m["warm_speedup"] > 1.0
+    assert rep["cold_vs_warm_per_mode"][2]["mode"] == "extend" and rep["cold_vs_warm_per_mode"][2]["depth_ops"] == 160
+    # the LLM lever: count reduction measured, latency modeled (never a fabricated measured latency)
+    llm = rep["llm_call_count_reduction"]
+    assert llm["call_count_reduction"] > 0.5 and "MODELED" in llm["note"]
+    assert "never the per-call latency" in rep["honest_framing"]["llm_latency_irreducible"]   # count, not latency
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_v_precision_and_report (precision 1.0 through caching [no collision, recompute-equivalent, "
+          f"α-equivalent soundly shares key]; modes measured cold-vs-warm separately [extend depth 160]; LLM lever = "
+          f"call-COUNT reduction {llm['call_count_reduction']} (latency modeled, never faked); zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

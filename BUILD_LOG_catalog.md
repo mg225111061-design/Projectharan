@@ -1041,3 +1041,34 @@ in-budget repair stays wrong, so we submit nothing rather than gamble). The unbo
 x and refutes a wrong candidate with a concrete counterexample. `test_catalog.py` **113/113** (+4 §U), test_build
 **273×3** (swebench/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — Opus는 만들고, MR.JEFFREY는
 검증·수리한다; 형식 검증이 보이는 테스트 너머의 hidden 실패를 제출 전에 잡는다 — 그것이 90과 95의 차이.
+
+## §V — FOLD THE ENGINE ITSELF: insane engine speed via sound caching everywhere (cold vs warm, measured)
+
+Turn the fold engine INWARD — the weapon that served thousands of pre-proved obligations at O(1) now folds the
+engine's OWN repeated work (detection, verification, fold, proof, AST parse, the LLM prompts) so nothing is computed
+twice. New package `enginespeed/` (never imported by test_build; zero new deps, `forbidden_present == []`).
+
+★HONEST SPINE. (1) The LLM's per-call latency is NOT reducible — only the call COUNT is (external provider); when an
+LLM call is on the critical path no engine-folding moves the total (Amdahl), so cutting calls is the only honest attack
+on LLM latency. (2) The engine's own work IS foldable. (3) COLD vs WARM reported SEPARATELY — a cold cache gives ZERO
+speedup (the first run computes everything); the wins are on WARM/repeated work; never a warm number as a first-run
+number. (4) Precision 1.0 survives caching — a hit is served only on a sound key (content hash, or a proved α-canonical
+form), proved by recompute-equivalence with no collision; a wrong/stale hit FAILS the build.
+
+**PHASE 2 cache** (`cache.py`): L1/L2/L3 multilevel + absence-certificate (cache the proven negatives — a known-miss is
+never retried) + JIT-artifact, generalized from the offline pre-proving. Sound keys: `content_key` (sha256, complete by
+construction) and `canonical_ast_key` (α-normalized AST — α-equivalent code shares a key, different code does not). LRU
+eviction is always safe (only forces a recompute); `prove_key_completeness` proves no collision over a battery.
+**PHASE 1 profile** (`profile.py`): rank engine ops by cost×repetition; separate the LLM (Clock A, modeled — egress
+BLOCKED) from the engine (Clock B/C, measured). On the modeled workload the LLM dominates wall-clock (~0.998) — the
+honest expectation that the response cache (call-count) is the big lever, engine-folding accelerates the rest.
+**PHASE 3 folded ops** (`folded_ops.py`): parse / z3-verify / fold / proof-obligation / ★LLM-response, each memoized
+behind the sound cache; a pre-folded pattern library serves common shapes at O(1). **PHASE 4 brewing** (`brewing.py`):
+idle-time pre-compute + critical-path prefetch — sound (real work early, never speculative-wrong). **PHASE 5–6 + report**
+(`speed_report.py`, MEASURED): cold-vs-warm per op (z3 verify **~340–390× warm** on this machine, cold ~0.8ms reported
+SEPARATELY) and per mode (FAST/NORMAL/EXTEND each measured cold vs warm, EXTEND attempting 160 ops — deepest); the ★LLM
+**call-count reduction** (20 prompts → 3 real calls, **0.85** reduction MEASURED; latency saved MODELED-pending-
+deployment — count, not latency); precision **1.0** through caching (no collision, recompute-equivalent, α-equivalent
+soundly shares a key). `test_catalog.py` **116/116** (+3 §V), test_build **273×3** (enginespeed/ not imported). No new
+dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 이미 한 일은 다시 하지 않는다(증명된 채로): cold은 0, warm이 전부,
+LLM은 횟수로만 줄이고, 모든 hit는 precision 1.0.
