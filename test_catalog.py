@@ -2686,6 +2686,50 @@ def test_gpu_move1_ptx_kernels():
           "depends on a device)")
 
 
+def test_gpu_move2_hidden_structure():
+    """GPU §M MOVE 2 — HIDDEN-STRUCTURE FOLD on top of the dense kernels (the second weapon). Detect + EXACTLY-prove
+    latent low-rank / circulant / Toeplitz / Kronecker inside dense-looking matrices and collapse to O(N²r)-or-better
+    where cuBLAS computes the full cube blind. ★ HONEST: dense = TIE cuBLAS + proof (fall-through); structured = WIN
+    on op-count + proof. Precision 1.0: a falsely-proposed structure fails its residual=0 proof and falls through to
+    the dense kernel — no unproved collapse ever applied."""
+    import random
+    import gpu.hidden_structure as HS
+    import kernel_verdict as KV
+    random.seed(1)
+    # low-rank (rank-3, N=24): proved factorization + measured op-count win; full-rank → DECLINE (dense fall-through)
+    us = [[random.randint(-3, 3) for _ in range(24)] for _ in range(3)]
+    vs = [[random.randint(-3, 3) for _ in range(24)] for _ in range(3)]
+    LR = [[sum(us[t][i] * vs[t][j] for t in range(3)) for j in range(24)] for i in range(24)]
+    vlr = HS.low_rank_grade(LR)
+    assert vlr.status == KV.EXACT and vlr.result["rank"] == 3 and vlr.result["op_reduction"] > 1.0
+    assert vlr.certificate.kind == "low_rank_factorization"
+    FR = [[random.randint(-99, 99) for _ in range(24)] for _ in range(24)]
+    assert HS.low_rank_grade(FR).status == KV.DECLINE                      # full-rank ⇒ dense fall-through
+    # circulant (N=16) + Toeplitz (N=32): proved pattern + asymptotic FFT op-win (>1 at these N)
+    c = [random.randint(0, 9) for _ in range(16)]
+    CIR = [[c[(j - i) % 16] for j in range(16)] for i in range(16)]
+    assert HS.circulant_grade(CIR).status == KV.EXACT and HS.circulant_grade(CIR).result["op_reduction"] > 1.0
+    TOE = [[(i - j) for j in range(32)] for i in range(32)]
+    assert HS.toeplitz_grade(TOE).status == KV.EXACT and HS.toeplitz_grade(TOE).result["op_reduction"] > 1.0
+    assert HS.circulant_grade(FR[:16]).status == KV.DECLINE                # not circulant ⇒ DECLINE
+    # Kronecker A(3×3)⊗B(4×4): proved block-consistency + op-win; a non-Kronecker matrix ⇒ DECLINE
+    A = [[random.randint(1, 4) for _ in range(3)] for _ in range(3)]
+    B = [[random.randint(1, 4) for _ in range(4)] for _ in range(4)]
+    KR = [[A[i // 4][j // 4] * B[i % 4][j % 4] for j in range(12)] for i in range(12)]
+    vk = HS.kronecker_grade(KR, 3, 4)
+    assert vk.status == KV.EXACT and vk.result["op_reduction"] > 1.0
+    assert HS.kronecker_grade([[random.randint(0, 9) for _ in range(12)] for _ in range(12)], 3, 4).status == KV.DECLINE
+    # ★ dispatch: structured → structural_collapse (win); dense → dense_fallthrough (tie cuBLAS + validation proof)
+    assert HS.detect_and_collapse(LR)["path"] == "structural_collapse"
+    fr_disp = HS.detect_and_collapse(FR)
+    assert fr_disp["path"] == "dense_fallthrough" and "do NOT beat cuBLAS on dense" in fr_disp["framing"]
+    assert fr_disp["verdict"].status == KV.EXACT                           # the dense kernel is still translation-validated
+    print(f"PASS test_gpu_move2_hidden_structure (low-rank r=3 collapse {vlr.result['op_reduction']}× [full-rank → "
+          f"dense fall-through]; circulant/Toeplitz FFT op-win; Kronecker 3⊗4 collapse {vk.result['op_reduction']}×; "
+          f"★ all proved residual=0, falsely-proposed structure → DECLINE → dense; dispatch: structured=WIN on op-count, "
+          f"dense=TIE cuBLAS + validation proof — never 'beat cuBLAS on dense')")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
