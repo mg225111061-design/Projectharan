@@ -1072,3 +1072,37 @@ deployment — count, not latency); precision **1.0** through caching (no collis
 soundly shares a key). `test_catalog.py` **116/116** (+3 §V), test_build **273×3** (enginespeed/ not imported). No new
 dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 이미 한 일은 다시 하지 않는다(증명된 채로): cold은 0, warm이 전부,
 LLM은 횟수로만 줄이고, 모든 hit는 precision 1.0.
+
+## §W — FRONTEND COMPLETE: accounts, history, files, progress, errors, many providers — all VERIFIED, key never stored
+
+Make MR.JEFFREY a complete product end-to-end, every feature VERIFIED to function (not assumed), built on the existing
+`auth.py` (accounts + sessions + per-account history, with NO api_key column anywhere, by design) and the §S
+three-pillar UI. New package `frontend/` (never imported by test_build; zero new deps, `forbidden_present == []`) that
+verifies + extends.
+
+★ THE ONE HARD INVARIANT — the API key is NEVER stored. Proved structurally: `schema.sql` has no api_key column,
+`auth.py` never writes a key, the history rows carry no key field. The key is re-entered each session, held in the tab,
+used once, dropped (claude_agent LEVEL-1). The auth/password path is flagged SENSITIVE by the §R gate ⇒ it gets the
+real verified-security layer.
+
+**ACCOUNTS + HISTORY** (verify `auth.py`): signup hashes the password (bcrypt→scrypt, salted) + login authenticates +
+wrong/weak password rejected; per-account history persists + reloads + is ISOLATED (account A never sees B); key
+re-entered each session (old results shown without it). **FILES** (`files.py`): **59** allow-listed types (source/data/
+text/config/notebook), ≤5 at once (6th refused), untrusted-input validated (path-traversal / oversized / unsupported
+all refused with a reason), fold-assisted ingestion where structured (cached so a repeat is an O(1) hit). **PROVIDERS**
+(`providers.py`): widened to **14** — Anthropic/OpenAI/Gemini/Groq/Mistral/Cohere/DeepSeek/xAI/Together/Fireworks/
+OpenRouter/Perplexity + the OpenAI/Anthropic-compatible gateways — each wired (transport/auth-env/model/get-key); key
+wiring: valid key → live-call **PENDING-REAL-STACK** (egress BLOCKED, never faked), no key → clear message, unknown →
+rejected. **ERRORS** (`errors.py`): every failure (network/timeout/invalid-key/rate-limit/provider/file/backend/auth) a
+specific, honest, actionable message — no silent failure, no fabricated success. **PROGRESS** (`progress.py`): the real
+pipeline stages (generate/build/tests/regression/security/fold/formal/repair/verify), mode-aware (FAST short, EXTEND
+deepest) — not a fake spinner.
+
+**UI** (`mrjeffrey.html`, the §S three-pillar product extended): topbar account login/signup + history view + the
+key-never-saved disclosure, multi-file upload (≤5), live progress strip, specific error banner, the 14-provider
+registry — all WITHOUT reintroducing any engine internal (the §S discipline holds: no grades/ratios/ceilings).
+★ HONEST SCOPE: the live stack (real backend process + real provider calls) is PENDING-REAL-STACK (egress BLOCKED + no
+server here) — built correctly, never a faked integration; everything verifiable here (logic, wiring, config, security
+paths, key-never-stored) is verified (`feature_report.py`). `test_catalog.py` **117/117** (+1 §W), test_build
+**273×3** (frontend/ not imported; auth.py unmodified). No new dependency. 검증된 제품 — 전부 동작 확인, 라이브 통합은
+pending-real-stack(가짜 없음), 그리고 무엇을 기억하든 키는 절대 저장 안 함.

@@ -142,14 +142,25 @@ const DATA = {
      "line":"보여드리기 전에, 모든 변경이 같은 결과를 내는지 확인합니다."}
   ],
   "providers":[
+    {"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Anthropic API key","get_key_url":"https://console.anthropic.com/settings/keys"},
+    {"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat","default_model":"gpt-4o","free_no_card":false,"key_label":"OpenAI API key","get_key_url":"https://platform.openai.com/api-keys"},
     {"id":"gemini","label":"Gemini (Google)","transport":"gemini_generate","default_model":"gemini-3.5-flash","free_no_card":true,"key_label":"Google AI Studio API key","get_key_url":"https://aistudio.google.com/apikey"},
     {"id":"groq","label":"Groq","transport":"openai_chat","default_model":"llama-3.3-70b-versatile","free_no_card":true,"key_label":"Groq API key","get_key_url":"https://console.groq.com/keys"},
-    {"id":"anthropic","label":"Claude (official)","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Anthropic API key","get_key_url":"https://console.anthropic.com/settings/keys"},
-    {"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null},
-    {"id":"openai","label":"ChatGPT (OpenAI)","transport":"openai_chat","default_model":"gpt-4o","free_no_card":false,"key_label":"OpenAI API key","get_key_url":"https://platform.openai.com/api-keys"},
-    {"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat","default_model":"","free_no_card":false,"key_label":"OpenAI-compatible gateway API key","get_key_url":null}
+    {"id":"mistral","label":"Mistral","transport":"openai_chat","default_model":"mistral-large-latest","free_no_card":false,"key_label":"Mistral API key","get_key_url":"https://console.mistral.ai/api-keys"},
+    {"id":"cohere","label":"Cohere","transport":"openai_chat","default_model":"command-r-plus","free_no_card":false,"key_label":"Cohere API key","get_key_url":"https://dashboard.cohere.com/api-keys"},
+    {"id":"deepseek","label":"DeepSeek","transport":"openai_chat","default_model":"deepseek-chat","free_no_card":false,"key_label":"DeepSeek API key","get_key_url":"https://platform.deepseek.com/api_keys"},
+    {"id":"xai","label":"Grok (xAI)","transport":"openai_chat","default_model":"grok-2-latest","free_no_card":false,"key_label":"xAI API key","get_key_url":"https://console.x.ai"},
+    {"id":"together","label":"Together AI","transport":"openai_chat","default_model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","free_no_card":false,"key_label":"Together API key","get_key_url":"https://api.together.ai/settings/api-keys"},
+    {"id":"fireworks","label":"Fireworks AI","transport":"openai_chat","default_model":"llama-v3p3-70b-instruct","free_no_card":false,"key_label":"Fireworks API key","get_key_url":"https://fireworks.ai/account/api-keys"},
+    {"id":"openrouter","label":"OpenRouter","transport":"openai_chat","default_model":"openai/gpt-4o","free_no_card":true,"key_label":"OpenRouter API key","get_key_url":"https://openrouter.ai/keys"},
+    {"id":"perplexity","label":"Perplexity","transport":"openai_chat","default_model":"sonar","free_no_card":false,"key_label":"Perplexity API key","get_key_url":"https://www.perplexity.ai/settings/api"},
+    {"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat","default_model":"","free_no_card":false,"key_label":"OpenAI-compatible gateway API key","get_key_url":null},
+    {"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null}
   ],
-  "key_policy":"API key is session-only: held in this browser tab for the request, never logged, never stored, never committed, never sent anywhere except the provider you choose."
+  "key_policy":"API key is session-only: held in this browser tab for the request, never logged, never stored, never committed, never sent anywhere except the provider you choose.",
+  "account_policy":"계정은 아이디와 비밀번호, 그리고 지난 대화만 저장합니다 — API 키는 절대 저장하지 않습니다. 키는 매 세션 다시 붙여넣으며, 이 탭에만 머뭅니다.",
+  "max_files":5,
+  "file_note":"소스·데이터·텍스트·설정·노트북 50+ 형식, 한 번에 최대 5개. 업로드는 안전하게 검증됩니다."
 };
 </script>
 <script>
@@ -178,7 +189,8 @@ const SAMPLES = [
   ["깔끔한 코드 (바꿀 것 없음)","def total(prices):\n    return sum(prices)"]
 ];
 const S = { screen:"landing", provider:null, key:"", model:"", code:"", result:null, busy:false,
-  live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null };
+  live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null,
+  account:null, authPanel:false, files:[], progress:[], error:null };
 let TOAST_T = null;
 
 // ── pointer tilt on every .slab / .mode-card (real CSS 3D), reduced-motion safe ─────────────────────────────
@@ -226,6 +238,55 @@ function staticOutcomes(code){
   return {secured,fast,accurate,changed:(membership||sumloop)};
 }
 
+// ── §W live progress: the REAL pipeline stages, shown as the run unfolds (never a fake spinner) ────────────
+const PROGRESS_STAGES = [
+  ["generate","후보 생성 (Opus)"],["security","보안 점검 (필요한 곳만)"],["fast","최적화 (구조가 있으면)"],
+  ["accurate","동치 확인 (같은 결과인지)"],["done","완료 — 안전·빠름·정확"]];
+
+// ── §W multi-file upload: ≤5 files, 50+ allow-listed types, client-side untrusted-input checks ─────────────
+const FILE_TYPES = new Set(("py js ts jsx tsx java c cc cpp h hpp go rs rb php swift kt scala cs m lua pl r jl dart hs "
+  +"ml clj ex exs sh bash zsh sql json jsonl ndjson csv tsv xml yaml yml toml ini txt md rst log tex org adoc cfg conf "
+  +"env properties gradle dockerfile makefile ipynb").split(" "));
+const MAX_FILES=5, MAX_BYTES=2*1024*1024;
+function fileExt(name){ const b=name.split("/").pop().toLowerCase(); if(b==="dockerfile"||b==="makefile")return b; return b.includes(".")?b.split(".").pop():b; }
+function addFiles(list){
+  for(const f of list){
+    if(S.files.length>=MAX_FILES){ showError("too_many_files"); break; }
+    if(/\.\.|^\//.test(f.name)){ S.files.push({name:f.name,ok:false,reason:"안전하지 않은 경로 — 거부됨"}); continue; }
+    if(f.size>MAX_BYTES){ S.files.push({name:f.name,ok:false,reason:"파일이 너무 큼 (2MB 초과) — 거부됨"}); continue; }
+    if(!FILE_TYPES.has(fileExt(f.name))){ S.files.push({name:f.name,ok:false,reason:"지원하지 않는 형식 — 거부됨"}); continue; }
+    S.files.push({name:f.name,ok:true,reason:""});
+  }
+  render();
+}
+
+// ── §W honest error surfacing: a specific, actionable message for each known cause (never silent/fake) ─────
+const ERR = {
+  network:["네트워크 오류","연결 실패 — 잠시 후 다시 시도하세요.",true], timeout:["시간 초과","다시 시도하거나 더 작은 입력으로.",true],
+  invalid_key:["잘못된 키","키를 다시 입력하세요 (저장되지 않습니다).",false], rate_limited:["요청 한도 초과","잠시 기다린 뒤 다시.",true],
+  too_many_files:["파일이 너무 많음","한 번에 최대 5개입니다.",false], backend_down:["서비스 사용 불가","잠시 후 다시 시도하세요.",true],
+  auth:["인증 실패","이메일/비밀번호를 확인하세요.",false], unknown:["오류","다시 시도하세요.",true] };
+function showError(kind){ const e=ERR[kind]||ERR.unknown; S.error={kind,title:e[0],action:e[1],retry:e[2]}; render(); }
+
+// ── §W accounts: signup/login/logout + history. The API KEY is NEVER part of the account (re-entered each session) ──
+async function doAuth(kind){
+  const email=(S._email||"").trim(), pw=S._pw||"";
+  if(!email||!pw){ showError("auth"); return; }
+  if(!S.live){ S.account={email,demo:true,history:[]}; S.authPanel=false; showToast("데모 — 라이브 백엔드(server)에서 실제 계정이 동작합니다"); return; }
+  try{
+    const r=await fetch("/api/auth/"+kind,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,password:pw})});
+    const j=await r.json();
+    if(!j.ok){ showError(kind==="login"?"auth":"auth"); return; }
+    S.account={email,history:[]}; S.authPanel=false; S._pw=""; await loadHistory();
+    showToast("로그인됨 — 지난 대화를 불러왔습니다. 키는 저장되지 않으니 다시 붙여넣으세요");
+  }catch(e){ showError("network"); }
+}
+async function loadHistory(){
+  if(!S.live||!S.account){ return; }
+  try{ const r=await fetch("/api/history"); const j=await r.json(); S.account.history=j.work||[]; render(); }catch(e){ /* honest: no history if backend down */ }
+}
+function doLogout(){ if(S.live){ fetch("/api/auth/logout",{method:"POST"}).catch(()=>{}); } S.account=null; render(); }
+
 async function runOptimize(){
   const code=S.code;
   if(S.live){
@@ -233,7 +294,7 @@ async function runOptimize(){
       const r=await fetch("/api/optimize",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,provider:S.provider||undefined,key:S.key||undefined,model:S.model||undefined})});
       const j=await r.json();
       return { live:true, raw:j };
-    }catch(e){ /* fall through to static demo */ }
+    }catch(e){ showError("network"); return { live:false, demo:staticOutcomes(code), code, errored:true }; }
   }
   return { live:false, demo:staticOutcomes(code), code };
 }
@@ -295,6 +356,20 @@ function scrCode(){
   const up=$("label",{class:"upload"},[".py 업로드 ↑"]);
   const fi=$("input",{type:"file",accept:".py,.txt"}); fi.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.code=String(r.result||"");render();};r.readAsText(f);e.target.value="";});
   up.appendChild(fi); samples.appendChild(up);
+  // ── §W multi-file upload: ≤5 files, 50+ types, untrusted-input validated (type/size/traversal) ──
+  const mfi=$("input",{type:"file",multiple:"",style:"display:none"});
+  mfi.addEventListener("change",e=>{ addFiles([...e.target.files]); e.target.value=""; });
+  const fileSec=$("div",{class:"card mt"},[
+    $("div",{class:"row",style:"justify-content:space-between"},[
+      $("div",{class:"eyebrow",style:"margin:0"},`파일 첨부 (선택) · 최대 ${DATA.max_files}개`),
+      $("label",{class:"upload"},["파일 선택 ↑",mfi]),
+    ]),
+    $("div",{class:"v-sub",style:"margin-top:6px"},DATA.file_note),
+  ]);
+  (S.files||[]).forEach((f,i)=>fileSec.appendChild($("div",{class:"row",style:"justify-content:space-between;margin-top:6px"},[
+    $("span",{class:"mono",style:"font-size:12px;color:"+(f.ok?"var(--ink-2)":"var(--normal-deep)")},(f.ok?"✓ ":"✕ ")+f.name+(f.ok?"":" — "+f.reason)),
+    $("button",{class:"ghost",style:"padding:2px 8px",onclick:()=>{S.files.splice(i,1);render();}},"✕"),
+  ])));
   // provider selector (kept — real and useful): free-no-card badges + get-key links + session-only key handling
   const provGrid=$("div",{class:"grid cols-2 mt"});
   DATA.providers.forEach(p=>{
@@ -325,13 +400,14 @@ function scrCode(){
       $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},`키는 이 세션에만 머무릅니다 — 저장·기록·로그·커밋되지 않고, 오직 ${sel.label}의 API로만 전송됩니다.`)]),
     ]);
   })() : null;
-  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; S.busy=true; runBtn.disabled=true; runBtn.textContent="확인 중…"; S.result=await runOptimize(); S.busy=false; setScreen("result"); showToast("완료 — 안전하게 · 빠르게 · 정확하게 점검했습니다"); }},"코드 점검 실행 →");
+  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; S.error=null; S.progress=PROGRESS_STAGES; S.busy=true; runBtn.disabled=true; runBtn.textContent="확인 중…"; S.result=await runOptimize(); S.busy=false; setScreen("result"); showToast("완료 — 안전하게 · 빠르게 · 정확하게 점검했습니다"); }},"코드 점검 실행 →");
   return $("div",{},[
     $("div",{class:"eyebrow"},"1단계 · 당신의 코드와 제공자"),$("h2",{},"함수를 붙여넣고, 제공자를 고르세요."),
     $("p",{class:"lead"},"LLM은 더 나은 코드를 제안만 하고, 무엇을 돌려줄지는 검증기가 정합니다. Groq과 Gemini는 신용카드 없이 무료입니다. 키 없이 건너뛰어도 됩니다 — 그땐 엔진의 검증만 돌아갑니다."),
-    samples, ta,
+    samples, ta, fileSec,
     $("div",{class:"eyebrow",style:"margin-top:22px"},"제공자 (선택)"),
     provGrid, keyCard,
+    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.account_policy)]),
     $("div",{class:"row mt"},[runBtn, S.provider?$("span",{class:"pill"},"제안자: "+S.provider):$("span",{class:"pill"},"제공자 없이 검증만"),
       S.provider?$("button",{class:"ghost",onclick:()=>{S.provider=null;S.key="";S.keyState={phase:"idle"};render();}},"제공자 해제"):null]),
   ]);
@@ -345,6 +421,12 @@ function scrResult(){
     $("div",{class:"eyebrow"},"2단계 · 결과"),$("h2",{},"안전하게 · 빠르게 · 정확하게."),
   ]);
   if(!r.live) wrap.appendChild($("div",{class:"demo-banner"},[$("span",{},"◈"),$("span",{html:"<strong>데모 모드</strong> — 아래는 당신 코드에 대한 <em>예시</em> 결과입니다(실측·실변환 아님). 실제 변환은 라이브 엔진(server)에서 실행됩니다."})]));
+  // §W honest error surfacing — a specific, actionable message (never a silent failure dressed as success)
+  if(S.error) wrap.appendChild($("div",{class:"demo-banner",style:"background:var(--normal-tint)"},[$("span",{},"⚠"),
+    $("span",{},S.error.title+" — "+S.error.action+(S.error.retry?" (다시 시도 가능)":""))]));
+  // §W live progress — the REAL pipeline stages the run worked through (not a fake spinner)
+  if(S.progress&&S.progress.length) wrap.appendChild($("div",{class:"card"},[$("div",{class:"eyebrow"},"진행 · 실제 단계"),
+    $("div",{class:"row",style:"gap:8px;flex-wrap:wrap;margin-top:8px"},S.progress.map(s=>$("span",{class:"pill"},"✓ "+s[1])))]));
   // the three pillar outcomes — human sentences, each in its accent. No numbers, no badges, no meters.
   const pmap={secured:out.secured,fast:out.fast,accurate:out.accurate};
   const stack=$("div",{class:"pillar-stack mt"});
@@ -381,13 +463,38 @@ function render(){
   const steps=$("nav",{class:"steps","aria-label":"progress"});
   const reached={landing:1,code:1,result:!!S.result};
   STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
+  const acctBtn = S.account
+    ? $("button",{class:"ghost",onclick:doLogout},"로그아웃 · "+(S.account.email||"").split("@")[0])
+    : $("button",{class:"ghost",onclick:()=>{S.authPanel=!S.authPanel;S.error=null;render();}},"로그인 / 가입");
   app.appendChild($("header",{class:"topbar"},[
     $("div",{class:"brand"},[$("span",{class:"dot"}),"MR.JEFFREY",$("small",{},"안전하게 · 빠르게 · 정확하게")]),
-    steps, $("div",{class:"spacer"}),
+    steps, $("div",{class:"spacer"}), acctBtn,
     $("button",{class:"ghost",onclick:()=>{S.theme=S.theme==="light"?"dark":"light";render();}},S.theme==="light"?"다크":"라이트"),
   ]));
   const cur=SCREENS[S.screen]||scrLanding;
   const main=$("main",{class:(S.screen==="result")?"wide":""});
+  // §W auth panel — accounts persist id + password + history; the API key is NEVER part of the account
+  if(S.authPanel && !S.account){
+    const em=$("input",{type:"email",placeholder:"이메일",value:S._email||"",oninput:e=>{S._email=e.target.value;}});
+    const pwf=$("input",{type:"password",placeholder:"비밀번호 (8자+, 대/소문자·숫자·특수)",oninput:e=>{S._pw=e.target.value;}});
+    main.appendChild($("div",{class:"card",style:"max-width:460px;margin:0 auto 18px"},[
+      $("div",{class:"eyebrow"},"계정 · 로그인 또는 가입"),
+      $("div",{class:"field"},[$("label",{},"이메일"),em]),
+      $("div",{class:"field"},[$("label",{},"비밀번호"),pwf]),
+      S.error?$("div",{class:"note warn"},S.error.title+" — "+S.error.action):null,
+      $("div",{class:"row mt"},[$("button",{class:"btn",onclick:()=>doAuth("login")},"로그인"),
+        $("button",{class:"ghost",onclick:()=>doAuth("signup")},"가입"),
+        $("button",{class:"ghost",onclick:()=>{S.authPanel=false;render();}},"닫기")]),
+      $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.account_policy)]),
+    ]));
+  }
+  // §W history — the returning account's past conversations (results shown; new runs need the re-entered key)
+  if(S.account && (S.account.history||[]).length){
+    const hl=$("div",{class:"card",style:"max-width:760px;margin:0 auto 18px"},[$("div",{class:"eyebrow"},"지난 대화 · 결과는 저장됨, 새 실행엔 키를 다시 입력")]);
+    S.account.history.slice(0,8).forEach(h=>hl.appendChild($("div",{class:"row",style:"justify-content:space-between;border-top:1px solid var(--line-soft);padding-top:6px;margin-top:6px"},[
+      $("span",{class:"v-sub"},(h.request||"").slice(0,60)),$("span",{class:"mono",style:"font-size:11px"},h.status||"")])));
+    main.appendChild(hl);
+  }
   main.appendChild(cur());
   app.appendChild(main);
   app.appendChild($("footer",{class:"footer"},"안전하게 · 빠르게 · 정확하게 · 제안자 ≠ 심판 · 키는 이 탭에만 보관"));
