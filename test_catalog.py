@@ -2869,6 +2869,41 @@ def test_post_consol_task4_mrjeffrey_gap_report():
           f"live_surface_healthy={r['summary']['live_surface_healthy']})")
 
 
+def test_post_consol_task5_honest_ui_landing():
+    """TASK 5 — honest UI/landing. The landing's PINNED numbers (115× hero, demo bars, 1.00× decline) are already
+    enforced by test_product_phase8_ui_honest_numbers; this test enforces the TASK-5 honesty ADDITIONS so they
+    cannot silently revert:
+      (1) the PEDAGOGICAL examples (700×→1.67× Amdahl, 3×·20×·6.7×→400×) are LABELLED illustrative — they read as
+          math, not as measured results;
+      (2) the hero 115× no longer MISATTRIBUTES its source — 115.494 is csv_stats (a 'data utility'), NOT the
+          'never-profiled' app (which is 47×); the old misattributing phrase is gone and the honest 'not typical' is in;
+      (3) honest COVERAGE framing is on the page — big wins are a MINORITY and the 115× is a SELECTED best case;
+      (4) the main UI's STATIC path is honest — nothing-detected ⇒ 1.0× (no fabricated win), it ships ONLY waste types
+          actually detected in the user's code, grades render as truthful EXACT/PROBABILISTIC/DECLINE badges, the
+          per-mode CLOCK is surfaced, and the static-vs-live distinction is disclosed (live per-code run needs server)."""
+    land = open("mrjeffrey_landing.html", encoding="utf-8").read()
+    # (1) the pedagogical examples are labelled illustrative (and still present, as illustrations not claims)
+    assert "illustrativ" in land.lower(), "the 700×/400× pedagogical examples must be labelled illustrative"
+    assert "700×" in land and "1.67×" in land and "400×" in land
+    # (2) hero 115× re-attributed to its real source row; the old misattribution is gone
+    assert "115×" in land
+    assert "never-profiled code with a genuine" not in land, "115× must not be misattributed to 'never-profiled code'"
+    assert "data utility" in land and "not typical" in land            # honest source + honest 'this is the best case'
+    # (3) honest coverage framing — big wins are a minority; the headline is selected
+    assert "minority" in land.lower() and "selected" in land.lower()
+    # (4) main UI honest STATIC path + truthful badges + per-mode clock + live/static disclosure
+    ui = open("mrjeffrey.html", encoding="utf-8").read()
+    assert "shipped.length? shipped[shipped.length-1].ratio : 1.0" in ui   # nothing detected ⇒ honest 1.0×, no fake win
+    assert "types.has(s.waste_type)" in ui                                 # ships ONLY waste types actually detected
+    assert ".grade.exact" in ui and ".grade.probabilistic" in ui and ".grade.decline" in ui  # truthful grade badges
+    assert "클럭 · " in ui and "primary_clock" in ui                        # per-mode clock surfaced
+    assert "/api/optimize" in ui and "정적 빌드" in ui                        # live vs static honestly disclosed
+    print("PASS test_post_consol_task5_honest_ui_landing (landing: pedagogical 700×/400× LABELLED illustrative; hero "
+          "115× re-attributed to its real source [csv_stats=data utility, not 'never-profiled'] + 'not typical'; "
+          "coverage framing [big wins are the MINORITY / 115× SELECTED] present; main UI: nothing-detected⇒1.0×, ships "
+          "only detected waste, truthful EXACT/PROBABILISTIC/DECLINE badges, per-mode clock, static-vs-live disclosed)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -792,3 +792,19 @@ faster-but-wrong answer). The impact-ranked ledger also records the BLOCKED prop
 boundary convention (GAP-4, by-design, identical for single/two-arg) and the honest low-single-digit fold ceiling
 (GAP-5, by-design, = T3). `test_catalog.py` **92/92**, test_build 273 영향 없음 (lift.py 변경 후 재확인). No new
 dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 제품을 실제로 굴려 버그 둘을 찾아 고치고, 막힌 시계와 정직한 천장을 덮지 않고 적었다.
+
+**T5 — honest UI/landing (`mrjeffrey_landing.html` + `mrjeffrey.html`, test-enforced).** The PHASE-8 pass already PINNED
+every measured landing number (115× hero, 6 demo bars, 1.00× decline) to the engine source and made a drifted number a
+test failure; the main UI already renders per-mode CLOCKS, truthful EXACT/PROBABILISTIC/DECLINE badges, the verifier
+work (z3 calls / latency / tier), and an honest STATIC-vs-LIVE split (STATIC runs heuristic detection on the user's own
+code, ships ONLY the waste types actually detected, falls to 1.0× when none are found, and labels every row as the
+engine's canonical measured result — never a fabricated grade). T5 closed the three honesty gaps that remained:
+(1) the PEDAGOGICAL examples in the honesty section (a 700× kernel in 40% of runtime → 1.67×; 3×·20×·6.7× ≠ 400×) were
+phrased as if factual — now explicitly LABELLED *illustrative* (the Amdahl one carries its arithmetic
+1/(0.6+0.4/700)); (2) the hero **115×** MISATTRIBUTED its source — 115.494 is `csv_stats` (archetype "data utility",
+grade PROBABILISTIC), NOT the "never-profiled" app (which is 47×) — the label now names the real source and adds "not
+typical"; (3) honest COVERAGE framing was added — a new card states big wins are the MINORITY (most production code is
+I/O / control flow with no foldable asymptotic structure, only a low-single-digit fraction folds — = T3), and the 115×
+is a SELECTED best case, not a uniform promise. `test_post_consol_task5_honest_ui_landing` enforces all three plus the
+main-UI honesty markers; PHASE-8 pinning still holds (23 numbers backed). `test_catalog.py` **93/93**; test_build
+unaffected (T5 touches only HTML + test_catalog, neither read by test_build). No new dependency.

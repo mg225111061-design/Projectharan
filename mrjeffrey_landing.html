@@ -209,7 +209,7 @@ footer .mono{font-size:11.5px}
     <p class="snaplabel" id="snap">— real engine run (best-of-k whole-program, snapshot from pillar3_studio_data.json)</p>
 
     <div class="stats">
-      <div class="stat"><div class="n mono">115×</div><div class="l">on never-profiled code with a genuine O(n²) → O(n) fix (measured whole-program)</div></div>
+      <div class="stat"><div class="n mono">115×</div><div class="l">the corpus best case (not typical) — whole-program measured on a data utility with an accidental O(n²) build, differential-verified</div></div>
       <div class="stat"><div class="n mono">≤ 1/(1−f)</div><div class="l">every speedup carries its Amdahl ceiling; the bar stops there by construction</div></div>
       <div class="stat"><div class="n mono">3</div><div class="l">grades the verifier decides at runtime — exact, probabilistic, decline</div></div>
       <div class="stat"><div class="n mono">~1.0×</div><div class="l">honest result on already-well-written code: nothing safe to ship</div></div>
@@ -253,8 +253,8 @@ footer .mono{font-size:11.5px}
     <div class="honest">
       <div class="hcard"><h4>The Amdahl ceiling is always on screen</h4>
         <p>A fix in fraction <span class="mono">f</span> of the runtime can never beat <span class="mono">1/(1−f)</span>.
-        The measured bar stops at that wall by construction — a 700× kernel inside 40% of runtime is shown as the
-        1.67× it really is.</p></div>
+        The measured bar stops at that wall by construction — illustratively, a 700× kernel inside 40% of runtime
+        is capped at the 1.67× it really delivers (1/(0.6 + 0.4/700)), never 700×.</p></div>
       <div class="hcard"><h4>Kernel ≠ whole-program</h4>
         <p>Every ratio is the warmup-aware whole-program wall-clock, measured against a neutral baseline. We never
         put a kernel number where a whole-program number belongs.</p></div>
@@ -262,7 +262,13 @@ footer .mono{font-size:11.5px}
         <p>exact / probabilistic / decline is decided at runtime by the input and the verifier — not a fixed
         property of a fixer. The same rewrite can be exact on integers and decline on floats.</p></div>
       <div class="hcard"><h4>Component speedups don't multiply</h4>
-        <p>3× · 20× · 6.7× is not 400×. The cumulative number is re-measured fresh, end to end, every round.</p></div>
+        <p>Illustratively, 3× · 20× · 6.7× component wins do not compound to 400×. The cumulative number is never a
+        product of component factors — it is re-measured fresh, end to end, every round.</p></div>
+      <div class="hcard"><h4>Big wins are the minority — measured, not promised</h4>
+        <p>On a production-representative corpus most code is I/O and control flow with no foldable asymptotic
+        structure, so only a low-single-digit fraction folds to a big win — the rest is a modest constant-factor or
+        an honest decline. The 115× above is real but <em>selected</em>; the engine's value is telling you the truth
+        either way, not promising a uniform speedup.</p></div>
     </div>
 
     <div class="declinebox">
