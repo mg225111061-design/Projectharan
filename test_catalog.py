@@ -3128,6 +3128,43 @@ def test_recall_p5_mobius_fold():
           "[⑬ projective face]; degenerate ad−bc=0 + degree-≥2 [Galois] DECLINE; O(N)→O(log N); precision 1.0, no 23rd kind)")
 
 
+def test_recall_p6_distributed_state():
+    """§P P6 — cross-function taint for DISTRIBUTED/ASYNC state (recall, existing kind; the hardest, honestly bounded):
+    a linear accumulator spread across multiple event handlers (rate limiter / sliding window / session counter)
+    defeats both probing modes (side-effects defeat black-box, fragmentation defeats local white-box). Cross-function
+    taint extracts each handler's affine update s←aᵢ·s+bᵢ and COMPOSES them along a FIXED schedule into one round
+    s←A·s+B; N rounds = the matrix-power (O(log N)), z3-proved equivalent to the sequential handler semantics → cert
+    `matrix_recurrence` (existing, no 23rd kind).
+    ★ THE HARD BOUNDARY (most async state is outside the island — that DECLINE is correct): a NONLINEAR handler, a
+    NONDETERMINISTIC schedule (no fixed order), and an unknown/unextractable handler all DECLINE."""
+    import kernel_verdict as KV
+    import catalog.distributed_state as DS
+    # affine accumulator spread across handlers, FIXED schedule → composed + folded + z3-proved
+    h1 = {"inc": "def inc(s):\n    s = s + 1\n    return s", "scale": "def scale(s):\n    s = 3*s\n    return s"}
+    v1 = DS.distributed_state_grade(h1, ["inc", "scale"])
+    assert v1.status == KV.EXACT and v1.certificate.kind == "matrix_recurrence"
+    assert v1.result["round_map"] == [3, 3] and v1.result["asymptotic"] == "O(N)→O(log N)"   # s → 3(s+1) = 3s+3
+    h2 = {"acc": "def acc(s):\n    s += 10\n    return s", "shift": "def shift(s):\n    s = 2*s - 3\n    return s"}
+    v2 = DS.distributed_state_grade(h2, ["acc", "shift", "acc"])
+    assert v2.status == KV.EXACT and v2.result["round_map"] == [2, 27]   # (2(s+10)-3)+10 = 2s+27
+    # ★ the honest boundary — all DECLINE
+    nl = {"sq": "def sq(s):\n    s = s*s\n    return s", "inc": "def inc(s):\n    s = s+1\n    return s"}
+    assert DS.distributed_state_grade(nl, ["sq", "inc"]).status == KV.DECLINE            # nonlinear handler
+    assert DS.distributed_state_grade(h1, None).status == KV.DECLINE                     # nondeterministic schedule
+    assert DS.distributed_state_grade(h1, ["inc", "ghost"]).status == KV.DECLINE         # unknown handler
+    # the composed round + matrix-power agree with direct sequential simulation (independent check)
+    A, B = v2.result["round_map"]
+    s = 7
+    for _ in range(50):                                   # 50 rounds of [acc, shift, acc] directly
+        s = ((2 * (s + 10) - 3) + 10)
+    AN, BN = DS._affine_matpow(A, B, 50)
+    assert AN * 7 + BN == s
+    print("PASS test_recall_p6_distributed_state (cross-function taint reassembles affine handler maps along a FIXED "
+          "schedule into one round [inc+scale→3s+3, acc+shift+acc→2s+27], folds N rounds via matrix-power proved "
+          "equivalent to the sequential handler semantics → matrix_recurrence; NONLINEAR / NONDETERMINISTIC-schedule / "
+          "unknown-handler DECLINE [the hard honest boundary — most async state is outside the island]; precision 1.0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
