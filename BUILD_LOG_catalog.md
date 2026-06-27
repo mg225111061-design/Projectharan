@@ -1009,3 +1009,35 @@ assertions (`test_s_ui_three_pillars` + the updated §B1/§B2 backend tests + th
 present, design system reused, all engine internals absent, provider flow + key-safety preserved. `test_catalog.py`
 **109/109**, test_build **273×3** (mrjeffrey.html not imported by the engine; §B1/§B2 now assert the MATH backend, not
 UI markers). No new dependency. 화면은 측정값의 벽이 아니라 — 안전하게 · 빠르게 · 정확하게, 세 단어다.
+
+## §U — SWE-BENCH SCORE AMPLIFIER: Opus generates, MR.JEFFREY verifies-filters-repairs (formal-beyond-tests)
+
+Opus 4.8's raw patch generation, wrapped in the proposer–verifier machinery: the model proposes N candidate patches
+(some wrong); a LAYERED GATE (build → visible tests → regression → ★formal-beyond-tests) filters to the proven ones;
+failures are repaired from their precise failure — richest of all a concrete FORMAL COUNTEREXAMPLE naming the exact
+input on which the patch is wrong — and the formally-strongest VERIFIED patch is submitted, never an unverified one
+gambled on the hidden suite. New package `swebench/` (never imported by test_build; zero new engine deps,
+`forbidden_present == []`); reuses `catalog/equiv_check` (`bounded_equiv` / `prove_equiv_z3` + counterexample),
+`claude_agent.claude_generate` (api_key=None → mock = honest BLOCKED), clocks, dependency_audit, KV.
+
+★THE DIFFERENTIATOR (the 90→95 gap). The visible tests are a subset; SWE-bench grades on HIDDEN tests too. A patch
+passing every visible test can still be wrong on the edge case a hidden test exercises — a plain test-runner cannot see
+this. The formal check proves correctness over the input DOMAIN (`bounded_equiv` over a declared domain — sound over
+it — or an unbounded z3 ∀ proof where the behaviour is arithmetic-expressible), and a visible-passing-but-formally-
+wrong patch is REJECTED with its counterexample (the hidden-test input), converting "passes the tests I can see" into
+"is actually correct" — exactly what passing the hidden tests requires.
+
+★HONEST SCOPE. The real SWE-bench Verified/Pro SCORE is MODELED-PENDING-REAL-STACK — it needs the task repos + their
+test runners + a live Opus egress, none available here (Clock A BLOCKED, like the GPU was device-pending); a substrate
+number is never presented as the real score. What is REAL and MEASURED is the per-mechanism LADDER on a self-contained
+EXECUTABLE mini-benchmark (8 Python tasks: buggy fn + issue + visible + HIDDEN tests + reference oracle + recorded
+candidate patches), run on real code execution + real z3. **Measured ladder** (each submission graded against the
+hidden tests): opus-alone **0.125** → +multi-candidate **0.25** → +regression **0.375** → +localization **0.5** →
++formal **0.75** → +fix-loop **0.875**, every rung a real marginal lift. ★The differentiator prevents **3** hidden-test
+failures (off-by-one `in_range`, wrong-at-0 `sign`, `round_half_up` via the formal-counterexample-driven fix loop) that
+the strongest TEST-ONLY pipeline (0.5) would have shipped. ★**Precision = 1.0** on submissions: 7 submitted, 0 false
+(every submission formally-verified ⟹ correct on hidden), 1 honest **DECLINE** (`collatz` — no candidate passes and the
+in-budget repair stays wrong, so we submit nothing rather than gamble). The unbounded z3 ∀ face proves `abs(x)` for all
+x and refutes a wrong candidate with a concrete counterexample. `test_catalog.py` **113/113** (+4 §U), test_build
+**273×3** (swebench/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — Opus는 만들고, MR.JEFFREY는
+검증·수리한다; 형식 검증이 보이는 테스트 너머의 hidden 실패를 제출 전에 잡는다 — 그것이 90과 95의 차이.

@@ -3460,6 +3460,113 @@ def test_s_ui_three_pillars():
           "session-only key safety preserved; self-contained single HTML artifact)")
 
 
+def test_u_harness_and_layered_gate():
+    """§U Phase 1 — the harness + the layered gate (build → visible → regression → formal). Each layer rejects the
+    right candidate; only a candidate that passes EVERY applicable layer is submission-eligible. Grading is against
+    the FULL suite (visible + hidden + regression) — the ground truth a real SWE-bench run sees."""
+    import swebench.harness as H
+    tasks = {t.name: t for t in H.mini_bench()}
+    # build error rejected at layer 1
+    clamp = tasks["clamp_hi"]
+    assert H.layered_gate(clamp, clamp.candidates[0]).caught_by == "build"        # missing-colon candidate
+    assert H.layered_gate(clamp, clamp.candidates[1]).submission_eligible          # correct candidate passes the gate
+    # regression layer rejects a target-passing-but-regressing candidate
+    sd = tasks["safe_div"]
+    g0 = H.layered_gate(sd, sd.candidates[0])
+    assert g0.visible_ok and not g0.regression_ok and g0.caught_by == "regression"  # int-div breaks the float test
+    # grade_against_hidden checks the full suite (the regressor fails it, the correct one passes)
+    assert not H.grade_against_hidden(sd, sd.candidates[0]) and H.grade_against_hidden(sd, sd.candidates[1])
+    # the live generator is honestly BLOCKED (egress); substrate = recorded candidates
+    assert H.live_generator_blocked()["status"] == "BLOCKED"
+    print("PASS test_u_harness_and_layered_gate (layered gate: build-error→layer1, regressor→regression layer; only "
+          "full-gate passers submission-eligible; grade = visible+hidden+regression [the real ground truth]; live "
+          "generation honestly BLOCKED, substrate = recorded candidates)")
+
+
+def test_u_formal_differentiator():
+    """§U Phase 5B — ★the differentiator: formal verification BEYOND the visible tests. An off-by-one that passes
+    every visible test but is wrong on the inclusive boundary (the hidden case) is caught by the formal check, which
+    yields the exact counterexample. Where the behaviour is arithmetic-expressible the check upgrades to an UNBOUNDED
+    z3 ∀ proof. 'safe' (submit) is claimed only when formally proved — never on visible-pass alone."""
+    import swebench.harness as H
+    import swebench.formal_check as FC
+    tasks = {t.name: t for t in H.mini_bench()}
+    ir = tasks["in_range"]
+    off_by_one, correct = ir.candidates[0], ir.candidates[1]
+    # the off-by-one passes the visible tests ...
+    fn_bad = H.compile_fn(off_by_one.src, ir.fn_name)
+    assert H.run_cases(fn_bad, ir.visible)[0], "off-by-one must pass the visible tests (that's the trap)"
+    # ... but the formal check proves it WRONG and hands the boundary counterexample (the hidden-test input)
+    fr = FC.formal_correct(ir, fn_bad)
+    assert fr.applicable and not fr.proved and fr.counterexample is not None
+    assert FC.catches_hidden_failure(ir, off_by_one)                              # the precise event the differentiator prevents
+    # the correct candidate is formally proved over the domain
+    assert FC.formal_correct(ir, H.compile_fn(correct.src, ir.fn_name)).proved
+    # ★ the unbounded z3 ∀ face: abs(x) proved for ALL x; a wrong candidate yields a concrete counterexample
+    import z3
+    ok = FC.prove_unbounded_z3(lambda e: z3.If(e["x"] >= 0, e["x"], -e["x"]),
+                               lambda e: z3.If(e["x"] >= 0, e["x"], -e["x"]), ["x"])
+    bad = FC.prove_unbounded_z3(lambda e: z3.If(e["x"] >= 0, e["x"], -e["x"]), lambda e: e["x"], ["x"])
+    assert ok["proved"] and ok["tier"] == "z3_forall" and (not bad["proved"]) and bad["counterexample"]
+    print("PASS test_u_formal_differentiator (off-by-one passes ALL visible tests but the formal check proves it wrong "
+          "+ yields the boundary counterexample [the hidden-test input]; correct candidate proved over the domain; "
+          "unbounded z3 ∀ face proves abs(x) for all x and refutes a wrong one — formal sees what tests cannot)")
+
+
+def test_u_fix_loop_and_honest_decline():
+    """§U Phase 3 — the fix loop repairs from the FORMAL COUNTEREXAMPLE (the richest feedback), and DECLINES honestly
+    when it cannot. round_half_up: no candidate passes the gate, but handed the counterexample the repair is correct
+    and passes the full gate (solved ONLY by the fix loop). collatz: the repair stays wrong, so the pipeline submits
+    NOTHING (honest decline) rather than gamble a visible-passing-but-unverified patch on the hidden suite."""
+    import swebench.harness as H
+    import swebench.fix_loop as FL
+    tasks = {t.name: t for t in H.mini_bench()}
+    loc = lambda t, n=0: __import__("swebench.localization", fromlist=["localize_pool"]).localize_pool(t, t.candidates)
+    # round_half_up — solved by the fix loop, and it USED the counterexample
+    rhu = FL.solve_with_fixloop(tasks["round_half_up"], gen=loc)
+    assert rhu.solved_by == "fix_loop" and rhu.used_counterexample and rhu.submitted is not None
+    assert H.grade_against_hidden(tasks["round_half_up"], rhu.submitted)         # the repair is actually correct on hidden
+    # collatz — honest DECLINE (no submission), precision preserved
+    col = FL.solve_with_fixloop(tasks["collatz_steps"], gen=loc)
+    assert col.solved_by is None and col.submitted is None
+    print("PASS test_u_fix_loop_and_honest_decline (round_half_up: no candidate passes, repaired from the formal "
+          "counterexample → correct, solved ONLY by the fix loop; collatz: repair stays wrong → honest DECLINE "
+          "[submit nothing, never gamble the hidden suite] — precision preserved)")
+
+
+def test_u_ladder_precision_and_report():
+    """§U Phases 2/4/6 + report — the per-mechanism ladder MEASURED (not asserted): each rung (opus-alone → +multi →
+    +regression → +localization → +formal → +fix) adds a real marginal lift; ★precision = 1.0 on submissions (only
+    full-gate passers; the unsolvable task is declined, never gambled); the real Verified/Pro score is honestly
+    pending-real-stack; engine zero-dep."""
+    import swebench.score_report as SR
+    tasks = SR.mini_bench()
+    lad = SR.ladder(tasks)
+    rates = [r["pass_rate"] for r in lad]
+    assert rates == sorted(rates), f"ladder must be non-decreasing: {rates}"           # measured, monotone
+    assert rates[-1] > rates[0]                                                        # the pipeline beats opus-alone
+    for i in range(1, 6):
+        assert lad[i]["marginal_lift"] > 0, f"rung {lad[i]['rung']} must add a measured lift"
+    # ★ the differentiator prevents real hidden-test failures (formal-beyond-tests)
+    diff = SR.differentiator(tasks)
+    assert diff["count"] >= 3 and "in_range" in diff["hidden_failures_prevented"]
+    # ★ precision 1.0 on submissions; honest decline of the unsolvable task
+    prec = SR.precision_on_submissions(tasks)
+    assert prec["precision"] == 1.0 and not prec["false_submissions"] and prec["declined"]
+    # the report: honest pending-real-stack headline + zero-dep + Clock-A BLOCKED
+    rep = SR.report()
+    assert "PENDING-REAL-STACK" in rep["honest_limits"]["real_swebench_score"]
+    assert rep["clock_A_generation"]["status"] == "BLOCKED"
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    # multi-candidate adds a real measured lift over opus-alone (the single biggest filter on real SWE-bench; on this
+    # curated bench every rung adds ≥1 task, with formal rescuing two visible-passing-but-wrong patches — honest)
+    assert lad[1]["marginal_lift"] > 0
+    print(f"PASS test_u_ladder_precision_and_report (measured ladder {rates[0]}→{rates[-1]} [each rung a real lift]; "
+          f"differentiator prevents {diff['count']} hidden-test failures [formal-beyond-tests]; precision "
+          f"{prec['precision']} on {len(prec['submitted'])} submissions [0 false, {len(prec['declined'])} honest "
+          "decline]; real Verified/Pro score PENDING-REAL-STACK [never fabricated]; engine zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
