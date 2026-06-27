@@ -1106,3 +1106,36 @@ server here) — built correctly, never a faked integration; everything verifiab
 paths, key-never-stored) is verified (`feature_report.py`). `test_catalog.py` **117/117** (+1 §W), test_build
 **273×3** (frontend/ not imported; auth.py unmodified). No new dependency. 검증된 제품 — 전부 동작 확인, 라이브 통합은
 pending-real-stack(가짜 없음), 그리고 무엇을 기억하든 키는 절대 저장 안 함.
+
+## §X — THIRD-PATH FOLD PARADIGMS: raise the fold rate without a 23rd mechanism (widen WHERE the 22 apply)
+
+The mechanism set is converged at 22 (14 certificate kinds). These five paradigms add NO 23rd — they widen the
+*opportunity to apply* the existing folds to code that currently DECLINEs (a loop blocked by one dynamic parameter, an
+unused output, a linear functional, an array write, a stride). Each is z3-gated; precision stays exactly 1.0; every
+paradigm routes to an EXISTING mechanism. New package `thirdpath/` (never imported by test_build; zero deps,
+`forbidden_present == []`); reuses `catalog/equiv_check.prove_equiv_z3` (with `assumptions=` carrying the guard).
+
+★ THE TWO HONESTIES (this directive's life). (1) **Certificate-issued ≠ fold-applied**: a conditional fold counts
+toward the fold rate ONLY when its condition holds at a real callsite — guards implied / projections live / duals used
+/ arrays linear / strides periodic. Issued-but-unused is ZERO contribution (the corpus-swap trick by another name,
+forbidden). (2) **Fold-rate ≠ speedup**: an applied fold on a tiny/short loop raises the rate but accelerates nothing.
+Both measured and reported SEPARATELY.
+
+**P1 axiomatic/guard** (`axiomatic_fold.py`, the strongest): CEGAR-lite synthesizes a guard Φ under which a declining
+loop folds; z3 proves `Φ ⟹ folded==original` (issue) then `callsite ⟹ Φ` (apply); the EXACT verdict gains a `guard`
+field — no new kind. **P2 projection** (`projection_fold.py`, safest, fully decidable): fold the live output projection
+a callsite uses, `π(folded)==π(original)` proved per-callsite. **P3 dual** (`dual_fold.py`): fold `φ∘f` through a linear
+functional (`sum∘reverse==sum`), proved over fixed-size symbolic arrays; non-linear functionals DECLINE. **P4 array/
+memory** (`array_fold.py`, the new domain): inductive array writes → a quantified closed-form transition
+`∀j. arr'[j]==cf(j)`, z3 ∀-proved with a timeout; off-by-one / nonlinear / aliased DECLINE. **P5 stride** (`stride_fold
+.py`, weakest): fold `f^k` when affine+periodic (negation, period-2); gated on an affineness check so a general
+nonlinear `f` (s²+1) is DECLINED WITHOUT composing (no degree-2^k explosion).
+
+**COMPOSE + measure** (`fold_paradigms_report.py`, MEASURED): on a paradigm-shaped callsite corpus — **issued 8,
+applied 6, speedup 4** (the two honesties separated: 2 issued-but-unapplied; 2 applied-but-no-speedup); on the FIXED
+backend corpus the added applied fold rate is **0.0** (generic I/O / CRUD / control-flow code lacks the shapes —
+honest, not a flattering frequency claim; the research's 20–30% estimates are unverified); the ~15% ceiling is
+unrefuted. ★ Precision **1.0** across all five adversarial batteries (every unsound guard / projection / dual / array /
+stride REJECTED); ★ NO new certificate kind (routes to linear_recurrence / matrix_recurrence). `test_catalog.py`
+**118/118** (+1 §X), test_build **273×3** (thirdpath/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상
+옳다 — 22가 닿는 곳을 넓힐 뿐 접을 수 있는 것을 넓히지 않고, 적용된 fold만 세고, fold율과 가속을 분리한다.

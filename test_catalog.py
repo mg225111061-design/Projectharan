@@ -3691,6 +3691,46 @@ def test_w_frontend_complete():
           "engine internals reintroduced; zero-dep)")
 
 
+def test_x_third_path_paradigms():
+    """§X — the third-path fold paradigms widen WHERE the 22 mechanisms apply (never WHAT they fold), each z3-gated,
+    precision 1.0, NO new certificate kind. ★ The two binding honesties: a fold counts ONLY when APPLIED at a real
+    callsite (issued≠applied), and the fold rate is reported SEPARATELY from the actual speedup (fold-rate≠speedup)."""
+    import thirdpath.axiomatic_fold as P1
+    import thirdpath.projection_fold as P2
+    import thirdpath.dual_fold as P3
+    import thirdpath.array_fold as P4
+    import thirdpath.stride_fold as P5
+    import thirdpath.fold_paradigms_report as R
+    # P1 guard synthesis: issue under k==4, apply only where the guard holds (issued-vs-applied)
+    folded, original = lambda e: e["x"] * 4, lambda e: e["x"] * e["k"]
+    gf = P1.synthesize_guard(folded, original, ["x", "k"], "k", [4])
+    assert gf.issued and gf.guard == "k == 4"
+    assert P1.apply_at_callsite(gf, "k4", ["x", "k"], "k", 4) and not P1.apply_at_callsite(gf, "kdyn", ["x", "k"], "k", 7)
+    assert gf.applied_callsites == ["k4"] and gf.skipped_callsites == ["kdyn"]   # applied counted, skipped not
+    # ★ every paradigm's adversarial battery REJECTS the unsound case (precision 1.0)
+    for mod in (P1, P2, P3, P4, P5):
+        b = mod.adversarial_battery()
+        assert b["all_ok"], f"{mod.__name__} adversarial battery failed: {b['failed']}"
+    # P4 array: linear write folds (z3 ∀-proved), off-by-one + nonlinear rejected
+    assert P4.fold_array(lambda a0, j: a0 + 3 * j, lambda p, j: p + 3, lambda a0: a0, "arr0+3j").issued
+    assert not P4.fold_array(lambda a0, j: a0 + 3 * j + 1, lambda p, j: p + 3, lambda a0: a0, "wrong").issued
+    # P5 stride: affine period-2 folds; a general nonlinear f is DECLINED without exploding
+    assert P5.search_stride(lambda s: -s).issued and not P5.search_stride(lambda s: s * s + 1).issued
+    # the report: ★ issued ≠ applied ≠ speedup (both honesties measured), no new kind, precision 1.0, zero-dep
+    rep = R.report()
+    sc = rep["shaped_corpus"]
+    assert sc["issued"] > sc["applied"] > sc["speedup"]                 # issued≠applied (corpus-swap trap avoided) and applied≠speedup
+    assert sc["issued_but_unapplied"] >= 1 and 0 < sc["applied_fold_rate"] < 1 and sc["speedup_rate"] < sc["applied_fold_rate"]
+    assert rep["fixed_backend_corpus"]["added_applied_fold_rate"] == 0.0   # honest: the shapes aren't in generic backend code
+    assert rep["no_new_certificate_kind"] and set(rep["routed_mechanisms"]) <= {"linear_recurrence", "matrix_recurrence"}
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_x_third_path_paradigms (P1 guard synth [issued under k==4, applied only where the guard holds], "
+          f"P2 projection, P3 dual, P4 array [z3 ∀], P5 stride [affine-gated, nonlinear declines without exploding]; "
+          f"★ issued {sc['issued']} ≠ applied {sc['applied']} ≠ speedup {sc['speedup']} [the two honesties measured]; "
+          f"fixed backend +0.0 [shapes absent, honest]; NO new certificate kind; precision 1.0; zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
