@@ -4111,6 +4111,106 @@ def test_ab_grand_decomposition_and_report():
           f"rejected, bound derived]; EXACT undiluted, KV untouched, LLM-free, precision 1.0)")
 
 
+def test_ac_f1_profile_guided():
+    """§AC FOLD 1 — profile-guided: a measured profile SELECTS the guard that lands; dual-path. ★ THE FALLBACK INVARIANT
+    — correctness NEVER depends on the profile (a guard-miss runs the original, still correct); ★ scope "under workload W,"
+    never universal. Reuses §AA-W3 (the proof unchanged; the profile only chooses Φ)."""
+    import inputfold.profile_fold as F1
+    folded, original = lambda e: e["x"] * 4, lambda e: e["x"] * e["k"]
+    pf = F1.profile_guided_fold(folded, original, ["x", "k"], "k", F1.ingest_profile([4] * 90 + [9] * 10))
+    assert pf.issued and pf.selected_value == 4
+    W = [{"x": i, "k": 4} for i in range(90)] + [{"x": i, "k": 9} for i in range(10)]
+    r = F1.run_under_workload(pf, folded, original, "k", W)
+    assert r["hit_rate_under_W"] == 0.9 and r["all_correct"] and "NOT universal" in r["scope"]
+    assert F1.verify_fallback_invariant(pf, folded, original, "k")            # ★ profile 100% wrong ⇒ still correct
+    b = F1.adversarial_battery()
+    assert b["all_ok"], f"F1 battery failed: {b['failed']}"
+    print(f"PASS test_ac_f1_profile_guided (profile selects k==4; {r['hit_rate_under_W']:.0%} hit under W, all correct; "
+          "★ fallback invariant — correctness profile-independent [100%-wrong profile ⇒ all fallback, still correct]; "
+          "scope under-W never universal; reuses §AA-W3; battery 6/6)")
+
+
+def test_ac_f2_spec_declared():
+    """§AC FOLD 2 — spec-declared: fold under a user-declared HARAN `requires` precondition P, z3-proved sound UNDER P
+    (zero synthesis cost). ★ the declaration's truth is runtime-checked OR declarer-responsible, mode STATED; a silent
+    assumption rejected; DECLINE-at-runtime when P is false (correct, not unsound)."""
+    import inputfold.spec_fold as F2
+    import z3
+    folded, original = lambda e: e["x"], lambda e: z3.If(e["x"] < 0, -e["x"], e["x"])
+    sf = F2.spec_fold(folded, original, ["x"], lambda e: e["x"] >= 0, "x >= 0", "runtime-checked")
+    assert sf.issued and sf.mode == "runtime-checked" and sf.precondition == "x >= 0"
+    assert not F2.spec_fold(folded, original, ["x"], lambda e: e["x"] >= 0, "x >= 0", "(unstated)").issued  # silent rejected
+    assert F2.apply_at_callsite(sf, "ok", lambda e: e["x"] >= 0, {"x": 5})     # P holds ⇒ apply
+    assert not F2.apply_at_callsite(sf, "neg", lambda e: e["x"] >= 0, {"x": -5})  # P false ⇒ DECLINE-at-runtime
+    b = F2.adversarial_battery()
+    assert b["all_ok"], f"F2 battery failed: {b['failed']}"
+    print("PASS test_ac_f2_spec_declared (abs(x)→x UNDER `requires x>=0` z3-proved [not an identity without P]; ★ truth "
+          "runtime-checked/declarer-responsible, mode STATED [silent assumption rejected]; DECLINE-at-runtime when P "
+          "false [correct]; HARAN requires as acceleration contract; battery 6/6)")
+
+
+def test_ac_f3_partial():
+    """§AC FOLD 3 — partial fold: fold the foldable slice of a whole-loop DECLINE, leave the residual; prove slice==
+    original-slice AND slicing-preserves-semantics. ★ statement-level denominator, DISTINCT from whole-loop, never merged;
+    a missed dependency (residual reads the accumulator) rejected."""
+    import inputfold.partial_fold as F3
+    pf = F3.partial_fold([F3.Stmt("acc", {"s", "c"}, {"s"}, True, "accumulate"),
+                          F3.Stmt("io", {"x"}, {"_io"}, False, "io")], c_step=3)
+    assert pf.issued and pf.folded_stmts == ["acc"] and pf.residual_stmts == ["io"] and pf.statement_level_rate == 0.5
+    # ★ a residual that READS the accumulator s mid-loop ⇒ hazard ⇒ REJECT
+    assert not F3.partial_fold([F3.Stmt("acc", {"s", "c"}, {"s"}, True, "accumulate"),
+                               F3.Stmt("io_s", {"s"}, {"_io"}, False, "io")], c_step=3).issued
+    b = F3.adversarial_battery()
+    assert b["all_ok"], f"F3 battery failed: {b['failed']}"
+    print(f"PASS test_ac_f3_partial (accumulation folded + I/O residual kept; ★ statement-level rate "
+          f"{pf.statement_level_rate} DISTINCT from whole-loop, never merged; missed-dependency [residual reads "
+          "accumulator] REJECTED; slicing-preserves-semantics proved; battery 5/5)")
+
+
+def test_ac_f4_asymptotic():
+    """§AC FOLD 4 — asymptotic-only: reduce the ORDER, not the constant. Prefix-sum O(N²)→O(N) z3-proved EXACT. ★ ORDER
+    reduction, DISTINCT from closed-form (O(N)→O(1)); float convolution APPROX-ε (§AB universal bound), never EXACT."""
+    import inputfold.asymptotic_fold as F4
+    ps = F4.asymptotic_fold("prefix_sum")
+    assert ps.issued and ps.proved and ps.before_order == "O(N²)" and ps.after_order == "O(N)" and ps.is_order_reduction
+    assert ps.after_order != "O(1)"                                           # ★ not a closed-form fold
+    assert F4.asymptotic_fold("convolution", "float").grade == "APPROX-ε"     # float ⇒ APPROX-ε, never EXACT
+    assert F4.asymptotic_fold("convolution", "integer").grade == "EXACT"
+    b = F4.adversarial_battery()
+    assert b["all_ok"], f"F4 battery failed: {b['failed']}"
+    print("PASS test_ac_f4_asymptotic (prefix-sum O(N²)→O(N) z3-proved EXACT [order reduction, NOT O(1)]; float "
+          "convolution APPROX-ε [§AB universal bound, never EXACT] / integer-NTT EXACT; non-equivalent order rejected; "
+          "reported DISTINCT from closed-form; battery 5/5)")
+
+
+def test_ac_f5_recursive_and_report():
+    """§AC FOLD 5 — recursive: fold→simplify→re-fold to a fixpoint. ★ TERMINATES (well-founded strict progress + cap);
+    final z3-proved vs original (sum-preserving); ★ additive-not-multiplicative. Plus the §AC scoped-decomposition report
+    (each lift labeled by scope, never one inflated total; fallback audit; denominator audit; LLM-free; precision 1.0)."""
+    import inputfold.recursive_fold as F5
+    import inputfold.inputfold_report as R
+    rf = F5.recursive_fold([5, -5, 7, -7])
+    assert rf.terminated and rf.final_terms == [] and rf.folds_done == 2 and rf.progress_strict and rf.final_equals_original
+    m = F5.measure_recursive_lift([5, -5, 7, -7])
+    assert m["recursive_only_lift"] == 1 and m["fixpoint_folds"] == m["single_pass_folds"] + m["recursive_only_lift"]  # additive
+    # ── §AC scoped-decomposition report ──
+    rep = R.report()
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    sd = rep["scoped_decomposition"]
+    assert "NOT universal" in sd["F1_profile_under_W"]["scope"]               # F1 workload-scoped
+    assert sd["F2_spec_under_requires"]["mode"] == "runtime-checked"          # F2 mode stated
+    assert 0 < sd["F3_partial_statement_level"]["statement_level_rate"] < 1   # F3 statement-level distinct
+    assert sd["F4_asymptotic_order"]["after"] == "O(N)" and sd["F4_asymptotic_order"]["after"] != "O(1)"  # F4 order distinct
+    assert sd["F5_recursive_additive"]["recursive_only_lift"] >= 1            # F5 additive
+    assert rep["fallback_audit_F1"]["fallback_invariant_holds"]              # ★ fallback audit
+    assert rep["llm_free"]["llm_free"] and rep["llm_free"]["offenders"] == {}  # ★ LLM-free
+    assert rep["no_new_certificate_kind"] and rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_ac_f5_recursive_and_report (recursive [5,-5,7,-7]→[] in {rf.iterations} steps [strict progress + "
+          f"cap], final==original [sum-preserving z3-proved], ★ additive lift {m['recursive_only_lift']} [not "
+          "multiplicative]; §AC report: scoped decomposition [under-W / under-requires / statement-level / order / "
+          "additive], fallback audit, LLM-free, precision 1.0, zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

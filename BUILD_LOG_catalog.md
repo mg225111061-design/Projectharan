@@ -1329,3 +1329,48 @@ data-dependent control) — the pigeonhole/physics wall stands. EXACT undiluted;
 precision 1.0 / the proven bound across all four batteries. `test_catalog.py` **134/134** (+5 §AB), test_build **273×3**
 (foldaxes/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — LLM도 근사한다; 우리 근사는 정리지 표본이
 아니다(∀입력 ε 증명); 네 등급 네 숫자(EXACT·APPROX-ε·PROBABILISTIC·bypass), 단위별 분모 분리, 합산 없음, KV 불변(273 안전).
+
+## §AC — INPUT-AWARE & DEPTH-VARYING FOLDS: profile · spec · partial · asymptotic · recursive (the scoped decomposition)
+
+Every prior directive folded blind to the input. §AC breaks that two ways — we MEASURE the input distribution (profile)
+or the user DECLARES it (HARAN `requires`) — and varies the fold's DEPTH three ways (part of a loop; the asymptotic order;
+recursively to a fixpoint). All z3-verified where they claim soundness, all LLM-free, all honest about scope. New package
+`inputfold/` (never imported by test_build; zero deps, `forbidden_present == []`). No new certificate kind.
+
+**FOLD 1 — PROFILE-GUIDED** (`profile_fold.py`): a measured profile SELECTS which guard lands (turning synthesis into
+data-driven selection); REUSES §AA-W3/§X-P1 (the proof Φ⟹folded==original is unchanged — the profile only chooses Φ).
+★ THE FALLBACK INVARIANT (binding, verified): correctness NEVER depends on the profile — a guard-miss runs the ORIGINAL
+(correct, slower); even a 100%-wrong profile keeps every answer right, only speed drops. Measured: 90 folded / 10 fallback
+under a matching workload (hit-rate 0.9, all correct). ★ Scope: "under measured workload W," never universal.
+
+**FOLD 2 — SPEC-DECLARED** (`spec_fold.py`): fold under a user-declared HARAN `requires` precondition P, `P⟹folded==
+original` z3-proved (`prove_equiv_z3` assumptions=P) — zero synthesis cost, 100% hit where P holds (abs(x)→x UNDER
+`requires x≥0`, not an identity without P). ★ The declaration's truth is RUNTIME-CHECKED (P false ⇒ DECLINE-at-runtime,
+run the original — correct) OR the DECLARER'S RESPONSIBILITY (a contract); the mode is STATED, a silent assumption REJECTED.
+Perfect HARAN fit (`requires` as an acceleration contract).
+
+**FOLD 3 — PARTIAL** (`partial_fold.py`): fold the foldable SLICE of a whole-loop DECLINE, leave the residual
+(`for i: s+=c; io_write` → fold the accumulation, keep the I/O); prove slice==original-slice AND slicing-preserves-
+semantics (the slice independent of the residual — a residual that READS the accumulator mid-loop is REJECTED). ★ THE
+DENOMINATOR HONESTY: reported at a STATEMENT-LEVEL/fraction rate (1 of 2 = 0.5), DISTINCT from whole-loop, never merged.
+
+**FOLD 4 — ASYMPTOTIC-ONLY** (`asymptotic_fold.py`): reduce the ORDER, not the constant — prefix-sum O(N²)→O(N) z3-proved
+EXACT, naive convolution O(N²)→O(N log N) (EXACT under integer/NTT, APPROX-ε for float per §AB, never EXACT), linear scan
+O(N)→O(log N) under sortedness (composes with F2). ★ Reported as an ORDER-reduction rate, DISTINCT from closed-form
+(O(N)→O(1)), before/after order stated.
+
+**FOLD 5 — RECURSIVE** (`recursive_fold.py`): fold→simplify→re-fold to a FIXPOINT ([5,−5,7,−7] cancels [5,−5] which
+EXPOSES [7,−7] → [] in 2 iterations). ★ TERMINATION: a well-founded progress measure (term count) that STRICTLY decreases
+each iteration + a cap backstop. Each link proved; final z3-proved against the ORIGINAL (cancellation is value-preserving,
+∀x. x+(−x)==0). ★ Additive-not-multiplicative (per §AA-W2): the recursive lift = folds caught ONLY by iterating (fixpoint
+2 − single-pass 1 = 1), never a multiplicative claim.
+
+**COMPOSE + measure** (`inputfold_report.py`, MEASURED): the SCOPED decomposition — baseline → +profile-under-W →
++spec-under-`requires` → +partial-statement-level → +asymptotic-order → +recursive-additive, each labeled by its scope and
+denominator, NEVER one inflated total. ★ The fallback audit (every profile fold has a sound fallback), the HARAN-fit note
+(`requires` as contract, mode stated), the denominator audit (partial statement-level, asymptotic order-reduction —
+distinct from closed-form). The measured real ceiling: the remainder under the actual workload is genuine I/O / randomness
+/ data-dependent control (the pigeonhole wall stands). LLM-free (AST-verified); precision **1.0** / the stated grade across
+all five batteries; no new certificate kind. `test_catalog.py` **139/139** (+5 §AC), test_build **273×3** (inputfold/ not
+imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 입력을 측정하거나 선언받고, fold 깊이를 부분·차수·고정점으로
+변주한다; 프로파일은 정확성 불침범, spec은 P 하에서만, 부분은 문장단위, 점근은 차수, 재귀는 가산; 범위 항상 명시, 합산 없음.
