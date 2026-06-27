@@ -70,6 +70,14 @@ def detect(src: str) -> KV.Verdict:
             return v
     except Exception:  # noqa: BLE001
         pass
+    # 3.5) P3 holonomic-sum face of ⑬: nested 2-variable definite sums Σ_k F(n,k) (binomial / DP-fill)
+    try:
+        import catalog.holonomic_sum as HS
+        v = HS.holonomic_sum_grade(src, label="recall_detect")
+        if v.status == KV.EXACT:
+            return v
+    except Exception:  # noqa: BLE001
+        pass
     # 4) P1 black-box on the whole function (representational disguise: recursion/closure/CPS/…)
     try:
         import catalog.blackbox_fallback as BB

@@ -3031,6 +3031,35 @@ def test_recall_p2_lazy_decline():
           "precision 1.0, no 23rd kind)")
 
 
+def test_recall_p3_holonomic_sum():
+    """§P P3 — Zeilberger holonomic-sum FACE of ⑬ (recall, existing kind): the nested 2-variable definite sum
+    a(n)=Σ_k F(n,k) (binomial sums / DP-table fills) that the 1-variable lifter declines is RECOGNIZED and routed to
+    the EXISTING Zeilberger WZ creative-telescoping engine — a P-recursive recurrence proved by an EXACT WZ polynomial
+    identity (cert kind `zeilberger_telescoping`, no 23rd kind). ★ Precision: a 1-variable body (the lifter's job) and
+    a non-holonomic summand (2^(k²)) DECLINE."""
+    import kernel_verdict as KV
+    import catalog.holonomic_sum as HS
+    for code in ("for k in range(n+1):\n    s += binomial(n, k)",
+                 "for k in range(n+1):\n    s += binomial(n, k)**2",
+                 "for j in range(n+1):\n    s += math.comb(n, j)"):
+        v = HS.holonomic_sum_grade(code)
+        assert v.status == KV.EXACT and v.certificate.kind == "zeilberger_telescoping", (code, v.status)
+        assert v.result["order"] >= 1 and "S(n+" in v.result["recurrence"]
+    # ★ precision: a 1-variable body → DECLINE (handled by the lifter, not this face); non-holonomic → DECLINE
+    assert HS.holonomic_sum_grade("for k in range(n+1):\n    s += k*k").status == KV.DECLINE
+    assert HS.holonomic_sum_grade("for k in range(n+1):\n    s += 2**(k**2)").status == KV.DECLINE
+    # asymptotic collapse measured (op-count): O(N²) naive vs O(N) recurrence
+    oc = HS.naive_vs_recurrence_opcount("binomial(n,k)**2", N=200)
+    assert oc["naive_summand_evals"] > 50 * oc["recurrence_steps"] and oc["order"] == 1
+    # routed through the augmented detector
+    import catalog.recall_detect as RD
+    assert RD.detect("for k in range(n+1):\n    s += binomial(n, k)**2").certificate.kind == "zeilberger_telescoping"
+    print(f"PASS test_recall_p3_holonomic_sum (nested hypergeometric sums [C(n,k), C(n,k)², math.comb] fold via the "
+          f"Zeilberger ⑬-FACE with WZ certificate; 1-variable + non-holonomic [2^(k²)] DECLINE; asymptotic O(N²)→O(N) "
+          f"measured [{oc['naive_summand_evals']} naive evals vs {oc['recurrence_steps']} recurrence steps]; "
+          "precision 1.0, no 23rd kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
