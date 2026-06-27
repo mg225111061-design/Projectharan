@@ -3731,6 +3731,95 @@ def test_x_third_path_paradigms():
           f"fixed backend +0.0 [shapes absent, honest]; NO new certificate kind; precision 1.0; zero-dep)")
 
 
+def test_y_tropical_lens():
+    """§Y LENS 1 — tropical / idempotent-semiring fold: max/min/+ loops are NOT linear over a field but ARE linear over
+    (ℝ∪{−∞}, max, +), foldable by the z3-proved max-plus closed form / tropical matrix power. ★ THE IEEE-754 HONESTY:
+    the proof holds over ℝ/ℤ; a float fold may diverge from IEEE-754 accumulation ⇒ EXACT only for integer/rational,
+    DECLINED for float (never emitted real-only). Issues the EXISTING linear-recurrence kind — no 23rd mechanism."""
+    import altlens.tropical_fold as L1
+    # scalar max-plus x←max(x+c,d): z3 ∀-proved for c≥0 integers (EXACT); the c<0 regime is DECLINED
+    ok = L1.maxplus_scalar(3, 5, "integer")
+    assert ok.issued and ok.arithmetic == "integer" and ok.mechanism == "linear_recurrence"
+    assert not L1.maxplus_scalar(-2, 5, "integer").issued                    # c<0 ⇒ different regime ⇒ DECLINE
+    # ★ float operands ⇒ real-only ⇒ DECLINED (the soundness does not transfer to IEEE-754) — never emitted
+    flt = L1.maxplus_scalar(3, 5, "float")
+    assert (not flt.issued) and flt.arithmetic == "real-only(DECLINED)"
+    # issued≠applied: applied at an integer callsite, NOT at a float callsite (the honest restriction)
+    assert L1.apply_scalar(ok, "int_hot", 100000, "integer") and not L1.apply_scalar(ok, "flt", 100000, "float")
+    assert ok.applied_callsites == ["int_hot"] and ok.skipped_callsites == ["flt"]
+    # tropical matrix power == n-fold loop (sound by semiring associativity) — a real differential check
+    A = [[0, 2], [L1.NEG_INF, 1]]
+    step = lambda st: [max(A[i][k] + st[k] for k in range(2) if A[i][k] != L1.NEG_INF) for i in range(2)]
+    assert L1.verify_matrix_extraction(A, [0, 0], step)
+    b = L1.adversarial_battery()
+    assert b["all_ok"], f"tropical battery failed: {b['failed']}"
+    print("PASS test_y_tropical_lens (max-plus x←max(x+c,d) z3 ∀-proved EXACT over ℤ for c≥0; c<0 DECLINED; "
+          "★ float ⇒ real-only ⇒ DECLINED [IEEE-754 honesty, applied int-only]; tropical matrix-power == n-fold "
+          "[associativity]; existing linear-recurrence kind; adversarial battery 5/5)")
+
+
+def test_y_lattice_lens():
+    """§Y LENS 4 — bounded lattice-height fixpoint fold (Knaster–Tarski): a MONOTONE update over a finite-height lattice
+    reaches its fixpoint in ≤h steps, so n≫h folds O(n)→O(h). ★ The trap: monotonicity must be z3-PROVED, not assumed —
+    a single non-monotone op (~/−/data-branch) MUST DECLINE. Issues the EXISTING kind; the analysis is new, not the kind."""
+    import altlens.lattice_fold as L4
+    W = 8
+    full = (1 << W) - 1
+    # monotone + extensive (ascending) bit-propagation ⇒ fixpoint in ≤W steps ⇒ folds
+    lf = L4.lattice_fold(lambda x: x | ((x << 1) & full), W)
+    assert lf.issued and lf.height == W and lf.mechanism == "linear_recurrence"
+    # monotone + co-extensive (descending) mask ⇒ also folds
+    assert L4.lattice_fold(lambda x: x & 0b10101010, W).issued
+    # ★ non-monotone complement (~x) ⇒ DECLINE (no fixpoint guarantee) — proved, not assumed
+    assert not L4.lattice_fold(lambda x: (~x) & full, W).issued
+    # issued≠applied: applied where n≥height, original kept where n<height
+    assert L4.apply_at_callsite(lf, "n_1000", 1000) and not L4.apply_at_callsite(lf, "n_3", 3)
+    assert lf.applied_callsites == ["n_1000"] and lf.skipped_callsites == ["n_3"]
+    b = L4.adversarial_battery()
+    assert b["all_ok"], f"lattice battery failed: {b['failed']}"
+    print("PASS test_y_lattice_lens (monotone+extensive bit-reachability folds O(n)→O(h=8) by Knaster–Tarski, z3-proved; "
+          "monotone+co-extensive mask folds; ★ non-monotone ~x DECLINED [monotonicity proved not assumed]; "
+          "issued≠applied [n≥height applied, n<height kept]; existing kind; adversarial battery 5/5)")
+
+
+def test_y_galois_lens():
+    """§Y LENS 5 — exact semantic quotient via Galois connection: a computation EXACTLY encoded by a small finite domain
+    cycles within |D| states, folding O(n)→O(|D|). ★ Only the EXACT abstraction (α∘f==f#∘α z3-proved) folds; an
+    over-approximation (sign-of-x−1) is DECLINED; ★ the power-of-two-modulus QF_BV overlap is SUBTRACTED (not
+    double-counted); ★ a |D|-blowup is DECLINED. Plus the §Y composition report under the §X two honesties."""
+    import altlens.galois_fold as L5
+    import altlens.altlens_report as R
+    # exact ℤ/7ℤ affine orbit (non-power-of-two, small) ⇒ issued; the orbit fold reproduces the long way (differential)
+    gf = L5.galois_modular_fold(3, 1, 7)
+    assert gf.issued and gf.period is not None and gf.mechanism == "linear_recurrence"
+    assert L5.verify_orbit_fold(3, 1, 7, 5)                                   # folded f#^n == α(f^n) for sample n
+    # ★ power-of-two modulus ⇒ QF_BV overlap ⇒ DECLINED (not a new Galois fold)
+    pow2 = L5.galois_modular_fold(3, 1, 8)
+    assert (not pow2.issued) and "QF_BV" in pow2.detail
+    # ★ |D|-blowup ⇒ no speedup ⇒ DECLINED
+    assert not L5.galois_modular_fold(3, 1, 1_000_003).issued
+    # ★ sign abstraction of x−1 is an over-approximation ⇒ exactness must FAIL ⇒ DECLINE
+    alpha, fc, fa = L5._sign_abstraction_candidate()
+    assert not L5.prove_exact_abstraction(alpha, fc, fa, sort="Int")
+    assert L5.adversarial_battery()["all_ok"]
+    # ── §Y composition report: precision 1.0 across all three batteries; the two §X honesties measured; no new kind ──
+    rep = R.report()
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    sc = rep["shaped_corpus"]
+    assert sc["issued"] > sc["applied"] >= sc["speedup"]                      # issued≠applied AND applied≠speedup
+    assert sc["issued_but_unapplied"] >= 1 and 0 < sc["applied_fold_rate"] < 1 and sc["speedup_rate"] <= sc["applied_fold_rate"]
+    # tropical is the LARGEST contributor; lattice/galois are small (the honest shape)
+    per = rep["per_lens"]
+    assert per["L1_tropical"]["applied"] >= per["L4_lattice"]["applied"] and per["L1_tropical"]["applied"] >= per["L5_galois"]["applied"]
+    assert rep["no_new_certificate_kind"] and set(rep["routed_mechanisms"]) <= {"linear_recurrence", "matrix_recurrence"}
+    assert rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_y_galois_lens (exact ℤ/7ℤ affine orbit folds O(n)→O(|D|), differential-sound; ★ power-of-two ⇒ "
+          f"QF_BV overlap SUBTRACTED; ★ |D|-blowup DECLINED; ★ sign-of-x−1 over-approx DECLINED; §Y report: precision "
+          f"1.0, issued {sc['issued']} > applied {sc['applied']} ≥ speedup {sc['speedup']} [§X two honesties], tropical "
+          f"largest, NO new kind [22 mech / 14 kinds], zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

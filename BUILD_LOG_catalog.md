@@ -1139,3 +1139,52 @@ unrefuted. ★ Precision **1.0** across all five adversarial batteries (every un
 stride REJECTED); ★ NO new certificate kind (routes to linear_recurrence / matrix_recurrence). `test_catalog.py`
 **118/118** (+1 §X), test_build **273×3** (thirdpath/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상
 옳다 — 22가 닿는 곳을 넓힐 뿐 접을 수 있는 것을 넓히지 않고, 적용된 fold만 세고, fold율과 가속을 분리한다.
+
+## §Y — ALTERNATIVE-LENS FOLD: tropical semiring · lattice fixpoint · exact Galois quotient (new axes, no 23rd mechanism)
+
+The 22 mechanisms see structure through standard-field linearity. §Y adds three genuinely-new LENSES, each measuring code
+on an axis the 22 miss — **algebra**, **order**, **equivalence-class** — and folding code that DECLINEs under them. No
+23rd mechanism: every lens issues the EXISTING EXACT verdict and routes to `linear_recurrence`. New package `altlens/`
+(never imported by test_build; zero deps, `forbidden_present == []`); z3-gated end to end. ★ The §X two honesties are
+INHERITED: (1) **issued ≠ applied** — a lens fold counts toward the rate ONLY when actually applied at a real callsite;
+(2) **fold-rate ≠ speedup** — reported separately.
+
+**LENS 1 — TROPICAL / idempotent semiring** (`tropical_fold.py`, the strongest): max/min/+ loops (DP, Bellman-Ford,
+shortest-path, scheduling, bottleneck) are NOT linear over a field — so they DECLINE under the 22 — but over the
+idempotent semiring (ℝ∪{−∞}, ⊕=max, ⊗=+) they ARE linear, foldable by the max-plus closed form / tropical matrix power.
+The scalar recurrence `x←max(x+c,d)` folds to `max(x0+n·c, d+(n−1)·c)`, **z3 ∀-proved by induction** (base + step, c≥0).
+Tropical matrix power by repeated squaring equals the n-fold loop, sound by semiring ASSOCIATIVITY (no per-n proof).
+★ THE IEEE-754 HONESTY: the closed form is proved over ℝ/ℤ exactly; for float operands a real-valued max-plus form may
+diverge from IEEE-754 accumulation — so the sound fold is restricted to **integer/rational (EXACT)** or **DECLINED for
+float** (unless an FPSort proof is supplied, out of scope here); the certificate NAMES the arithmetic model. Never emit a
+real-only float fold.
+
+**LENS 4 — BOUNDED LATTICE-HEIGHT FIXPOINT** (`lattice_fold.py`, Knaster–Tarski, the order lens): a MONOTONE update over
+a finite-height lattice reaches its fixpoint in ≤h steps (h = lattice height), so n≫h folds O(n)→O(h); for a 64-bit
+bitset, h=64 → O(1). Over the bitset lattice ({0,1}^k, ⊆), z3 proves (a) f MONOTONE (x⊑y ⟹ f(x)⊑f(y)), (b) the iterate
+chain stabilizes (f extensive x⊑f(x) — ascending — or co-extensive — descending), (c) the height bound f^h==f^{h+1}.
+★ The trap: monotonicity must be PROVED, not assumed — a single non-monotone op (−, ~, a data-dependent branch) breaks it
+and MUST DECLINE.
+
+**LENS 5 — EXACT SEMANTIC QUOTIENT via GALOIS connection** (`galois_fold.py`, the equivalence-class lens): a computation
+EXACTLY encoded by a small finite abstract domain D (α: Concrete↠D) cycles within |D| states (pigeonhole), folding
+O(n)→O(|D|)≈O(1). Canonical domain ℤ/mℤ under an affine map x←a·x+b. z3 proves the abstraction is **EXACT** — the diagram
+commutes, `∀x. α(f(x)) == f#(α(x))`. ★ Only the exact quotient folds; an over-approximation (α(f(x)) ⊒ f#(α(x)) — the
+abstract result is a SET not a point, e.g. sign-of-x−1: α(+)∈{+,0}) would be UNSOUND ⇒ DECLINE. ★ A |D|-blowup (large
+modulus) ⇒ no speedup ⇒ DECLINE. ★ The power-of-two-modulus overlap with QF_BV (`x mod 2^k == x & (2^k−1)`, already
+folded by the existing bitvector machinery) is **SUBTRACTED** — declined here so the lens's added fold rate is not
+double-counted.
+
+**COMPOSE + measure** (`altlens_report.py`, MEASURED): on a lens-shaped callsite corpus — **issued 7, applied 6,
+speedup 5** (the two honesties separated: 1 issued-but-unapplied = the float tropical callsite honestly NOT applied).
+Per-lens attribution: **tropical LARGEST** (3 applied — max/min/+ loops are common), lattice and galois SMALL (the honest
+shape). The directive's per-lens estimates (~+1.0 / +0.3 / +0.5 percentage points) are for lens-SHAPED code; on the FIXED
+PRODUCTION_BACKEND_CORPUS_v1 (the 5.7% baseline) the added APPLIED fold rate is **~0** — generic backend I/O/CRUD/
+control-flow rarely contains a hot exact-arithmetic max-plus recurrence, a monotone finite-lattice loop, or an exact
+non-power-of-two modular orbit (honest, not a flattering frequency claim). The pigeonhole wall is absolute — none folds
+the truly random; the ~15% ceiling is unrefuted (these lenses widen the reachable structure, they do not break the wall).
+★ Precision **1.0** across all three adversarial batteries (every c<0 / float / non-monotone / over-approx / |D|-blowup /
+QF_BV-overlap case REJECTED); ★ NO new certificate kind (22 mechanisms / 14 kinds unchanged; routes to
+linear_recurrence). `test_catalog.py` **121/121** (+3 §Y, one per lens), test_build **273×3** (altlens/ not imported). No
+new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 세 렌즈는 22가 못 보는 구조를 새 축에서 볼 뿐, 접을 수 없는 것을
+접지 않는다; float 열대는 DECLINE, 갈루아↔QF_BV 중복은 차감, 적용된 fold만 세고 가속과 분리한다.
