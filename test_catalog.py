@@ -4211,6 +4211,123 @@ def test_ac_f5_recursive_and_report():
           "additive], fallback audit, LLM-free, precision 1.0, zero-dep)")
 
 
+def test_ad_gap1_mutual_recursion():
+    """§AD GAP 1 — k≥3 mutual recursion → one k×k companion matrix → matrix power (O(N)→O(log N)), EXACT. Sound by the
+    companion homomorphism + differential extraction check; a nonlinear system is rejected."""
+    import gapfold.mutual_recursion as G1
+    M3 = [[0, 1, 1], [1, 0, 0], [1, 1, 0]]
+    f3 = G1.mutual_fold(M3, [1, 1, 1], lambda s: [s[1] + s[2], s[0], s[0] + s[1]])
+    assert f3.issued and f3.k == 3 and f3.extraction_verified
+    assert not G1.mutual_fold(M3, [1, 1, 1], lambda s: [s[0] * s[0] + s[1], s[0], s[0]]).issued   # nonlinear rejected
+    assert G1.mat_pow([[1, 1], [1, 0]], 10)[0][0] == 89                       # Fib(11) via the reused matrix-power
+    assert G1.adversarial_battery()["all_ok"]
+    print("PASS test_ad_gap1_mutual_recursion (3-way linear system → 3×3 companion matrix-power fold, extraction "
+          "verified, EXACT; nonlinear rejected; Fib(11)=89; reuses matrix-power; battery 4/4)")
+
+
+def test_ad_gap2_divide_conquer():
+    """§AD GAP 2 — divide-and-conquer T(n)=a·T(n/b)+f(n) → Master/Akra-Bazzi asymptotic order. ★ order-not-value
+    honesty; a non-Master recurrence rejected."""
+    import gapfold.divide_conquer as G2
+    assert G2.divide_conquer_fold(2, 2, 1).case == 2                          # merge-sort Θ(n log n)
+    assert "1.585" in G2.divide_conquer_fold(3, 2, 1).order                   # Karatsuba Θ(n^1.585)
+    assert "log n" in G2.divide_conquer_fold(1, 2, 0).order                   # binary search Θ(log n)
+    assert not G2.master_theorem(2, 1, 1).issued                             # b=1 ⇒ not Master ⇒ DECLINE
+    assert G2.divide_conquer_fold(2, 2, 1).grade == "asymptotic-order"        # ★ order, not value
+    assert G2.adversarial_battery()["all_ok"]
+    print("PASS test_ad_gap2_divide_conquer (Master/Akra-Bazzi: merge-sort Θ(n log n), Karatsuba Θ(n^1.585), binary "
+          "search Θ(log n); ★ asymptotic-ORDER not value; non-Master rejected; reuses §AC-F4; battery 6/6)")
+
+
+def test_ad_gap3_nested_sums():
+    """§AD GAP 3 — nested polynomial sums → multivariate Faulhaber (product of z3-proved power sums), EXACT,
+    O(Nᵏ)→O(1). Non-polynomial/non-separable rejected."""
+    import gapfold.nested_sums as G3
+    assert G3.nested_sum_fold("ij").issued and G3.nested_sum_fold("ij").depth == 2
+    assert G3.nested_sum_fold("ijk").depth == 3
+    assert not G3.nested_sum_fold("harmonic_ij").issued                       # non-polynomial ⇒ DECLINE
+    assert G3.prove_power_sum(1) and G3.prove_power_sum(2) and G3.prove_power_sum(3)
+    assert G3.adversarial_battery()["all_ok"]
+    print("PASS test_ad_gap3_nested_sums (ΣᵢΣⱼ i·j → (Σi)(Σj), triple nest → (Σi)³; power sums z3-proved; "
+          "non-polynomial declined; EXACT O(Nᵏ)→O(1); reuses Faulhaber; battery 6/6)")
+
+
+def test_ad_gap4_structured_data():
+    """§AD GAP 4 — grey-zone condition classification: structured (periodic/monotone) folds under PROVABLE/declared
+    structure; ★ genuine data-dependence DECLINED, structure never forced (conservative)."""
+    import gapfold.structured_data as G4
+    assert G4.structured_data_fold("mod_index", k=4).issued                   # periodic index, data-independent
+    assert G4.structured_data_fold("compare_neighbor", structure_declared=True).issued       # under sortedness
+    assert not G4.structured_data_fold("compare_neighbor", structure_declared=False).issued  # ★ conservative DECLINE
+    assert not G4.structured_data_fold("compare_const").issued                # ★ pure data-dependent DECLINE
+    assert G4.adversarial_battery()["all_ok"]
+    print("PASS test_ad_gap4_structured_data (periodic index folds [data-independent]; neighbor-compare folds ONLY "
+          "under declared sortedness, DECLINEs without; ★ pure data-dependence DECLINED, structure never forced; battery 6/6)")
+
+
+def test_ad_gap5_simplify_fold():
+    """§AD GAP 5 — deep cancellation: simplify-before-fold exposes post-cancellation structure ((x+1)²−x²−2x−1→0),
+    z3-proved equivalent; ★ non-equivalent rejected; float declined."""
+    import gapfold.simplify_fold as G5
+    z = G5.simplify_fold("(x+1)**2 - x**2 - 2*x - 1", ["x"], "integer")
+    assert z.issued and z.simplified == "0" and z.cancellation_depth > 0 and z.proved
+    assert not G5.simplify_fold("(x+1)**2 - x**2 - 2*x - 1", ["x"], "float").issued    # ★ float declined
+    assert G5.adversarial_battery()["all_ok"]
+    print(f"PASS test_ad_gap5_simplify_fold (deep cancellation (x+1)²−x²−2x−1 → 0 [depth {z.cancellation_depth}], "
+          "z3-proved equivalent; non-equivalent rejected; float declined; reuses §AA-W1; battery 5/5)")
+
+
+def test_ad_gap6_float_exact():
+    """§AD GAP 6 — the float-exact subset: x*2.0 / power-of-two scaling folds EXACT (z3 IEEE-754 bit-exact); ★ EXACT
+    only when proved — x*3.0 NOT promoted (stays APPROX-ε/DECLINE), no silent promotion."""
+    import gapfold.float_exact as G6
+    assert G6.float_exact_fold(2.0).issued and G6.float_exact_fold(2.0).grade == "EXACT"
+    assert G6.float_exact_fold(4.0).issued                                    # power of two
+    assert not G6.float_exact_fold(3.0).issued                                # ★ not bit-exact ⇒ not promoted
+    assert not G6.float_exact_fold(1.1).issued
+    assert G6.adversarial_battery()["all_ok"]
+    print("PASS test_ad_gap6_float_exact (x*2.0/x*4.0 fold EXACT [z3 IEEE-754 bit-exact via rounding-mode independence]; "
+          "★ x*3.0/x*1.1 NOT promoted to EXACT [stay APPROX-ε/DECLINE, no silent promotion]; battery 6/6)")
+
+
+def test_ad_gap7_large_state():
+    """§AD GAP 7 — large-but-bounded state folds via STRUCTURE (32-bit affine LCG via QF_BV/matrix-power, no
+    enumeration), EXACT; ★ a nonlinear large-state transition DECLINED (structure never assumed)."""
+    import gapfold.large_state as G7
+    fa = G7.large_state_fold(lambda x: (1103515245 * x + 12345), 32)
+    assert fa.issued and fa.affine and fa.fold_verified and "WITHOUT enumerating" in fa.detail
+    assert not G7.large_state_fold(lambda x: x * x + 1, 32).issued            # ★ nonlinear ⇒ DECLINE
+    assert G7.adversarial_battery()["all_ok"]
+    print("PASS test_ad_gap7_large_state (32-bit affine LCG folds via QF_BV/matrix-power structure, NO enumeration of "
+          "2^32, z3-proved EXACT; ★ nonlinear large state DECLINED [structure never assumed]; battery 5/5)")
+
+
+def test_ad_gap8_loop_fusion_and_report():
+    """§AD GAP 8 — consecutive-loop fusion: producer-consumer loops fuse → s=Σf(i) → closed form, z3-proved; ★ aliasing/
+    intervening write rejected. Plus the §AD report: before 0 → after 8/8, no-forcing audit, LLM-free, precision 1.0."""
+    import gapfold.loop_fusion as G8
+    import gapfold.gapfold_report as R
+    g = G8.fuse_and_fold("a", "a", set(), (2, 3))
+    assert g.issued and g.fusion_sound and g.fold_proved and "n(n+1)/2" in g.fused_closed_form
+    assert not G8.fuse_and_fold("a", "a", {"a"}, (2, 3)).issued               # ★ intervening write ⇒ DECLINE
+    assert not G8.fuse_and_fold("a", "b", set(), (2, 3)).issued               # consumer reads different array ⇒ DECLINE
+    assert G8.adversarial_battery()["all_ok"]
+    # ── §AD report: the eight structure holes patched ──
+    rep = R.report()
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    ba = rep["before_after"]
+    assert ba["before_folds"] == 0 and ba["after_folds"] == 8 and ba["corpus_size"] == 8   # before/after
+    nf = rep["no_forcing_audit"]
+    assert nf["G4_data_dependence_declined"] and nf["G6_inexact_float_not_promoted"] and nf["G7_unstructured_large_declined"]
+    assert rep["llm_free"]["llm_free"] and rep["no_new_certificate_kind"]
+    assert rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_ad_gap8_loop_fusion_and_report (producer-consumer fuses → s=Σf(i) closed form z3-proved; ★ "
+          f"aliasing/intervening-write & non-consuming rejected; §AD report: before {ba['before_folds']} → after "
+          f"{ba['after_folds']}/{ba['corpus_size']}, ★ no-forcing audit [G4/G6/G7 decline unstructured], LLM-free, "
+          "NO new kind [22/14], precision 1.0, zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

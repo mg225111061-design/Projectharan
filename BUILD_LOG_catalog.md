@@ -1374,3 +1374,40 @@ distinct from closed-form). The measured real ceiling: the remainder under the a
 all five batteries; no new certificate kind. `test_catalog.py` **139/139** (+5 §AC), test_build **273×3** (inputfold/ not
 imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 입력을 측정하거나 선언받고, fold 깊이를 부분·차수·고정점으로
 변주한다; 프로파일은 정확성 불침범, spec은 P 하에서만, 부분은 문장단위, 점근은 차수, 재귀는 가산; 범위 항상 명시, 합산 없음.
+
+## §AD — EIGHT STRUCTURE-EXISTS-BUT-UNFOLDED GAPS: finish the machine (real structure the detector missed)
+
+Not new structures or new ways to count — eight EXACT HOLES where established-math structure genuinely exists but our
+detector/closed-form machinery wasn't built. These are CURRENTLY-unfoldable (a missing detector), NOT principled-impossible
+(genuine I/O / randomness / data-dependent control — forever-unfoldable). New package `gapfold/` (never imported by
+test_build; zero deps, sympy grandfathered for GAP 5; `forbidden_present == []`). No new certificate kind (22 mech / 14
+kinds unchanged); LLM-free (AST-verified).
+
+**GAP 1 — multi-way mutual recursion** (`mutual_recursion.py`): k≥3 entangled linear recurrences → one k×k companion
+matrix → matrix power O(N)→O(log N) (we folded 2-way; missed k≥3 from a detection gap). Sound by the companion
+homomorphism (associativity) + a differential extraction check; nonlinear rejected. **GAP 2 — divide-and-conquer**
+(`divide_conquer.py`): T(n)=a·T(n/b)+f(n) → Master theorem / Akra-Bazzi (merge-sort Θ(n log n), Karatsuba Θ(n^1.585),
+binary search Θ(log n)); ASYMPTOTIC-ORDER (per §AC-F4), order-not-value honesty; non-Master rejected. **GAP 3 — deep
+nested sums** (`nested_sums.py`): ΣᵢΣⱼ i·j → (Σi)(Σj), triple → (Σi)³ via multivariate Faulhaber (one-var power sums z3
+∀-proved, separable product), EXACT O(Nᵏ)→O(1); non-polynomial rejected.
+
+**GAP 4 — structured-data conditions** (`structured_data.py`, the grey zone): classify pure-data-dependent (DECLINE) vs
+structured (i%k==0 periodic data-independent; arr[i]>arr[i-1] under declared sortedness); ★ conservative — genuine
+data-dependence DECLINED, structure never forced. **GAP 5 — deep algebraic cancellation** (`simplify_fold.py`): simplify
+before fold ((x+1)²−x²−2x−1→0, depth 7), z3-proved equivalent (reuse §AA-W1), then fold; non-equivalent rejected, float
+declined. **GAP 6 — the float-exact subset** (`float_exact.py`): x·2.0 / power-of-two scaling fold EXACT (z3 IEEE-754
+bit-exact via rounding-mode independence); ★ EXACT only when proved — x·3.0 NOT promoted (stays APPROX-ε/DECLINE), no
+silent promotion. **GAP 7 — large-but-bounded state** (`large_state.py`): a 32-bit affine LCG folds via QF_BV/matrix-power
+STRUCTURE, never enumerating 2^32; ★ nonlinear large state DECLINED (structure never assumed). **GAP 8 — consecutive-loop
+fusion** (`loop_fusion.py`): producer-consumer loops (a[i]=f(i); s+=a[i]) fuse → s=Σf(i) → closed form (Faulhaber,
+z3-proved); ★ aliasing / intervening write rejected.
+
+**COMPOSE + measure** (`gapfold_report.py`, MEASURED): on a gap-shaped corpus, BEFORE §AD = **0** folds (the
+detector/closed-form machinery wasn't built), AFTER = **8/8** (each established-math structure folds, EXACT where it
+applies — G2 asymptotic-order, G6's non-bit-exact float stays APPROX-ε/DECLINE). ★ The no-forcing audit (GAP 4/6/7 decline
+the genuinely-unstructured). ★ The now-SMALLER real ceiling: the remainder is the principled-impossible (genuine I/O /
+randomness / data-dependent control) — the honest payoff of distinguishing currently-unfoldable from forever-unfoldable.
+The big three (divide-and-conquer, nested sums, fusion) are the broadest. Precision **1.0** across all eight batteries;
+NO new certificate kind. `test_catalog.py` **147/147** (+8 §AD), test_build **273×3** (gapfold/ not imported). No new
+dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 기계를 완성한다: 늘 있던 구조를 접고, 8개 구멍을 패치한 뒤 잔여가 물리·정보
+이론이 금하는 영원-불가능(진짜 I/O·무작위·데이터의존)임을 측정으로 증명한다.
