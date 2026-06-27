@@ -934,3 +934,47 @@ speculation, affecting writes, byte-differing / non-deterministic dedup) is **10
 unsound I/O optimizations applied. I/O-count reduction = measured; wall-clock latency = modeled-pending-deployment,
 never presented as production. `test_catalog.py` **103/103**, test_build **273×3** isolated (accel/ not imported by
 test_build). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 물리적 I/O는 못 빠르게 하지만, 증명된 만큼 덜 한다.
+
+## §R — CONDITIONAL VERIFIED SECURITY: the LLM decides the NEED, the verifier proves the FACT (Phases 1–5)
+
+The principle that makes verified security *usable*: apply it where it is needed, and **nowhere else**. The LLM is
+the GATE — it judges, with world-knowledge, whether code is security-sensitive (secrets, PII, auth, crypto, or
+untrusted input reaching a sensitive sink). The verifier is the JUDGE — only when the gate says SENSITIVE does the
+verified layer turn on and PROVE vulnerability-absence, or flag it honestly. **"Safe" is claimed ONLY when proved; a
+wrongly-cleared vuln is a correctness violation that FAILS the build.** When the gate says NOT-SENSITIVE the layer
+stays entirely OFF and the code is byte-identical — **zero overhead, measured, not asserted** (applying security where
+it is not needed is itself the defect). New modules under `security/`; never imported by test_build; zero new deps
+(`forbidden_present == []`). Revives `ct_certifier` (anti-KyberSlash lineage) and points it at general LLM-written code.
+
+**PHASE 1 — the LLM sensitivity gate (`llm_gate.py`).** Asks the focused NEED question (not "is it secure" — that is
+the verifier's job). SENSITIVE → layer on for the flagged parts; NOT-SENSITIVE → layer fully OFF; uncertain/malformed
+→ conservative SENSITIVE (analysis only, never auto-harden). ★ HONEST CLOCK: LLM egress is BLOCKED here, so the gate
+falls back to a conservative STATIC HEURISTIC (secret/PII/auth identifiers, crypto APIs, untrusted→sink flows, and
+sinks fed by a dynamically-built string) and labels its verdict **"heuristic — NOT the LLM's world-knowledge
+judgment"**, never presenting the fallback as the LLM. **PHASE 2 — logical-vuln verification (`logical_vulns.py`).**
+Static (zero runtime overhead) — runs even on NOT-SENSITIVE code as analysis. Each class PROVEN_ABSENT (z3/exact) or
+FLAGGED-with-location: bounds (guarded `range(len())` / const index proven; else flagged), injection (parameterized /
+constant sink proven; concatenated/f-string sink flagged), integer overflow (**reuses the QF_BV / Int-range proof** —
+SAT⇒flag, UNSAT⇒proven), memory (use-after-del / None-deref), race (**reuses the B-engine conflict analysis** —
+disjoint read/write ⇒ race-free). **PHASE 3 — side-channel verification (`sidechannel.py`, SENSITIVE only).** The part
+no LLM can perceive, on two composing axes: **3A thermodynamic** — constant-time taint proves NO secret-dependent
+branch / memory-index / variable-time `/`·`%` (the KyberSlash class) / loop-bound ⇒ CT_PROVEN, else a concrete leak;
+**3B statistical** — t-probing security over GF(2): secure ⟺ no t-subset of intermediates spans the secret (the
+randoms always leave an unobserved cancel). A timing leak is NOT closeable by masking (needs constant-time); honest
+level is **source-IR — binary-level NOT covered** (a compiler may introduce leaks: Binsec/Rel). **PHASE 4 —
+conditional hardening (`hardening.py`).** Applies ONLY when (gate SENSITIVE) AND (hardened source CT_PROVEN) AND
+(differential-equivalent on every battery input): a secret-branch select → branchless `(a&m)|(b&~m)`, with the
+Clock-C latency cost **MEASURED and disclosed honestly**. ★ Gate-BINDING: NOT-SENSITIVE code is never hardened (the
+overhead defect); a result-CHANGING fix or one that still leaks is REJECTED.
+
+**PHASE 5 + capstone (`overhead_report.py`, `security_report.py`, MEASURED).** Phase 5 proves the other half of the
+thesis: NOT-SENSITIVE code is **byte-identical and runs at native speed** (Clock-C ratio ≈1.0, structural zero
+overhead — Phases 3–4 never run), while the SAME layer on SENSITIVE+flagged code DOES harden and pays its measured
+cost — overhead where needed, **nowhere else**. The capstone proves the whole contract over a labeled adversarial
+corpus and the ONE binding number: **PRECISION = 1.0 ⇔ false-safes == 0** — every KNOWN-VULNERABLE case (SQL-concat,
+unguarded index, overflow, use-after-del, data race, secret branch, KyberSlash `%`, broken first-order masking) is
+FLAGGED, and NO vulnerable snippet is EVER claimed safe (a false "safe" is a build-failing correctness violation);
+recall on the provably-safe cases is reported honestly (1.0 here, but a DECLINE would be honest, never a defect).
+`test_catalog.py` **108/108** (+5 §R tests), test_build **273×3** isolated (security/ not imported by test_build). No
+new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — LLM이 필요를 정하고 검증기가 사실을 증명한다: 증명된 것만 "안전",
+필요 없는 곳엔 오버헤드 0.

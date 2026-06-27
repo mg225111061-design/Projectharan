@@ -3263,6 +3263,159 @@ def test_io_ideas2to6_and_compose():
           "[precision 1.0]; count measured, latency modeled-pending-deployment; zero-dep)")
 
 
+def test_security_r1_llm_gate():
+    """§R Phase 1 — the LLM SECURITY-SENSITIVITY GATE judges the NEED (world-knowledge), never the fact. SENSITIVE
+    turns the verified layer ON for the flagged parts; NOT-SENSITIVE keeps it entirely OFF (zero overhead). ★ HONEST
+    CLOCK: LLM egress is BLOCKED here, so the gate falls back to a conservative STATIC HEURISTIC, labeled 'heuristic'
+    — never presented as the LLM's world-knowledge judgment. A live `llm_fn` is used when present; malformed/uncertain
+    ⇒ conservative SENSITIVE (run the analysis; never miss a vuln), but NEVER auto-harden non-sensitive code."""
+    import security.llm_gate as G
+    # SENSITIVE: secrets / auth / crypto / PII / injection surface
+    assert G.security_gate("def login(password):\n    return hmac.compare_digest(password, stored)").security_on
+    assert G.security_gate("def f(jwt):\n    return decode(jwt)").security_on                      # auth
+    assert G.security_gate("def q(name):\n    cur.execute('SELECT * FROM u WHERE n=' + name)").security_on  # injection
+    assert G.security_gate("def f(ssn):\n    save(ssn)").security_on                               # PII
+    # NOT-SENSITIVE: ordinary computation the layer must leave alone
+    nf = G.security_gate("def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a")
+    assert not nf.security_on and nf.verdict == G.NOT_SENSITIVE
+    assert not G.security_gate("def chart(xs):\n    return [x*2 for x in xs]").security_on
+    # ★ honest labeling: with egress blocked the verdict is the heuristic, never claimed as the LLM judgment
+    assert nf.method == "heuristic" and "not LLM-judged" in nf.reason
+    # a live LLM is used when present and honestly labeled "llm"
+    gv = G.security_gate("def f(x):\n    return x", llm_fn=lambda p, c: {"verdict": "NOT-SENSITIVE", "reason": "pure"})
+    assert gv.method == "llm" and not gv.security_on
+    # ★ uncertain/malformed LLM ⇒ conservative SENSITIVE (analysis only; never miss a vuln)
+    gu = G.security_gate("def f(x):\n    return x", llm_fn=lambda p, c: {"verdict": "???"})
+    assert gu.security_on and gu.method == "llm" and "conservative" in gu.reason
+    print("PASS test_security_r1_llm_gate (gate judges NEED: secrets/auth/crypto/PII/injection → SENSITIVE [layer ON]; "
+          "fibonacci/chart → NOT-SENSITIVE [layer OFF, zero overhead]; egress BLOCKED ⇒ verdict labeled 'heuristic', "
+          "never the LLM's judgment; live llm_fn labeled 'llm'; malformed ⇒ conservative SENSITIVE, never auto-harden)")
+
+
+def test_security_r2_logical_vulns():
+    """§R Phase 2 — LOGICAL VULNERABILITY VERIFICATION proves each class ABSENT (z3/exact) or FLAGS it with a location.
+    Static ⇒ ZERO runtime overhead, so it runs as analysis even on NOT-SENSITIVE code. ★ 'safe' is asserted ONLY when
+    proved; a wrongly-CLEARED vuln is a correctness violation — so every KNOWN-VULNERABLE case must be FLAGGED, never
+    proven-absent. Reuses the QF_BV overflow proof and the B-engine race-freedom conflict analysis."""
+    import security.logical_vulns as L
+    # bounds: guarded range(len()) PROVEN; unguarded index FLAGGED
+    assert all(r.safe for r in L.check_bounds("def g(c):\n    for i in range(len(c)):\n        c[i] = c[i] + 1"))
+    assert any(r.status == L.FLAGGED for r in L.check_bounds("def g(c, k):\n    return c[k]"))
+    # injection: concatenated/f-string sink FLAGGED; parameterized / no-sink PROVEN
+    assert any(r.status == L.FLAGGED for r in L.check_injection("def q(n):\n    cur.execute('SELECT '+n)"))
+    assert all(r.safe for r in L.check_injection("def q(n):\n    cur.execute('SELECT ?', (n,))"))
+    assert all(r.safe for r in L.check_injection("def f(x):\n    return x + 1"))
+    # overflow: z3 QF_BV/range proof — can-overflow FLAGGED, proved-in-range PROVEN
+    assert L.check_overflow("a + b", 8, False, {"a": (0, 200), "b": (0, 200)}).status == L.FLAGGED
+    assert L.check_overflow("a + b", 32, False, {"a": (0, 100), "b": (0, 100)}).safe
+    # memory: use-after-del / None-deref FLAGGED; clean PROVEN
+    assert any(r.status == L.FLAGGED for r in L.check_memory("def h():\n    x = [1]\n    del x\n    return x[0]"))
+    assert any(r.status == L.FLAGGED for r in L.check_memory("def h():\n    x = None\n    return x.field"))
+    assert all(r.safe for r in L.check_memory("def h():\n    x = [1]\n    return x[0]"))
+    # race: B-engine conflict analysis — shared write/read FLAGGED, disjoint PROVEN
+    assert L.check_race([{"name": "a", "reads": [], "writes": ["s"]}, {"name": "b", "reads": ["s"], "writes": []}]).status == L.FLAGGED
+    assert L.check_race([{"name": "a", "reads": [], "writes": ["x"]}, {"name": "b", "reads": [], "writes": ["y"]}]).safe
+    # ★ the binding negative: NO known-vulnerable case is ever cleared
+    vuln_clean = L.analyze_logical("def g(c, k):\n    return c[k]")
+    assert not vuln_clean["all_proven_absent"] and vuln_clean["flagged"]
+    safe_clean = L.analyze_logical("def h():\n    x = [1]\n    return x[0]")
+    assert safe_clean["all_proven_absent"]
+    print("PASS test_security_r2_logical_vulns (bounds/injection/overflow[QF_BV]/memory/race each PROVEN_ABSENT or "
+          "FLAGGED-with-location; every KNOWN-VULNERABLE case flagged [never a false clear]; static ⇒ zero runtime "
+          "overhead; 'safe' only when z3/exact-proved)")
+
+
+def test_security_r3_sidechannel():
+    """§R Phase 3 — SIDE-CHANNEL VERIFICATION (SENSITIVE only): the part no LLM can perceive. Revives ct_certifier
+    (anti-KyberSlash lineage) on two composing axes. 3A THERMODYNAMIC: prove the trace is secret-independent — NO
+    secret-dependent branch / memory-index / var-time '/'·'%' / loop-bound ⇒ CT_PROVEN, else a concrete leak. 3B
+    STATISTICAL: t-probing security over GF(2) — secure ⟺ no t-subset of intermediates spans the secret. ★ A timing
+    leak is NOT closeable by masking (needs constant-time); 'side-channel-safe' only when CT_PROVEN AND (no leak OR
+    masking-secure) — anything unproven ⇒ 'NOT VERIFIED', never a false safe."""
+    import security.sidechannel as S
+    # 3A: all four leak classes are caught; the branchless select is CT_PROVEN
+    assert S.constant_time("def f(s, a, b):\n    if s != 0:\n        return a\n    return b", {"s"}).status == S.CT_VIOLATION
+    assert S.constant_time("def f(s, m):\n    return s % m", {"s"}).status == S.CT_VIOLATION       # KyberSlash class
+    assert S.constant_time("def f(s, t):\n    return t[s]", {"s"}).status == S.CT_VIOLATION         # cache index
+    assert S.constant_time("def f(s):\n    for i in range(s):\n        pass", {"s"}).status == S.CT_VIOLATION  # loop bound
+    assert S.constant_time("def f(s, a, b):\n    m = -(s != 0)\n    return (a & m) | (b & ~m)", {"s"}).status == S.CT_PROVEN
+    # 3B: first-order masking — secure at t=1 (a random always remains), BROKEN at t=2 (the shares XOR to the secret)
+    basis = ["secret", "r1", "r2"]
+    assert S.verify_masking({"s0": {"secret", "r1"}, "s1": {"r1"}}, basis, 1)["secure"]
+    brk = S.verify_masking({"s0": {"secret", "r1"}, "s1": {"r1"}}, basis, 2)
+    assert not brk["secure"] and set(brk["leaking_subset"]) == {"s0", "s1"}
+    # ★ dual-axis verdict: a timing leak is NOT VERIFIED even if masking is offered (masking can't close a timing channel)
+    v_leak = S.sidechannel_verify("def f(s, a, b):\n    if s != 0:\n        return a\n    return b", {"s"})
+    assert not v_leak.safe and "timing" in v_leak.detail
+    v_ok = S.sidechannel_verify("def f(s, a, b):\n    m = -(s != 0)\n    return (a & m) | (b & ~m)", {"s"})
+    assert v_ok.safe and v_ok.constant_time.status == S.CT_PROVEN
+    # honest level disclosure: source-IR, binary not covered
+    assert "binary" in v_ok.constant_time.detail
+    print("PASS test_security_r3_sidechannel (3A constant-time taint catches branch/var-time-'%'[KyberSlash]/cache-"
+          "index/loop-bound; branchless select CT_PROVEN; 3B GF(2) t-probing: masking secure@t=1, BROKEN@t=2 [shares "
+          "XOR to secret]; timing leak NOT closeable by masking ⇒ NOT VERIFIED; honest source-IR level [binary not "
+          "covered] — never a false safe)")
+
+
+def test_security_r4_conditional_hardening():
+    """§R Phase 4 — CONDITIONAL HARDENING: fix a flagged vuln in SENSITIVE code, PROVED-equivalent, with MEASURED cost.
+    Applies ONLY when the gate said SENSITIVE (security_on) AND the hardened source is CT_PROVEN (vuln closed) AND it
+    is differential-equivalent to the original on every battery input. The Clock-C latency cost is MEASURED and stated
+    honestly. ★ The gate is BINDING: NOT-SENSITIVE code is NEVER hardened (that is the overhead defect). A
+    result-changing fix, or one that still leaks, is REJECTED."""
+    import security.hardening as H
+    ORIG = "def select(secret, a, b):\n    if secret != 0:\n        return a\n    else:\n        return b"
+    HARD = "def select(secret, a, b):\n    m = -(secret != 0)\n    return (a & m) | (b & ~m)"
+    battery = [(1, 10, 20), (0, 10, 20), (5, 7, 9), (255, 3, 4), (0, 0, 99), (1, 0, 0), (0, 1, 1)]
+    # SENSITIVE: harden — vuln closed + result-equivalent + cost measured
+    r = H.harden_constant_time(True, ORIG, HARD, "select", {"secret"}, battery)
+    assert r.applied and r.vuln_closed and r.equivalent and r.cost_ratio is not None
+    # ★ gate binding: NOT-SENSITIVE code is refused outright (the overhead defect is avoided)
+    assert not H.harden_constant_time(False, ORIG, HARD, "select", {"secret"}, battery).applied
+    assert H.refuse_nonsensitive_hardening(True) and not H.refuse_nonsensitive_hardening(False)
+    # ★ a result-CHANGING "fix" is REJECTED (equivalence broken), even though it is constant-time
+    BAD = "def select(secret, a, b):\n    m = -(secret != 0)\n    return (b & m) | (a & ~m)"
+    rb = H.harden_constant_time(True, ORIG, BAD, "select", {"secret"}, battery)
+    assert not rb.applied and rb.vuln_closed and not rb.equivalent
+    # ★ a "fix" that still leaks is REJECTED (vuln not closed)
+    rl = H.harden_constant_time(True, ORIG, ORIG, "select", {"secret"}, battery)
+    assert not rl.applied and not rl.vuln_closed
+    print("PASS test_security_r4_conditional_hardening (SENSITIVE secret-branch → branchless constant-time select: "
+          "CT_PROVEN + differential-equivalent on all 7 inputs + cost measured [Clock C]; NOT-SENSITIVE refused "
+          "[gate binding]; result-changing fix REJECTED; still-leaking fix REJECTED)")
+
+
+def test_security_r5_overhead_and_report():
+    """§R Phase 5 + capstone — ZERO overhead when the gate is OFF (MEASURED, not asserted): NOT-SENSITIVE code is
+    byte-identical and runs at native speed; the cost is paid ONLY on the SENSITIVE+flagged path. The capstone proves
+    the whole contract and the ONE binding number: PRECISION 1.0 ⇔ false-safes == 0 — NO vulnerable snippet (logical,
+    side-channel, or broken masking) is ever claimed safe. Zero external deps."""
+    import security.overhead_report as OH
+    oh = OH.report()
+    ns = oh["not_sensitive"]
+    assert ns["all_gate_off"] and ns["all_byte_identical"] and ns["structural_zero_overhead"]
+    assert ns["worst_runtime_deviation_from_1x"] < 0.35      # ~1.0× on identical code (generous noise band)
+    assert oh["sensitive_contrast"]["layer_on"] and oh["sensitive_contrast"]["hardened_applied"]   # cost paid only here
+    assert oh["zero_dep_ok"]
+    # capstone report: precision 1.0, zero false-safes, gate honest, hardening gate-bound, zero-dep
+    import security.security_report as SR
+    rep = SR.report()
+    assert rep["precision"]["is_one"] and rep["precision"]["value"] == 1.0 and not rep["precision"]["false_safes_total"]
+    assert not rep["logical_verification"]["false_safes"] and not rep["sidechannel_verification"]["false_safes"]
+    assert not rep["sidechannel_verification"]["masking"]["false_safe"]
+    assert rep["logical_verification"]["recall_on_provable_safe"] == 1.0
+    assert rep["hardening"]["applied_on_sensitive"] and rep["hardening"]["gate_binding_refusal_on_nonsensitive"]
+    assert rep["zero_overhead_when_off"]["structural_zero_overhead"]
+    assert rep["gate"]["sensitive_example"]["verdict"] == "SENSITIVE"
+    assert rep["gate"]["not_sensitive_example"]["verdict"] == "NOT-SENSITIVE"
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_security_r5_overhead_and_report (NOT-SENSITIVE: gate OFF + byte-identical + structural zero "
+          f"overhead [measured ≈1.0×, worst dev {ns['worst_runtime_deviation_from_1x']}]; cost paid ONLY on the "
+          f"SENSITIVE+flagged path; capstone precision {rep['precision']['value']} [false-safes "
+          f"{len(rep['precision']['false_safes_total'])}], recall {rep['logical_verification']['recall_on_provable_safe']} "
+          "on provable-safe, hardening gate-bound, zero-dep — 'safe' only when proved, zero overhead where not needed)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
