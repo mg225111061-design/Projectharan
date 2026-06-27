@@ -2659,6 +2659,33 @@ def test_post_accel_battery_limit_report():
           f"product Clock-A: {pa['llm_calls_avoided']}/{pa['requests']} LLM calls avoided [sound cache]; zero-dep)")
 
 
+def test_gpu_move1_ptx_kernels():
+    """GPU §M MOVE 1 — self-built HARAN→PTX GEMM kernels, TRANSLATION-VALIDATED (the edge cuBLAS cannot give). The
+    performance ladder (naive→tiled→tensor-core wmma) is emitted as PTX text depending ONLY on the driver (no cuBLAS/
+    cuDNN). ★ Each kernel's computation is PROVED equal to the reference GEMM — EXACT residual=0 for integer (incl.
+    ragged-K tiling-remainder cases). A buggy tiling (drops the remainder tile) is TRANSLATION_DECLINED. Throughput is
+    honestly device-pending where no GPU/ptxas is present — the correctness proof never depends on a device."""
+    import gpu.ptx_codegen as PX
+    import kernel_verdict as KV
+    # the ladder validates EXACT; throughput honestly device-pending here (no GPU)
+    for k in ("naive", "tiled", "tensorcore"):
+        v = PX.kernel_grade(k)
+        assert v.status == KV.EXACT and v.certificate.kind == "ptx_translation_validation[exact]"
+        assert v.result["ptx_emitted"] and "device-pending" in v.result["throughput"]   # honest, no fabricated GFLOP/s
+    # ★ adversarial: a buggy tiled kernel (drops the remainder tile) FAILS validation ⇒ never trusted
+    bad = PX.translation_validate(PX.cpu_gemm_tiled_buggy, kernel_name="gemm_tiled_BUGGY")
+    assert bad.status == KV.DECLINE and "residual≠0" in bad.reason
+    # the emitted PTX is the real artifact (public ISA: tensor-core wmma, shared-memory tiling) — no cuBLAS symbols
+    wmma = PX.emit_gemm_tensorcore(16, 16, 16)
+    tiled = PX.emit_gemm_tiled(64, 64, 64)
+    assert "wmma.mma.sync" in wmma and ".shared" in tiled
+    assert "cublas" not in (wmma + tiled).lower() and "cudnn" not in (wmma + tiled).lower()
+    print("PASS test_gpu_move1_ptx_kernels (HARAN→PTX GEMM ladder naive/tiled/tensor-core[wmma] emitted [public ISA, "
+          "no cuBLAS/cuDNN]; ★ each TRANSLATION-VALIDATED residual=0 vs reference incl. ragged-K; buggy tiling [drops "
+          "remainder] → TRANSLATION_DECLINED; throughput honestly device-pending [no GPU] — correctness proof never "
+          "depends on a device)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
