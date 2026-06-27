@@ -2950,6 +2950,43 @@ def test_post_consol_task6_accel_maximal_and_stress550():
           f"gate], recall {r['recall_on_accelerable']}, NEVER 550/550)")
 
 
+def test_recall_p1_blackbox_fallback():
+    """§P P1 — black-box fallback (detector RECALL, not a new mechanism): when white-box lifting is blinded by
+    REPRESENTATIONAL disguise, recover the structure from the OUTPUT sequence (Berlekamp-Massey + Hankel corroboration)
+    and route it through the EXISTING `linear_recurrence` certificate kind (⑪/① class). ★ Precision is UNCHANGED: a
+    side-effecting / non-deterministic function is excluded by the transitive purity guard (black-box can't probe it),
+    and a recurrence that fits the recovery window but misses a HELD-OUT term (the diverge-after-window adversary)
+    DECLINEs. No 23rd kind is introduced."""
+    import kernel_verdict as KV
+    import catalog.blackbox_fallback as BB
+    # representational disguises of the SAME C-finite (Fibonacci) sequence all recover the same recurrence
+    disguises = {
+        "closure":   {"f": "def f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"},
+        "recursion": {"f": "def f(n):\n    if n < 2:\n        return n\n    return f(n-1) + f(n-2)"},
+        "cps":       {"f": "def f(n):\n    def go(k, a, b):\n        return a if k == 0 else go(k-1, b, a+b)\n    return go(n, 0, 1)"},
+    }
+    for name, src in disguises.items():
+        pn, ho = (12, 8) if name == "recursion" else (24, 24)
+        v = BB.blackbox_grade(src, "f", probe_n=pn, holdout=ho)
+        assert v.status == KV.EXACT, f"{name} disguise should fold but got {v.status}: {v.detail}"
+        assert v.result["order"] == 2 and v.result["coeffs"] == ["1", "1"], (name, v.result)
+        assert v.certificate.kind == "linear_recurrence", (name, v.certificate.kind)   # EXISTING kind — no new mechanism
+    # ★ precision: the fit-only-on-window / diverge-after adversary is caught by the held-out disposer
+    diverge = {"f": "def f(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a + 1000 if n >= 14 else a"}
+    assert BB.blackbox_grade(diverge, "f", probe_n=12, holdout=8).status == KV.DECLINE
+    # ★ precision: side-effecting / non-deterministic excluded by the purity guard (defeats black-box → P6 territory)
+    assert BB.blackbox_grade({"f": "def f(n):\n    return n + random.random()"}, "f").status == KV.DECLINE
+    assert BB.blackbox_grade({"f": "def f(n):\n    return n + time.time()"}, "f").status == KV.DECLINE
+    # ★ precision: a no-short-recurrence sequence (linear complexity ≈ n/2, the random signature) DECLINEs
+    assert BB.blackbox_grade({"f": "def f(n):\n    return (n*2654435761 + 12345) % 1009 * ((n % 7) + 1)"}, "f").status == KV.DECLINE
+    # Hankel state-dimension corroborates the BM order (both = 2 for Fibonacci)
+    assert BB.hankel_state_dim([0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]) == 2
+    print("PASS test_recall_p1_blackbox_fallback (representational disguises [closure/recursion/CPS] recovered from the "
+          "OUTPUT sequence via BM → linear_recurrence [EXISTING kind]; diverge-after-window adversary caught by the "
+          "held-out disposer; impure/non-deterministic excluded by the transitive purity guard; random signature "
+          "DECLINEs; Hankel rank corroborates the order — precision 1.0, no 23rd kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
