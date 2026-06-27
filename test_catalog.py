@@ -4007,6 +4007,110 @@ def test_aa_w5_domain_idioms_and_report():
           f"precision 1.0, NO new kind [22/14], zero-dep)")
 
 
+def test_ab_axis1_certified_approx():
+    """§AB AXIS 1 — certified approximate fold: float code folds within a UNIVERSALLY-PROVEN ε (interval roundoff
+    propagation over the whole domain), a THEOREM not a sample — the line between us and the LLM. ★ REUSES the existing
+    APPROX_FOLD grade (never EXACT); ★ a SAMPLED ε is REJECTED (under-estimates the worst case); KV untouched."""
+    import foldaxes.approx_fold as A1
+    af = A1.approx_sum_fold(n=1000, mag_bound=1000)
+    assert af.issued and af.grade == "APPROX_FOLD" and af.epsilon is not None and af.method == "interval-arithmetic"
+    assert A1.verify_bound_holds(1000, 1000, af.epsilon)                      # the interval bound holds on samples
+    # ★ the anti-LLM line: a sampled ε UNDER-estimates the certified (interval) ε ⇒ sampling is unsound ⇒ rejected
+    sampled, certified, under = A1.sampled_eps_under_estimates(1000, 1000)
+    assert under and sampled < certified
+    assert A1.as_disposition(af).kind == "APPROX_FOLD" and A1.as_disposition(af).cert_type == "epsilon-bounded"  # never EXACT
+    b = A1.adversarial_battery()
+    assert b["all_ok"], f"A1 battery failed: {b['failed']}"
+    print(f"PASS test_ab_axis1_certified_approx (float Σⁿc → n*c within PROVEN ε={float(af.epsilon):.2e} by interval "
+          f"roundoff propagation [∀ inputs, a theorem]; ★ sampled ε {sampled:.1e} < certified {certified:.1e} ⇒ sampling "
+          f"REJECTED [the anti-LLM line]; APPROX_FOLD grade reused, never EXACT, KV untouched; battery 6/6)")
+
+
+def test_ab_axis2_probabilistic():
+    """§AB AXIS 2 — probabilistic fold in earnest: correct w.p. ≥ 1−2⁻ᵏ via a DERIVED bound (Freivalds/Schwartz-Zippel),
+    never empirical. ★ distinct from AXIS 1 (probability over the check's coins, not error over inputs); reuses
+    fast_certificates + KV.PROBABILISTIC; random input not folded; never presented as certainty."""
+    import foldaxes.probabilistic_fold as A2
+    import fast_certificates as FC
+    A, B = [[1, 2], [3, 4]], [[5, 6], [7, 8]]
+    pf = A2.freivalds_matpow_fold(A, B, FC.matmul(A, B), k=24)
+    assert pf.issued and pf.grade == "PROBABILISTIC" and pf.derived and abs(pf.error_prob - 2.0 ** -24) < 1e-30
+    # a WRONG product is caught (DECLINE); a Schwartz-Zippel identity folds with derived bound
+    wrong = [[FC.matmul(A, B)[0][0] + 1, FC.matmul(A, B)[0][1]], FC.matmul(A, B)[1]]
+    assert not A2.freivalds_matpow_fold(A, B, wrong, k=24).issued
+    sz = A2.sz_polynomial_fold(lambda p: (p[0] + 1) ** 2, lambda p: p[0] ** 2 + 2 * p[0] + 1, 1, 2)
+    assert sz.issued and sz.derived and 0 < sz.error_prob < 1e-15
+    assert pf.error_prob > 0                                                  # ★ stated, never certainty
+    b = A2.adversarial_battery()
+    assert b["all_ok"], f"A2 battery failed: {b['failed']}"
+    print(f"PASS test_ab_axis2_probabilistic (Freivalds fold, DERIVED 2⁻ᵏ={pf.error_prob:.1e}; Schwartz-Zippel "
+          f"{sz.error_prob:.1e}; ★ distinct from AXIS-1 [coins not inputs]; wrong product DECLINED, empirical bound "
+          f"rejected, random input not folded, never certainty; reuses fast_certificates + KV.PROBABILISTIC; battery 6/6)")
+
+
+def test_ab_axis3_fold_units():
+    """§AB AXIS 3 — fold-unit redefinition: structure folds at expression/function/region units, each z3-proved. ★ THE
+    DENOMINATOR HONESTY — loop/expr/func/region fold rates are DISTINCT numbers with DISTINCT denominators, never merged."""
+    import foldaxes.fold_units as A3
+    import z3
+    assert A3.fold_expression(lambda e: (e["x"] + 1) * (e["x"] - 1) - e["x"] * e["x"], lambda e: z3.IntVal(-1), ["x"], "-1").proved
+    assert A3.fold_function_two_sums().proved and A3.fold_region_affine(2, 3).proved
+    m = A3.measure_by_unit()
+    per = m["per_unit"]
+    # ★ four distinct units, four distinct denominators, NEVER merged
+    assert {per["loop"]["total"], per["expression"]["total"], per["function"]["total"], per["region"]["total"]} == {10, 3, 4, 5}
+    assert per["loop"]["rate"] != per["expression"]["rate"]                   # genuinely different numbers
+    b = A3.adversarial_battery()
+    assert b["all_ok"], f"A3 battery failed: {b['failed']}"
+    print(f"PASS test_ab_axis3_fold_units (expression/function/region folds z3-proved; ★ DISTINCT denominators "
+          f"loop={per['loop']['total']}/expr={per['expression']['total']}/func={per['function']['total']}/"
+          f"region={per['region']['total']}, rates {per['loop']['rate']}/{per['expression']['rate']}/"
+          f"{per['function']['rate']}/{per['region']['rate']} NEVER merged; wrong-unit form rejected; battery 6/6)")
+
+
+def test_ab_axis4_bypass():
+    """§AB AXIS 4 — fold bypass: total precompute of a finite/small/deterministic space → O(1) lookup. ★ VALUE not rate
+    (never a fold); ★ finite/small only (a 32-bit space DECLINED); a wrong lookup is impossible (sound keys)."""
+    import foldaxes.bypass as A4
+    bt = A4.build_bypass(lambda x: (x * x + 7 * x + 13) & 0xFF, 8)
+    assert bt.issued and bt.size == 256
+    assert not A4.build_bypass(lambda x: x, 32).issued                        # ★ 4-billion space ⇒ DECLINE (not small)
+    cw = A4.cold_warm_measurement(8)
+    assert cw["cold_fn_calls"] == 256 and cw["warm_fn_calls"] == 0 and "NOT the fold rate" in cw["raises"]  # value not rate
+    assert A4.sound_lookup_check()                                            # wrong lookup impossible
+    b = A4.adversarial_battery()
+    assert b["all_ok"], f"A4 battery failed: {b['failed']}"
+    print("PASS test_ab_axis4_bypass (8-bit deterministic space → total precompute → O(1) lookup [cold 256 / warm 0]; "
+          "★ VALUE not rate [never a fold]; ★ 32-bit space DECLINED [unbounded scale, Ω(N) noise]; wrong lookup "
+          "impossible; input-bound stated; battery 6/6)")
+
+
+def test_ab_grand_decomposition_and_report():
+    """§AB compose — the grand DECOMPOSITION (four grades, four numbers, never one inflated total) + ★ the anti-LLM
+    audit (every ε a universal theorem not a sample; every 2⁻ᵏ derived not empirical) — the section proving we are not
+    an LLM. EXACT undiluted; KV untouched; LLM-free; precision 1.0 / the proven bound."""
+    import foldaxes.foldaxes_report as R
+    rep = R.report()
+    gd = rep["grand_decomposition"]
+    # four distinct grades present as four numbers (never summed)
+    assert "EXACT" in gd and gd["APPROX_eps"]["epsilon"] > 0 and gd["PROBABILISTIC"]["error_prob"] > 0
+    assert gd["BYPASS"]["cold_fn_calls"] == 256 and gd["BYPASS"]["warm_fn_calls"] == 0   # value separate
+    assert "per_unit" in gd and len(gd["per_unit"]) == 4                      # loop/expr/func/region distinct
+    # ★ the anti-LLM audit: APPROX-ε is a universal interval theorem; sampled under-estimates; probabilistic derived
+    al = rep["anti_llm_audit"]
+    assert al["approx_eps_is_universal_theorem"] and al["sampled_eps_under_estimates"] and al["probabilistic_bound_derived"]
+    # labeling: ε and 2⁻ᵏ stated; EXACT undiluted; bypass not a fold; no grade-creep
+    lab = rep["labeling_audit"]
+    assert lab["approx_states_epsilon"] and lab["probabilistic_states_2_minus_k"] and lab["no_grade_creep"]
+    assert rep["llm_free"]["llm_free"] and rep["llm_free"]["offenders"] == {}
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_ab_grand_decomposition_and_report (4 grades as 4 numbers — EXACT [1.0] · APPROX-ε "
+          f"{gd['APPROX_eps']['epsilon']:.1e} [interval theorem] · PROBABILISTIC {gd['PROBABILISTIC']['error_prob']:.1e} "
+          f"[derived 2⁻ᵏ] · bypass [value-not-rate], per-unit distinct, NEVER summed; ★ anti-LLM audit [sampled ε "
+          f"rejected, bound derived]; EXACT undiluted, KV untouched, LLM-free, precision 1.0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

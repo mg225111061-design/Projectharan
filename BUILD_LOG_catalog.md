@@ -1285,3 +1285,47 @@ kind (22 mechanisms / 14 kinds unchanged); the pigeonhole wall stands (none fold
 `test_catalog.py` **129/129** (+5 §AA), test_build **273×3** (foldrate/ not imported). No new dependency. 잘못된 답보다
 DECLINE이 항상 옳다 — 인식이 아니라 추출을 키운다; 정규화는 곱셈기, 합성은 가산, 추측은 런타임-가드(LLM 아님), 캐시는
 value-not-rate, 도메인 관용구는 도메인율, 전부 LLM-free·새 인증서 종류 0.
+
+## §AB — ALL FOLD-RATE AXES: certified-approximate · probabilistic · unit-redefinition · bypass (the grand decomposition)
+
+§AB attacks the two axes never touched: what EARNS the right to be counted as a fold, and what UNIT we measure. The
+headline is a DECOMPOSITION — four distinct categories, four numbers, NEVER one inflated total. New package `foldaxes/`
+(never imported by test_build; zero deps, `forbidden_present == []`). ★ The shared KV ADT is left UNTOUCHED (the 273 is
+safe) — the new grade reuses the EXISTING APPROX_FOLD.
+
+**★ THE LINE THAT KEEPS US NOT AN LLM:** an LLM also approximates. A plain "usually close" would make us the thing we
+replace. OURS carries a machine-PROVEN worst-case bound holding on EVERY input, on the first run and the 10¹⁶-th —
+`∀ inputs. |folded − original| ≤ ε`, a THEOREM, never a sample. Sampling/averaging/empirical-testing is REJECTED.
+
+**AXIS 1 — CERTIFIED Approximate Fold** (`approx_fold.py`, the largest, identity-critical): float code that DECLINEs under
+EXACT folds to a closed form within a UNIVERSALLY-proven ε. ★ REUSES the existing APPROX_FOLD grade (`disposition.py`/
+`approx_cert.py`, never-exact R3.5) and ADDS the new interval-certified-ε method: an `ErrorInterval` carries a value range
++ accumulated absolute roundoff (each float op adds ≤ u·|magnitude|, u=2⁻⁵³), propagated over the WHOLE domain ⇒ ε a
+rigorous over-approximation (true error ≤ ε on EVERY input). The float loop Σⁿc → n*c with ε=5.57e-8 ∀|c|≤1000. ★ A
+SAMPLED ε UNDER-estimates (sampled 0.0 < certified 5.57e-8 — misses unseen inputs) and is REJECTED — the anti-LLM line.
+
+**AXIS 2 — PROBABILISTIC Fold in earnest** (`probabilistic_fold.py`): correct w.p. ≥ 1−2⁻ᵏ via a DERIVED bound. REUSES
+`fast_certificates.py` (Freivalds 2⁻ᵏ, Schwartz-Zippel (deg/|S|)^rounds) + KV.PROBABILISTIC. ★ Distinct from AXIS 1 — the
+randomness is in the CHECK (over the algorithm's coins), the input can be anything; AXIS 1's ε is over all inputs. The
+bound is DERIVED (Freivalds 5.96e-8, SZ 6.5e-55), NEVER empirical; a wrong product DECLINES, random INPUT is not folded,
+never presented as certainty.
+
+**AXIS 3 — FOLD-UNIT Redefinition** (`fold_units.py`): structure folds at the EXPRESSION ((x+1)(x-1)−x²≡−1), FUNCTION
+(two summation loops → n(n+1)), and call-graph REGION (composed affine accumulators → one transition) units, each
+z3-proved. ★ THE DENOMINATOR HONESTY: folds/loop, folds/expr, folds/func, folds/region are DIFFERENT numbers with
+DIFFERENT denominators (0.6 / 0.33 / 0.25 / 0.2 measured) — DISTINCT, the unit always stated, NEVER merged.
+
+**AXIS 4 — FOLD BYPASS** (`bypass.py`): for a finite/small/deterministic space, precompute the whole input→output map
+once, O(1) lookup. ★ NOT a fold — VALUE/throughput, reported SEPARATELY, never counted in any fold rate; cold (256 fn
+calls) vs warm (0) stated; an 8-bit space bypasses, a 32-bit space is DECLINED (> 2⁻¹⁶ cap — caching unbounded is Ω(N)
+noise); a wrong lookup is impossible (deterministic table).
+
+**COMPOSE + measure** (`foldaxes_report.py`, MEASURED): the grand decomposition — EXACT (1.0 precision, undiluted) +
+APPROX-ε (ε a universal interval theorem) + PROBABILISTIC (derived 2⁻ᵏ), at loop/expr/func/region units, with bypass as a
+separate throughput lever — FOUR numbers, never summed. ★ The anti-LLM audit (the section proving we are not an LLM):
+every APPROX-ε bound is interval-PROVEN over the whole domain (sampled-ε rejected), every PROBABILISTIC bound is DERIVED
+(never empirical). ★ The measured real ceiling: the remainder is the principled-impossible (genuine I/O / randomness /
+data-dependent control) — the pigeonhole/physics wall stands. EXACT undiluted; KV ADT untouched; LLM-free (AST-verified);
+precision 1.0 / the proven bound across all four batteries. `test_catalog.py` **134/134** (+5 §AB), test_build **273×3**
+(foldaxes/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — LLM도 근사한다; 우리 근사는 정리지 표본이
+아니다(∀입력 ε 증명); 네 등급 네 숫자(EXACT·APPROX-ε·PROBABILISTIC·bypass), 단위별 분모 분리, 합산 없음, KV 불변(273 안전).
