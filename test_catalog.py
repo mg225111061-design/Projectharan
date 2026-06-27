@@ -3820,6 +3820,86 @@ def test_y_galois_lens():
           f"largest, NO new kind [22 mech / 14 kinds], zero-dep)")
 
 
+def test_z_genfunc_lens():
+    """§Z LENS A — generating-function / formal-power-series fold: a nonlinear self-convolution DP (Catalan/Motzkin)
+    DECLINEs under the 22, but as a power series the convolution is a PRODUCT, so the recurrence becomes an algebraic
+    equation with an exact closed form. ★ z3 (Int) proves the closed form == DP ∀n≤bound; ★ float FFT is NOT a
+    precision-1.0 fold (exact only under integer/NTT). New algebra (⑬ handles only LINEAR sums); reuses fastkernels."""
+    import newlens.genfunc_fold as A
+    cat = A.genfunc_fold("catalan")
+    assert cat.issued and cat.precision_one and cat.arithmetic == "integer" and cat.mechanism == "closed_form"
+    assert A.genfunc_fold("motzkin").issued                                    # second algebraic-GF family folds
+    assert A.differential_check("catalan") and A.differential_check("motzkin")  # closed form == DP the long way
+    # ★ float ⇒ NOT a precision-1.0 fold; the NTT path is an exact substitution but NOT an O(N)→O(1) fold
+    flt = A.genfunc_fold("catalan", dtype="float")
+    assert (not flt.issued) and "NOT-precision-1.0" in flt.arithmetic
+    sub = A.convolution_substitution("integer")
+    assert (not sub.precision_one) and "exact" in sub.arithmetic               # exact under NTT, but not a fold
+    # issued≠applied
+    assert A.apply_at_callsite(cat, "hot", 5000) and cat.applied_callsites == ["hot"]
+    b = A.adversarial_battery()
+    assert b["all_ok"], f"genfunc battery failed: {b['failed']}"
+    print("PASS test_z_genfunc_lens (Catalan/Motzkin self-convolution DP → algebraic-GF closed form, z3-proved == DP "
+          "∀n≤bound [EXACT, precision 1.0]; ★ float FFT NOT precision-1.0, integer-NTT exact-but-not-a-fold; wrong "
+          "closed form refuted by z3; new algebra, reuses fastkernels.catalan, closed_form kind; battery 8/8)")
+
+
+def test_z_window_lens():
+    """§Z LENS B — sliding-window aggregation fold (the most practical): re-aggregating a window each step is O(N·W);
+    the invariant acc==aggregate(window) folds it to O(1)/step. ★ Invertible sum (integer/exact) via acc⊖oldest⊕newest,
+    invariant z3-proved (routes to ⑩ linear_recurrence); min/max via monotone deque (exact, float-safe). ★ float-sum
+    DECLINED (catastrophic cancellation — concrete witness)."""
+    import newlens.window_fold as B
+    isum = B.window_fold("sum", "integer", 8)
+    assert isum.issued and isum.z3_proved and isum.mechanism == "linear_recurrence"
+    assert B.window_fold("min", "float", 4).issued and B.window_fold("max", "integer", 4).issued  # deque exact (float-safe)
+    # ★ float-sum DECLINED with a concrete catastrophic-cancellation witness
+    fsum = B.window_fold("sum", "float", 4)
+    inc, rec, differ = B.float_sum_cancellation_witness()
+    assert (not fsum.issued) and fsum.arithmetic == "float(DECLINED)" and differ and inc != rec
+    assert not B.window_fold("product", "integer", 3).issued                   # ℤ not a group under × ⇒ DECLINE
+    assert not B.window_fold("mode", "integer", 3).issued                      # non-invertible non-monotone ⇒ DECLINE
+    assert B.verify_deque([3, 1, 2, 1, 5, 4], 3, "min") and B.verify_deque([3, 1, 2, 1, 5, 4], 3, "max")
+    b = B.adversarial_battery()
+    assert b["all_ok"], f"window battery failed: {b['failed']}"
+    print("PASS test_z_window_lens (integer rolling-sum O(N·W)→O(N), invariant z3 ∀-proved [linear_recurrence]; "
+          "monotone-deque min/max exact & float-safe; ★ float-sum DECLINED [cancellation witness 1e16→incremental "
+          f"{inc} vs true {rec}]; integer-product & mode DECLINED; existing EXACT verdict; battery 8/8)")
+
+
+def test_z_mobius_lens_and_report():
+    """§Z LENS C — projective/Möbius fold: ★ HONEST OVERLAP — this is our OWN §P P5 (catalog/mobius_fold.py), the
+    identical PGL₂ construction, so it is REUSED and counted ZERO new (no double-count). The §Z refinements add only the
+    explicit orbit nonzero-denominator guard + the float caveat. Plus the §Z compose report under the §X/§Y honesties."""
+    import newlens.mobius_fold as C
+    import newlens.newlens_report as R
+    safe = C.mobius_fold(1, 1, 1, 2, x0=1, N=50)
+    assert safe.issued and safe.orbit_guard_ok and safe.mechanism == "matrix_recurrence"
+    assert not safe.new_contribution                                          # ★ ZERO new — already counted in §P P5
+    # ★ the §Z orbit guard catches a zero-denominator orbit §P P5 alone marks only an island
+    pole = C.mobius_fold(0, 1, 1, 0, x0=0, N=5)
+    assert (not pole.issued) and pole.first_pole_step == 0
+    assert not C.mobius_fold(1, 1, 1, 2, x0=1, N=10, dtype="float").issued    # ★ float DECLINED (IEEE-754)
+    assert not C.mobius_fold(2, 2, 1, 1, x0=1, N=5).issued                    # ad−bc=0 degenerate (via §P) ⇒ DECLINE
+    assert C.adversarial_battery()["all_ok"]
+    # ── §Z compose report: precision 1.0; ★ applied > applied_NEW (Möbius zeroed); no-overlap verified; no new kind ──
+    rep = R.report()
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    sc = rep["shaped_corpus"]
+    assert sc["applied"] > sc["applied_new"] and sc["reused_not_new"] >= 1     # ★ Möbius counted ZERO new (no double-count)
+    assert sc["speedup"] < sc["applied"]                                       # fold-rate ≠ speedup (short window rate-only)
+    per = rep["per_lens"]
+    assert per["B_window"]["applied_new"] >= per["A_genfunc"]["applied_new"]   # window largest new contributor
+    assert per["C_mobius"]["applied_new"] == 0                                 # ★ Möbius zero new
+    assert "OVERLAPS our own §P P5" in rep["no_overlap_verified"]["C_mobius"]
+    assert rep["no_new_certificate_kind"] and rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print(f"PASS test_z_mobius_lens_and_report (Möbius x←(a·x+b)/(c·x+d) via Mᴺ REUSED from §P P5 ⇒ ZERO new "
+          f"[new_contribution=False]; ★ §Z orbit guard DECLINES zero-denominator orbit; float & ad−bc=0 DECLINED; "
+          f"§Z report: precision 1.0, applied {sc['applied']} > applied_NEW {sc['applied_new']} [no double-count], "
+          f"window largest, no-overlap verified, NO new kind [22/14], zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -1188,3 +1188,50 @@ QF_BV-overlap case REJECTED); ★ NO new certificate kind (22 mechanisms / 14 ki
 linear_recurrence). `test_catalog.py` **121/121** (+3 §Y, one per lens), test_build **273×3** (altlens/ not imported). No
 new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 세 렌즈는 22가 못 보는 구조를 새 축에서 볼 뿐, 접을 수 없는 것을
 접지 않는다; float 열대는 DECLINE, 갈루아↔QF_BV 중복은 차감, 적용된 fold만 세고 가속과 분리한다.
+
+## §Z — THREE NEW FOLD LENSES: generating-function · sliding-window · projective(Möbius) (one is HONESTLY a reuse)
+
+Three more sights the 22 cannot see — a convolution that is secretly a product, a window that need not be re-summed, a
+fraction that is secretly a matrix — each z3-gated, precision exactly 1.0, inheriting the §X/§Y honesties (a fold counts
+only when APPLIED; fold rate reported SEPARATELY from speedup; the IEEE-754-vs-real caveat stated). New package
+`newlens/` (never imported by test_build; zero deps, `forbidden_present == []`).
+
+**LENS A — GENERATING-FUNCTION / formal-power-series** (`genfunc_fold.py`, small but genuinely new): a nonlinear
+self-convolution DP (`dp[n]=Σ dp[i]·dp[n-1-i]` Catalan; Motzkin) DECLINEs under the 22 as nonlinear, but as a power
+series the convolution is a PRODUCT, so the recurrence becomes an algebraic equation (D=xD²+1) with an exact closed form
+(C(2n,n)/(n+1)) folding O(N²)→O(1)/O(log N). z3 (Int theory) proves the closed form == DP ∀n≤bound (the recurrence +
+base uniquely determine the array). New algebra (⑬ Faulhaber/Gosper/Zeilberger handles only LINEAR sums); reuses the
+existing closed-form evaluator (`fastkernels.catalan`); routes to closed_form. ★ IEEE-754 honesty: exact over
+integer/rational; the general FFT product is float and NOT a precision-1.0 fold — exact only under an integer/NTT
+discrete model (an O(N²)→O(N log N) complexity SUBSTITUTION, not an O(N)→O(1) fold), float FFT DECLINED.
+
+**LENS B — SLIDING-WINDOW AGGREGATION** (`window_fold.py`, the LARGEST contributor — the most practical): a loop that
+re-aggregates a whole window each step is O(N·W); the invariant `acc==aggregate(window)` folds it to O(1)/step. Invertible
+sum (integer/exact group) via `acc=acc−oldest+newest` — itself a linear recurrence on the accumulator, routes to ⑩
+linear_recurrence, the invariant z3 ∀-proved. min/max via a monotone deque (amortized O(1)/step) — returns an actual
+window element, EXACT by construction, float-safe (no subtraction). ★ The float-cancellation trap: float SUM has
+`acc−oldest+newest ≠ recomputed` (catastrophic cancellation breaks the invariant) — DECLINED, with a concrete witness
+(window [1e16,1,1] slides to incremental 1.0 vs true 3.0). integer product DECLINED (ℤ not a group under ×); mode/median
+DECLINED. New incremental-aggregation pattern; issues the existing EXACT verdict (no new algebraic kind).
+
+**LENS C — PROJECTIVE / MÖBIUS** (`mobius_fold.py`, ★ HONESTLY a REUSE — ZERO new): a fractional recurrence
+x←(a·x+b)/(c·x+d) folds via the ℙ¹ lift to Mᴺ in O(log N). ★ THE HONEST FINDING: this is the IDENTICAL construction
+already shipped as `catalog/mobius_fold.py` (§P P5 — same PGL₂ lift, same Mᴺ fold, same z3 cleared-denominator identity,
+same matrix_recurrence kind, same ad−bc=0/pole guards). The directive's no-overlap check named QF_BV/Galois/stride, but
+the real overlap is against our OWN prior work. So LENS C is NOT new: we REUSE §P P5 (no duplication) and count its
+projective fold as ZERO new fold-rate contribution (`new_contribution` always False) — the no-double-count honesty the
+spine demands. The only §Z-added value: an explicit orbit nonzero-denominator guard for a given x₀ (exact-rational;
+DECLINE if c·xₙ+d=0 is hit — §P alone marks the pole an island) + the float IEEE-754 caveat (DECLINE float).
+
+**COMPOSE + measure** (`newlens_report.py`, MEASURED): on a lens-shaped corpus — **issued 7, applied 7, applied_NEW 6,
+speedup 6**. ★ applied (7) > applied_NEW (6): the Möbius callsite is applied & valid but contributes ZERO new (already
+counted in §P P5) — `applied_NEW` excludes it, eliminating the only double-count risk. ★ fold-rate (7) > speedup (6): a
+short window is rate-only. Per-lens: **B_window LARGEST** (4 applied-new), A_genfunc small (2), C_mobius ZERO new.
+★ No-overlap VERIFIED: genfunc (algebraic GF) and window (incremental aggregation) are DISJOINT from QF_BV (bitvector
+ring) / Galois (modular quotient) / stride (group action); Möbius overlaps only our own §P P5 (zeroed). ★ Precision
+**1.0** across all three batteries (wrong closed form / float FFT / float-sum cancellation / non-invertible / zero-denom
+orbit / float Möbius / degenerate REJECTED); ★ NO new certificate kind (22 mechanisms / 14 kinds unchanged; routes to
+closed_form / linear_recurrence / matrix_recurrence + the min/max incremental_pattern EXACT verdict). `test_catalog.py`
+**124/124** (+3 §Z), test_build **273×3** (newlens/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 —
+합성곱은 곱, 창은 다시 더할 필요 없는 불변식, 분수는 행렬; Möbius는 우리 §P P5라 새 기여 0(이중계산 금지), float은 DECLINE,
+적용된 fold만 세고 가속과 분리한다.
