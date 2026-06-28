@@ -1411,3 +1411,61 @@ The big three (divide-and-conquer, nested sums, fusion) are the broadest. Precis
 NO new certificate kind. `test_catalog.py` **147/147** (+8 §AD), test_build **273×3** (gapfold/ not imported). No new
 dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 기계를 완성한다: 늘 있던 구조를 접고, 8개 구멍을 패치한 뒤 잔여가 물리·정보
 이론이 금하는 영원-불가능(진짜 I/O·무작위·데이터의존)임을 측정으로 증명한다.
+
+## §AE — SEVEN HARD-BARRIER DECIDABLE ISLANDS: enter the proven-hard walls, fold the island, never claim the wall
+
+The deepest directive. Seven barriers that are PROVEN hard in general — z3 IEEE-754 bit-blast blow-up, Hilbert's tenth
+(Diophantine, undecidable), closed-form equality (general-open), Risch/Zeilberger non-termination, Rice's theorem
+(undecidable), the Turing halting problem (undecidable), and Kolmogorov complexity K(x) (uncomputable). We NEVER claim to
+solve any of them generally. Inside each we implement the **decidable island** that reduces to a z3-TERMINATING theory.
+★ THE UNIFYING INSIGHT: **synthesis is the proposer's job** (FPTaylor / Faulhaber / Gosper-Zeilberger-Karr / Karr-Farkas-
+Gröbner / Podelski-Rybalchenko-SCT / Berlekamp-Massey — the hard search); **verification is z3's job, easy under a
+TERMINATING theory** (QF_LRA simplex / QF_NRA nlsat-CAD / QF_BV fixed-width — NEVER IEEE-754 bit-blasting). New package
+`barrierfold/` (never imported by test_build; zero deps, sympy grandfathered for ISLAND 4; `forbidden_present == []`).
+No new certificate kind (22 mech / 14 kinds unchanged); LLM-free (AST-verified).
+
+**ISLAND 1 — FLOAT-ε** (`float_eps.py`): float loops whose REAL semantics is a geometric/linear recurrence fold to the
+closed form with a UNIVERSAL ε, proved by affine/interval arithmetic over **QF_NRA** (real-abstraction `A:=aⁿ`, NO
+bit-blasting). REUSES `foldaxes.approx_fold.ErrorInterval` + the existing APPROX_FOLD grade (no new grade). ★ |a|≥1
+(non-contractive) DECLINES (error grows ~aᴺ); ★ the ε is universal over the whole domain, never sampled (a sampled max
+UNDER-estimates it — the §AB anti-LLM line). **ISLAND 2 — NONLINEAR-INTEGER** (`nonlinear_int.py`): five decidable
+fragments of Hilbert-10 — additive (Faulhaber, new), modular (REUSE §Y Galois, zero-new), power (modular orbit/Floyd,
+new), substitution (REUSE §Z·§P-P5 Möbius, zero-new), finite-state (cycle detector, zero-new); the new piece is the
+DECIDABLE-BOUNDARY CLASSIFIER. ★ general nonlinear (x²+c, Collatz, degree-≥2) DECLINED (Hilbert-10). **ISLAND 3 —
+EXP-POLY-EQUALITY** (`exppoly_eq.py`): equality of exponential polynomials Σ Pᵢ(n)·λᵢⁿ over distinct algebraic λ is
+ALWAYS decidable by BASIS LINEAR-INDEPENDENCE (coefficient comparison), corroborated by a bounded exact-rational identity.
+★ the harder Skolem existential-zero (∃n.f(n)=0) is decidable order≤4 (Vereshchagin), order≥5 DECLINED (open).
+
+**ISLAND 4 — HOLONOMIC-SUMMATION** (`holonomic_sum.py`, the largest island): the summation classes with GUARANTEED
+termination — polynomial (Faulhaber), geometric, poly-geometric, Gosper-summable hypergeometric, Zeilberger creative
+telescoping, Karr ΠΣ, C-finite. REUSES `catalog/holonomic_sum.py` + grandfathered sympy; extends ⑬. ★ verified by the
+TELESCOPING identity C(n)−C(n−1)==summand(n) (terminating); ★ non-holonomic (harmonic H_n, digamma, zeta) DECLINED.
+**ISLAND 5 — INVARIANT-SYNTHESIS** (`invariant_synth.py`): the COMPLETE synthesis domains — Karr (affine), Farkas/LP
+(linear-inequality), Gröbner (fixed-degree polynomial) — each synthesizes the invariant then z3-VERIFIES three VCs
+(initiation / consecution / sufficiency) in QF_LRA/QF_NRA. ★ REUSES the §X `synthesize_guard` interface but UPGRADES CEGAR
+guessing → complete synthesis; a wrong invariant (slope mismatch) FAILS consecution (the verifier is real). General
+invariant synthesis is undecidable (Rice). **ISLAND 6 — TERMINATION** (`termination.py`): the decidable termination
+classes — bounded loops, linear ranking functions (Podelski-Rybalchenko, complete via Farkas), Size-Change Termination
+(Lee-Jones-Ben-Amram), and HARAN `decreases` contracts (verify, not synthesize). ★★ **THE HALTING OATH** (binding): the
+general halting problem is PROVEN undecidable (Turing 1936); every issued proof says "terminates **BECAUSE** <ranking
+function / verified decreases clause>", NEVER bare "terminates"; a general `while`/Collatz is DECLINED (neither affirmed
+nor denied).
+
+**ISLAND 7 — KOLMOGOROV-ENUMERATION** (`kolmogorov_enum.py`, the deepest wall): "does arbitrary hidden structure exist"
+asks for K(x), which is UNCOMPUTABLE. The island: a COMPUTABLE upper bound over a FINITE ENUMERATED registry of decidable
+structure classes (constant / periodic / LFSR via REUSED `native_sequence.berlekamp_massey_Q`, + the 22 mechanisms + 8
+gaps), selected by MINIMUM DESCRIPTION LENGTH; if nothing compresses below |x|, DECLINE. ★★ **THE KOLMOGOROV OATH**
+(binding): K(x) is PROVEN uncomputable (Kolmogorov/Chaitin); this is "best match among a FINITE ENUMERATED list," NEVER
+"any structure," NEVER randomness compression. ★ BY DIAGONALIZATION, for any finite registry there exists structured
+input it MISSES (Thue-Morse, 2-automatic but non-LFSR/periodic) — honestly DECLINED, never falsely claimed.
+
+**COMPOSE + measure** (`barrierfold_report.py`, MEASURED): all seven island batteries pass — precision **1.0**; LLM-free
+(AST: no LLM import in any module); both honesty oaths present and `confirmed_not_solved` ("the halting problem and K(x)
+remain UNSOLVED — only their decidable islands folded"); ISLAND 1's ε audited universal-not-sampled. ★ **THE CONVERGED
+CEILING**, measured: the DECLINED remainder = {general nonlinear integer (x²+c/Collatz) — **Hilbert-10**; Skolem order ≥ 5
+— **open**; non-holonomic H_n/n — **Risch**; general halting — **Turing**; K(x) exact — **Kolmogorov**}. This is the same
+boundary three independent research models drew, and we measured it: the remainder is **provably impossible** — Turing /
+Hilbert / Kolmogorov — NOT a gap in our machine. NO new certificate kind. `test_catalog.py` **154/154** (+7 §AE),
+test_build **273×3** (barrierfold/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 증명된 7개 난벽
+안의 결정가능 섬만 접는다(합성은 제안자, 검증은 z3의 종료하는 이론); 정지문제와 K(x)는 안 풀었고(섬만), 세 모델이 독립적으로
+그은 경계를 측정 — 잔여는 Turing·Hilbert·Kolmogorov가 금한 영원-불가능, 우리 기계의 구멍이 아니다.

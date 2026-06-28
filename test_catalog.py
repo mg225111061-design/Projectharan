@@ -4328,6 +4328,164 @@ def test_ad_gap8_loop_fusion_and_report():
           "NO new kind [22/14], precision 1.0, zero-dep)")
 
 
+def test_ae_island1_float_eps():
+    """§AE ISLAND 1 — FLOAT-ε (barrier: z3 IEEE-754 bit-blast blow-up): a contractive geometric float (|a|<1) folds
+    APPROX_FOLD with a UNIVERSAL ε proved over QF_NRA (real-abstraction, NO bit-blasting); ★ |a|≥1 DECLINES (error grows
+    ~aᴺ); ★ the ε is universal not sampled (a sampled max under-estimates the certified bound)."""
+    from fractions import Fraction
+    import barrierfold.float_eps as I1
+    good = I1.float_eps_fold(Fraction(1, 2), Fraction(3), 1000, 500)
+    assert good.issued and good.grade == "APPROX_FOLD" and good.epsilon is not None
+    assert good.real_semantics_verified and good.method == "affine-interval + QF_NRA"      # ★ no bit-blast
+    diverge = I1.float_eps_fold(Fraction(3, 2), Fraction(1), 1000, 500)                     # |a|=1.5 ≥ 1
+    assert (not diverge.issued) and "≥ 1" in diverge.detail                                # ★ out of island
+    sampled, certified, under = I1.sampled_eps_under_estimates(Fraction(1, 2), Fraction(3), 1000, 500)
+    assert under and sampled < certified                                                    # ★ universal, not sampled
+    assert I1.adversarial_battery()["all_ok"]
+    print(f"PASS test_ae_island1_float_eps (contractive geometric float → APPROX_FOLD, universal ε={float(good.epsilon):.2e} "
+          f"QF_NRA-verified [NO IEEE-754 bit-blast]; ★ |a|≥1 DECLINES [error~aᴺ]; ★ ε universal not sampled "
+          f"[sampled {sampled:.2e} < certified {certified:.2e}]; grade REUSED [no new])")
+
+
+def test_ae_island2_nonlinear_int():
+    """§AE ISLAND 2 — NONLINEAR-INTEGER (barrier: Hilbert-10 undecidable): additive (Faulhaber) & power (modular orbit)
+    fold EXACT-new; modular & substitution fold but ZERO-new (reused §Y Galois / §Z·§P-P5 Möbius); ★ general nonlinear
+    (x²+c / Collatz) is DECLINED — out of every decidable fragment."""
+    import barrierfold.nonlinear_int as I2
+    add = I2.fold("additive")
+    assert add.issued and add.fragment == "additive" and add.new_contribution and add.grade == "EXACT"
+    powr = I2.fold("power", k=3, x0=5, m=97)
+    assert powr.issued and powr.fragment == "power"
+    modr = I2.fold("modular", a=3, b=1, m=7)
+    assert modr.issued and (not modr.new_contribution)                                      # ★ reused §Y, zero-new
+    subst = I2.fold("substitution", a=1, b=1, c=1, d=2)
+    assert subst.issued and (not subst.new_contribution)                                    # ★ reused §Z/§P, zero-new
+    assert (not I2.fold("quadratic").issued) and I2.classify("quadratic") == "undecidable"  # ★ Hilbert-10
+    assert not I2.fold("collatz").issued
+    assert I2.adversarial_battery()["all_ok"]
+    print("PASS test_ae_island2_nonlinear_int (additive=Faulhaber & power=modular-orbit EXACT-new; modular & substitution "
+          "fold ZERO-new [reused §Y Galois / §Z·§P-P5 Möbius, surfaced not buried]; ★ x²+c & Collatz DECLINED [Hilbert-10, "
+          "out of every fragment]; classifier is the new piece)")
+
+
+def test_ae_island3_exppoly_eq():
+    """§AE ISLAND 3 — EXP-POLY-EQUALITY (barrier: closed-form equality general-open): (n+1)² ≡ n²+2n+1 [basis λ=1];
+    2·2ⁿ ≢ 3·2ⁿ [same base, diff coeff]; 2ⁿ+3ⁿ ≢ 2·2ⁿ [distinct bases, basis-independent] — all decided by BASIS LINEAR
+    INDEPENDENCE (always decidable); ★ Skolem existential-zero decidable order≤4 (Vereshchagin), order≥5 DECLINED (open)."""
+    from fractions import Fraction
+    import barrierfold.exppoly_eq as I3
+    eq_poly = I3.exppoly_equal([((1, 2, 1), Fraction(1))],
+                               [((0, 0, 1), Fraction(1)), ((0, 2), Fraction(1)), ((1,), Fraction(1))])
+    assert eq_poly.decidable and eq_poly.equal and eq_poly.method == "basis-linear-independence"
+    neq_same = I3.exppoly_equal([((2,), Fraction(2))], [((3,), Fraction(2))])
+    assert neq_same.decidable and (not neq_same.equal)                                      # same base, diff coeff
+    neq_dist = I3.exppoly_equal([((1,), Fraction(2)), ((1,), Fraction(3))], [((2,), Fraction(2))])
+    assert neq_dist.decidable and (not neq_dist.equal)                                      # distinct bases
+    assert I3.skolem_decidable(4) and (not I3.skolem_decidable(5))                          # ★ order≥5 open ⇒ DECLINE
+    assert I3.adversarial_battery()["all_ok"]
+    print("PASS test_ae_island3_exppoly_eq ((n+1)²≡n²+2n+1 by basis [λ=1 coeffs match]; 2·2ⁿ≢3·2ⁿ [same base diff coeff]; "
+          "2ⁿ+3ⁿ≢2·2ⁿ [distinct bases]; equality ALWAYS decidable via basis independence; ★ Skolem order≤4 decidable "
+          "[Vereshchagin], order≥5 DECLINED [open existential-zero])")
+
+
+def test_ae_island4_holonomic_sum():
+    """§AE ISLAND 4 — HOLONOMIC-SUMMATION (barrier: Risch/Zeilberger non-termination): polynomial (Σk²), geometric (Σ2ᵏ),
+    poly-geometric (Σk·2ᵏ), Gosper-telescoping (Σ1/(k(k+1))) all fold EXACT, verified by the TELESCOPING identity
+    C(n)−C(n−1)==summand(n) (terminating); ★ the non-holonomic harmonic Σ1/k DECLINES (digamma, out of island)."""
+    import barrierfold.holonomic_sum as I4
+    poly = I4.summation_fold("k**2")
+    assert poly.issued and poly.verified and poly.summation_class == "polynomial"
+    geo = I4.summation_fold("2**k")
+    assert geo.issued and geo.summation_class == "geometric"
+    polygeo = I4.summation_fold("k*2**k")
+    assert polygeo.issued and polygeo.summation_class == "poly_geometric"
+    gosper = I4.summation_fold("1/(k*(k+1))")
+    assert gosper.issued and gosper.verified                                                # telescoping-verified
+    harmonic = I4.summation_fold("1/k")
+    assert (not harmonic.issued) and harmonic.summation_class == "non_holonomic"            # ★ out of island
+    assert I4.adversarial_battery()["all_ok"]
+    print(f"PASS test_ae_island4_holonomic_sum (Σk²→{poly.closed_form}, Σ2ᵏ, Σk·2ᵏ, Σ1/(k(k+1)) all EXACT [telescoping "
+          "C(n)−C(n−1)==summand(n) verified, terminating]; ★ harmonic Σ1/k DECLINED [non-holonomic digamma]; extends ⑬, "
+          "reuses grandfathered sympy)")
+
+
+def test_ae_island5_invariant_synth():
+    """§AE ISLAND 5 — INVARIANT-SYNTHESIS (barrier: Rice undecidable): Karr (affine), Farkas (linear), Gröbner
+    (polynomial) each COMPLETELY synthesize an invariant and z3-verify all 3 VCs (initiation/consecution/sufficiency) in
+    QF_LRA/QF_NRA (terminating); ★ a wrong invariant (slope mismatch) FAILS consecution → rejected; ★ complete, not CEGAR."""
+    import barrierfold.invariant_synth as I5
+    karr = I5.karr_affine_accumulator(3, 5)
+    assert karr.verified and karr.domain == "Karr-affine" and karr.initiation and karr.consecution and karr.sufficiency
+    farkas = I5.farkas_linear_bound(4)
+    assert farkas.verified and farkas.domain == "Farkas-linear"
+    groebner = I5.groebner_polynomial_squares()
+    assert groebner.verified and groebner.domain == "Groebner-polynomial"
+    assert I5._wrong_invariant_rejected()                                                   # ★ slope mismatch rejected
+    assert karr.complete and groebner.complete                                              # ★ complete, not §X CEGAR guess
+    assert I5.adversarial_battery()["all_ok"]
+    print("PASS test_ae_island5_invariant_synth (Karr affine x−d·i==a, Farkas linear, Gröbner polynomial x==i² each "
+          "synthesize COMPLETE + z3-verify 3 VCs [QF_LRA/QF_NRA terminating]; ★ wrong invariant [slope mismatch x==6i for "
+          "x+=5] FAILS consecution → rejected; ★ complete-not-CEGAR; enables ISLAND 6)")
+
+
+def test_ae_island6_termination():
+    """§AE ISLAND 6 — TERMINATION (barrier: Turing halting, undecidable): a counted loop terminates by a linear ranking
+    function (z3 QF_LRA-verified), a decreases-contract verifies, SCT proves a strict-decrease cycle; ★ a general while is
+    DECLINED (no claim); ★ THE HALTING OATH — every issued proof says 'terminates BECAUSE <witness>', never bare 'terminates'."""
+    import barrierfold.termination as I6
+    lrf = I6.prove_linear_ranking(step=1)
+    assert lrf.proved and lrf.method == "linear-ranking" and "BECAUSE" in lrf.claim
+    contract = I6.verify_decreases_contract(measure_decreases=True, measure_nonneg=True)
+    assert contract.proved and contract.method == "decreases-contract"
+    sct = I6.size_change_terminates([("x", "x", "↓"), ("y", "x", "↓=")])
+    assert sct.proved and sct.method == "size-change"
+    assert not I6.prove_linear_ranking(step=0).proved                                       # step=0 ⇒ not a ranking fn
+    gen = I6.general_while_declined()
+    assert (not gen.issued) and "DECLINE" in gen.detail                                     # ★ no general halting claim
+    assert all("BECAUSE" in p.claim for p in (lrf, contract, sct))                          # ★ the oath
+    assert "PROVEN undecidable" in I6.HALTING_OATH
+    assert I6.adversarial_battery()["all_ok"]
+    print("PASS test_ae_island6_termination (linear RF f(i)=n−i [z3 QF_LRA], decreases-contract, SCT strict-cycle all "
+          "PROVE termination; ★ general while DECLINED [neither affirm nor deny — Turing forbids]; ★ HALTING OATH: every "
+          "proof says 'terminates BECAUSE <witness>', never bare 'terminates'; step=0 non-RF rejected)")
+
+
+def test_ae_island7_kolmogorov_and_report():
+    """§AE ISLAND 7 — KOLMOGOROV-ENUMERATION (barrier: K(x) uncomputable): Fibonacci folds (LFSR via Berlekamp-Massey,
+    MDL-shortest, verified), periodic & constant fold; ★ a random-looking (π-digit) sequence DECLINES; ★ THE DIAGONALIZATION
+    LIMIT — Thue-Morse is structured but unenumerated → honestly DECLINED, never faked. Plus the §AE compose report."""
+    import barrierfold.kolmogorov_enum as I7
+    import barrierfold.barrierfold_report as R
+    fib = I7.mdl_select([1, 1, 2, 3, 5, 8, 13, 21, 34, 55])
+    assert fib.matched and fib.structure_class == "LFSR" and fib.verified                   # Berlekamp-Massey + verify
+    assert I7.mdl_select([1, 2, 3] * 4).structure_class == "periodic"
+    assert I7.mdl_select([7] * 10).structure_class == "constant"
+    assert not I7.mdl_select([3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8]).matched                  # ★ π digits ⇒ DECLINE
+    assert I7.diagonalization_limit()["honestly_declined"]                                  # ★ Thue-Morse honestly declined
+    assert "uncomputable" in I7.KOLMOGOROV_OATH and "NEVER" in I7.KOLMOGOROV_OATH
+    assert I7.adversarial_battery()["all_ok"]
+    # ── §AE compose report: seven decidable islands inside seven proven-hard barriers, the converged ceiling measured ──
+    rep = R.report()
+    assert rep["precision"]["precision"] == 1.0 and rep["precision"]["all_ok"]
+    assert all(rep["precision"]["per_island"].values()) and len(rep["per_island"]) == 7     # all 7 islands green
+    assert rep["llm_free"]["llm_free"] and rep["llm_free"]["offenders"] == {}               # AST: no LLM import
+    # ★ the two honesty oaths — halting & K(x) PROVEN impossible, NOT solved
+    assert "PROVEN undecidable" in rep["honesty_oaths"]["halting_I6"]
+    assert "uncomputable" in rep["honesty_oaths"]["kolmogorov_I7"]
+    assert "remain UNSOLVED" in rep["honesty_oaths"]["confirmed_not_solved"]
+    # ★ ISLAND 1 ε universal not sampled
+    assert rep["certified_eps_audit_I1"]["universal_not_sampled"] and rep["certified_eps_audit_I1"]["verified"]
+    # ★ the converged ceiling = the proven edge (Turing/Hilbert/Kolmogorov), measured
+    cc = rep["converged_ceiling"]["declined_remainder"]
+    assert any("Hilbert-10" in r for r in cc) and any("Turing" in r for r in cc) and any("Kolmogorov" in r for r in cc)
+    assert rep["no_new_certificate_kind"] and rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    print("PASS test_ae_island7_kolmogorov_and_report (Fibonacci→LFSR [Berlekamp-Massey, MDL-shortest, verified], periodic "
+          "& constant fold; ★ π-digits DECLINE; ★ DIAGONALIZATION LIMIT: Thue-Morse structured-but-unenumerated honestly "
+          "DECLINED; §AE report: 7/7 islands precision 1.0, LLM-free [AST], ★ both oaths [halting & K(x) PROVEN "
+          "impossible, NOT solved], ★ converged ceiling measured [Turing/Hilbert/Kolmogorov], NO new kind [22/14], zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
