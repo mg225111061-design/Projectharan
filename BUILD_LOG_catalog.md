@@ -1626,3 +1626,54 @@ under-determination guard fires; NO new cert kind (22/14); LLM-free core (AST: n
 zero-dep. `test_catalog.py` **169/169** (+5 §AI), test_build **273×3** (conjecture/interproc/specfold/molecule_report
 not imported — purely additive). 관찰은 증명이 아니다(P-2): 만 개가 맞아도 z3 미증명이면 DECLINE — 분자는 recall로만
 키운다(분모·22/14 불변), 거짓 EXACT 0, z3-종결·LLM-free 코어·zero-dep.
+
+
+## §AJ — FOUR AUXILIARY LAYERS ON §AI (conjecturer routing · residual gate · soundness aux · Viterbi semiring)
+
+Absorbed from four external AI evaluation rounds — taking ONLY the items that pass z3 + precision-1.0 + repo-first —
+and wiring each as an AUXILIARY layer on §AI's conjecture-verify that CANNOT weaken the gate. The dominating principle:
+a layer may add speed or an extra exact certificate, never a false EXACT.
+
+**§1 residual cutoff gate** (`conjecture/precheck.py`): a fast DECLINE shortcut that skips the conjecture path on the
+unmistakable random-oracle signature. ★★ The invariant that makes it safe — **false-skip 0**: it NEVER skips a
+foldable. The skip rule requires the joint ABSENCE of every structural tell, and the structural detectors (cheap
+Berlekamp-Massey order via the §AI under-determination boundary — REUSE `native_sequence`; polynomial term-ratio —
+REUSE `holonomic_guess`; period — REUSE `period_guess`) are SUPERSETS of the conjecturers' own first steps, so a
+foldable always trips one ⇒ never skipped, by construction (not by luck). Corroborated by the directive's named
+statistical signals — Shannon entropy, rescaled-range Hurst, and MDL incompressibility (REUSE `decline_boundary
+.mdl_two_part`, the zlib K-complexity upper bound). ★★ And the honest framing: a skip can only cost RECALL (a wrongly-
+skipped foldable would become a DECLINE), it can NEVER cost PRECISION (z3 still disposes everything that PROCEEDS) — so
+precision 1.0 does not depend on this gate at all; it's a Clock-C speed filter, with false-skip measured = 0 so recall
+is preserved too. A skip is a DECLINE, never a fast EXACT (P-2).
+
+**§2 conjecturer router** (`conjecture/router.py`): cheap signals (autocorrelation ⇒ periodic; finite-difference
+collapse ⇒ polynomial; polynomial term-ratio ⇒ holonomic; small Berlekamp-Massey order ⇒ C-finite/matpow; NCD/KS/
+mutual-information tie-breakers) predict WHICH conjecturer will fold and try it first. ★★ ORDER only — the full
+five-conjecturer portfolio remains the fallback, so the SET that folds is IDENTICAL with or without routing (routed
+recall == unrouted recall, measured) and z3 disposes each candidate regardless of order. Routing can neither create a
+fold nor a false EXACT; it only saves average conjecture work (the first-try hit rate is the measured win). When the
+router guesses wrong (factorial routed non-holonomic first) the fallback still folds it — recall preserved.
+
+**§3 soundness aux** (`conjecture/soundness_aux.py`): (a) **Kraft-McMillan** — a uniquely-decodable / prefix binary
+code with lengths {lᵢ} exists IFF Σ2^(-lᵢ) ≤ 1, an EXACT rational realizability certificate (Fraction arithmetic, never
+float); >1 ⇒ DECLINE with the exact over-budget. (b) **0-1-law promotion** — ★★ THE P-2 LINE: an observed-always
+property P(n) is promoted to "holds ∀n" (EXACT) ONLY when z3 proves the structural dichotomy `(∀n≥0.P(n)) ∨
+(∀n≥0.¬P(n))` and the single observation selects the branch; if P is genuinely n-dependent (e.g. "n<100", true on the
+probe, false later) z3 finds NO dichotomy and there is NO promotion — observation alone never promotes. Both reuse the
+existing `invariant` certificate kind (no new kind).
+
+**§4 Viterbi semiring** (`gapfold/semiring_dp.py`): a Viterbi (max-product) DP is, in the log domain, V[t][j] =
+maxᵢ(V[t-1][i] + logT[i][j]) — EXACTLY the max-plus tropical semiring already in the taxonomy. A time-homogeneous
+transition folds T steps via the tropical matrix power logT^⊗T, O(T·m²)→O(m³ log T), sound by semiring associativity
+(REUSE `altlens.tropical_fold`: `tropical_matpow` + the `verify_matrix_extraction` differential check). ★★ NO new
+mechanism — Viterbi is the tropical face; the cert reduces to matrix-power / linear-recurrence (kind `closed_form`).
+Honest: max/argmax are exact comparisons (the PATH is exact even in float); the accumulated log-SCORE is exact over
+ℤ/ℚ. Per-step-varying emissions are already O(T·m²)-optimal ⇒ the asymptotic fold is DECLINED (no false speedup).
+
+**COMPOSE + measure** (`aj_report.py`): four layers — precision **1.0**; P-2 enforced (skip ⇒ DECLINE; 0-1 promotion
+only under a z3 dichotomy); false-skip **0** (measured on the foldable corpus); routing recall **invariant**; NO new
+mechanism (22/14); LLM-free core (AST: no LLM import in any §AJ module); zero-dep. `test_catalog.py` **174/174**
+(+5 §AJ), test_build **273×3** (precheck/router/soundness_aux/semiring_dp/aj_report not imported — purely additive;
+gapfold is never imported by test_build). 보조 레이어는 게이트를 약화할 수 없다 — 잔차 컷오프는 false-skip 0이고 skip은
+DECLINE이지 거짓 EXACT가 아니다(recall만 비용, precision 불변); 라우터는 순서만(recall 불변); 0-1 승격은 z3 이분법에서만
+(관찰 아님 — P-2); Viterbi는 기존 max-plus face(새 메커니즘 0); precision 1.0·LLM-free 코어·zero-dep.

@@ -4821,6 +4821,153 @@ def test_ai_molecule_report():
           "1.0, NO new kind [22/14], LLM-free core, zero-dep)")
 
 
+def test_aj1_precheck_residual_gate():
+    """§AJ §1 — residual cutoff gate (entropy·Hurst·MDL): ★★ false-skip 0 — every disguised foldable (Fibonacci/Σk²/
+    period-3/factorial/2ⁿ/affine/modular, INCLUDING the tricky oscillating-C-finite and non-monotonic-holonomic) is
+    PROCEEDed (the structural detectors — cheap Berlekamp-Massey order, polynomial ratio, period — are SUPERSETS of the
+    conjecturers' own first steps, so a foldable is never random-oracle-signed); ★ a deterministic random oracle
+    (truncated SHA-256: incompressible + near-max entropy + non-monotonic + no structural fit) is SKIPPED; ★★ and that
+    skip is a fast DECLINE, never a fast EXACT — the same oracle DECLINES in the conjecturer, so precision is untouched
+    (the gate can only cost recall, which we measure to be 0)."""
+    from conjecture import precheck as PC, bm_linrec
+    import hashlib
+
+    def make_fib():
+        memo = {0: 0, 1: 1}
+        def f(n):
+            if n not in memo:
+                f(n - 1); memo[n] = memo[n - 1] + memo[n - 2]
+            return memo[n]
+        return f
+
+    def osc():                                              # oscillating C-finite a[n]=a[n-1]-2a[n-2] (non-monotonic)
+        a = [0, 1]
+        def f(n):
+            while len(a) <= n:
+                a.append(a[-1] - 2 * a[-2])
+            return a[n]
+        return f
+
+    def holo():                                            # non-monotonic holonomic a[n]=(n-5)·a[n-1]
+        a = [1]
+        def f(n):
+            while len(a) <= n:
+                a.append((len(a) - 5) * a[-1])
+            return a[n]
+        return f
+    foldables = [make_fib(), lambda n: sum(k * k for k in range(n + 1)), lambda n: [10, 20, 30][n % 3],
+                 lambda n: __import__("math").factorial(n), lambda n: 2 ** n, lambda n: 3 * n + 1,
+                 lambda n: pow(3, n, 7), osc(), holo()]
+    fs = PC.measure_false_skip(foldables)
+    assert fs["false_skips"] == 0, f"★ false-skip violated: {fs['skipped_indices']}"      # ★★ the invariant
+
+    def sha_oracle(n):
+        return int.from_bytes(hashlib.sha256(str(n).encode()).digest()[:6], "big")
+    skip = PC.worth_conjecturing(sha_oracle)
+    assert (not skip.proceed) and skip.signature == "random-oracle"                        # ★ random ⇒ skip
+    assert not bm_linrec.conjecture(sha_oracle).issued                                     # ★★ skip ≡ DECLINE (precision safe)
+    assert PC.worth_conjecturing(make_fib()).proceed                                       # foldable ⇒ proceed
+    assert PC.adversarial_battery()["all_ok"]
+    print("PASS test_aj1_precheck_residual_gate (★★ false-skip 0 on 9 disguised foldables incl. oscillating-C-finite & "
+          "non-monotonic-holonomic [structural detectors ⊇ conjecturers']; ★ SHA-256 oracle SKIPPED [no structural fit "
+          "+ incompressible + high-entropy]; ★★ skip ≡ DECLINE — precision untouched, gate costs only recall [= 0])")
+
+
+def test_aj2_router_ordering_only():
+    """§AJ §2 — conjecturer router (autocorr·NCD·KS·MI): ★★ ORDER only — routed recall == unrouted recall on the corpus
+    (the full five-conjecturer portfolio is the fallback, so the SET that folds is identical; routing can neither create
+    a fold nor a false EXACT); the signals work (a period-3 orbit routes `period` FIRST, Σk² routes `closedform` FIRST);
+    ★ when routing guesses wrong (factorial routed non-holonomic first) the fallback STILL folds it — recall preserved."""
+    from conjecture import router as RT
+    import math
+
+    def make_fib():
+        memo = {0: 0, 1: 1}
+        def f(n):
+            if n not in memo:
+                f(n - 1); memo[n] = memo[n - 1] + memo[n - 2]
+            return memo[n]
+        return f
+    corpus = [make_fib(), lambda n: sum(k * k for k in range(n + 1)), lambda n: [10, 20, 30][n % 3],
+              lambda n: math.factorial(n), lambda n: 2 ** n, lambda n: 3 * n + 1]
+    m = RT.measure_routing(corpus)
+    assert m["recall_identical"] and m["routed_recall"] == len(corpus)                      # ★★ ordering-only invariant
+    assert RT.route(lambda n: [10, 20, 30][n % 3]).order[0] == "period"                     # signal: autocorr ⇒ period
+    assert RT.route(lambda n: sum(k * k for k in range(n + 1))).order[0] == "closedform"    # signal: finite-diff ⇒ poly
+    assert RT.first_fold(lambda n: math.factorial(n))[0] is not None                        # ★ fallback still folds it
+    assert RT.adversarial_battery()["all_ok"]
+    print("PASS test_aj2_router_ordering_only (★★ routed recall == unrouted recall [ORDER only — full portfolio is the "
+          "fallback, recall+precision invariant]; period-orbit→period first, Σk²→closedform first [signals work]; "
+          "★ factorial mis-routed but fallback still folds it [recall preserved])")
+
+
+def test_aj3_soundness_aux_kraft_zero_one():
+    """§AJ §3 — soundness aux: Kraft-McMillan EXACT realizability (rational, never float) — {1,2,3,3} is realizable
+    (Σ2^(-lᵢ)=1) and {1,1,2} is NOT (Σ=5/4>1, the exact over-budget shown); ★★ 0-1-law promotion fires ONLY under a
+    z3-proved dichotomy — an n-INVARIANT property (n+1>n) is promoted to EXACT ∀n, but an observed-always-but-
+    n-DEPENDENT property (n<100, true on the probe, false later) is NOT promoted (the P-2 line — observation alone never
+    promotes); both reuse the existing 'invariant' certificate kind (no new kind)."""
+    from conjecture import soundness_aux as SA
+    from fractions import Fraction
+    import kernel_verdict as KV
+    realizable = SA.kraft_mcmillan([1, 2, 3, 3])
+    over = SA.kraft_mcmillan([1, 1, 2])
+    assert realizable.realizable and realizable.kraft_sum == Fraction(1)                    # exact equality case
+    assert (not over.realizable) and over.kraft_sum == Fraction(5, 4)                       # ★ exact rational > 1
+    assert realizable.verdict.certificate.kind == "invariant"                              # existing kind, no new
+    inv = SA.zero_one_promote(lambda n: n + 1 > n, observed_holds=True)
+    ndep = SA.zero_one_promote(lambda n: n < 100, observed_holds=True)
+    assert inv.promoted and inv.branch == "all" and inv.verdict.status == KV.EXACT          # z3 dichotomy ⇒ promote
+    assert not ndep.promoted                                                                # ★★ P-2: observation ≠ proof
+    assert SA.prove_zero_one_dichotomy(lambda n: n < 100) is None                           # ★ no dichotomy (n-dependent)
+    assert SA.adversarial_battery()["all_ok"]
+    print("PASS test_aj3_soundness_aux_kraft_zero_one (Kraft-McMillan EXACT: {1,2,3,3} Σ=1 realizable / {1,1,2} Σ=5/4 "
+          "DECLINE [exact rational]; ★★ 0-1 promotion z3-GATED: n-invariant promoted to EXACT ∀n, n-dependent NOT "
+          "promoted [P-2 — observation never promotes]; existing 'invariant' kind)")
+
+
+def test_aj4_viterbi_semiring_dp():
+    """§AJ §4 — Viterbi DP recognized as the EXISTING max-plus tropical semiring (REUSE altlens.tropical_fold): a
+    time-homogeneous Viterbi transition folds T steps via the tropical matrix power O(T·m²)→O(m³ log T); ★ the O(log T)
+    fold EQUALS the O(T) explicit iteration at a large T (sound by semiring associativity); ★★ NO new mechanism — the
+    certificate reduces to the existing matrix-power / linear-recurrence machinery (kind 'closed_form'); a shape-
+    mismatched transition DECLINES."""
+    from gapfold import semiring_dp as VT
+    logT, v0 = [[0.0, 2.0], [1.0, 0.0]], [0.0, 0.0]
+    vf = VT.recognize_viterbi(logT, v0, 9)
+    assert vf.issued and vf.semiring.startswith("max-plus")
+    assert vf.verdict.certificate.kind == "closed_form" and vf.mechanism == "linear_recurrence"   # ★★ no new mechanism
+    it = list(v0)
+    for _ in range(1000):
+        it = VT.viterbi_matvec(logT, it)
+    assert VT.viterbi_fold(logT, v0, 1000) == it                                            # ★ O(log T) ≡ O(T)
+    assert not VT.recognize_viterbi([[0.0, 1.0]], [0.0, 0.0], 5).issued                     # shape mismatch ⇒ DECLINE
+    assert VT.adversarial_battery()["all_ok"]
+    print("PASS test_aj4_viterbi_semiring_dp (Viterbi = max-plus tropical semiring [REUSE altlens.tropical_fold]: "
+          "T-step fold O(T·m²)→O(m³ log T) via tropical matrix power; ★ O(log T) ≡ O(T) at T=1000 [associativity]; "
+          "★★ NO new mechanism [reduces to matrix-power, kind closed_form]; shape mismatch DECLINES)")
+
+
+def test_aj_report_compose():
+    """§AJ report — four auxiliary layers on §AI composed: §1 precheck (false-skip 0; skip⇒DECLINE never precision),
+    §2 router (recall invariant), §3 Kraft+0-1 (z3-gated promotion, never observation), §4 Viterbi (existing tropical
+    face); ★ precision 1.0, P-2 enforced (skip is a DECLINE; promotion needs a z3 dichotomy), NO new mechanism [22/14],
+    LLM-free core (AST), zero-dep."""
+    import aj_report as R
+    rep = R.report()
+    assert rep["layers"]["1_precheck"]["false_skip_zero"] and rep["false_skip_zero"]
+    assert rep["layers"]["2_router"]["recall_identical"] and rep["routing_sound"]
+    assert rep["layers"]["3_soundness_aux"]["battery_ok"] and rep["layers"]["4_semiring_dp"]["battery_ok"]
+    assert rep["p2_enforced"]["precheck_skip_is_decline"] and rep["p2_enforced"]["zero_one_observation_does_not_promote"]
+    assert rep["precision"] == 1.0 and rep["no_new_mechanism"]
+    assert rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["llm_free"]["llm_free"] and rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_aj_report_compose (four aux layers on §AI: precheck false-skip 0 [skip⇒DECLINE never precision], "
+          "router recall-invariant, Kraft+0-1 z3-gated [P-2], Viterbi existing tropical face; ★ precision 1.0, P-2 "
+          "enforced, NO new mechanism [22/14], LLM-free core, zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
