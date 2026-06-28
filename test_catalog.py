@@ -4578,6 +4578,126 @@ def test_ag_depth_cap_and_report():
           "[0 GAP, no double-count], SyGuS Δ=0, sep promotions, precision 1.0, NO new kind [22/14], LLM-free, zero-dep)")
 
 
+def test_ah1_lang_semantics():
+    """§AH §1 (RF-1) — the SAME Σi fold, language-dependent soundness: Python EXACT (arbitrary precision); Java int32
+    naive UNSOUND ⇒ wrap-aware-only (z3 BV); ★ C-signed overflow-in-range = UB ⇒ DECLINE (never a closed form for UB),
+    but EXACT when no overflow provable; intake recognizes the structure in all languages (language-agnostic), only
+    the disposition differs — same domain-conditional ceiling, NOT a coverage increase."""
+    from frontend import semantics as SEM
+    from frontend import lang_intake as LI
+    assert SEM.sum_fold_under_language("python").grade == "EXACT"
+    java = SEM.sum_fold_under_language("java_int")
+    assert java.accept and "WRAP-AWARE" in java.reason and java.proved_by == "QF_BV"      # ★ naive unsound, wrap-aware only
+    assert not SEM.sum_fold_under_language("c_signed", 10 ** 9).accept                     # ★ UB ⇒ DECLINE
+    assert SEM.sum_fold_under_language("c_signed", 1000).grade == "EXACT"                  # no overflow ⇒ EXACT
+    assert SEM.adversarial_battery()["all_ok"] and LI.adversarial_battery()["all_ok"]
+    m = LI.measure_per_language(10 ** 9)
+    assert m["recognized"] == m["languages"] and m["languages"] >= 6                       # intake language-agnostic
+    assert sum(1 for v in m["rows"].values() if v["recognized"] and not v["sound"]) >= 1   # ★ some DECLINE for soundness
+    print("PASS test_ah1_lang_semantics (RF-1: SAME Σi fold — Python EXACT, Java int32 wrap-aware-only [z3 BV refutes "
+          "naive], ★ C-signed UB ⇒ DECLINE / no-overflow ⇒ EXACT; intake recognizes 7 langs [language-agnostic], "
+          "disposition differs by per-language semantics — same ceiling, not coverage)")
+
+
+def test_ah2_codegen_translation_validated():
+    """§AH §2 — per-language idiomatic codegen, translation-validated (proposes; z3 disposes): JS auto-promotes
+    number→BigInt past 2^53; C widens to int64/__int128 with overflow guard; Java promotes int→long (naive int would
+    be UB per §1); ★ a wrong naive-int32 emission is REJECTED by translation-validation; gain is constant-factor only."""
+    from codegen import idiom as ID
+    assert ID.emit_sum_closed_form("js", 1000).type_chosen == "number"
+    assert ID.emit_sum_closed_form("js", 10 ** 9).type_chosen == "BigInt"
+    assert "int64" in ID.emit_sum_closed_form("c", 10 ** 6).type_chosen
+    assert ID.emit_sum_closed_form("java", 10 ** 9).type_chosen == "long"
+    rej = ID.reject_unsound_emission_demo()
+    assert rej["naive_int32_rejected"] and rej["promoted_long_accepted"]                   # ★ z3 disposes
+    assert ID.adversarial_battery()["all_ok"]
+    print("PASS test_ah2_codegen_translation_validated (JS number→BigInt, C int64/__int128+guard, Java int→long [naive "
+          "int = UB]; ★ wrong naive-int32 emission REJECTED by translation-validation [codegen proposes, z3 disposes]; "
+          "gain constant-factor, never summed with §1 asymptotic)")
+
+
+def test_ah3_recall_no_new_mechanism():
+    """§AH §3 (RF-2) — recall/composition/canonicalization only, NO 23rd mechanism: canonicalization collapses 3
+    surface variants to 1 form (recall ×3, EXACT unchanged); lens composition is additive-with-overlap; a disguised
+    Fibonacci is recalled via the REUSED Berlekamp-Massey; ★ the probabilistic frontier grades above-threshold
+    PROBABILISTIC and below-threshold DECLINE (NEVER EXACT); mechanism count stays 22/14."""
+    import recall_integrate as RI
+    assert RI.canonicalization_multiplier(["s=0\nfor i in range(1,n+1): s+=i",
+                                           "t=0\nfor k in range(1,n+1): t = t + k",
+                                           "a = 0\nfor j in range(1, n+1): a = j + a"])["multiplier"] == 3.0
+    assert RI.compose_lenses("gf×window")["recalled"] and not RI.compose_lenses("gf×nope")["recalled"]
+    assert RI.recall_disguised_cfinite([1, 1, 2, 3, 5, 8, 13, 21, 34, 55])["recalled"]
+    assert RI.probabilistic_frontier(2.0)["grade"] == "PROBABILISTIC"                      # ★ never EXACT
+    assert RI.probabilistic_frontier(0.5)["grade"] == "DECLINE"
+    assert RI.MECHANISM_COUNT == 22 and RI.CERT_KINDS == 14                                # ★ RF-2 no new mechanism
+    assert RI.adversarial_battery()["all_ok"]
+    print("PASS test_ah3_recall_no_new_mechanism (RF-2: canonicalization ×3 [EXACT unchanged], lens composition "
+          "additive-with-overlap, disguised C-finite recalled [REUSE Berlekamp-Massey]; ★ probabilistic frontier "
+          "PROBABILISTIC-above / DECLINE-below [never EXACT]; NO 23rd mechanism [22/14])")
+
+
+def test_ah45_selffold_superscale_amdahl():
+    """§AH §4/5 — self-fold touches ONLY Clock C ⇒ end-to-end gain is Amdahl-limited (A/B/I-O are the floor); ★ the
+    foldable-kernel ratio grows with N (10→10, 10^9→10^9) and memory drops O(N)→O(1); ★ a low-p large task routes to
+    'amdahl-capped' (honest), a high-p one to 'super-scale' — the forbidden whole-system 'bigger⇒faster' claim is NOT made."""
+    import self_fold as SF
+    budget = SF.ClockBudget(0.55, 0.20, 0.10, 0.15)
+    eff = SF.self_fold_effect(budget, 1000.0)
+    assert eff["end_to_end_speedup"] < 1.2 and eff["unchanged"]["clock_a_llm"] == 0.55     # ★ Amdahl-limited; A unchanged
+    curve = SF.kernel_ratio_curve([10, 10 ** 9])
+    assert curve[0]["ratio"] == 10 and curve[-1]["ratio"] == 10 ** 9 and all(c["closed_form_memory"] == 1 for c in curve)
+    assert SF.route_by_foldable_fraction(0.057, 10 ** 9)["route"] == "amdahl-capped"       # ★ low-p honest
+    assert SF.route_by_foldable_fraction(0.9, 10 ** 9)["route"] == "super-scale"
+    assert SF.adversarial_battery()["all_ok"]
+    print("PASS test_ah45_selffold_superscale_amdahl (self-fold reduces ONLY Clock C ⇒ end-to-end 1.11× [Amdahl-capped, "
+          "A/B/I-O unchanged]; ★ kernel ratio grows with N + memory O(N)→O(1); low-p→amdahl-capped / high-p→super-scale; "
+          "no whole-system 'bigger⇒faster' claim)")
+
+
+def test_ah6_security_verifiers():
+    """§AH §6 (RF-3) — machine-verified ABSENCE of NAMED vuln classes + explicit threat model, never 'perfect security':
+    the router is deterministic-first (guarantee router-independent); constant-time / taint prove ABSENCE or FLAG/DECLINE;
+    ★ entropy proves INSECURITY only (never 'secure'); ★ reentrancy FLAGs the CEI-violating order; security-side
+    precision 1.0 = zero false 'safe'; threat model lists what is NOT proved."""
+    from security import route as R, consttime as CT, taint as TT, entropy as EN, reentrancy as RE
+    assert R.route("import hmac\ndef c(p,h): return hmac.compare_digest(p,h)").guarantee_independent_of_router
+    assert "reentrancy" in R.route("function f() public { msg.sender.call.value(x)(); y=0; }").verifiers
+    assert EN.verify_entropy([0] * 95 + [1] * 5).disposition == "INSECURE-PROVEN"          # ★ proves insecurity
+    assert EN.verify_entropy(list(range(256)) * 4).disposition == "DECLINE"                # ★ never 'secure'
+    assert RE.verify_cei(["check", "ext_call", "write"]).disposition == "FLAG"             # ★ reentrancy caught
+    assert RE.verify_cei(["check", "write", "ext_call"]).disposition == "PROVEN-CEI"
+    assert len(R.THREAT_MODEL["does_NOT_prove"]) >= 4 and "perfectly safe" in R.THREAT_MODEL["oath"]
+    for mod in (R, CT, TT, EN, RE):
+        assert mod.adversarial_battery()["all_ok"]
+    print("PASS test_ah6_security_verifiers (RF-3: router deterministic-first [guarantee router-independent]; "
+          "constant-time/taint prove ABSENCE or FLAG/DECLINE; ★ entropy proves INSECURITY only [never 'secure']; "
+          "★ reentrancy FLAGs CEI violation; threat model explicit; ★ NO 'perfect security', precision 1.0 = 0 false-safe)")
+
+
+def test_ah_report_compose():
+    """§AH report — all six axes composed: RF-1 (some langs DECLINE the same fold for soundness), codegen
+    translation-validated, RF-2 (no new mechanism), self-fold Amdahl-limited, super-scaling low-p capped, RF-3
+    (security verifiers green + explicit threat model, no false 'safe'); ★ precision 1.0, NO new cert kind [22/14],
+    LLM-free core (AST), zero-dep core (tree-sitter optional); the three forbidden claims are avoided."""
+    import upgrade_ah_report as R
+    rep = R.report()
+    assert rep["RF1_language"]["unsound_folds_declined_by_semantics"] >= 1
+    assert rep["codegen"]["battery_ok"] and rep["codegen"]["unsound_emission_rejected"]
+    assert rep["RF2_recall"]["new_mechanism"] == 0 and rep["RF2_recall"]["mechanism_count"] == 22
+    assert rep["self_fold"]["end_to_end_speedup"] < 1.2
+    assert rep["super_scaling"]["low_p_route"] == "amdahl-capped"
+    assert rep["RF3_security"]["all_ok"] and len(rep["RF3_security"]["threat_model"]["does_NOT_prove"]) >= 4
+    assert rep["precision"] == 1.0 and rep["no_new_certificate_kind"]
+    assert rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["llm_free"]["llm_free"] and rep["zero_dep_ok"] and rep["tree_sitter_optional_fallback_kept"]
+    assert len(rep["forbidden_copy_avoided"]) == 3 and len(rep["honesty_qualifiers_preserved"]) == 2
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_ah_report_compose (six axes: RF-1 unsound-folds-declined, codegen translation-validated, RF-2 no "
+          "new mechanism, self-fold Amdahl-limited, super-scale low-p capped, RF-3 security green + threat model; "
+          "★ precision 1.0, NO new kind [22/14], LLM-free core, zero-dep core; 3 forbidden claims avoided, 2 honesty "
+          "qualifiers preserved)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

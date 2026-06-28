@@ -1522,3 +1522,52 @@ ceiling, NOT inflated — no new structural pattern was found this directive, so
 test_build **273×3** (new modules not imported; `combine_grade` change is default-off ⇒ 273 unchanged). 잘못된 답보다
 DECLINE이 항상 옳다 — 30개 중 29개는 이미 빌드(재구현 0, 감사로 증명); 유일 빈칸 SyGuS는 z3-게이트 결정적 proposer
 (coverage Δ=0); 마틴게일 거부(정체성 사수)·NIA-다리 거부(결정불가·중복)·자료구조 리프팅 이미 AARA/§P·천장 미인플레.
+
+## §AH — MULTILANG INTAKE · VERIFIED CODEGEN · RECALL INTEGRATION · SELF-FOLD · SUPER-SCALING · SECURITY VERIFIERS
+
+Six axes under three binding honesty reframings (a violation FAILS the build): **RF-1** language = *intake*, not
+*coverage* (fold acts on the language-agnostic IR; the new work is per-language SEMANTICS that DECLINE unsound folds);
+**RF-2** the 22 mechanisms / 14 cert kinds are SATURATED — **no new mechanism** (only recall/composition/
+canonicalization + a probabilistic frontier); **RF-3** there is no "perfect security" — only the machine-verified
+ABSENCE of a NAMED vuln class + an explicit threat model, else DECLINE/FLAG. precision 1.0 (no false fold / no false
+"safe"); new cert kinds 0; LLM-free core; zero-dep core (tree-sitter OPTIONAL, pure-Python fallback kept).
+
+**§1 multilang intake** (`frontend/semantics.py` + `frontend/lang_intake.py`): the precision-1.0 defense line. The
+SAME `Σi → n(n+1)/2` fold is decided UNDER each language's integer model — Python (arbitrary) EXACT; Java/C# int32
+the NAIVE form OVERFLOWS mid-expression so only the WRAP-AWARE form is accepted (z3 QF_BV refutes naive==wrap-sum);
+C/C++ signed overflow = UB ⇒ **DECLINE** in range (never a closed form for UB), EXACT only when no-overflow is
+provable; Go/Rust-wrapping wrap-aware; Rust-checked over-range DECLINE. Float reassociation refused (IEEE-754 / FMA);
+eval-order preserved. Intake recognizes the structure in 7 languages (language-agnostic) — the foldable subset is
+language-independent (same domain-conditional ceiling); only the SOUNDNESS disposition differs (2 languages DECLINE
+the same fold). **§2 verified codegen** (`codegen/idiom.py`): deterministic value-range → type-promotion (JS number→
+BigInt past 2^53; C int64/__int128 + overflow-guard; Java/C# int→long/BigInteger; Rust checked_*; Go typed) — then
+z3 TRANSLATION-VALIDATED against §1 semantics (codegen PROPOSES, z3 DISPOSES; a wrong naive-int32 emission is
+REJECTED and falls back). Gain is CONSTANT-factor (type/vectorization), never summed with §1's asymptotic fold.
+
+**§3 recall integration** (`recall_integrate.py`, RF-2 — NO new mechanism): canonicalization collapses ≥3 surface
+variants to one form (recall ×3, EXACT ceiling unchanged); lens composition is additive-with-overlap; disguised
+C-finite recalled via the REUSED Berlekamp-Massey; the probabilistic frontier grades above-threshold PROBABILISTIC /
+below-threshold DECLINE (NEVER EXACT). Reuses §Y/§Z/§AA/§AB/§AC/§AD/§AE/§M (the §AG audit is the double-count gate).
+**§4/5 self-fold + super-scaling** (`self_fold.py`): self-fold touches ONLY Clock C (of A=LLM, B=z3, C=fold, I/O) ⇒
+end-to-end gain is AMDAHL-LIMITED (1.11× at the modelled budget — A/B/I-O are the non-foldable floor; correctness
+never depends on the profile). Super-scaling: the foldable-kernel ratio grows with N (O(N)→O(1)) AND memory drops
+O(N)→O(1) (OOM-avoidance) — but the WHOLE-task gain is capped by Amdahl at the MEASURED foldable fraction p; low-p
+large work routes to an honest "amdahl-capped" report, high-p to "super-scale". The forbidden "bigger ⇒ absolutely
+faster" system claim is NOT made.
+
+**§6 security verifiers** (`security/route.py` + `consttime.py` + `taint.py` + `entropy.py` + `reentrancy.py`, RF-3):
+deterministic-first router (the guarantee is router/LLM-INDEPENDENT — the weak-LLM constraint's heart). consttime
+(reuse `sidechannel`) proves secret-dep branch/mem/div ABSENCE or FLAG/DECLINE; taint (reuse `taint_ifds`) proves
+source→sink non-reachability or FLAG; ★ entropy proves LOW-entropy INSECURITY only — NEVER "secure" (NIST PART1.C:
+statistics are necessary-not-sufficient); reentrancy (CFG checks-effects-interactions) FLAGs an external-call-before-
+state-write — the DeFi audit angle. ★ Explicit threat model (proves: modelled timing/taint/reentrancy/low-entropy;
+does NOT prove: unmodelled side channels, hardware, protocol, crypto-primitive security). Security-side precision
+1.0 = ZERO false "safe"; "perfectly safe" is NEVER claimed.
+
+**COMPOSE + measure** (`upgrade_ah_report.py`): all six axes — precision **1.0**; NO new cert kind (22/14); LLM-free
+core (AST: no LLM import in any §AH module); zero-dep core (tree-sitter optional, fallback kept); the two honesty
+qualifiers preserved (domain-conditional; measured ceiling not inflated); the three forbidden claims ("완벽한 보안",
+"클수록 절대 빨라짐", "언어 추가로 fold율 상승") avoided. `test_catalog.py` **164/164** (+6 §AH), test_build **273×3**
+(§AH modules not imported — purely additive). 잘못된 답보다 DECLINE이 항상 옳다 — 언어는 intake지 coverage 아님(의미로
+unsound fold DECLINE); 새 메커니즘 0(포화); self-fold·super-scaling은 foldable 분율에 Amdahl-제한; 보안은 명시 취약점
+부재의 기계검증 + 위협모델, '완벽한 보안' 없음; z3-종결·약한-LLM 비의존·zero-dep 코어·precision 1.0.
