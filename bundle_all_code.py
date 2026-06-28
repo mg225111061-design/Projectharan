@@ -43,8 +43,8 @@ PROJECTHARAN — COMPLETE SINGLE-FILE SOURCE ARCHIVE
 {BAR}
 Every .py source file in the project, concatenated into ONE file. {len(records)} files, {total_lines:,} lines.
 
-This is a READABLE ARCHIVE, not a single importable module: a 281-file interdependent project cannot be merged
-into one runnable module (duplicate imports, `from __future__` placement, name clashes). Each original file is
+This is a READABLE ARCHIVE, not a single importable module: a {len(records)}-file interdependent project cannot be
+merged into one runnable module (duplicate imports, `from __future__` placement, name clashes). Each original file is
 reproduced verbatim below under a `# ===== FILE: <relpath> =====` header. To run the project, split it back to the
 original tree (the headers give every path) or use the original repo.
 
