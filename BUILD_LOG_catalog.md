@@ -1469,3 +1469,56 @@ Hilbert / Kolmogorov — NOT a gap in our machine. NO new certificate kind. `tes
 test_build **273×3** (barrierfold/ not imported). No new dependency. 잘못된 답보다 DECLINE이 항상 옳다 — 증명된 7개 난벽
 안의 결정가능 섬만 접는다(합성은 제안자, 검증은 z3의 종료하는 이론); 정지문제와 K(x)는 안 풀었고(섬만), 세 모델이 독립적으로
 그은 경계를 측정 — 잔여는 Turing·Hilbert·Kolmogorov가 금한 영원-불가능, 우리 기계의 구멍이 아니다.
+
+## §AG — 30-THEORY REPO-FIRST AUDIT + SyGuS (the one real gap) + optional separation-logic + sound feedback
+
+An external evaluator named 30 theories to "master". ★ MEASURED FACT (grep + per-build import, not guessed): nearly
+all are ALREADY built. So the honest answer is an **audit**, not a rebuild — reimplementing 29 would be ~97% duplicate
+work and a repo-first violation. New modules `theory_audit.py` (registry), `sygus_propose.py`, `sep_alias.py`,
+`theory_audit_report.py`; one backward-compatible edit to `catalog/compose.py` (`combine_grade`). No new certificate
+kind (22 mech / 14 kinds unchanged); LLM-free (AST-verified); zero-dep.
+
+**§1 — the audit registry** (`theory_audit.py`, the algo50 mapping pattern): each of 30 named theories → its REAL
+module entry point; `test_ag_theory_audit_registry` IMPORTS every CONFIRMED entry point on each build ("we have theory
+N"). ★ MEASURED disposition: **26 CONFIRMED / 0 GAP / 1 NOT-A-FOLD / 3 DECLINED-BY-IDENTITY**. CONFIRMED (25
+pre-existing, each import-proven): IC3/PDR(`ic3_pdr`), CHC/Spacer(`chc_solve`), Presburger/QE/CAD(`mathmode.real_qe`),
+Angluin L*(`lstar`), SFA(`catalog.mech_sfa`), Knuth–Bendix(`native_rewrite`), Gröbner(`groebner`),
+Sturm(`native_realroots`), Gosper/Zeilberger(`native_telescope`), Berlekamp–Massey(`native_sequence`),
+LLL(`native_lattice`), Sylvester inertia(`sos_cert`), Prony(`prony`), Petrov(`mathmode.petrov`),
+Koopman(`mathmode.transforms_symdyn`), E-graph(`equality_saturation`), AARA(`catalog.mech_aara`),
+partial-eval/Futamura(`pillar3.parteval`), translation-validation(`catalog.topic_a`),
+companion-matrix(`gapfold.mutual_recursion`), sparse-FFT(`catalog.probe_cascade`),
+compressed-sensing(`compressed_sensing`), MDL(`catalog.decline_boundary`), Kolmogorov(`barrierfold.kolmogorov_enum`),
+widening(`catalog.lift`) — plus **SyGuS** built here (§2a). NOT-A-FOLD: polyhedral (region-3 constant-factor, already
+in `excluded_candidates`). DECLINED-BY-IDENTITY: HoTT (z3-termination), GCT (P-vs-NP paradigm), NIA-general
+(Hilbert-10 undecidable — decidable islands already in barrierfold ISLAND 2/3). ★ Double-count gate: no theory in two
+modules, no module backing two theories. (The evaluator's headline "29 built" depends on splitting the QE family /
+IC3-PDR — either way the only genuine gap was SyGuS; reimplementation = 0.)
+
+**§2a — SyGuS** (`sygus_propose.py`, the lone net-new): CFG candidate space + SMT spec → DETERMINISTIC enumerative /
+CEGIS synthesis, GATED by the existing `equiv_check.prove_equiv_z3` / `equiv_grade` (no new disposer, no new cert
+kind). max2 → `ite(x≥y,x,y)` z3-proven; 2x+1 synthesized; a too-weak grammar (no `*`) canNOT express x·y ⇒ honest
+DECLINE. ★★ **honest measurement**: SyGuS is a PROPOSER, NOT a fold-COVERAGE extension — the z3-foldable set is
+identical (same gate as §P P1 / §AE ISLAND 5), so **fold-coverage Δ = 0** (measured); the proposer metric is reported
+separately, never conflated. LLM-free (deterministic). **§2b — separation-logic** (`sep_alias.py`, optional): promote
+an aliasing DECLINE to ACCEPT *by proof* — affine index injectivity / region disjointness reduced to z3 QF_LIA; a
+collision/overlap witness keeps DECLINE (precision 1.0). Measured: **4/7 promotions** on the micro-corpus; cert reuses
+the existing `invariant` kind.
+
+**§3 — feedback, sound form only.** ① Error explosion: ★ MARTINGALE/Chernoff **REJECTED** — they require an
+UNPROVEN independence/martingale structure, and an unproven distributional assumption IS the LLM's approximation =
+our forbidden line. Sound fix: a backward-compatible `prob_cap` on `combine_grade` (+ `compose_chain`) — a
+PROBABILISTIC chain past the cap DECLINEs honestly (error explosion EXPOSED, never hidden); δ_total ≤ Σδ_i union
+bound kept; EXACT-first routing; `prob_cap=None` default ⇒ the 273 are byte-identical. Adversarial: long chain →
+DECLINE at the offending stage, false-EXACT = 0. ② NIA-bridge: rejected as duplicate (undecidable; islands already
+built) — marked DECLINED-BY-IDENTITY. ③ Data-structure lifting: the named examples are ALREADY built (binary-counter→
+amortized = AARA `catalog.mech_aara`; array→algebra = §P `array_fold`); the ~5.7% ceiling is a MEASURED honest
+ceiling, NOT inflated — no new structural pattern was found this directive, so NO §AD entry was added (ceiling holds).
+
+**COMPOSE + measure** (`theory_audit_report.py`, MEASURED): the 30-theory disposition table, SyGuS coverage Δ=0
+(honest), sep 4 promotions, the ① depth-cap adversarial (false-EXACT 0, martingale rejected). Precision **1.0**
+(every SyGuS/sep promotion z3-disposed; false fold / false "solved" = 0); NO new certificate kind (22/14); LLM-free
+(AST: no LLM import in any §AG module); zero-dep (`forbidden_present == []`). `test_catalog.py` **158/158** (+4 §AG),
+test_build **273×3** (new modules not imported; `combine_grade` change is default-off ⇒ 273 unchanged). 잘못된 답보다
+DECLINE이 항상 옳다 — 30개 중 29개는 이미 빌드(재구현 0, 감사로 증명); 유일 빈칸 SyGuS는 z3-게이트 결정적 proposer
+(coverage Δ=0); 마틴게일 거부(정체성 사수)·NIA-다리 거부(결정불가·중복)·자료구조 리프팅 이미 AARA/§P·천장 미인플레.

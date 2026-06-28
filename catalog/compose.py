@@ -56,7 +56,8 @@ class CatalogResult:
 
 
 # ── the weakest-link composition LAW (Constitution §5 — the honesty core) ──────────────────────────────
-def combine_grade(prev_grade: str, prev_certs: list, v: "KV.Verdict") -> Tuple[str, list, bool]:
+def combine_grade(prev_grade: str, prev_certs: list, v: "KV.Verdict",
+                  prob_cap: Optional[int] = None, prob_depth: int = 0) -> Tuple[str, list, bool]:
     """Compose an accumulated (prev_grade, prev_certs) with the next mechanism's Verdict `v`, weakest-link:
       • v is DECLINE        → grade DECLINE, stop=True (the pipeline halts here; downstream is NOT run);
       • EXACT ∘ EXACT       → EXACT (both certs retained; the ADT re-checks every cert is passed=True);
@@ -64,12 +65,40 @@ def combine_grade(prev_grade: str, prev_certs: list, v: "KV.Verdict") -> Tuple[s
                               union bound, ε propagated per-op).
     Returns (composed_grade, composed_cert_chain, stop). The grade is the MIN of the lattice
     DECLINE < PROBABILISTIC < EXACT — the weakest link. A false upgrade is impossible here (we never take a MAX)
-    and is re-asserted at `StructForm.to_verdict` (ADT exception)."""
+    and is re-asserted at `StructForm.to_verdict` (ADT exception).
+
+    ★ §AG feedback ① — SOUND depth-cap on PROBABILISTIC chains. The evaluator asked us to TIGHTEN the chained δ
+    with martingale / concentration bounds; we REJECT that — Chernoff/Azuma require an UNPROVEN independence (or
+    martingale) structure, and an unproven distributional assumption IS the LLM's approximation, our forbidden
+    line. The δ_total ≤ Σδ_i union bound is assumption-free and stays. Instead of HIDING the (real) error growth
+    behind a tighter-looking number, we EXPOSE it: a PROBABILISTIC chain deeper than `prob_cap` honestly DECLINEs.
+    EXACT-first routing (the planner prefers EXACT legs — see `plan`) means most pipelines never enter
+    PROBABILISTIC at all. ★ prob_cap=None (the default) reproduces the EXACT prior behavior byte-for-byte — every
+    existing call site is unchanged (the 273 are untouched); the cap activates only when a caller opts in."""
     if v.status == KV.DECLINE:
         return KV.DECLINE, list(prev_certs), True
     certs = list(prev_certs) + [v.certificate]
     grade = ir.weaker(prev_grade, v.status)
+    if prob_cap is not None and grade == KV.PROBABILISTIC:
+        depth = prob_depth + (1 if v.status == KV.PROBABILISTIC else 0)
+        if depth > prob_cap:                                   # error-explosion EXPOSED, never hidden
+            return KV.DECLINE, certs, True
     return grade, certs, False
+
+
+def compose_chain(verdicts: "List[KV.Verdict]", prob_cap: Optional[int] = None) -> Tuple[str, list, int]:
+    """Fold a sequence of mechanism Verdicts with `combine_grade`, threading the PROBABILISTIC depth so the §AG
+    feedback-① cap can fire. Returns (final_grade, cert_chain, declined_at_index | -1). With prob_cap=None this is
+    exactly the weakest-link fold; with a cap, a too-long PROBABILISTIC chain DECLINEs at the offending stage
+    (the error explosion surfaced as an honest DECLINE, never a false EXACT)."""
+    grade, certs, depth = KV.EXACT, [], 0
+    for i, v in enumerate(verdicts):
+        grade, certs, stop = combine_grade(grade, certs, v, prob_cap=prob_cap, prob_depth=depth)
+        if v.status == KV.PROBABILISTIC:
+            depth += 1
+        if stop:
+            return grade, certs, i
+    return grade, certs, -1
 
 
 # ── the §7 gate on a single composition stage ──────────────────────────────────────────────────────────

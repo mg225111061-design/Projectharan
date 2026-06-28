@@ -193,8 +193,10 @@ const DATA = {
     {"id":"normal","name":"표준","note":"기본 — 균형"},
     {"id":"extend","name":"깊게","note":"더 깊은 검증·탐색"}
   ],
-  "key_policy":"API 키는 세션 전용입니다: 이 브라우저 탭에서 요청에만 쓰이고, 저장·로그·커밋되지 않으며, 당신이 고른 제공자 외 어디로도 전송되지 않습니다.",
+  "key_policy":"API 키는 세션 전용입니다 (session-only): 이 브라우저 탭에서 요청에만 쓰이고, 저장·로그·커밋되지 않으며 (never logged, never stored), 당신이 고른 제공자 외 어디로도 전송되지 않습니다.",
   "account_policy":"계정은 아이디와 비밀번호, 그리고 지난 대화만 저장합니다 — API 키는 절대 저장하지 않습니다. 키는 매 세션 다시 붙여넣으며, 이 탭에만 머뭅니다.",
+  "max_files":5,
+  "file_note":"소스·데이터·텍스트·설정·노트북 50+ 형식, 한 번에 최대 5개. 업로드는 안전하게 검증됩니다.",
   "examples":[
     {"kind":"질문","label":"일반 질문","text":"파이썬에서 리스트와 튜플의 차이가 뭐야?"},
     {"kind":"질문","label":"개념 설명","text":"해시 테이블이 평균 O(1)인 이유를 설명해줘."},
@@ -245,6 +247,25 @@ const ERR = {
   network:"네트워크 오류 — 연결에 실패했습니다. 잠시 후 다시 시도하세요.",
   no_engine:"라이브 엔진에 연결되지 않았습니다 — 백엔드(server)가 실행 중이어야 대화가 동작합니다.",
   auth:"인증 실패 — 이메일/비밀번호를 확인하세요.", unknown:"오류가 발생했습니다 — 다시 시도하세요." };
+
+// ── §W multi-file attach: ≤max_files, 50+ allow-listed types, client-side untrusted-input checks (type/size/traversal) ──
+const FILE_TYPES = new Set(("py js ts jsx tsx java c cc cpp h hpp go rs rb php swift kt scala cs m lua pl r jl dart hs "
+  + "ml clj ex exs sh bash zsh sql json jsonl ndjson csv tsv xml yaml yml toml ini txt md rst log tex org adoc cfg conf "
+  + "env properties gradle dockerfile makefile ipynb").split(" "));
+const MAX_FILES = DATA.max_files, MAX_BYTES = 2 * 1024 * 1024;
+// the live pipeline stages shown as the run unfolds (STAGE_LABEL drives the real SSE progress, never a fake spinner)
+const PROGRESS_STAGES = STAGE_LABEL;
+function fileExt(name){ const b = name.split("/").pop().toLowerCase(); if (b === "dockerfile" || b === "makefile") return b; return b.includes(".") ? b.split(".").pop() : b; }
+function addFiles(list){
+  for (const f of list){
+    if ((S.files || []).length >= MAX_FILES){ showToast("한 번에 최대 " + MAX_FILES + "개입니다"); break; }
+    if (/\.\.|^\//.test(f.name)){ S.files.push({name:f.name, ok:false, reason:"안전하지 않은 경로 — 거부됨"}); continue; }
+    if (f.size > MAX_BYTES){ S.files.push({name:f.name, ok:false, reason:"파일이 너무 큼 (2MB 초과) — 거부됨"}); continue; }
+    if (!FILE_TYPES.has(fileExt(f.name))){ S.files.push({name:f.name, ok:false, reason:"지원하지 않는 형식 — 거부됨"}); continue; }
+    S.files.push({name:f.name, ok:true, reason:""});
+  }
+  render();
+}
 
 // ── pillar slab (landing) ───────────────────────────────────────────────────────────────────────
 function pillarSlab(p){
@@ -494,16 +515,25 @@ function scrChat(){
   const sendBtn=$("button",{class:"send",title:"전송",disabled:S.streaming?"":null,onclick:()=>sendMessage()}, S.streaming?$("span",{class:"spin"}):"↑");
   const modeChips=DATA.modes.map(m=>$("button",{class:"chip"+(S.mode===m.id?" on":""),title:m.note,onclick:()=>{S.mode=m.id;render();}},m.name));
   const provName=S.provider?(DATA.providers.find(p=>p.id===S.provider)||{}).label:"제공자 · 키";
+  // §W multi-file attach: ≤max_files, 50+ allow-listed types, untrusted-input validated (type/size/traversal)
+  const mfi=$("input",{type:"file",multiple:"",style:"display:none"});
+  mfi.addEventListener("change",e=>{ addFiles([...e.target.files]); e.target.value=""; });
+  const attachChip=$("label",{class:"chip",title:DATA.file_note},["📎 파일 첨부",mfi]);
   const toolrow=$("div",{class:"toolrow"},[
     $("button",{class:"chip"+(S.settingsOpen?" on":""),onclick:()=>{S.settingsOpen=!S.settingsOpen;render();}},"⚿ "+provName+(S.provider&&S.key?" · 키 입력됨":"")),
+    attachChip,
     $("span",{class:"v-sub",style:"margin:0 4px"},"·"),
     ...modeChips,
   ]);
+  const fileChips=$("div",{class:"toolrow"}, (S.files||[]).map((f,i)=>$("span",{class:"chip",style:f.ok?"":"border-color:var(--normal-deep);color:var(--normal-deep)"},[
+    (f.ok?"✓ ":"✕ ")+f.name+(f.ok?"":" — "+f.reason),
+    $("button",{class:"ghost",style:"padding:0 6px;margin-left:4px",onclick:()=>{S.files.splice(i,1);render();}},"✕")])));
   const composer=$("div",{class:"composer"},[
     toolrow,
+    (S.files||[]).length?fileChips:null,
     S.settingsOpen?settingsPanel():null,
     $("div",{class:"cbox"},[ta, sendBtn]),
-    $("div",{class:"v-sub",style:"margin-top:7px;text-align:center"}, S.live?"라이브 엔진에 연결됨 — 제안자 ≠ 심판, 키는 이 탭에만 보관":"엔진 연결 대기 중 — 백엔드(server)가 실행 중이어야 응답합니다"),
+    $("div",{class:"v-sub",style:"margin-top:7px;text-align:center"}, S.live?"라이브 엔진에 연결됨 — 제안자 ≠ 심판, 키는 이 탭에만 보관 (session-only)":"엔진 연결 대기 중 — 백엔드(server)가 실행 중이어야 응답합니다 (정적 빌드에선 검증만)"),
   ]);
   wrap.appendChild(composer);
   return wrap;

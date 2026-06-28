@@ -2901,7 +2901,7 @@ def test_post_consol_task5_honest_ui_landing():
     for gone in (".grade.exact", "meter3", "speedupSlab", "hotspot_fraction", "z3_calls", "cumulative_ratio",
                  "verifier_tier", "primary_clock", "panel_rows", "천장"):                # all old internals removed
         assert gone not in ui, f"§S: engine internal must be removed from the UI: {gone}"
-    assert "provider-card" in ui and "get_key_url" in ui and "free_no_card" in ui and "/api/optimize" in ui  # provider flow
+    assert "provider-card" in ui and "get_key_url" in ui and "free_no_card" in ui and "/api/stream" in ui  # provider flow (conversational: /api/stream)
     assert "session-only" in ui and "정적 빌드" in ui                          # key-safety line + static disclosure
     print("PASS test_post_consol_task5_honest_ui_landing (landing: pedagogical 700×/400× LABELLED illustrative; hero "
           "115× re-attributed to its real source [csv_stats=data utility, not 'never-profiled'] + 'not typical'; "
@@ -3447,8 +3447,8 @@ def test_s_ui_three_pillars():
                  "list_as_set", "n_plus_1", "accidental_quadratic", "differential PASS", "Amdahl", "천장", "115×"):
         assert gone not in ui, f"§S: engine internal must be removed from the UI: {gone!r}"
     # paste-code + provider flow preserved (free-no-card badges, get-key links, session-only key handling)
-    assert ".editor" in ui and "provider-card" in ui and "free_no_card" in ui and "get_key_url" in ui
-    assert "/api/optimize" in ui and "/api/key/validate" in ui                # the real input flow
+    assert ".cbox" in ui and "provider-card" in ui and "free_no_card" in ui and "get_key_url" in ui   # conversational composer (was .editor)
+    assert "/api/stream" in ui and "/api/key/validate" in ui                # the real input flow (conversational: /api/stream)
     assert "badge-free" in ui                                                 # the free-provider affordance
     # the one honest key-safety disclosure stays
     assert "session-only" in ui and ("never logged" in ui or "never stored" in ui)
@@ -4484,6 +4484,98 @@ def test_ae_island7_kolmogorov_and_report():
           "& constant fold; ★ π-digits DECLINE; ★ DIAGONALIZATION LIMIT: Thue-Morse structured-but-unenumerated honestly "
           "DECLINED; §AE report: 7/7 islands precision 1.0, LLM-free [AST], ★ both oaths [halting & K(x) PROVEN "
           "impossible, NOT solved], ★ converged ceiling measured [Turing/Hilbert/Kolmogorov], NO new kind [22/14], zero-dep)")
+
+
+def test_ag_theory_audit_registry():
+    """§AG §1 — the 30-theory repo-first audit: 26 CONFIRMED / 0 GAP / 1 NOT-A-FOLD / 3 DECLINED-BY-IDENTITY (all
+    measured); ★ every CONFIRMED entry point IMPORTS (the per-build proof 'we have theory N', algo50 pattern);
+    ★ the double-count gate passes (no theory in two modules); SyGuS is CONFIRMED (the lone gap, built in §AG);
+    HoTT/GCT/NIA-general are honestly DECLINED-BY-IDENTITY."""
+    import theory_audit as TA
+    a = TA.audit()
+    assert a["total"] == 30 and a["tally"]["CONFIRMED"] == 26 and a["tally"]["GAP"] == 0
+    assert a["tally"]["NOT-A-FOLD"] == 1 and a["tally"]["DECLINED-BY-IDENTITY"] == 3
+    assert a["all_confirmed_import"] and a["import_failures"] == []                  # ★ per-build import proof
+    assert a["no_duplicate_theory"] and a["no_double_counted_module"]               # ★ corpus-swap / double-count gate
+    assert TA.adversarial_battery()["all_ok"]
+    print("PASS test_ag_theory_audit_registry (30 theories MEASURED: 26 CONFIRMED [all import-proven] / 0 GAP / "
+          "1 NOT-A-FOLD [polyhedral] / 3 DECLINED-BY-IDENTITY [HoTT/GCT/NIA-general]; ★ double-count gate clean; "
+          "reimplementation 0 — algo50 mapping pattern)")
+
+
+def test_ag_sygus_propose():
+    """§AG §2a — SyGuS: max2 synthesizes as ite(x≥y,x,y) (z3-proven ≡ spec); 2x+1 synthesizes; CEGIS finds it too;
+    ★ a too-weak grammar (no '*') canNOT express x·y ⇒ honest DECLINE (out of grammar); ★ the verdict comes from
+    equiv_check (no new disposer/kind); ★★ coverage delta = 0 (PROPOSER, not a fold-coverage extension — honest)."""
+    import sygus_propose as SG
+    import kernel_verdict as KV
+    import z3
+    g = SG.Grammar(("x", "y"), consts=(), ops=(), ite=True, max_depth=1)
+    rmax = SG.synthesize_equiv(g, lambda e: z3.If(e["x"] >= e["y"], e["x"], e["y"]))
+    assert rmax.found and rmax.verdict.status == KV.EXACT and "ite" in rmax.pretty
+    gl = SG.Grammar(("x",), consts=(1, 2), ops=("+", "*"), max_depth=2)
+    rlin = SG.synthesize_equiv(gl, lambda e: 2 * e["x"] + 1)
+    assert rlin.found and rlin.verdict.kernel == "equiv_check"                       # ★ no new disposer
+    gw = SG.Grammar(("x", "y"), consts=(0, 1), ops=("+", "-"), max_depth=2)
+    assert not SG.synthesize_equiv(gw, lambda e: e["x"] * e["y"]).found              # ★ out of grammar ⇒ DECLINE
+    assert SG.coverage_delta()["fold_coverage_delta"] == 0                           # ★★ proposer, not coverage
+    assert SG.adversarial_battery()["all_ok"]
+    print(f"PASS test_ag_sygus_propose (max2→{rmax.pretty} & 2x+1 z3-PROVEN [verdict from equiv_check, no new kind]; "
+          "weak grammar DECLINES; ★ deterministic enumerative/CEGIS [LLM-free]; ★★ fold-coverage Δ=0 — PROPOSER "
+          "extension, never claimed as a fold-rate jump)")
+
+
+def test_ag_sep_alias():
+    """§AG §2b — separation-logic aliasing prover: stride-1/2 affine writes and disjoint regions are PROMOTED from
+    DECLINE to ACCEPT (z3 QF_LIA proves disjoint heap); ★ stride-0 (all same cell) and overlapping regions are
+    REJECTED with a z3 collision witness (precision 1.0); ★ a non-reducible heap stays DECLINE (honest); the cert
+    reuses the existing 'invariant' kind (no new kind)."""
+    import sep_alias as SA
+    import kernel_verdict as KV
+    p1 = SA.promote_affine(1, 0, 100)
+    assert p1.promoted and p1.verdict.status == KV.EXACT and p1.verdict.certificate.kind == "invariant"  # ★ no new kind
+    assert SA.promote_regions(0, 16, 16, 32).promoted                               # disjoint ⇒ ACCEPT
+    s0 = SA.promote_affine(0, 7, 20)
+    assert (not s0.promoted) and s0.verdict.status == KV.DECLINE and s0.witness is not None   # ★ collision witness
+    assert not SA.promote_regions(0, 16, 8, 32).promoted                            # overlap ⇒ DECLINE
+    assert not SA.general_heap_declined().reducible                                 # ★ non-reducible ⇒ DECLINE
+    promo = SA.promotion_count()
+    assert promo["promoted"] > 0 and promo["promoted"] < promo["corpus"]            # small, honest
+    assert SA.adversarial_battery()["all_ok"]
+    print(f"PASS test_ag_sep_alias (affine-injective & disjoint-region writes PROMOTED DECLINE→ACCEPT [z3 QF_LIA, "
+          f"{promo['promoted']}/{promo['corpus']}]; ★ stride-0 & overlap REJECTED [collision witness, precision 1.0]; "
+          "★ non-reducible heap stays DECLINE; cert reuses existing 'invariant' kind)")
+
+
+def test_ag_depth_cap_and_report():
+    """§AG §3① + report — the SOUND depth-cap: a long PROBABILISTIC chain DECLINEs (error explosion EXPOSED, never a
+    martingale-tightened false number); default (cap=None) is unchanged (273-safe); ★ MARTINGALE REJECTED (identity).
+    Plus the §AG report: 30-theory audit, SyGuS Δ=0, sep promotions, precision 1.0, no new kind, LLM-free, zero-dep."""
+    import kernel_verdict as KV
+    from catalog import compose as C
+    import theory_audit_report as R
+
+    def prob():
+        c = KV.Cert(KV.PROBABILISTIC, "freivalds", passed=True, check_cost="O(kN^2)", delta=2 ** -20)
+        return KV.probabilistic({"ok": True}, "t", "O(1)", c)
+    assert C.compose_chain([prob()] * 6, prob_cap=None)[0] == KV.PROBABILISTIC       # default unchanged (273-safe)
+    g, _, at = C.compose_chain([prob()] * 6, prob_cap=3)
+    assert g == KV.DECLINE and at == 3                                               # ★ explosion exposed as DECLINE
+    assert C.compose_chain([prob()] * 3, prob_cap=3)[0] == KV.PROBABILISTIC          # no false DECLINE under cap
+    assert C.combine_grade(KV.EXACT, [], prob())[0] == KV.PROBABILISTIC              # 3-arg backward-compat
+    # ── §AG report ──
+    rep = R.report()
+    assert rep["audit"]["total"] == 30 and rep["audit"]["tally"]["GAP"] == 0 and rep["audit"]["no_double_count"]
+    assert rep["sygus"]["coverage_delta"] == 0                                       # ★ honest proposer delta
+    assert rep["separation_logic"]["promotions"] > 0
+    assert rep["depth_cap_adversarial"]["martingale_rejected"] and rep["depth_cap_adversarial"]["false_exact_count"] == 0
+    assert rep["precision"] == 1.0 and rep["no_new_certificate_kind"]
+    assert rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["llm_free"]["llm_free"] and rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_ag_depth_cap_and_report (★ SOUND depth-cap: long PROBABILISTIC chain → honest DECLINE [explosion "
+          "EXPOSED], default unchanged [273-safe], MARTINGALE REJECTED [identity sustained]; §AG report: 30 audited "
+          "[0 GAP, no double-count], SyGuS Δ=0, sep promotions, precision 1.0, NO new kind [22/14], LLM-free, zero-dep)")
 
 
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
