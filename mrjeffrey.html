@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="light dark" />
 <title>MR.JEFFREY — 안전하게 · 빠르게 · 정확하게</title>
-<meta name="description" content="코드를 붙여넣고 제공자를 고르면, 안전하고 빠르고 정확한 코드로 돌려받습니다. 필요한 곳에만 보안을, 진짜 구조가 있는 곳에만 가속을, 그리고 모든 변경은 같은 결과를 내는지 확인합니다." />
+<meta name="description" content="대화로 시작하세요. 일반 질문이면 답하고, 코드를 만들거나 고쳐 달라면 만들고 검증해 돌려드립니다. LLM은 제안만 하고, 무엇을 돌려줄지는 검증기가 정합니다." />
 <style>
 /* MR.JEFFREY — single-file app. Extreme minimalism × extreme dimensionality. White volume, one ink, three
-   PILLAR accents (SECURED·FAST·ACCURATE); the few objects are deeply dimensional floating slabs. The promise is
-   three words — not a dashboard of numbers. The design system (tokens, slabs, animations, dark mode) is preserved;
-   the engine's churning build-time internals never reach this surface. */
+   PILLAR accents (SECURED·FAST·ACCURATE); the few objects are deeply dimensional floating slabs. The entry is a
+   CONVERSATION — type anything; a question is answered, a coding ask is built and verified. The engine's
+   build-time internals never reach this surface. */
 :root{
   --page:#fafaf8;--card:#fff;--ink:#1a1a17;--ink-2:#55534c;--muted:#85827a;
   --line:rgba(0,0,0,.12);--line-soft:rgba(0,0,0,.07);
@@ -30,7 +30,11 @@
   --page:#0e0e10;--card:#171719;--ink:#eceae3;--ink-2:#b7b4ac;--muted:#8c897f;
   --line:rgba(255,255,255,.15);--line-soft:rgba(255,255,255,.08);
   --fast-tint:#0b5566;--normal-tint:#633806;--extend-tint:#26215c;
-  --free:#5ec0b4;--free-bg:#13302c;--pick:#c8c5bc;--focus:#a79ef5;
+  /* ★ FIX: in dark mode the *tint* vars above are the deep accent colors, so the "deep" ink (used for
+     glyphs, the p-word pill, and links) must flip to a LIGHT accent — otherwise it renders deep-on-deep
+     (an empty-looking filled box) and links are unreadable. */
+  --fast-deep:#67cfe2;--normal-deep:#e7b463;--extend-deep:#a79ef5;
+  --free:#5ec0b4;--free-bg:#13302c;--pick:#c8c5bc;--focus:#a79ef5;--track:#26262a;
   --slab:0 2px 4px rgba(0,0,0,.4),0 8px 16px rgba(0,0,0,.45),0 18px 36px rgba(0,0,0,.5),0 40px 80px rgba(0,0,0,.55),0 80px 130px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box}html,body{height:100%}
@@ -40,7 +44,7 @@ h1{font-size:clamp(28px,4vw,46px);line-height:1.08}h2{font-size:21px}h3{font-siz
 p{margin:0 0 12px;color:var(--ink-2)}a{color:var(--accent-deep)}
 .mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
-/* ★ the [data-mode] accent-swapping mechanism, repurposed to the three pillars (kept verbatim in spirit) */
+/* ★ the [data-mode] accent-swapping mechanism, repurposed to the three pillars */
 [data-mode="secured"]{--accent:var(--extend);--accent-deep:var(--extend-deep);--accent-tint:var(--extend-tint)}
 [data-mode="fast"]{--accent:var(--fast);--accent-deep:var(--fast-deep);--accent-tint:var(--fast-tint)}
 [data-mode="accurate"]{--accent:var(--normal);--accent-deep:var(--normal-deep);--accent-tint:var(--normal-tint)}
@@ -57,8 +61,7 @@ p{margin:0 0 12px;color:var(--ink-2)}a{color:var(--accent-deep)}
 .spacer{margin-left:auto}
 .ghost{font:inherit;font-size:13px;background:none;border:1px solid var(--line);color:var(--ink-2);padding:7px 12px;border-radius:var(--r);cursor:pointer}
 .ghost:hover{border-color:var(--ink-2);color:var(--ink)}
-main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;perspective:var(--persp);perspective-origin:50% 22%;animation:screenIn .42s cubic-bezier(.2,.8,.2,1) both}
-.wide{max-width:1180px}
+main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 28px;perspective:var(--persp);perspective-origin:50% 22%;animation:screenIn .42s cubic-bezier(.2,.8,.2,1) both}
 @keyframes screenIn{from{opacity:0;transform:perspective(var(--persp)) translateY(14px) translateZ(-40px)}to{opacity:1;transform:none}}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
 .lead{font-size:16px;color:var(--ink-2);max-width:62ch}
@@ -68,26 +71,23 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;per
 .btn{font:inherit;font-size:14px;font-weight:500;cursor:pointer;background:var(--accent);color:#fff;border:1px solid var(--accent-deep);padding:10px 18px;border-radius:var(--r);transition:filter .15s}
 .btn:hover{filter:brightness(1.06)}.btn:disabled{opacity:.45;cursor:not-allowed}.btn.lg{font-size:15px;padding:12px 22px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
-.kbd{font-family:var(--mono);font-size:12px;background:var(--track,#efeee9);padding:1px 6px;border-radius:5px}
 .badge-free{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;font-weight:500;padding:2px 8px;border-radius:999px;color:var(--free);background:var(--free-bg)}
 .badge-free .gd{width:6px;height:6px;border-radius:50%;background:currentColor}
 .getkey{font-family:var(--mono);font-size:11.5px;color:var(--free);text-decoration:none}.getkey:hover{text-decoration:underline}
-/* dimensionality — the 3D floating slab, preserved verbatim */
+/* dimensionality — the 3D floating slab */
 .slab{position:relative;background:var(--card);border-radius:18px;padding:22px 24px;box-shadow:var(--slab);transform:perspective(var(--persp)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(var(--lift,0px));transform-style:preserve-3d;transition:box-shadow .4s;will-change:transform}
 .slab::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(177deg,rgba(255,255,255,.5),transparent 24%);opacity:.55}
 :root[data-theme="dark"] .slab::before{background:linear-gradient(177deg,rgba(255,255,255,.08),transparent 24%)}
 .slab::after{content:"";position:absolute;left:8%;right:8%;bottom:-26px;height:40px;z-index:-1;background:radial-gradient(60% 100% at 50% 0%,rgba(20,20,23,.16),transparent 70%);filter:blur(8px);transform:translateZ(-60px);opacity:.7}
-.plane{transform:translateZ(var(--z,0px))}
-.float-in{animation:floatIn .7s cubic-bezier(.2,.8,.2,1) both}
-@keyframes floatIn{from{opacity:0;transform:perspective(var(--persp)) rotateX(10deg) translateY(26px) translateZ(-80px)}to{opacity:1;transform:none}}
-.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;min-height:min(66vh,560px);padding:20px 0 50px}
-.hero-copy h1{max-width:17ch}.hero-cap{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:16px}
+.float-in{animation:floatIn .55s cubic-bezier(.2,.8,.2,1) both}
+@keyframes floatIn{from{opacity:0;transform:perspective(var(--persp)) rotateX(10deg) translateY(20px) translateZ(-60px)}to{opacity:1;transform:none}}
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;min-height:min(60vh,520px);padding:20px 0 50px}
+.hero-copy h1{max-width:18ch}
 @media(max-width:880px){.hero{grid-template-columns:1fr;gap:28px;min-height:0}.hero>div:last-child{order:-1}}
-.tenets{margin:4px 0 40px;gap:36px}.feat h3{font-size:15px;margin-bottom:8px;position:relative;padding-top:14px}
+.tenets{margin:4px 0 30px;gap:36px}.feat h3{font-size:15px;margin-bottom:8px;position:relative;padding-top:14px}
 .feat h3::before{content:"";position:absolute;top:0;left:0;width:22px;height:2px;background:var(--accent);border-radius:2px}
 .feat p{margin:0}
-/* the three PILLAR slabs — each in its own repurposed accent (data-mode), reusing the 3D treatment */
-.pillar-stack{display:flex;flex-direction:column;gap:18px}
+/* the three PILLAR slabs */
 .pillar{text-align:left;padding:20px 22px}
 .pillar .p-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
 .pillar .glyph{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-deep);flex:none;font-size:17px}
@@ -96,42 +96,73 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 80px;per
 .pillar p{margin:0;font-size:14px;color:var(--ink-2)}
 .hero-pillars{display:flex;flex-direction:column;gap:14px;max-width:480px;margin:0 auto;width:100%}
 .hero-pillars .pillar{padding:16px 18px}
-.mode-card{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;cursor:pointer;display:flex;flex-direction:column;gap:10px;font:inherit;color:var(--ink);transform:perspective(var(--persp)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateZ(var(--lift,0px));transition:box-shadow .35s,border-color .18s}
-.mode-card:hover{border-color:var(--accent)}.mode-card[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.06)}
-.mc-head{display:flex;align-items:center;gap:10px}.glyph{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-deep);flex:none;font-size:16px}
-.mc-name{font-weight:500;font-size:16px}.mc-clock{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.provider-card{flex-direction:row;align-items:center;gap:12px}.provider-card[aria-pressed="true"]{border-color:var(--pick);box-shadow:0 0 0 1px var(--pick),0 8px 24px rgba(0,0,0,.06)}
+.glyph{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-deep);flex:none;font-size:16px}
+.mode-card{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;font:inherit;color:var(--ink)}
+.mode-card:hover{border-color:var(--accent)}.mode-card[aria-pressed="true"]{border-color:var(--pick);box-shadow:0 0 0 1px var(--pick)}
+.mc-head{display:flex;align-items:center;gap:10px}.mc-name{font-weight:500;font-size:15px}.mc-clock{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .provider-card .glyph{background:var(--track,#efeee9);color:var(--pick)}
 .v-sub{color:var(--muted);font-size:12px}
-.editor{width:100%;min-height:240px;resize:vertical;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;tab-size:4}
-.outcode{width:100%;white-space:pre;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;tab-size:4;margin:0}
-.samples{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
-.samples button,.upload{font:inherit;font-size:12px;font-family:var(--mono);background:var(--page);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer}
-.samples button:hover,.upload:hover{border-color:var(--accent);color:var(--ink)}.upload input{display:none}
 .field{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.field label{font-size:13px;color:var(--ink-2)}
 .field input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
 .note{font-size:12.5px;color:var(--muted)}.note.good{color:var(--free)}.note.warn{color:var(--normal-deep)}
 .honesty{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--ink-2);background:var(--card);border:1px dashed var(--line);border-radius:var(--r);padding:12px 14px;margin:16px 0 0}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;margin:0 0 16px}
-.demo-banner{display:flex;gap:9px;align-items:center;font-size:12.5px;color:var(--ink-2);background:var(--accent-tint);border:1px solid var(--line-soft);border-radius:var(--r);padding:10px 14px;margin:0 0 16px}
 .spin{width:15px;height:15px;border:2px solid var(--accent-tint);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:9px;background:var(--card);color:var(--ink);font-size:13.5px;font-weight:500;padding:12px 18px;border-radius:12px;box-shadow:var(--slab);z-index:50;animation:toastIn .4s cubic-bezier(.2,.8,.2,1) both}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
-.footer{color:var(--muted);font-size:12px;text-align:center;padding:24px;border-top:1px solid var(--line)}
+.footer{color:var(--muted);font-size:12px;text-align:center;padding:18px;border-top:1px solid var(--line)}
 .mt{margin-top:14px}.muted{color:var(--muted)}
+/* ── CHAT ──────────────────────────────────────────────────────────────────────────────────────── */
+.chatwrap{display:flex;flex-direction:column;min-height:calc(100vh - 150px);max-width:840px;margin:0 auto}
+.thread{flex:1;display:flex;flex-direction:column;gap:18px;padding:6px 0 18px}
+.msg{display:flex;gap:11px;align-items:flex-start}
+.msg.user{justify-content:flex-end}
+.av{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:12px;font-family:var(--mono);font-weight:600;background:var(--accent-tint);color:var(--accent-deep);margin-top:2px}
+.bubble{border-radius:14px;padding:12px 15px;font-size:14.5px;line-height:1.62;white-space:pre-wrap;word-break:break-word}
+.msg.user .bubble{background:var(--accent);color:#fff;border:1px solid var(--accent-deep);border-bottom-right-radius:4px;max-width:80%}
+.msg.bot .bubble{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px;flex:1;min-width:0}
+.stagerow{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 4px}
+.stagerow:empty{display:none}
+.stage{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--ink-2);background:var(--page);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+.stage.run{border-color:var(--accent);color:var(--accent-deep)}.stage.done{color:var(--free);border-color:color-mix(in srgb,var(--free) 40%,var(--line))}
+.codeblock{margin:10px 0 0}
+.codeblock .cb-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.codeblock pre{white-space:pre;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:0;max-height:460px;tab-size:4}
+.reslabel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-family:var(--mono);padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
+.tag.ok{color:var(--free);border-color:color-mix(in srgb,var(--free) 45%,var(--line))}
+.tag.fast{color:var(--fast-deep);background:var(--fast-tint);border-color:transparent}
+.tag.warn{color:var(--normal-deep);background:var(--normal-tint);border-color:transparent}
+.tag.bad{color:#c0392b;border-color:#c0392b}
+.asklist{margin:8px 0 0;padding-left:18px}.asklist li{margin:3px 0;color:var(--ink-2);font-size:14px}
+.composer{position:sticky;bottom:0;background:color-mix(in srgb,var(--page) 88%,transparent);backdrop-filter:blur(8px);padding:10px 0 14px}
+.toolrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px}
+.chip{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;background:var(--card);border:1px solid var(--line);color:var(--ink-2);border-radius:999px;padding:5px 11px;cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.chip.on{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-tint)}
+.cbox{display:flex;gap:10px;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px;box-shadow:var(--slab)}
+.cbox textarea{flex:1;border:0;background:none;resize:none;font:inherit;font-size:14.5px;color:var(--ink);outline:none;max-height:200px;line-height:1.5;padding:6px 0}
+.send{flex:none;width:38px;height:38px;border-radius:10px;border:1px solid var(--accent-deep);background:var(--accent);color:#fff;cursor:pointer;font-size:17px;display:grid;place-items:center}
+.send:disabled{opacity:.4;cursor:not-allowed}
+.empty{text-align:center;padding:40px 16px 26px}
+.empty h2{font-size:24px;margin-bottom:8px}.empty p{max-width:46ch;margin:0 auto 4px}
+.exgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:560px;margin:20px auto 0}
+@media(max-width:560px){.exgrid{grid-template-columns:1fr}}
+.ex{font:inherit;font-size:13px;background:var(--card);border:1px solid var(--line);color:var(--ink-2);border-radius:10px;padding:11px 13px;cursor:pointer;text-align:left}
+.ex:hover{border-color:var(--accent);color:var(--ink)}
+.ex b{display:block;color:var(--ink);font-weight:500;margin-bottom:3px;font-size:12px}
+.ex .ee{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media(max-width:560px){:root{--slab:0 2px 6px rgba(20,20,23,.06),0 10px 22px rgba(20,20,23,.07),0 24px 44px rgba(20,20,23,.06)}.slab::after{display:none}}
+@media(max-width:560px){:root{--slab:0 2px 6px rgba(20,20,23,.06),0 10px 22px rgba(20,20,23,.07),0 24px 44px rgba(20,20,23,.06)}.slab::after{display:none}.msg.user .bubble{max-width:90%}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
-// ── The product is three words: SECURED · FAST · ACCURATE. The DATA blob carries ONLY what the new UI needs —
-// the provider list (real, useful) and the session-only key policy. No engine build-time internals (the
-// churning measured numbers, the pass/badge machinery, the corpus rows, the mode-internals) reach this surface —
-// they churn every build and are not the product. The three pillars don't churn; only the engine behind them does.
+// The product is three words: SECURED · FAST · ACCURATE. The DATA blob carries ONLY what the UI needs —
+// the provider list (real) and the session-only key policy. No engine build-time internals reach this surface.
 const DATA = {
   "pillars":[
     {"id":"secured","word":"SECURED","name":"안전하게","glyph":"⛨",
@@ -157,18 +188,26 @@ const DATA = {
     {"id":"openai_compat","label":"OpenAI-compatible gateway","transport":"openai_chat","default_model":"","free_no_card":false,"key_label":"OpenAI-compatible gateway API key","get_key_url":null},
     {"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null}
   ],
-  "key_policy":"API key is session-only: held in this browser tab for the request, never logged, never stored, never committed, never sent anywhere except the provider you choose.",
+  "modes":[
+    {"id":"fast","name":"빠르게","note":"가벼운 검증 — 빠른 응답"},
+    {"id":"normal","name":"표준","note":"기본 — 균형"},
+    {"id":"extend","name":"깊게","note":"더 깊은 검증·탐색"}
+  ],
+  "key_policy":"API 키는 세션 전용입니다: 이 브라우저 탭에서 요청에만 쓰이고, 저장·로그·커밋되지 않으며, 당신이 고른 제공자 외 어디로도 전송되지 않습니다.",
   "account_policy":"계정은 아이디와 비밀번호, 그리고 지난 대화만 저장합니다 — API 키는 절대 저장하지 않습니다. 키는 매 세션 다시 붙여넣으며, 이 탭에만 머뭅니다.",
-  "max_files":5,
-  "file_note":"소스·데이터·텍스트·설정·노트북 50+ 형식, 한 번에 최대 5개. 업로드는 안전하게 검증됩니다."
+  "examples":[
+    {"kind":"질문","label":"일반 질문","text":"파이썬에서 리스트와 튜플의 차이가 뭐야?"},
+    {"kind":"질문","label":"개념 설명","text":"해시 테이블이 평균 O(1)인 이유를 설명해줘."},
+    {"kind":"코딩","label":"코드 생성","text":"정수 리스트를 받아 중복을 제거하고 순서를 유지해 돌려주는 파이썬 함수를 만들어줘."},
+    {"kind":"코딩","label":"더 빠르게","text":"이 함수를 더 빠르게 만들어줘:\ndef total(n):\n    s = 0\n    for k in range(n):\n        s += k * k\n    return s"}
+  ]
 };
 </script>
 <script>
 "use strict";
-// MR.JEFFREY single-file app. Vanilla JS, embedded CSS, no toolchain. When served behind the FastAPI back end
-// (webapi.app) it upgrades to LIVE calls (/api/optimize, /api/key/validate) on your exact code; opened as a
-// file:// it runs in STATIC (demo) mode — representative human-readable outcomes, clearly labelled a demo, never
-// fabricated measurements presented as live. The API key is held in a JS variable for the tab only.
+// MR.JEFFREY single-file app — conversation-first. Type anything: a question is answered (no verify label),
+// a coding ask is generated → verified → optimized live over /api/stream (SSE). The intent is classified on the
+// server (IN.classify_intent). The API key is held in a JS variable for this tab only, never stored.
 const $ = (t, p = {}, kids = []) => {
   const e = document.createElement(t);
   for (const k in p) {
@@ -181,19 +220,15 @@ const $ = (t, p = {}, kids = []) => {
   (Array.isArray(kids) ? kids : [kids]).forEach((c) => c != null && e.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
   return e;
 };
-const STEPS = [["landing","0","개요"],["code","1","코드 · 제공자"],["result","2","결과"]];
-const SAMPLES = [
-  ["로그인 / 비밀번호 (보안 민감)","def check_login(password, stored_hash):\n    import hmac\n    return hmac.compare_digest(hash_pw(password), stored_hash)"],
-  ["루프 안 멤버십 검사 (느림)","def dedup(items, seen):\n    out = []\n    for it in items:\n        if it in seen:\n            continue\n        seen.append(it)\n        out.append(it)\n    return out"],
-  ["거듭제곱 합 (구조 있음)","def total(n):\n    s = 0\n    for k in range(n):\n        s += k * k\n    return s"],
-  ["깔끔한 코드 (바꿀 것 없음)","def total(prices):\n    return sum(prices)"]
-];
-const S = { screen:"landing", provider:null, key:"", model:"", code:"", result:null, busy:false,
-  live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"), keyState:{phase:"idle"}, toast:null,
-  account:null, authPanel:false, files:[], progress:[], error:null };
+const STEPS = [["landing","0","개요"],["chat","1","대화"]];
+const STAGE_LABEL = { classify:"분류", thinking:"생각 중", generate:"코드 생성", verify:"동치 검증", fix:"수정", optimize:"최적화" };
+
+const S = { screen:"landing", provider:null, key:"", model:"", mode:"normal",
+  messages:[], input:"", streaming:false, settingsOpen:false, keyState:{phase:"idle"},
+  live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"),
+  toast:null, account:null, authPanel:false, files:[], error:null };
 let TOAST_T = null;
 
-// ── pointer tilt on every .slab / .mode-card (real CSS 3D), reduced-motion safe ─────────────────────────────
 const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
 function attachTilt(el, max){
   if(REDUCE) return; let raf=0,tx=0,ty=0,cx=0,cy=0,tl=0,lift=0;
@@ -203,12 +238,17 @@ function attachTilt(el, max){
   el.addEventListener("pointermove",e=>{ const r=el.getBoundingClientRect(); tx=-((e.clientY-r.top)/r.height-.5)*max; ty=((e.clientX-r.left)/r.width-.5)*max; tl=6; if(!raf)raf=requestAnimationFrame(tick); });
   el.addEventListener("pointerleave",()=>{ tx=0;ty=0;tl=0; if(!raf)raf=requestAnimationFrame(tick); });
 }
-function setScreen(s){ S.screen=s; render(); }
-function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>{S.toast=null;render();},3200); }
+function setScreen(s){ S.screen=s; render(); if(s==="chat") setTimeout(()=>{const t=document.getElementById("composer-input"); t&&t.focus();},30); }
+function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>{S.toast=null;render();},3000); }
 
-// ── a PILLAR slab (3D), in its own repurposed accent. Pure human words — never a number, never a grade ──────
-function pillarSlab(p, extraClass){
-  const slab=$("div",{class:"slab pillar float-in "+(extraClass||""),"data-mode":p.id},[
+const ERR = {
+  network:"네트워크 오류 — 연결에 실패했습니다. 잠시 후 다시 시도하세요.",
+  no_engine:"라이브 엔진에 연결되지 않았습니다 — 백엔드(server)가 실행 중이어야 대화가 동작합니다.",
+  auth:"인증 실패 — 이메일/비밀번호를 확인하세요.", unknown:"오류가 발생했습니다 — 다시 시도하세요." };
+
+// ── pillar slab (landing) ───────────────────────────────────────────────────────────────────────
+function pillarSlab(p){
+  const slab=$("div",{class:"slab pillar float-in","data-mode":p.id},[
     $("div",{class:"p-head"},[$("span",{class:"glyph"},p.glyph),$("span",{class:"p-name"},p.name),$("span",{class:"p-word"},p.word)]),
     $("p",{},p.line),
   ]);
@@ -216,101 +256,24 @@ function pillarSlab(p, extraClass){
   return slab;
 }
 
-// ── STATIC demo: a light, honest heuristic on the pasted code → representative human outcomes (NO numbers,
-//    NO grades). Labelled a demo. The live engine (server) produces the real per-run result. ─────────────────
-function staticOutcomes(code){
-  const c=code||""; const hasLoop=/\b(for|while)\b/.test(c);
-  const sensitive=/\b(password|passwd|secret|token|api[_-]?key|hmac|hashlib|secrets|jwt|ssn|credit|encrypt|decrypt|login|sql|execute|cursor)\b/i.test(c);
-  const membership=hasLoop && /\bin\s+\w+\b/.test(c) && /\.append\s*\(/.test(c);
-  const sumloop=hasLoop && /\+=/.test(c);
-  const clean=!hasLoop && /\breturn\s+sum\s*\(/.test(c);
-  const secured = sensitive
-    ? "주입·경계·메모리 안전을 점검하고, 민감한 경로는 상수 시간으로 보강했습니다."
-    : "보안에 민감한 코드가 없습니다 — 닫을 것이 없어 그대로 둡니다.";
-  let fast;
-  if(membership) fast="리스트 멤버십 검사를 해시 조회로 바꿔 반복 비용을 줄였습니다.";
-  else if(sumloop) fast="누적 루프에서 닫힌 형식을 찾아 반복을 접었습니다.";
-  else if(clean) fast="이미 효율적입니다 — 안전하게 바꿀 것이 없습니다.";
-  else fast="안전하게 빠르게 만들 구조를 찾지 못했습니다 — 그대로 둡니다.";
-  const accurate = (membership||sumloop)
-    ? "바꾼 코드가 원본과 같은 결과를 내는지 확인했습니다."
-    : "변경이 없으므로 결과는 원본과 동일합니다.";
-  return {secured,fast,accurate,changed:(membership||sumloop)};
-}
-
-// ── §W live progress: the REAL pipeline stages, shown as the run unfolds (never a fake spinner) ────────────
-const PROGRESS_STAGES = [
-  ["generate","후보 생성 (Opus)"],["security","보안 점검 (필요한 곳만)"],["fast","최적화 (구조가 있으면)"],
-  ["accurate","동치 확인 (같은 결과인지)"],["done","완료 — 안전·빠름·정확"]];
-
-// ── §W multi-file upload: ≤5 files, 50+ allow-listed types, client-side untrusted-input checks ─────────────
-const FILE_TYPES = new Set(("py js ts jsx tsx java c cc cpp h hpp go rs rb php swift kt scala cs m lua pl r jl dart hs "
-  +"ml clj ex exs sh bash zsh sql json jsonl ndjson csv tsv xml yaml yml toml ini txt md rst log tex org adoc cfg conf "
-  +"env properties gradle dockerfile makefile ipynb").split(" "));
-const MAX_FILES=5, MAX_BYTES=2*1024*1024;
-function fileExt(name){ const b=name.split("/").pop().toLowerCase(); if(b==="dockerfile"||b==="makefile")return b; return b.includes(".")?b.split(".").pop():b; }
-function addFiles(list){
-  for(const f of list){
-    if(S.files.length>=MAX_FILES){ showError("too_many_files"); break; }
-    if(/\.\.|^\//.test(f.name)){ S.files.push({name:f.name,ok:false,reason:"안전하지 않은 경로 — 거부됨"}); continue; }
-    if(f.size>MAX_BYTES){ S.files.push({name:f.name,ok:false,reason:"파일이 너무 큼 (2MB 초과) — 거부됨"}); continue; }
-    if(!FILE_TYPES.has(fileExt(f.name))){ S.files.push({name:f.name,ok:false,reason:"지원하지 않는 형식 — 거부됨"}); continue; }
-    S.files.push({name:f.name,ok:true,reason:""});
-  }
-  render();
-}
-
-// ── §W honest error surfacing: a specific, actionable message for each known cause (never silent/fake) ─────
-const ERR = {
-  network:["네트워크 오류","연결 실패 — 잠시 후 다시 시도하세요.",true], timeout:["시간 초과","다시 시도하거나 더 작은 입력으로.",true],
-  invalid_key:["잘못된 키","키를 다시 입력하세요 (저장되지 않습니다).",false], rate_limited:["요청 한도 초과","잠시 기다린 뒤 다시.",true],
-  too_many_files:["파일이 너무 많음","한 번에 최대 5개입니다.",false], backend_down:["서비스 사용 불가","잠시 후 다시 시도하세요.",true],
-  auth:["인증 실패","이메일/비밀번호를 확인하세요.",false], unknown:["오류","다시 시도하세요.",true] };
-function showError(kind){ const e=ERR[kind]||ERR.unknown; S.error={kind,title:e[0],action:e[1],retry:e[2]}; render(); }
-
-// ── §W accounts: signup/login/logout + history. The API KEY is NEVER part of the account (re-entered each session) ──
+// ── accounts (id + password + history only; the API key is NEVER part of the account) ─────────────
 async function doAuth(kind){
   const email=(S._email||"").trim(), pw=S._pw||"";
-  if(!email||!pw){ showError("auth"); return; }
-  if(!S.live){ S.account={email,demo:true,history:[]}; S.authPanel=false; showToast("데모 — 라이브 백엔드(server)에서 실제 계정이 동작합니다"); return; }
+  if(!email||!pw){ S.error=ERR.auth; render(); return; }
+  if(!S.live){ S.account={email,demo:true,history:[]}; S.authPanel=false; showToast("데모 — 라이브 백엔드에서 실제 계정이 동작합니다"); return; }
   try{
     const r=await fetch("/api/auth/"+kind,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,password:pw})});
     const j=await r.json();
-    if(!j.ok){ showError(kind==="login"?"auth":"auth"); return; }
+    if(!j.ok){ S.error=ERR.auth; render(); return; }
     S.account={email,history:[]}; S.authPanel=false; S._pw=""; await loadHistory();
-    showToast("로그인됨 — 지난 대화를 불러왔습니다. 키는 저장되지 않으니 다시 붙여넣으세요");
-  }catch(e){ showError("network"); }
+    showToast("로그인됨 — 키는 저장되지 않으니 다시 붙여넣으세요");
+  }catch(e){ S.error=ERR.network; render(); }
 }
 async function loadHistory(){
   if(!S.live||!S.account){ return; }
-  try{ const r=await fetch("/api/history"); const j=await r.json(); S.account.history=j.work||[]; render(); }catch(e){ /* honest: no history if backend down */ }
+  try{ const r=await fetch("/api/history"); const j=await r.json(); S.account.history=j.work||[]; render(); }catch(e){ /* honest: none if backend down */ }
 }
 function doLogout(){ if(S.live){ fetch("/api/auth/logout",{method:"POST"}).catch(()=>{}); } S.account=null; render(); }
-
-async function runOptimize(){
-  const code=S.code;
-  if(S.live){
-    try{
-      const r=await fetch("/api/optimize",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code,provider:S.provider||undefined,key:S.key||undefined,model:S.model||undefined})});
-      const j=await r.json();
-      return { live:true, raw:j };
-    }catch(e){ showError("network"); return { live:false, demo:staticOutcomes(code), code, errored:true }; }
-  }
-  return { live:false, demo:staticOutcomes(code), code };
-}
-
-// translate a LIVE engine result into the three human pillar outcomes — NEVER showing engine numbers or badges.
-function liveOutcomes(raw){
-  const r=raw||{};
-  const sec = (r.security && r.security.text) ? r.security.text
-            : (r.security && r.security.sensitive===false) ? "보안에 민감한 코드가 없습니다 — 닫을 것이 없습니다."
-            : "보안 점검을 실행했습니다 (자세한 내용은 엔진 로그).";
-  const shipped = Array.isArray(r.shipped)? r.shipped : [];
-  const fast = shipped.length ? "안전하게 더 빠른 코드로 바꿨습니다." : "이미 효율적입니다 — 안전하게 바꿀 것이 없습니다.";
-  const acc = shipped.length ? "바꾼 코드가 원본과 같은 결과를 내는지 확인했습니다."
-            : (r.note? "변경 없음 — 결과는 원본과 동일합니다." : "변경이 없으므로 결과는 원본과 동일합니다.");
-  return {secured:sec,fast,accurate:acc,changed:shipped.length>0};
-}
 
 async function validateKey(){
   const p=S.provider; if(!p||!S.key){return;}
@@ -320,149 +283,240 @@ async function validateKey(){
     catch(e){ S.keyState={phase:"bad",res:{detail:String(e)}}; render(); return; }
   }
   const prov=DATA.providers.find(x=>x.id===p);
-  S.keyState={phase:"bad",res:{blocked:true,detail:"정적 빌드(서버 없음): 라이브 키 확인은 백엔드가 필요합니다. 키는 이 탭에만 보관되며 저장·로그되지 않습니다. 키 발급: "+(prov&&prov.get_key_url||"")}};
+  S.keyState={phase:"bad",res:{blocked:true,detail:"정적 빌드(서버 없음): 라이브 키 확인은 백엔드가 필요합니다. 키 발급: "+(prov&&prov.get_key_url||"")}};
   render();
 }
 
-// ── screens ─────────────────────────────────────────────────────────────────────────────────────────────
-function scrLanding(){
-  return $("div",{},[
-    $("section",{class:"hero"},[
-      $("div",{class:"hero-copy"},[
-        $("div",{class:"eyebrow"},"안전하게 · 빠르게 · 정확하게"),
-        $("h1",{},"코드를 붙여넣으면, 안전하고 빠르고 정확하게 돌려드립니다."),
-        $("p",{class:"lead mt"},"MR.JEFFREY는 세 가지를 약속합니다. 필요한 곳의 취약점을 닫고(SECURED), 진짜 구조가 있는 곳을 더 빠르게 만들고(FAST), 모든 변경이 같은 결과를 내는지 확인합니다(ACCURATE). 못 하는 곳은 정직하게 그대로 둡니다."),
-        $("div",{class:"row mt"},[
-          $("button",{class:"btn lg",onclick:()=>setScreen("code")},"코드 붙여넣기 →"),
-          S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"데모 모드"),
-        ]),
-      ]),
-      $("div",{},[$("div",{class:"hero-pillars"},DATA.pillars.map(p=>pillarSlab(p)))]),
-    ]),
-    $("div",{class:"grid cols-3 tenets"},[
-      $("div",{class:"feat","data-mode":"secured"},[$("h3",{},"필요한 곳에만 보안"),$("p",{},"비밀번호·키·인증·암호처럼 보안이 중요한 코드만 검증 레이어가 켜집니다. 평범한 계산은 건드리지 않아 느려지지 않습니다.")]),
-      $("div",{class:"feat","data-mode":"fast"},[$("h3",{},"진짜일 때만 빠르게"),$("p",{},"실제로 빠르게 만들 구조가 있을 때만 바꿉니다. 없으면 ‘이미 효율적’이라고 정직하게 말합니다 — 과장된 배수는 없습니다.")]),
-      $("div",{class:"feat","data-mode":"accurate"},[$("h3",{},"바꿨으면 확인"),$("p",{},"모든 변경은 보여드리기 전에 같은 결과를 내는지 확인합니다. 확인할 수 없으면 바꾸지 않고 그대로 둡니다.")]),
-    ]),
-    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{html:"LLM은 코드를 <strong>제안</strong>하지만 맞는지는 보장하지 않습니다 — MR.JEFFREY가 그 위에서 <strong>확인</strong>합니다. API 키는 이 브라우저 탭에만 보관되며, 저장·로그·커밋되지 않고 당신이 고른 제공자 외 어디로도 전송되지 않습니다."})]),
-  ]);
+// ── the conversation: build history (only code-producing turns carry context to the server) ───────
+function buildHistory(){
+  const h=[]; let lastUser=null;
+  for(const m of S.messages){
+    if(m.role==="user") lastUser=m.text;
+    else if(m.role==="assistant" && m.kind==="code" && m.code && lastUser!=null) h.push({request:lastUser, code:m.code});
+  }
+  return h;
 }
 
-function scrCode(){
-  const ta=$("textarea",{class:"editor",spellcheck:"false",placeholder:"def my_function(...):\n    ..."},S.code);
-  ta.value=S.code; ta.addEventListener("input",e=>{S.code=e.target.value;});
-  const samples=$("div",{class:"samples"},[$("span",{class:"muted",style:"align-self:center;font-size:12px"},"예시:")]);
-  SAMPLES.forEach(([label,code])=>samples.appendChild($("button",{onclick:()=>{S.code=code;render();}},label)));
-  const up=$("label",{class:"upload"},[".py 업로드 ↑"]);
-  const fi=$("input",{type:"file",accept:".py,.txt"}); fi.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{S.code=String(r.result||"");render();};r.readAsText(f);e.target.value="";});
-  up.appendChild(fi); samples.appendChild(up);
-  // ── §W multi-file upload: ≤5 files, 50+ types, untrusted-input validated (type/size/traversal) ──
-  const mfi=$("input",{type:"file",multiple:"",style:"display:none"});
-  mfi.addEventListener("change",e=>{ addFiles([...e.target.files]); e.target.value=""; });
-  const fileSec=$("div",{class:"card mt"},[
-    $("div",{class:"row",style:"justify-content:space-between"},[
-      $("div",{class:"eyebrow",style:"margin:0"},`파일 첨부 (선택) · 최대 ${DATA.max_files}개`),
-      $("label",{class:"upload"},["파일 선택 ↑",mfi]),
-    ]),
-    $("div",{class:"v-sub",style:"margin-top:6px"},DATA.file_note),
-  ]);
-  (S.files||[]).forEach((f,i)=>fileSec.appendChild($("div",{class:"row",style:"justify-content:space-between;margin-top:6px"},[
-    $("span",{class:"mono",style:"font-size:12px;color:"+(f.ok?"var(--ink-2)":"var(--normal-deep)")},(f.ok?"✓ ":"✕ ")+f.name+(f.ok?"":" — "+f.reason)),
-    $("button",{class:"ghost",style:"padding:2px 8px",onclick:()=>{S.files.splice(i,1);render();}},"✕"),
-  ])));
-  // provider selector (kept — real and useful): free-no-card badges + get-key links + session-only key handling
-  const provGrid=$("div",{class:"grid cols-2 mt"});
+// ── apply one SSE event to the in-flight assistant message ────────────────────────────────────────
+function applyEvent(a, ev){
+  if(ev.type==="stage"){
+    const lbl=STAGE_LABEL[ev.stage]||ev.stage;
+    if(!a.stages.includes(lbl)) a.stages.push(lbl);
+  } else if(ev.type==="thinking"){ /* covered by stage */
+  } else if(ev.type==="chat"){ a.kind="chat"; a.text=ev.reply||""; }
+  else if(ev.type==="note"){ a.kind="note"; a.text=ev.text||""; }
+  else if(ev.type==="ask"){ a.kind="ask"; a.asks=ev.asks||[]; }
+  else if(ev.type==="token"){ a.kind="code"; a.code=(a.code||"")+(ev.text||""); }
+  else if(ev.type==="code_done"){ a.kind="code"; a.code=ev.code||a.code; }
+  else if(ev.type==="verify"){ a.verify={status:ev.status,tier:ev.tier,counterexample:ev.counterexample}; }
+  else if(ev.type==="optimized"){ a.optimized={closed_form:ev.closed_form,speedup:ev.speedup}; }
+  else if(ev.type==="done"){ a.summary=ev.summary||{}; if(a.summary.kind && a.kind==="pending") a.kind=a.summary.kind;
+    if(a.summary.kind==="code" && a.summary.optimization) a.optimization=a.summary.optimization; }
+  else if(ev.type==="error"){ a.error=ev.message||ERR.unknown; }
+}
+
+function scrollChat(){ const t=document.getElementById("thread"); if(t) requestAnimationFrame(()=>{ t.scrollTop=t.scrollHeight; window.scrollTo(0,document.body.scrollHeight); }); }
+
+// ── send a message → stream the real pipeline ────────────────────────────────────────────────────
+async function sendMessage(text, opts){
+  opts=opts||{};
+  text=(text!=null?text:S.input||"").trim();
+  if(!text||S.streaming) return;
+  if(!opts.silent) S.messages.push({role:"user", text});
+  const a={role:"assistant", kind:"pending", stages:[], code:"", text:"", userText:text, busy:true};
+  S.messages.push(a);
+  S.input=""; S.streaming=true; S.error=null; render(); scrollChat();
+  if(!S.live){ a.kind="error"; a.error=ERR.no_engine; a.busy=false; S.streaming=false; render(); scrollChat(); return; }
+  const body={ prompt:text, mode:S.mode, history:buildHistory(),
+    apiKey:S.key||undefined, provider:S.provider||undefined, model:S.model||undefined, force:!!opts.force };
+  try{
+    const resp=await fetch("/api/stream",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    if(!resp.ok||!resp.body) throw new Error("HTTP "+resp.status);
+    const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf="";
+    for(;;){
+      const {value,done}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf("\n\n"))>=0){
+        const block=buf.slice(0,i); buf=buf.slice(i+2);
+        const dl=block.split("\n").find(l=>l.startsWith("data:")); if(!dl) continue;
+        let ev; try{ ev=JSON.parse(dl.slice(5).trim()); }catch(_){ continue; }
+        applyEvent(a, ev); render(); scrollChat();
+      }
+    }
+  }catch(e){ a.error=ERR.network; }
+  if(a.kind==="pending") a.kind = a.error?"error":(a.code?"code":"chat");
+  a.busy=false; S.streaming=false; render(); scrollChat();
+  // persist a finished code turn for a logged-in user (request/code/labels only — never the key)
+  if(S.live && S.account && a.kind==="code" && a.code){
+    const tier=(a.verify&&a.verify.tier)|| (a.summary&&a.summary.proof_tier)||"";
+    fetch("/api/work/save",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({request:a.userText, code:a.code, status:(a.summary&&a.summary.status)||"", proof_tier:tier})}).catch(()=>{});
+  }
+}
+
+// ── render one assistant message ─────────────────────────────────────────────────────────────────
+function renderAssistant(a){
+  const body=$("div",{class:"bubble"});
+  // live stages
+  if(a.stages&&a.stages.length){
+    const row=$("div",{class:"stagerow"});
+    a.stages.forEach((s,idx)=>{ const last=idx===a.stages.length-1;
+      const cls="stage "+(a.busy&&last?"run":"done");
+      row.appendChild($("span",{class:cls},[ a.busy&&last?$("span",{class:"spin"}):$("span",{},"✓"), " "+s ]));
+    });
+    body.appendChild(row);
+  }
+  if(a.busy && !a.text && !a.code && (!a.asks||!a.asks.length) && (!a.stages||!a.stages.length))
+    body.appendChild($("div",{class:"note"},[$("span",{class:"spin"})," 생각 중…"]));
+
+  if(a.kind==="chat" && a.text) body.appendChild($("div",{},a.text));
+  if(a.kind==="note"){ body.appendChild($("div",{class:"eyebrow",style:"margin:0 0 6px"},"범위 안내"));
+    body.appendChild($("div",{},a.text||"")); }
+  if(a.kind==="ask"){
+    body.appendChild($("div",{},"코딩 작업으로 보입니다 — 정확히 만들려면 조금만 더 알려주세요:"));
+    const ul=$("ul",{class:"asklist"}); (a.asks||[]).forEach(q=>ul.appendChild($("li",{},q))); body.appendChild(ul);
+    body.appendChild($("div",{class:"row",style:"margin-top:8px"},[
+      $("button",{class:"ghost",onclick:()=>sendMessage(a.userText,{force:true,silent:true})},"그대로 진행 →"),
+      $("span",{class:"v-sub"},"또는 위 내용을 답해 다시 보내세요."),
+    ]));
+  }
+  if(a.kind==="code" && (a.code||a.busy)){
+    const cb=$("div",{class:"codeblock"},[
+      $("div",{class:"cb-head"},[ $("span",{class:"v-sub"}, a.busy?"코드 생성 중…":"돌려받은 코드"),
+        a.code?$("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",onclick:()=>{navigator.clipboard&&navigator.clipboard.writeText(a.code);showToast("복사했습니다");}},"복사"):null ]),
+      $("pre",{},a.code||"…"),
+    ]);
+    body.appendChild(cb);
+    // ACCURATE + FAST labels — only what the engine actually returned (honest)
+    const tags=$("div",{class:"reslabel"});
+    if(a.verify){
+      if(a.verify.status==="proven") tags.appendChild($("span",{class:"tag ok"},"✓ 정확하게 — 원본과 같은 결과로 증명됨"+(a.verify.tier?" ("+a.verify.tier+")":"")));
+      else if(a.verify.status==="refuted") tags.appendChild($("span",{class:"tag bad"},"✗ 반례 발견 — 그 변경은 적용하지 않았습니다"));
+      else tags.appendChild($("span",{class:"tag"},"정확하게 — 경계 검증 통과"+(a.verify.tier?" ("+a.verify.tier+")":"")));
+    }
+    const opt=a.optimized||(a.optimization&&a.optimization.optimized?a.optimization:null);
+    if(opt && (opt.closed_form||opt.speedup)) tags.appendChild($("span",{class:"tag fast"},"⚡ 빠르게 — "+(opt.closed_form?("닫힌 형식 "+opt.closed_form):"최적화 적용")+(opt.speedup?("  ×"+opt.speedup):"")));
+    else if(a.optimization && a.optimization.optimized===false) tags.appendChild($("span",{class:"tag"},"빠르게 — 바꿀 구조 없음, 그대로 둡니다"));
+    if(a.verify&&a.verify.status==="refuted"&&a.verify.counterexample) tags.appendChild($("span",{class:"v-sub"},"반례: "+(typeof a.verify.counterexample==="string"?a.verify.counterexample:JSON.stringify(a.verify.counterexample))));
+    if(tags.childNodes.length) body.appendChild(tags);
+  }
+  if(a.error) body.appendChild($("div",{class:"note warn",style:"margin-top:6px"},"⚠ "+a.error));
+  return $("div",{class:"msg bot"},[$("div",{class:"av"},"MJ"), body]);
+}
+
+// ── settings (provider + key + mode) — collapsible, session-only key ─────────────────────────────
+function settingsPanel(){
+  const provGrid=$("div",{class:"grid cols-2"});
   DATA.providers.forEach(p=>{
-    const card=$("button",{class:"mode-card provider-card","aria-pressed":String(S.provider===p.id),onclick:()=>{S.provider=p.id;S.model=p.default_model;S.keyState={phase:"idle"};render();}},[
+    const card=$("button",{class:"mode-card provider-card","aria-pressed":String(S.provider===p.id),onclick:()=>{S.provider=(S.provider===p.id?null:p.id);S.model=S.provider?p.default_model:"";S.keyState={phase:"idle"};render();}},[
       $("div",{class:"mc-head",style:"width:100%"},[$("span",{class:"glyph"},"⚿"),
-        $("div",{style:"flex:1"},[$("div",{class:"mc-name",style:"font-size:15px"},p.label),$("div",{class:"mc-clock"},p.transport)]),
+        $("div",{style:"flex:1"},[$("div",{class:"mc-name"},p.label),$("div",{class:"mc-clock"},p.transport)]),
         p.free_no_card?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"무료 · 카드 불필요"]):null]),
       $("div",{class:"row",style:"width:100%;justify-content:space-between"},[$("span",{class:"v-sub"},[$("span",{},"기본: "),$("span",{class:"mono"},p.default_model||"—")]),
         p.get_key_url?$("a",{class:"getkey",href:p.get_key_url,target:"_blank",rel:"noreferrer",onclick:e=>e.stopPropagation()},"키 발급 ↗"):null]),
     ]);
-    setTimeout(()=>attachTilt(card,5),0); provGrid.appendChild(card);
+    provGrid.appendChild(card);
   });
   const sel=DATA.providers.find(p=>p.id===S.provider);
   const keyCard = sel ? (()=>{
     const keyInput=$("input",{type:"password",autocomplete:"off",spellcheck:"false",placeholder:`${sel.label} 키를 붙여넣으세요…`,value:S.key,oninput:e=>{S.key=e.target.value;S.keyState={phase:"idle"};},onblur:()=>{if(S.key)validateKey();}});
     const modelInput=$("input",{spellcheck:"false",placeholder:sel.default_model,value:S.model,oninput:e=>{S.model=e.target.value;}});
     const ks=S.keyState;
-    return $("div",{class:"card mt"},[
-      $("div",{class:"row",style:"gap:18px;align-items:flex-start"},[
-        $("div",{class:"field",style:"flex:2;min-width:240px;margin:0"},[$("label",{},`${sel.key_label}`),keyInput]),
-        $("div",{class:"field",style:"flex:1;min-width:170px;margin:0"},[$("label",{},"모델"),modelInput]),
+    return $("div",{style:"margin-top:12px"},[
+      $("div",{class:"row",style:"gap:14px;align-items:flex-start"},[
+        $("div",{class:"field",style:"flex:2;min-width:220px;margin:0"},[$("label",{},sel.key_label),keyInput]),
+        $("div",{class:"field",style:"flex:1;min-width:150px;margin:0"},[$("label",{},"모델"),modelInput]),
       ]),
       $("div",{class:"row mt"},[
         $("button",{class:"ghost",onclick:()=>validateKey(),disabled:(!S.key||ks.phase==="checking")?"":null},ks.phase==="checking"?$("span",{class:"spin"}):"키 확인"),
-        ks.phase==="ok"?$("span",{class:"note good"},`유효함 — ${sel.label} 라이브 호출이 200을 반환했습니다.`):null,
+        ks.phase==="ok"?$("span",{class:"note good"},`유효함 — ${sel.label} 라이브 호출 200.`):null,
         ks.phase==="bad"&&ks.res?$("span",{class:"note warn"},(ks.res.blocked?"⚠ ":"✕ ")+(ks.res.detail||"")):null,
       ]),
-      $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},`키는 이 세션에만 머무릅니다 — 저장·기록·로그·커밋되지 않고, 오직 ${sel.label}의 API로만 전송됩니다.`)]),
     ]);
   })() : null;
-  const runBtn=$("button",{class:"btn lg",onclick:async()=>{ if(!S.code.trim())return; S.error=null; S.progress=PROGRESS_STAGES; S.busy=true; runBtn.disabled=true; runBtn.textContent="확인 중…"; S.result=await runOptimize(); S.busy=false; setScreen("result"); showToast("완료 — 안전하게 · 빠르게 · 정확하게 점검했습니다"); }},"코드 점검 실행 →");
-  return $("div",{},[
-    $("div",{class:"eyebrow"},"1단계 · 당신의 코드와 제공자"),$("h2",{},"함수를 붙여넣고, 제공자를 고르세요."),
-    $("p",{class:"lead"},"LLM은 더 나은 코드를 제안만 하고, 무엇을 돌려줄지는 검증기가 정합니다. Groq과 Gemini는 신용카드 없이 무료입니다. 키 없이 건너뛰어도 됩니다 — 그땐 엔진의 검증만 돌아갑니다."),
-    samples, ta, fileSec,
-    $("div",{class:"eyebrow",style:"margin-top:22px"},"제공자 (선택)"),
+  return $("div",{class:"card"},[
+    $("div",{class:"eyebrow",style:"margin:0 0 10px"},"제공자 · 키 (선택) — 키 없이도 서버 기본 키가 있으면 동작합니다"),
     provGrid, keyCard,
-    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.account_policy)]),
-    $("div",{class:"row mt"},[runBtn, S.provider?$("span",{class:"pill"},"제안자: "+S.provider):$("span",{class:"pill"},"제공자 없이 검증만"),
-      S.provider?$("button",{class:"ghost",onclick:()=>{S.provider=null;S.key="";S.keyState={phase:"idle"};render();}},"제공자 해제"):null]),
+    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.key_policy)]),
   ]);
 }
 
-function scrResult(){
-  const r=S.result;
-  if(!r) return $("div",{},[$("p",{},"아직 실행하지 않았습니다."),$("button",{class:"btn",onclick:()=>setScreen("code")},"코드로 가기")]);
-  const out = r.live ? liveOutcomes(r.raw) : r.demo;
-  const wrap=$("div",{},[
-    $("div",{class:"eyebrow"},"2단계 · 결과"),$("h2",{},"안전하게 · 빠르게 · 정확하게."),
-  ]);
-  if(!r.live) wrap.appendChild($("div",{class:"demo-banner"},[$("span",{},"◈"),$("span",{html:"<strong>데모 모드</strong> — 아래는 당신 코드에 대한 <em>예시</em> 결과입니다(실측·실변환 아님). 실제 변환은 라이브 엔진(server)에서 실행됩니다."})]));
-  // §W honest error surfacing — a specific, actionable message (never a silent failure dressed as success)
-  if(S.error) wrap.appendChild($("div",{class:"demo-banner",style:"background:var(--normal-tint)"},[$("span",{},"⚠"),
-    $("span",{},S.error.title+" — "+S.error.action+(S.error.retry?" (다시 시도 가능)":""))]));
-  // §W live progress — the REAL pipeline stages the run worked through (not a fake spinner)
-  if(S.progress&&S.progress.length) wrap.appendChild($("div",{class:"card"},[$("div",{class:"eyebrow"},"진행 · 실제 단계"),
-    $("div",{class:"row",style:"gap:8px;flex-wrap:wrap;margin-top:8px"},S.progress.map(s=>$("span",{class:"pill"},"✓ "+s[1])))]));
-  // the three pillar outcomes — human sentences, each in its accent. No numbers, no badges, no meters.
-  const pmap={secured:out.secured,fast:out.fast,accurate:out.accurate};
-  const stack=$("div",{class:"pillar-stack mt"});
-  DATA.pillars.forEach(p=>{
-    const slab=$("div",{class:"slab pillar float-in","data-mode":p.id},[
-      $("div",{class:"p-head"},[$("span",{class:"glyph"},p.glyph),$("span",{class:"p-name"},p.name),$("span",{class:"p-word"},p.word)]),
-      $("p",{},pmap[p.id]||""),
-    ]);
-    setTimeout(()=>attachTilt(slab,5),0);
-    stack.appendChild(slab);
-  });
-  wrap.appendChild(stack);
-  // the output code — the main deliverable. Live: the returned code. Static: the input, labelled as the demo basis.
-  const outputCode = r.live ? ((r.raw&&(r.raw.code||r.raw.optimized||r.raw.output))||S.code) : (r.code||S.code);
-  const codeCard=$("div",{class:"card mt"},[
-    $("div",{class:"row",style:"justify-content:space-between"},[
-      $("div",{class:"eyebrow",style:"margin:0"},r.live?(out.changed?"돌려받은 코드":"코드 (변경 없음)"):"코드 (데모 — 라이브 엔진이 변환합니다)"),
-      $("button",{class:"ghost",onclick:()=>{navigator.clipboard&&navigator.clipboard.writeText(outputCode);showToast("복사했습니다");}},"복사"),
+// ── screens ──────────────────────────────────────────────────────────────────────────────────────
+function scrLanding(){
+  return $("div",{},[
+    $("section",{class:"hero"},[
+      $("div",{class:"hero-copy"},[
+        $("div",{class:"eyebrow"},"안전하게 · 빠르게 · 정확하게"),
+        $("h1",{},"대화하세요. 코드는 만들어 드리고, 검증해 돌려드립니다."),
+        $("p",{class:"lead mt"},"무엇이든 물어보세요 — 일반 질문이면 그냥 답합니다. 코드를 만들거나 고쳐 달라면, LLM이 제안하고 MR.JEFFREY가 그 위에서 같은 결과인지 확인한 뒤 돌려드립니다. 필요한 곳만 보안을, 진짜 구조가 있는 곳만 빠르게, 못 하는 곳은 정직하게 그대로."),
+        $("div",{class:"row mt"},[
+          $("button",{class:"btn lg",onclick:()=>setScreen("chat")},"대화 시작하기 →"),
+          S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"엔진 연결 대기"),
+        ]),
+      ]),
+      $("div",{},[$("div",{class:"hero-pillars"},DATA.pillars.map(p=>pillarSlab(p)))]),
     ]),
-    $("pre",{class:"outcode mt"},outputCode||""),
+    $("div",{class:"grid cols-3 tenets"},[
+      $("div",{class:"feat","data-mode":"secured"},[$("h3",{},"질문엔 그냥 답합니다"),$("p",{},"코딩이 아닌 질문은 검증 라벨 없이 평범하게 대화로 답합니다. 무엇이 코딩 작업인지 아닌지는 서버가 분류합니다.")]),
+      $("div",{class:"feat","data-mode":"fast"},[$("h3",{},"코딩이면 만들고 검증"),$("p",{},"코드를 만들거나 고쳐 달라면 생성 → 동치 검증 → (필요하면) 최적화를 실제로 돌리고, 단계가 그대로 보입니다.")]),
+      $("div",{class:"feat","data-mode":"accurate"},[$("h3",{},"바꿨으면 확인"),$("p",{},"모든 변경은 보여드리기 전에 같은 결과를 내는지 확인합니다. 확인할 수 없으면 바꾸지 않고 그대로 둡니다.")]),
+    ]),
+    $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{html:"LLM은 코드를 <strong>제안</strong>하지만 맞는지는 보장하지 않습니다 — MR.JEFFREY가 그 위에서 <strong>확인</strong>합니다. API 키는 이 브라우저 탭에만 보관되며, 저장·로그·커밋되지 않고 당신이 고른 제공자 외 어디로도 전송되지 않습니다."})]),
   ]);
-  wrap.appendChild(codeCard);
-  wrap.appendChild($("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.key_policy+" (당신의 키는 이 탭을 떠나지 않습니다.)")]));
-  wrap.appendChild($("div",{class:"row mt"},[$("button",{class:"ghost",onclick:()=>setScreen("code")},"← 다시 실행"),$("button",{class:"ghost",onclick:()=>{S.code="";S.result=null;S.provider=null;S.key="";setScreen("landing");}},"↺ 처음부터")]));
+}
+
+function scrChat(){
+  const wrap=$("div",{class:"chatwrap"});
+  const thread=$("div",{class:"thread",id:"thread"});
+  if(!S.messages.length){
+    const ex=$("div",{class:"exgrid"});
+    DATA.examples.forEach(e=>ex.appendChild($("button",{class:"ex",onclick:()=>{S.input=e.text;render();const t=document.getElementById("composer-input");if(t){t.focus();t.style.height="auto";t.style.height=Math.min(t.scrollHeight,200)+"px";}}},[
+      $("span",{class:"ee"},e.kind+" · "+e.label),$("b",{},""),e.text.split("\n")[0]])));
+    thread.appendChild($("div",{class:"empty"},[
+      $("h2",{},"무엇을 도와드릴까요?"),
+      $("p",{class:"lead",style:"margin:0 auto"},"질문이면 답하고, 코딩이면 만들고 검증해 돌려드립니다. 아래 예시로 시작해도 됩니다."),
+      ex,
+    ]));
+  } else {
+    S.messages.forEach(m=>{
+      if(m.role==="user") thread.appendChild($("div",{class:"msg user"},[$("div",{class:"bubble"},m.text)]));
+      else thread.appendChild(renderAssistant(m));
+    });
+  }
+  wrap.appendChild(thread);
+
+  // composer
+  const ta=$("textarea",{id:"composer-input",rows:"1",spellcheck:"false",placeholder:"무엇이든 물어보세요 — 질문이면 답하고, 코드를 주거나 만들어 달라면 생성·검증해 돌려드립니다.  (Enter 전송 · Shift+Enter 줄바꿈)"},S.input);
+  ta.value=S.input;
+  ta.addEventListener("input",e=>{ S.input=e.target.value; e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,200)+"px"; });
+  ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
+  const sendBtn=$("button",{class:"send",title:"전송",disabled:S.streaming?"":null,onclick:()=>sendMessage()}, S.streaming?$("span",{class:"spin"}):"↑");
+  const modeChips=DATA.modes.map(m=>$("button",{class:"chip"+(S.mode===m.id?" on":""),title:m.note,onclick:()=>{S.mode=m.id;render();}},m.name));
+  const provName=S.provider?(DATA.providers.find(p=>p.id===S.provider)||{}).label:"제공자 · 키";
+  const toolrow=$("div",{class:"toolrow"},[
+    $("button",{class:"chip"+(S.settingsOpen?" on":""),onclick:()=>{S.settingsOpen=!S.settingsOpen;render();}},"⚿ "+provName+(S.provider&&S.key?" · 키 입력됨":"")),
+    $("span",{class:"v-sub",style:"margin:0 4px"},"·"),
+    ...modeChips,
+  ]);
+  const composer=$("div",{class:"composer"},[
+    toolrow,
+    S.settingsOpen?settingsPanel():null,
+    $("div",{class:"cbox"},[ta, sendBtn]),
+    $("div",{class:"v-sub",style:"margin-top:7px;text-align:center"}, S.live?"라이브 엔진에 연결됨 — 제안자 ≠ 심판, 키는 이 탭에만 보관":"엔진 연결 대기 중 — 백엔드(server)가 실행 중이어야 응답합니다"),
+  ]);
+  wrap.appendChild(composer);
   return wrap;
 }
 
-const SCREENS={landing:scrLanding,code:scrCode,result:scrResult};
+const SCREENS={landing:scrLanding, chat:scrChat};
 
 function render(){
   document.documentElement.setAttribute("data-theme",S.theme);
   const root=document.getElementById("root"); root.innerHTML="";
   const app=$("div",{class:"app"});
   const steps=$("nav",{class:"steps","aria-label":"progress"});
-  const reached={landing:1,code:1,result:!!S.result};
-  STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),disabled:reached[id]?null:"",onclick:()=>reached[id]&&setScreen(id)},[$("span",{class:"n"},n),label])));
+  STEPS.forEach(([id,n,label])=>steps.appendChild($("button",{"aria-current":String(S.screen===id),onclick:()=>setScreen(id)},[$("span",{class:"n"},n),label])));
   const acctBtn = S.account
     ? $("button",{class:"ghost",onclick:doLogout},"로그아웃 · "+(S.account.email||"").split("@")[0])
     : $("button",{class:"ghost",onclick:()=>{S.authPanel=!S.authPanel;S.error=null;render();}},"로그인 / 가입");
@@ -471,9 +525,7 @@ function render(){
     steps, $("div",{class:"spacer"}), acctBtn,
     $("button",{class:"ghost",onclick:()=>{S.theme=S.theme==="light"?"dark":"light";render();}},S.theme==="light"?"다크":"라이트"),
   ]));
-  const cur=SCREENS[S.screen]||scrLanding;
-  const main=$("main",{class:(S.screen==="result")?"wide":""});
-  // §W auth panel — accounts persist id + password + history; the API key is NEVER part of the account
+  const main=$("main",{});
   if(S.authPanel && !S.account){
     const em=$("input",{type:"email",placeholder:"이메일",value:S._email||"",oninput:e=>{S._email=e.target.value;}});
     const pwf=$("input",{type:"password",placeholder:"비밀번호 (8자+, 대/소문자·숫자·특수)",oninput:e=>{S._pw=e.target.value;}});
@@ -481,29 +533,28 @@ function render(){
       $("div",{class:"eyebrow"},"계정 · 로그인 또는 가입"),
       $("div",{class:"field"},[$("label",{},"이메일"),em]),
       $("div",{class:"field"},[$("label",{},"비밀번호"),pwf]),
-      S.error?$("div",{class:"note warn"},S.error.title+" — "+S.error.action):null,
+      S.error?$("div",{class:"note warn"},S.error):null,
       $("div",{class:"row mt"},[$("button",{class:"btn",onclick:()=>doAuth("login")},"로그인"),
         $("button",{class:"ghost",onclick:()=>doAuth("signup")},"가입"),
         $("button",{class:"ghost",onclick:()=>{S.authPanel=false;render();}},"닫기")]),
       $("div",{class:"honesty"},[$("span",{},"◈"),$("span",{},DATA.account_policy)]),
     ]));
   }
-  // §W history — the returning account's past conversations (results shown; new runs need the re-entered key)
-  if(S.account && (S.account.history||[]).length){
+  if(S.account && (S.account.history||[]).length && S.screen==="landing"){
     const hl=$("div",{class:"card",style:"max-width:760px;margin:0 auto 18px"},[$("div",{class:"eyebrow"},"지난 대화 · 결과는 저장됨, 새 실행엔 키를 다시 입력")]);
     S.account.history.slice(0,8).forEach(h=>hl.appendChild($("div",{class:"row",style:"justify-content:space-between;border-top:1px solid var(--line-soft);padding-top:6px;margin-top:6px"},[
-      $("span",{class:"v-sub"},(h.request||"").slice(0,60)),$("span",{class:"mono",style:"font-size:11px"},h.status||"")])));
+      $("span",{class:"v-sub"},(h.request||"").slice(0,60)),$("span",{class:"mono",style:"font-size:11px"},h.proof_tier||h.status||"")])));
     main.appendChild(hl);
   }
-  main.appendChild(cur());
+  main.appendChild((SCREENS[S.screen]||scrLanding)());
   app.appendChild(main);
   app.appendChild($("footer",{class:"footer"},"안전하게 · 빠르게 · 정확하게 · 제안자 ≠ 심판 · 키는 이 탭에만 보관"));
   if(S.toast) app.appendChild($("div",{class:"toast",role:"status"},["✓ ",S.toast]));
   root.appendChild(app);
 }
 
-// detect live back end (served by webapi.app) — else stay in honest STATIC (demo) mode
-fetch("/api/health").then(r=>r.json()).then(j=>{S.live=!!(j&&j.ok);render();}).catch(()=>{S.live=false;});
+// detect live back end (served by webapi.app) — chat needs the live engine to call the model + verifier
+fetch("/api/health").then(r=>r.json()).then(j=>{S.live=!!(j&&j.ok);render();}).catch(()=>{S.live=false;render();});
 render();
 </script>
 </body>
