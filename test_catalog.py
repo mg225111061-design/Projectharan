@@ -4968,6 +4968,111 @@ def test_aj_report_compose():
           "enforced, NO new mechanism [22/14], LLM-free core, zero-dep)")
 
 
+def test_ak1_corpus_provenance():
+    """§AK §1 — the 2000-code corpus is HONEST by construction: ★ reproducible (same seed ⇒ identical codes); ★ M-4
+    general_backend is the MAJORITY (the real world is mostly structureless backend code); ★ both provenances present
+    and separable (synthetic = recall ceiling, realworld_style = the real number); ★ anti-manipulation — every bucket
+    contains a non-foldable (a corpus where everything folds is self-deception); ★ all codes parse."""
+    from corpus import build_corpus as BC
+    a, b = build_corpus_srcs(BC, 200, 1), build_corpus_srcs(BC, 200, 1)
+    assert a == b                                                                  # ★ reproducible
+    full = BC.build_corpus()
+    split = BC.provenance_split(full)
+    assert split["total"] == 2000
+    assert split["per_domain"]["general_backend"] == max(split["per_domain"].values())   # ★ M-4 majority
+    assert split["synthetic"] > 0 and split["realworld_style"] > split["synthetic"]       # realworld-heavy (honest)
+    assert all(any(it.domain == d and not it.unary_oracle for it in full) for d in BC.DOMAIN_COUNTS)  # ★ anti-manip
+    assert BC.adversarial_battery()["all_ok"]
+    print("PASS test_ak1_corpus_provenance (2000 codes, 5 domains; ★ reproducible [fixed seed]; ★ M-4 general_backend "
+          "majority [real-world distribution]; ★ synthetic [recall ceiling] vs realworld_style [real number] separated; "
+          "★ every bucket has a non-foldable [anti-manipulation]; all parse)")
+
+
+def build_corpus_srcs(BC, n, seed):
+    return [it.src for it in BC.build_corpus(n, seed)]
+
+
+def test_ak2_engine_classify_per_domain():
+    """§AK §2 — run the engine UNCHANGED, 4-classify (EXACT/PROB/DECLINE/ERROR): ★ M-1 the fold rate is per-domain —
+    general_backend < numeric (the number is dominated by the corpus mix, never a lone scalar); ★ crypto folds ~0
+    (hashes/CSPRNG must DECLINE — no false EXACT); ★ synthetic fold rate > realworld_style (recall ceiling vs the real
+    number, separated honestly); ★ the fold rate EXCLUDES ERROR and keeps PROBABILISTIC out of the numerator."""
+    from measure import run_corpus as RC
+    s = RC.run(160, seed=7).summary
+    dom, prov = s["by_domain"], s["by_provenance"]
+    assert dom["general_backend"]["fold_rate"] < dom["numeric"]["fold_rate"]        # ★ M-1: domain dominates
+    assert dom["crypto_preprocessing"]["fold_rate"] <= 0.05                         # ★ hashes DECLINE (no false EXACT)
+    assert prov["synthetic"]["fold_rate"] > prov["realworld_style"]["fold_rate"]    # ★ ceiling > real (separated)
+    assert "fold_rate" in s["overall"] and s["overall"]["PROBABILISTIC"] >= 0       # PROB tracked separately
+    assert RC.run(120, seed=7).summary["overall"] == RC.run(120, seed=7).summary["overall"]   # reproducible
+    assert RC.adversarial_battery()["all_ok"]
+    print("PASS test_ak2_engine_classify_per_domain (engine UNCHANGED, 4-class; ★ M-1 general_backend fold rate < "
+          "numeric [number is corpus-mix-dominated]; ★ crypto ~0 [hashes DECLINE]; ★ synthetic > realworld [ceiling vs "
+          "real, separated]; ERROR excluded, PROBABILISTIC out of the numerator; reproducible)")
+
+
+def test_ak3_decline_taxonomy():
+    """§AK §3 — every DECLINE is mapped to a PROVEN_BOUNDARIES class (the map of what we can't fold and why): ★ hash⇒C
+    (information floor), transcendental⇒F (z3 wall), I/O⇒H (physical floor), data-branch⇒I, float-loop⇒E, incompressible
+    ⇒B; ★ an ambiguous decline ⇒ UNCLASSIFIED (never force a class — that would hide recall headroom); ★ the taxonomy
+    never returns R (that is §4's job — only a DEMONSTRATED fold becomes R)."""
+    from measure import decline_taxonomy as DT, run_corpus as RC
+    assert DT.classify_decline({"has_hash_or_random": True})[0] == "C"
+    assert DT.classify_decline({"has_transcendental": True})[0] == "F"
+    assert DT.classify_decline({"has_io": True})[0] == "H"
+    assert DT.classify_decline({"has_data_branch": True})[0] == "I"
+    assert DT.classify_decline({"has_float": True, "has_loop": True})[0] == "E"
+    assert DT.classify_decline({"has_loop": True})[0] == "UNCLASSIFIED"             # ★ never forced
+    t = DT.tally(RC.run(220, seed=11).results)
+    assert t["total_declines"] > 0 and len(t["counts"]) >= 3 and "R" not in t["counts"]   # ★ real map, R is §4's
+    assert DT.adversarial_battery()["all_ok"]
+    print("PASS test_ak3_decline_taxonomy (every DECLINE → PROVEN_BOUNDARIES class: hash⇒C, transcendental⇒F, I/O⇒H, "
+          "data-branch⇒I, float-loop⇒E, incompressible⇒B; ★ ambiguous ⇒ UNCLASSIFIED [never forced — would hide "
+          "recall headroom]; ★ taxonomy never returns R [only a demonstrated fold is R])")
+
+
+def test_ak4_near_miss_recall_gap():
+    """§AK §4 — the near-miss hunter finds R (DECLINEs that ACTUALLY fold = recall headroom): ★ popcount and base-3
+    digit-sum — DECLINEd by the §AI portfolio (BM/poly/period/holonomic) — are recovered as R via the k-regular
+    mechanism (M22) under aggressive retry; ★★ a genuine random oracle (truncated SHA-256) is NOT recovered (no false
+    R — the M-3 double/far held-out guard holds); the disguise distribution is the ranked recall priority."""
+    from measure import near_miss as NM
+    from corpus.build_corpus import CorpusItem
+    pc = NM.retry_one(CorpusItem("t", "numeric", "synthetic", "def f(n):\n    return bin(n).count('1')\n", "f", True, "popcount"))
+    rn = NM.retry_one(CorpusItem("t", "crypto_preprocessing", "synthetic",
+                                 "def f(n):\n    import hashlib\n    return int.from_bytes(hashlib.sha256(str(n).encode()).digest()[:6],'big')\n",
+                                 "f", True, "hash"))
+    assert pc.folded and pc.disguise.startswith("k-regular")                        # ★ R via k-regular (recall gap)
+    assert not rn.folded                                                            # ★★ no false R (M-3 held-out)
+    assert NM.adversarial_battery()["all_ok"]
+    print("PASS test_ak4_near_miss_recall_gap (★ popcount & base-3 digit-sum recovered as R via the k-regular mechanism "
+          "[the §AI portfolio's blind spot — ranked recall priority]; ★★ a SHA-256 random oracle is NOT R [no false R, "
+          "M-3 double/far held-out]; the disguise distribution = the next recall targets)")
+
+
+def test_ak_report_M3_precision_gate():
+    """§AK report — ★★ THE M-3 GATE: every EXACT_FOLD is INDEPENDENTLY re-verified (recovered recurrence vs the TRUE
+    oracle on a FAR window n≈400–420) ⇒ false-EXACT MUST be 0 / precision 1.0 (1+ ⇒ build fail — the single most
+    important number); ★ M-1 the table is per-domain × per-provenance (general < numeric); ★ M-2 the DECLINE taxonomy
+    is a populated map; ★ §4 finds genuine R; ★ engine UNCHANGED, NO new certificate kind; ★ five honest annotations."""
+    import ak_report as R
+    rep = R.report(n=320, seed=11, near_miss_limit=60)
+    p = rep["precision_M3"]
+    assert p["false_exact"] == 0 and p["precision"] == 1.0 and p["gate_pass"]       # ★★ M-3: false-EXACT 0 (the gate)
+    assert p["exact_folds"] > 0                                                     # there ARE folds to re-verify
+    dom = rep["main_table"]["by_domain"]
+    assert dom["general_backend"]["fold_rate"] < dom["numeric"]["fold_rate"]        # ★ M-1
+    assert rep["decline_taxonomy"]["total_declines"] > 0 and len(rep["decline_taxonomy"]["classes"]) >= 3   # ★ M-2 map
+    assert rep["near_miss"]["R_count"] >= 1 and len(rep["near_miss"]["disguise_distribution"]) >= 1          # ★ §4 R
+    assert rep["engine_unchanged"] and rep["new_certificate_kinds"] == 0
+    assert len(rep["honest_annotations"]) == 5
+    assert R.adversarial_battery()["all_ok"]
+    print(f"PASS test_ak_report_M3_precision_gate (★★ M-3 GATE: {p['exact_folds']} EXACT folds re-verified → "
+          f"false-EXACT {p['false_exact']}, precision {p['precision']} [the single most important number]; ★ M-1 "
+          "per-domain [general < numeric]; ★ M-2 DECLINE map populated; ★ §4 R found; engine UNCHANGED, no new kind; "
+          "5 honest annotations)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

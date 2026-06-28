@@ -1677,3 +1677,40 @@ mechanism (22/14); LLM-free core (AST: no LLM import in any §AJ module); zero-d
 gapfold is never imported by test_build). 보조 레이어는 게이트를 약화할 수 없다 — 잔차 컷오프는 false-skip 0이고 skip은
 DECLINE이지 거짓 EXACT가 아니다(recall만 비용, precision 불변); 라우터는 순서만(recall 불변); 0-1 승격은 z3 이분법에서만
 (관찰 아님 — P-2); Viterbi는 기존 max-plus face(새 메커니즘 0); precision 1.0·LLM-free 코어·zero-dep.
+
+
+## §AK — 2000-CODE UNFAKEABLE FOLD-RATE MEASUREMENT + DECLINE-REASON MAP (measurement only — engine unchanged)
+
+A measurement harness (NO engine code added) that runs the EXISTING fold engine over 2000 codes and refuses to let the
+number lie. **M-1** the fold rate is reported PER DOMAIN × PER PROVENANCE, never as a lone scalar (filling the corpus
+with signal code would read 90%). **M-2** the real product is the DISTRIBUTION of what does NOT fold. **M-3** every
+EXACT is independently re-verified — false-EXACT must be 0. **M-4** the corpus is general-backend-majority (the real
+world is mostly structureless), with `synthetic` (recall ceiling) and `realworld_style` (the real number) separated.
+
+**§1 corpus** (`corpus/build_corpus.py`): 2000 deterministic (fixed-seed, LLM-free, reproducible) codes — general_backend
+600 / numeric 400 / signal 350 / statistical 350 / crypto_preprocessing 300; each tagged `synthetic` vs `realworld_style`;
+every bucket carries deliberate NON-foldables (anti-manipulation). **§2 run** (`measure/engine_adapter.py` +
+`run_corpus.py`): the unchanged engine — static (`catalog.lift` + `structure_recognizer`) AND the §AI/§AJ black-box path
+(precheck → router → 5 conjecturers) — classifies each code EXACT / PROBABILISTIC / DECLINE / ERROR. fold rate =
+EXACT / (EXACT + PROBABILISTIC + DECLINE): PROBABILISTIC is NOT in the numerator, ERROR is EXCLUDED; isolated per-item,
+harness-level z3 timeout, fixed seed. **§3 taxonomy** (`measure/decline_taxonomy.py`): each DECLINE → a PROVEN_BOUNDARIES
+class A–I (REUSE `decline_boundary`); ambiguous ⇒ UNCLASSIFIED (never forced — forcing would hide recall headroom);
+R is assigned only by §4. **§4 near-miss** (`measure/near_miss.py`): the recall hunter — aggressively retry DECLINEd
+unary oracles (§AI conjecturers at probe=64 + the k-regular mechanism M22, REUSED) under a DOUBLE-WINDOW + far held-out
+guard; a fold ⇒ **R** (recall gap) + its disguise type (the ranked recall priority). M-3 held: a near-miss fold is
+accepted only through a z3-gated mechanism, never observation.
+
+**MEASURED (n=2000, seed=20260628, reproducible)** — `ak_report.py`:
+- fold rate by domain: crypto **0%** (hashes/CSPRNG correctly never fold) · general_backend **10%** (the honest floor —
+  structureless backend code has nothing to fold; math, not failure) · numeric **56%** · signal **50%** · statistical **57%**.
+- by provenance: **synthetic 90.4%** (recall ceiling — the engine catches what it knows) vs **realworld_style 6.8%**
+  (the real number); overall 33% is NOT reported alone (M-1).
+- DECLINE map (1340 declines): UNCLASSIFIED 46.6% (data-shaped computation, no proven boundary) · C 17.9% (information
+  floor — crypto) · I 17.9% (data-dependent control flow) · F 8.8% (z3 wall — transcendental) · H 4.5% (I/O) · E 4.3%
+  (chaos). near-miss R = **44**, all `k-regular(k=2)` ⇒ the #1 recall priority is the k-regular class (popcount).
+- ★★ **M-3 precision gate: 660 EXACT folds, false-EXACT 0, precision 1.0** — every EXACT independently re-verified
+  (recovered recurrence vs the TRUE oracle on a far window n≈400–420). ERROR 0.
+
+`test_catalog.py` **179/179** (+5 §AK), test_build **273×3** (corpus/measure/ak_report not imported — purely additive).
+2000개를 속일 수 없게 측정 — 출처·도메인 분리(M-1)·DECLINE 지도(M-2)·false-EXACT 0(M-3)·general 다수 정직(M-4); 엔진
+불변·새 종류 0·z3-종결·LLM-free·zero-dep·재현가능(시드).
