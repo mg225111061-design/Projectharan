@@ -4698,6 +4698,129 @@ def test_ah_report_compose():
           "qualifiers preserved)")
 
 
+def test_ai1_conjecture_verify_5conjecturers():
+    """§AI §1 (the strongest recall lever) — conjecture-then-verify: a disguised Fibonacci / Σk² / period-3 orbit /
+    factorial behind a closure (the white-box matcher is blind to it) is RECOVERED by the 5 conjecturers and DISPOSED
+    by a z3 ∀-proof + the held-out divergence guard ⇒ EXACT (existing linear_recurrence / closed_form kinds — NO new
+    mechanism); ★★ P-2: a sequence that MATCHES every observed point but DIVERGES past the probe is DECLINED
+    (observation ≠ proof — the line 5 AIs crossed; false-EXACT 0); ★ digit-sum / popcount (no recurrence) DECLINE even
+    though a short window admits a spurious order-11 fit — the held-out window crosses the digit carry and refutes it;
+    ★ the under-determination guard (order-d needs ≥ 2d+2 observations) fires; ★ the z3 consecution proof is REAL."""
+    from conjecture import harness as H, bm_linrec, closedform_guess, period_guess, matpow_guess, holonomic_guess
+    import kernel_verdict as KV
+    import math
+
+    def make_fib():
+        memo = {0: 0, 1: 1}
+        def f(n):
+            if n not in memo:
+                f(n - 1); memo[n] = memo[n - 1] + memo[n - 2]
+            return memo[n]
+        return f
+    # ── the 5 conjecturers each recover their disguised structure (z3 ∀-proof + held-out) ──
+    assert bm_linrec.conjecture(make_fib()).structure_class == "linear_recurrence"
+    assert closedform_guess.conjecture(lambda n: sum(k * k for k in range(n + 1))).structure_class == "polynomial"
+    assert period_guess.conjecture(lambda n: [10, 20, 30][n % 3]).structure_class == "periodic"
+    assert matpow_guess.conjecture(make_fib()).structure_class == "matrix_power"
+    assert holonomic_guess.conjecture(lambda n: math.factorial(n)).structure_class == "holonomic"
+    hv = H.conjecture_verify(make_fib())
+    assert hv.issued and hv.verdict.status == KV.EXACT                                # existing kind, z3 + held-out
+    # ── ★★ P-2: observation-match-then-diverge ⇒ DECLINE (false-EXACT 0) ──
+    def fib_then_diverge(n):
+        a, b = 0, 1
+        for _ in range(n):
+            a, b = b, a + b
+        return a if n < 24 else a + 1                                                 # diverges exactly past the probe
+    assert not H.conjecture_verify(fib_then_diverge, probe=24, holdout=24).issued     # ★ the line 5 AIs crossed
+    # ── ★ digit-functions: a short window admits an order-11 fit, but held-out crosses the carry ⇒ DECLINE ──
+    assert not bm_linrec.conjecture(lambda n: sum(int(d) for d in str(n))).issued     # digit sum: no recurrence
+    assert not bm_linrec.conjecture(lambda n: bin(n).count("1")).issued              # popcount: no recurrence
+    # ── ★ under-determination guard + ★ the z3 ∀-proof is REAL (not tautological) ──
+    assert H.under_determined(4, 3) and not H.under_determined(24, 2)                 # order-d needs ≥ 2d+2
+    assert H.prove_companion_consecution([1, 1]) and not H.prove_companion_consecution([])
+    for mod in (H, bm_linrec, closedform_guess, period_guess, matpow_guess, holonomic_guess):
+        assert mod.adversarial_battery()["all_ok"]
+    print("PASS test_ai1_conjecture_verify_5conjecturers (disguised Fibonacci/Σk²/period-3/factorial recovered by 5 "
+          "conjecturers + DISPOSED by z3 ∀-proof + held-out ⇒ EXACT [existing kinds, NO new mechanism]; ★★ P-2 "
+          "diverge-after-probe DECLINED [observation≠proof, false-EXACT 0]; ★ digit-sum/popcount DECLINE [held-out "
+          "crosses the carry, refuses the spurious order-11 fit]; ★ under-determination guard; z3 consecution real)")
+
+
+def test_ai2_interproc_stitch():
+    """§AI §2 — interprocedural stitching: three affine state updates scattered ACROSS functions (s += c in separate
+    handlers) are reconstructed into ONE affine recurrence, z3-proven ≡ the sequential application (REUSE §P P6
+    distributed_state — existing matrix_recurrence kind); ★ a non-affine handler (s = s*s+1) and ★ a missing fixed
+    schedule are DECLINED by the contamination guard (precision 1.0); the fold-rate lift is honestly MODEST (it widens
+    the analysis REACH — cross-function accumulators become visible — but control flow stays control flow)."""
+    from interproc import stitch as ST
+    ok = ST.stitch({"inc": "def inc(s): s = s + 3", "dbl": "def dbl(s): s = 2*s + 1", "add": "def add(s): s = s + 5"},
+                   ["inc", "dbl", "add"])
+    assert ok.issued and ok.grade == "EXACT" and ok.round_map is not None
+    assert not ST.stitch({"bad": "def bad(s): s = s*s + 1"}, ["bad"]).issued          # ★ non-affine ⇒ DECLINE
+    assert not ST.stitch({"inc": "def inc(s): s = s + 3"}, []).issued                 # ★ no schedule ⇒ DECLINE
+    assert "modest" in ST.reach_delta()["expected_lift"]                              # ★ honest: reach, not fold-rate
+    assert ST.adversarial_battery()["all_ok"]
+    print("PASS test_ai2_interproc_stitch (3 cross-function affine updates → ONE recurrence [z3-proven ≡ sequential, "
+          "REUSE distributed_state, existing kind]; ★ non-affine & no-schedule DECLINED [contamination guard, "
+          "precision 1.0]; ★ honest: widens analysis REACH, fold-rate lift modest)")
+
+
+def test_ai3_specfold_declared():
+    """§AI §3 — spec-declared fold (the cleanest lever — it ADDS information, not a guess): a HARAN `requires sorted(a)`
+    clause (parsed by haran_parser) ACTIVATES a fold the engine could never prove from bare ground (binary-search
+    O(N)→O(log N)) as a CONDITIONAL theorem 'R ⟹ folded ≡ original', with R ALWAYS recorded in the certificate
+    (transparent — hiding it would be a false EXACT); ★ `requires 0≤s<2^16` is z3-DISCHARGED (bounded ⇒ wrap-free);
+    ★ the SAME structure WITHOUT a declaration DECLINES (no information ⇒ unprovable)."""
+    from specfold import declared as SP
+    req = SP.extract_requires("fn search(a: Array, x: Int) -> Int requires sorted(a) { ... }")
+    assert req is not None and "sorted" in req                                        # parser pulls the precondition
+    sortf = SP.declared_fold("sorted", req)
+    assert sortf.issued and sortf.grade == "EXACT" and "under requires" in sortf.detail   # ★ assumption transparent
+    assert SP.declared_fold("bounded_state", "0 <= s < 65536").z3_discharged          # ★ precondition z3-discharged
+    assert not SP.declared_fold("sorted", None).issued                               # ★ no declaration ⇒ DECLINE
+    assert SP.adversarial_battery()["all_ok"]
+    print("PASS test_ai3_specfold_declared (HARAN `requires sorted(a)` activates a binary-search fold as a CONDITIONAL "
+          "theorem 'R ⟹ folded≡original' [assumption ALWAYS in cert]; ★ `0≤s<2^16` z3-discharged [bounded⇒wrap-free]; "
+          "★ undeclared ⇒ DECLINE [no information]; REUSE haran_parser, no new fold)")
+
+
+def test_ai4_canon_compose_reuse():
+    """§AI §4 — canonicalization + composition MEASURED via the REUSED §AA foldrate (measure-first, no reimplementation):
+    surface variants normalize to ONE canonical form (the multiplier — distribution-dependent) and lenses compose; ★
+    the numerator grows by RECALL only — the denominator and the 22/14 mechanism / certificate taxonomy are unchanged."""
+    from foldrate import canonicalize as FC, compose as FCO
+    mult = FC.multiplier_measurement()["multiplier"]
+    lift = FCO.measure_composition()["composition_only_lift"]
+    assert mult >= 1.0 and lift >= 1                                                  # measured (REUSE §AA, not new code)
+    print(f"PASS test_ai4_canon_compose_reuse (canonicalization multiplier {mult}× + composition lift {lift} MEASURED "
+          "via REUSED §AA foldrate [no reimplementation]; numerator grows by recall only, denominator + 22/14 unchanged)")
+
+
+def test_ai_molecule_report():
+    """§AI report — the 4 recall levers composed (conjecture-verify · interproc · specfold · canon); ★★ the HONEST
+    per-domain delta: signal/numeric/stats/crypto fold their DISGUISED structure (real recall) but the general backend
+    folds 0/2 — digit-sum / popcount have NO recurrence to recall and the held-out divergence guard refuses the
+    spurious order-11 fit (the numbers don't lie); ★ P-2 enforced (false-EXACT 0); ★ the under-determination guard
+    fires; precision 1.0; NO new certificate kind [22/14]; LLM-free core (AST-checked); zero-dep."""
+    import molecule_report as MR
+    rep = MR.report()
+    dom = rep["per_domain_delta"]
+    assert dom["signal"]["newly_folded"] >= 1 and dom["numeric"]["newly_folded"] >= 1 and dom["stats"]["newly_folded"] >= 1
+    assert dom["general_backend"]["newly_folded"] == 0                                # ★★ honest: no structure ⇒ 0
+    assert rep["p2_observation_is_not_proof"]["enforced"]                            # ★ false-EXACT 0
+    assert rep["under_determination_guard"]
+    assert rep["levers"]["1_conjecture_verify"]["batteries_ok"] and rep["levers"]["2_interproc"]["battery_ok"]
+    assert rep["levers"]["3_specfold"]["battery_ok"]
+    assert rep["precision"] == 1.0 and rep["no_new_certificate_kind"]
+    assert rep["mechanism_count_unchanged"] == 22 and rep["certificate_kinds_unchanged"] == 14
+    assert rep["llm_free"]["llm_free"] and rep["zero_dep_ok"] and rep["zero_dep_forbidden_present"] == []
+    assert MR.adversarial_battery()["all_ok"]
+    print("PASS test_ai_molecule_report (4 recall levers composed; ★★ honest per-domain delta — signal/numeric/stats/"
+          "crypto fold disguised structure, general backend 0/2 [digit-sum/popcount have no recurrence; held-out "
+          "refuses the spurious order-11 fit]; ★ P-2 enforced [false-EXACT 0], under-determination guard, precision "
+          "1.0, NO new kind [22/14], LLM-free core, zero-dep)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

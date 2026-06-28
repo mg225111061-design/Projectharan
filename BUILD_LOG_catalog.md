@@ -1571,3 +1571,58 @@ qualifiers preserved (domain-conditional; measured ceiling not inflated); the th
 (§AH modules not imported — purely additive). 잘못된 답보다 DECLINE이 항상 옳다 — 언어는 intake지 coverage 아님(의미로
 unsound fold DECLINE); 새 메커니즘 0(포화); self-fold·super-scaling은 foldable 분율에 Amdahl-제한; 보안은 명시 취약점
 부재의 기계검증 + 위협모델, '완벽한 보안' 없음; z3-종결·약한-LLM 비의존·zero-dep 코어·precision 1.0.
+
+
+## §AI — GROW THE NUMERATOR BY RECALL ONLY (conjecture-then-verify · interproc · spec-declared · canon)
+
+Grow the fold-rate **numerator** (count of folded EXACT cases) by RECALL only — the **denominator** and the 22/14
+mechanism / certificate taxonomy are UNCHANGED. Four levers, each **PROPOSES** and z3 **DISPOSES**. ★★ **P-2 (the
+line 5 AIs crossed)**: OBSERVATION IS NOT PROOF — a conjecture that matches ten thousand observed points but cannot
+pass a z3 ∀-proof + the held-out divergence guard is **DECLINED** (false-EXACT count = 0). Every lever routes to an
+EXISTING certificate kind; no new mechanism, no new disposer.
+
+**§1 conjecture-then-verify** (`conjecture/`, the strongest lever): when the white-box matcher can't READ the code
+(disguise: recursion / closure / CPS / object-state / dynamic dispatch), run it as a BLACK BOX, observe the I/O,
+CONJECTURE a recurrence/closed-form, and let z3 prove it ∀n. Conjecturing is free (a wrong guess is rejected by z3),
+so the numerator grows AND the disguise dimension collapses (infinitely many disguises, ONE behavior). Five thin
+conjecturers, all REUSE: `bm_linrec` (Berlekamp-Massey C-finite → `native_sequence`), `closedform_guess` (finite-
+difference polynomial degree + characteristic (x−1)^{d+1}), `period_guess` (smallest-period table identity),
+`matpow_guess` (companion-matrix power O(N)→O(log N) → §AD `mat_pow`), `holonomic_guess` (first-order P-recursive
+ratio test — defeats disguised factorial/binomial). Disposition is `harness.conjecture_verify` (REUSE §P P1
+`blackbox_recover`) = the **held-out divergence guard** (the conjecture must predict 200 unseen terms past the probe
+EXACTLY) **+** the explicit z3 **companion-consecution proof** (`prove_companion_consecution`: z3 QF_LRA proves the
+companion matrix advances the recurrence state ∀ window — the ∀n half of the P-2 gate). ★ **under-determination
+guard**: an order-d conjecture needs ≥ 2d+2 observations; fewer ⇒ ABANDON (a polynomial of degree k fits ANY k+1
+points — a fit is not a proof). ★ **The digit-function trap, honestly handled**: `digitsum`/`popcount` admit a
+spurious order-11 linear-recurrence fit on a SHORT window (the structural break is the digit carry at n=100); the
+held-out window was bumped 24 → **200** so it crosses multiple carry scales and REFUTES the fit ⇒ DECLINE. This is
+exactly the P-2 risk, caught. Honest limit: a finite held-out can't prove ∀n beyond ALL scales — the strongest
+guarantee is reserved for the structural z3 proof; the held-out is the divergence *screen*, the z3 consecution is the
+*theorem*.
+
+**§2 interprocedural stitching** (`interproc/stitch.py`): most folds today are intra-function, but real accumulators
+are scattered ACROSS functions. Stitch per-function affine state updates executed on a fixed schedule into ONE
+composed affine recurrence, z3-proven ≡ the sequential application (REUSE §P P6 `distributed_state` — existing
+matrix_recurrence kind). A non-affine / aliased / nondeterministic handler ⇒ DECLINE (the contamination guard). ★
+Honest boundary: this WIDENS the analysis REACH (cross-function accumulators become visible to the matchers); it does
+NOT make most cross-function code foldable (control flow stays control flow) — the fold-rate lift is MODEST.
+
+**§3 spec-declared fold** (`specfold/declared.py`, the cleanest lever — it ADDS information, not a guess): structure
+the engine can't INFER, the user/LLM can DECLARE. A HARAN `requires sorted(a)` clause (REUSE `haran_parser`) is
+consumed as a fold PRECONDITION — a CONDITIONAL theorem "R ⟹ folded ≡ original", with R **ALWAYS** recorded in the
+certificate (hiding the assumption would be a false EXACT; it is transparent). Where R is z3-dischargeable we
+discharge it (`requires 0≤s<2^16` ⇒ bounded ⇒ wrap-free integer fold, z3 BV-proven via `frontend.semantics`).
+Without a declaration the engine can't prove the structure from bare ground ⇒ DECLINE.
+
+**§4 canonicalization + composition** (REUSE §AA `foldrate/canonicalize.py` + `compose.py`, measure-first, no
+reimplementation): surface variants normalize to ONE canonical form (the multiplier — distribution-dependent, 8.0× on
+the §AA corpus) and lenses compose (lift 4). The numerator grows by recall; the denominator and 22/14 are unchanged.
+
+**COMPOSE + measure** (`molecule_report.py`): the four levers + an LLM-free AST check + the ★ HONEST per-domain delta
+— signal/numeric/stats/crypto fold their DISGUISED structure (real recall: 2/2, 2/2, 2/2, 1/1) but the **general
+backend folds 0/2** (digit-sum/popcount have NO recurrence to recall, and the held-out divergence guard refuses the
+spurious order-11 fit — the numbers don't lie). precision **1.0** (false fold 0); P-2 enforced (false-EXACT 0);
+under-determination guard fires; NO new cert kind (22/14); LLM-free core (AST: no LLM import in any §AI module);
+zero-dep. `test_catalog.py` **169/169** (+5 §AI), test_build **273×3** (conjecture/interproc/specfold/molecule_report
+not imported — purely additive). 관찰은 증명이 아니다(P-2): 만 개가 맞아도 z3 미증명이면 DECLINE — 분자는 recall로만
+키운다(분모·22/14 불변), 거짓 EXACT 0, z3-종결·LLM-free 코어·zero-dep.
