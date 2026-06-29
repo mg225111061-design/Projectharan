@@ -2036,3 +2036,79 @@ zero-dep (z3_guard is stdlib threading/multiprocessing/resource only). NO new me
 이미 존재); 재현된 2건만 고침: §AQ effect-gate의 eval/exec/setattr→'pure' 폴스루를 opaque→DECLINE로(§2.3), z3 동시성
 segfault(rc=139)를 z3_guard 직렬화로(equiv_check에 배선). 헛소리 8건 이유 명시·코드 0. precision 1.0·false-EXACT 0·
 660 EXACT 불변(어떤 판정도 안 바뀜)·새 메커니즘/종류 0·zero-dep.
+
+## §AY — QUANTUM LINEAR-STRUCTURE FOLD (12+1 recognition branches; NOT a new mechanism — 14/22 saturation UNCHANGED)
+
+A dossier of "quantum/relativity" fold ideas, disposed by the spine. The GLM insight: **saturation is a PROPOSER
+limit, not a z3 limit** — so every item is a NEW PROPOSER ANGLE for the EXISTING verifier (a wider recognition
+aperture), reusing repo primitives (`cfinite.companion_nth`/`_matpow`, `native_sequence.berlekamp_massey_Q`/
+`gf2_solve`, `gpu.hidden_structure.exact_rank_factorization`, `foldaxes.probabilistic_fold`). No quantum hardware
+exists, so what actually crosses over is **classical linear-structure theorems** — the phrase "quantum-origin
+speedup" is a permanently banned bigram (self-checked absent from every qfold module + `ay_report.py`).
+
+**§0 VERIFIER TRUTH (the spine of every cert).** `prove_exact.py` admits a z3/array-induction proof of an unbounded
+sequence is *out of scope*. So a ∀-n fold here NEVER comes from z3 induction — it comes from (a) a telescoping/step
+identity over FINITE variables (decidable: z3 QF_LRA/QF_NRA or exact arithmetic), or (b) a STRUCTURE THEOREM
+(minimal-polynomial / companion-matrix / Cayley–Hamilton / projective-linear, ∀-n by construction) gated by **exact
+held-out replay**. z3/exact arithmetic only discharges finite-variable identities; no qfold cert claims "z3 proves ∀-n".
+
+**§1.8 EXACT BOUNDARY (the false-EXACT 0 guarantee).** EXACT lives ONLY inside a structure class — commuting /
+finite-invariant-subspace / low-rank / Clifford / Gaussian. Every boundary case DECLINEs: **float** (no float-EXACT,
+§1-Q3) everywhere; generic dense (full displacement/bond rank); non-commuting (BCH higher-order terms); degree-growth
+(Carleman lift does not close — the generic quadratic/logistic map's degree DOUBLES each step); non-Clifford (T-gate
+has no symplectic representation); position-dependent transfer kernel.
+
+**Tier-1 (EXACT, top priority).** ★ **QLA-1 Krylov/Lanczos** (`qfold/krylov.py`): a fixed iteration's moments
+s_k=wᵀAᵏv fold via Berlekamp–Massey (over ℚ, REUSE native_sequence) → companion form (REUSE cfinite), gated by
+held-out replay of TRUE moments beyond the BM window + an operator-level Aᴸv=Σcᵢ·Aⁱv residual-0 check (Cayley–Hamilton
+on the Krylov subspace). Fibonacci ✓, random/float DECLINE. ★ **QLA-3 Carleman** (`qfold/carleman.py`): a Riccati /
+linear-fractional map x'=(ax+b)/(cx+d) folds via the 2×2 PROJECTIVE lift (net-new: rational maps); a polynomial map
+folds iff its monomial lift CLOSES at finite dimension (iterative closure with a degree cap) — the generic quadratic
+(x²−1) and logistic (3x−3x²) maps DECLINE (degree doubles ⇒ infinite invariant subspace ⇒ no truncation-EXACT). ★
+**QLA-5 displacement-rank** (`qfold/displacement.py`): one recognizer unifies Toeplitz/Hankel/Vandermonde/Cauchy
+(★Hankel/Vandermonde/Cauchy net-new — hidden_structure had only Toeplitz/circulant) via exact ℚ defining-property +
+displacement rank; a generic dense matrix DECLINEs. ★ **QLA-2 Cayley–Hamilton** (`qfold/cayley_hamilton.py`): a
+matrix-power loop folds (χ_A via Faddeev–LeVerrier, χ_A(A)=0 entrywise residual 0, recurrence matches power-by-
+squaring). ★ **QFT-1 transfer-matrix** (`qfold/transfer_matrix.py`): a path-sum Z_N=tr(Tᴺ) is C-finite (REUSE QLA-1
+on the trace sequence); a position-dependent kernel ⇒ B-axis DECLINE.
+
+**Tier-2 (PROBABILISTIC / independent witness).** ★★ **QLA-7 Hutchinson** (`qfold/hutchinson.py`) and **QLA-6
+Chebyshev matrix-function** (`qfold/matfunc.py`) are graded **PROBABILISTIC with a DERIVED δ** (Roosta–Ascher
+δ=2·exp(−Mε²/6); Chebyshev truncation 2M/(ρ−1)ρ^(−K)) and can NEVER be EXACT — and DECLINE when the affordable budget
+can't reach the required δ (or ρ≤1 / unknown spectrum). ★ **QLA-8 tensor-train** (`qfold/tensor_train.py`): a
+low-bond-rank tensor is EXACT (TT-SVD via exact ℚ RREF unfoldings, residual 0, TT storage < full), a generic full-rank
+tensor DECLINEs. ★ **QT-1 stabilizer tableau** (`qfold/stabilizer.py`, net-new): a Clifford circuit (H/S/CNOT) folds
+to a single 𝔽₂ symplectic matrix (SᵀΩS=Ω), self-implemented over 𝔽₂ (★ `zx_normalize.py` uses pyzx = FORBIDDEN dep,
+so this is a zero-dep self-impl), cross-checked by two independent representations (matrix product ∧ tableau rules);
+any T-gate (non-Clifford) ⇒ DECLINE (the magic boundary is exact).
+
+**Tier-3 (EXACT, narrow domain).** ★ **QLA-4 BCH** (`qfold/bch.py`): e^{A₁}…e^{A_k}→e^{ΣA} iff all pairwise
+commutators vanish (exact [A,B]=0); non-commuting Paulis DECLINE. ★ **REL-1 one-parameter subgroup**
+(`qfold/one_param.py`): a rotation/boost power folds (REUSE QLA-2) and collinear elements compose by parameter
+addition (REUSE QLA-4 commutativity); a rotation∧boost (non-commuting ⇒ Thomas–Wigner rotation) DECLINEs. ★ **QFT-2
+Clifford/geometric-algebra** (`qfold/clifford.py`, self-impl — cadabra/sympy.physics.hep FORBIDDEN): GA/Dirac
+equivalence decided by NORMAL FORM (e_ie_j+e_je_i=2η_ij, exact ℚ coefficients); an out-of-metric index (infinite-
+dimensional operator algebra) DECLINEs. ★ **REL-2 conservation** (`qfold/conservation.py`): a verified invariant
+(Q(step)=Q exactly, linear AND quadratic) folds the loop's Q-query to Q(initial), O(1); a non-invariant DECLINEs.
+
+**§5 REJECTED / honest-DECLINE (0 code change, documented in `ay_report.py`):** Shor/quantum number theory (repackaging
+— BM+NTT already exist); superfluid/Gross–Pitaevskii |ψ|²ψ (infinite Carleman lift ⇒ EXACT forbidden); Berry phase
+(non-abelian path integral); **quantum chaos / random-matrix (RMT)** (non-deterministic spectrum — Wigner–Dyson level
+repulsion forbids a per-eigenvalue closed form; ensemble averages only ⇒ not a ∀-input EXACT target); **Jones
+polynomial = CFG semantic equivalence** (a FALSE THEOREM — the Jones polynomial is a KNOT invariant, not a
+program-semantics invariant; wiring it would MANUFACTURE false-EXACT = constitutional violation; mech_knot stays
+circuit/knot-only); geodesic/GPE schedulers (runtime heuristics, not proofs); SR light-cone race (repackaged
+happens-before); unmeasured speedup assertions (Amdahl — every Axis-B claim needs a crossover_n).
+
+**MEASURED (`ay_report.py`):** all 13 mechanism batteries green (EXACT-in-class + DECLINE-boundary each); **Axis A
+(recognition, 11 mechanisms) and Axis B (speedup) reported SEPARATELY and NEVER summed** (QLA-6/7 are PROBABILISTIC,
+out of the EXACT numerator); **false-EXACT 0**; the **banned bigram is absent** (self-check + source grep of qfold +
+ay_report); **8 REJECTED** documented (0 change). `test_catalog.py` **213/213** (+5 §AY), test_build **273** (warm ×3),
+**EXACT 660 invariant** (qfold is not imported by the corpus engine or test_build — pure addition). Zero-dep (stdlib
+fractions/typing/math + in-repo cfinite/native_sequence/hidden_structure/kernel_verdict only; no pyzx/cadabra/
+sympy.physics.hep/external tensor lib). **NO new mechanism (14/22 saturation unchanged), NO new certificate kind.**
+양자 선형구조 fold 13종 = 기존 검증기의 새 proposer 인식 분기(GLM통찰: 포화는 proposer 한계지 z3 한계 아님). ∀-n은
+companion/최소다항식/Cayley–Hamilton/projective 정리 + held-out replay로(z3 귀납 ✗). EXACT는 가환/유한불변/저rank/
+Clifford/가우시안 구조클래스 안에서만 — 경계(부동소수·일반밀집·비가환·차수폭증·비-Clifford·위치의존)는 전부 DECLINE
+⇒ false-EXACT 0. Axis A/B 분리(합산 0)·'quantum-origin speedup' 영구 금지어 부재 자가검증·기각 8건(Jones-CFG
+거짓정리·RMT 비결정·측지선 휴리스틱) 코드 0.

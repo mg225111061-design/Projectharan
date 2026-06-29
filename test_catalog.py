@@ -5653,6 +5653,110 @@ def test_as_report_rejected_and_invariant():
           "★★ precision 1.0 / false-EXACT 0 invariant — no verdict changed)")
 
 
+def test_ay1_krylov_carleman_displacement():
+    """§AY Tier-1 top-3 — the EXACT linear-structure recognizers (∀-n by companion/min-poly/projective theorems +
+    held-out replay, NOT z3 induction). ★ QLA-1 Krylov: a fixed iteration's moments fold via Berlekamp–Massey →
+    companion (Fibonacci ✓); ★ QLA-3 Carleman: a Riccati map folds via the 2×2 projective lift, but a generic
+    quadratic/logistic map (degree DOUBLES) DECLINEs — no truncation-EXACT; ★ QLA-5 displacement: Toeplitz/Hankel/
+    Vandermonde/Cauchy recognized (★Hankel/Vander/Cauchy net-new), a generic dense matrix DECLINEs. Float ⇒ DECLINE
+    everywhere (no float-EXACT)."""
+    from qfold import krylov as K, carleman as C, displacement as D
+    import kernel_verdict as KV
+    assert K.adversarial_battery()["all_ok"]                                       # Fibonacci EXACT, random/float DECLINE
+    assert K.detect_krylov_cfinite([[1, 1], [1, 0]], [1, 0], [1, 0]).status == KV.EXACT
+    assert K.detect_krylov_cfinite([[1.5, 0.0], [0.0, 0.5]], [1.0, 1.0]).status == KV.DECLINE   # ★ float ⇒ DECLINE
+    assert C.adversarial_battery()["all_ok"]                                       # Riccati EXACT; quadratic/logistic DECLINE
+    assert C.riccati_fold(1, 1, 1, 0, 1).status == KV.EXACT
+    assert C.detect_carleman_cfinite([{(2,): __import__("fractions").Fraction(1), (0,): __import__("fractions").Fraction(-1)}], 1, [__import__("fractions").Fraction(1, 3)]).status == KV.DECLINE  # ★ x²−1 degree-doubles
+    assert D.adversarial_battery()["all_ok"]                                       # 4 structures EXACT, generic/float DECLINE
+    print("PASS test_ay1_krylov_carleman_displacement (★ QLA-1 Krylov moments→companion C-finite [Fibonacci ✓, "
+          "float/random DECLINE]; ★ QLA-3 Riccati projective lift EXACT but generic quadratic/logistic DECLINE "
+          "[degree doubles — no truncation-EXACT]; ★ QLA-5 Toeplitz/Hankel/Vandermonde/Cauchy EXACT [Hankel/Vander/"
+          "Cauchy net-new], generic dense DECLINE; float ⇒ DECLINE everywhere)")
+
+
+def test_ay2_cayley_hamilton_transfer():
+    """§AY Tier-1 rest — ★ QLA-2 Cayley–Hamilton: a matrix-power loop folds (χ_A(A)=0 entrywise residual 0, recurrence
+    matches power-by-squaring); ★ QFT-1 transfer-matrix: a path-sum Z_N=tr(Tᴺ) is C-finite (REUSE QLA-1 BM+companion),
+    but a POSITION-DEPENDENT kernel (no single T) ⇒ B-axis DECLINE. Float ⇒ DECLINE."""
+    from qfold import cayley_hamilton as CH, transfer_matrix as TM
+    import kernel_verdict as KV
+    assert CH.adversarial_battery()["all_ok"]
+    assert CH.cayley_hamilton_fold([[2, 1], [1, 3]]).status == KV.EXACT
+    assert CH.cayley_hamilton_fold([[1.1, 0.0], [0.0, 2.2]]).status == KV.DECLINE          # ★ float ⇒ DECLINE
+    assert TM.adversarial_battery()["all_ok"]
+    assert TM.transfer_matrix_fold([[1, 1], [1, 0]]).status == KV.EXACT                    # tr(Tᴺ)=Lucas, C-finite
+    assert TM.position_dependent_decline([[[1, 1], [0, 1]], [[1, 0], [1, 1]]]).status == KV.DECLINE  # ★ no single T
+    print("PASS test_ay2_cayley_hamilton_transfer (★ QLA-2 matrix-power folds via Cayley–Hamilton [χ_A(A)=0 residual "
+          "0]; ★ QFT-1 tr(Tᴺ) C-finite via QLA-1 reuse, position-dependent kernel ⇒ B-axis DECLINE; float ⇒ DECLINE)")
+
+
+def test_ay3_tier2_probabilistic_and_stabilizer():
+    """§AY Tier-2 — ★★ QLA-7 Hutchinson + QLA-6 Chebyshev are PROBABILISTIC with DERIVED δ and can NEVER be EXACT
+    (and DECLINE when the affordable budget can't meet the required δ); ★ QLA-8 tensor-train: a low-bond-rank tensor
+    is EXACT (residual 0) but a generic full-rank tensor DECLINEs; ★ QT-1 stabilizer: a Clifford circuit folds to an
+    𝔽₂ symplectic matrix (two reps agree), but any T-gate (non-Clifford) ⇒ DECLINE (the magic boundary is exact)."""
+    from qfold import hutchinson as HU, matfunc as MF, tensor_train as TT, stabilizer as ST
+    import kernel_verdict as KV
+    assert HU.adversarial_battery()["all_ok"] and MF.adversarial_battery()["all_ok"]
+    diag = [[i + 1 if i == j else 0 for j in range(8)] for i in range(8)]
+    assert HU.hutchinson_trace(diag, probes=4000, epsilon=0.2, required_delta=0.05).status == KV.PROBABILISTIC  # ★★ never EXACT
+    assert MF.matfunc_apply(10.0, 2.0, 60, required_tol=1e-6).status == KV.PROBABILISTIC
+    assert MF.matfunc_apply(10.0, 1.0, 60).status == KV.DECLINE                            # ρ≤1 ⇒ no bound ⇒ DECLINE
+    assert TT.adversarial_battery()["all_ok"] and ST.adversarial_battery()["all_ok"]
+    assert ST.detect_clifford_circuit([("H", 0), ("CNOT", 0, 1)], 2).status == KV.EXACT
+    assert ST.detect_clifford_circuit([("H", 0), ("T", 0)], 2).status == KV.DECLINE        # ★ T non-Clifford ⇒ DECLINE
+    print("PASS test_ay3_tier2_probabilistic_and_stabilizer (★★ QLA-7/QLA-6 PROBABILISTIC [derived δ, NEVER EXACT, "
+          "tight-δ/ρ≤1 ⇒ DECLINE]; ★ QLA-8 low-bond-rank EXACT, generic full-rank DECLINE; ★ QT-1 Clifford→𝔽₂ "
+          "symplectic [two reps agree], T-gate ⇒ DECLINE [magic boundary exact])")
+
+
+def test_ay4_tier3_commutator_subgroup_clifford_conservation():
+    """§AY Tier-3 — ★ QLA-4 BCH: commuting generators collapse e^{A_1}…e^{A_k}→e^{ΣA}, non-commuting Paulis DECLINE;
+    ★ REL-1 one-parameter subgroup: a rotation power folds (Cayley–Hamilton) and collinear rotations compose, but a
+    rotation∧boost (non-commuting, Thomas-rotation analog) DECLINEs; ★ QFT-2 Clifford/GA: e₀e₁=−e₁e₀ and γ¹γ¹=η₁₁
+    decided by normal form (self-impl, NOT cadabra), an out-of-metric index DECLINEs; ★ REL-2 conservation: a verified
+    invariant (linear AND quadratic) folds Q to Q(initial), a non-invariant DECLINEs."""
+    from qfold import bch, one_param as OP, clifford as CL, conservation as CO
+    import kernel_verdict as KV
+    assert bch.adversarial_battery()["all_ok"] and OP.adversarial_battery()["all_ok"]
+    assert CL.adversarial_battery()["all_ok"] and CO.adversarial_battery()["all_ok"]
+    assert bch.lie_product_fold([[[1, 0], [0, 2]], [[3, 0], [0, 5]]]).status == KV.EXACT
+    assert bch.lie_product_fold([[[0, 1], [1, 0]], [[1, 0], [0, -1]]]).status == KV.DECLINE   # ★ X,Z non-commute
+    assert CL.ga_equiv_fold([((5,), 1)], [((5,), 1)], [1, 1, 1]).status == KV.DECLINE         # ★ out-of-metric index
+    print("PASS test_ay4_tier3_commutator_subgroup_clifford_conservation (★ QLA-4 commuting→e^{ΣA}, non-commuting "
+          "Paulis DECLINE; ★ REL-1 rotation power/collinear compose EXACT, rotation∧boost DECLINE; ★ QFT-2 GA normal "
+          "form [anticommute/Dirac square], out-of-metric DECLINE; ★ REL-2 invariant folds to Q(initial), non-inv DECLINE)")
+
+
+def test_ay_report_axes_rejected_and_banned_word():
+    """§AY report — ★ all 13 mechanism batteries green; ★ Axis A (recognition) and Axis B (speedup) reported SEPARATELY
+    and never summed (QLA-6/7 are PROBABILISTIC, out of the EXACT numerator); ★★ false-EXACT 0; ★★ the banned phrase
+    the banned bigram (quantum+speedup) is ABSENT from every qfold module + ay_report (self-check + source grep); ★ 8
+    REJECTED documented (0 code change — incl. the Jones-CFG FALSE THEOREM and RMT non-determinism); ★ 14/22 UNCHANGED."""
+    import ay_report as R
+    rep = R.report()
+    assert rep["all_batteries_ok"] and rep["false_exact_0"]
+    assert rep["axes_never_summed"] and len(rep["axis_B_only_probabilistic"]) == 2
+    assert rep["banned_phrase_absent"]
+    assert len(rep["rejected"]) == 8
+    assert R.adversarial_battery()["all_ok"]
+    # ★★ source-level grep: the banned bigram (assembled here so it never appears contiguously in this file either)
+    # must not appear in any qfold source file or the report module
+    import os
+    banned = "quantum" + " " + "speedup"
+    base = os.path.dirname(os.path.abspath(__file__))
+    qfold_dir = os.path.join(base, "qfold")
+    srcs = [os.path.join(qfold_dir, fn) for fn in os.listdir(qfold_dir) if fn.endswith(".py")]
+    srcs.append(os.path.join(base, "ay_report.py"))
+    for path in srcs:
+        with open(path, encoding="utf-8") as fh:
+            assert banned not in fh.read().lower(), f"banned bigram in {os.path.basename(path)}"
+    print("PASS test_ay_report_axes_rejected_and_banned_word (★ 13 batteries green; ★ Axis A/B separated never summed "
+          "[QLA-6/7 PROBABILISTIC out of EXACT numerator]; ★★ false-EXACT 0; ★★ banned bigram (quantum+speedup) absent "
+          "[self-check + source grep of qfold + ay_report]; ★ 8 REJECTED [Jones-CFG false theorem, RMT …] 0 change; 14/22 same)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
