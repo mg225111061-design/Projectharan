@@ -5930,6 +5930,27 @@ def test_engine_loop_b_self_censor():
           "on two C-finite sequences ⇒ 0 new recall [no double-count, no new mechanism])")
 
 
+def test_engine_loop_a_extract_ledger():
+    """§3 ENGINE Loop A (cycle 3) — the `extract/` effect-system frontend as a SEPARATE fold-unit ledger, soundness
+    witness. The §AQ extract/ path (checksum/Horner-parse/periodic-FSM/io-count) is wired into server.py/intent.py (a
+    real product surface) but is NOT measured by engine_adapter; on NON-UNARY code it is additive, not a double-count
+    (the black-box conjecturers can't run without a unary oracle). ★ Its corpus recall is measured as a SEPARATE ledger
+    with its OWN denominator — NEVER summed into the asymptotic 0.33 (M-1 / §AB fold_units). ★★ The full corpus dig
+    (logged in ENGINE_STATE) found that of the 536 non-unary UNCLASSIFIED codes, the router sends 44→parse_arith,
+    110→io_frame, but the extractors' z3 gates DECLINE all 154 ⇒ 0 folds — the honest ceiling, triple-confirmed
+    (Krylov 0 + extract/ 0 + the distinct near_miss R=44). ★ This gate proves the machinery cannot manufacture a false
+    fold: a hash fragment DECLINEs at the checksum extractor and every component false-EXACT-control battery holds."""
+    from engine import loop_a as LA
+    rep = LA.extract_ledger_battery()
+    assert rep["all_ok"], (rep["failed"], rep.get("component_failed"))
+    assert rep["cases"]["hash_declines_at_checksum_extractor"]      # ★★ optimistic route, but the z3 gate refuses
+    assert rep["cases"]["all_component_batteries_ok"]               # every extractor's own false-EXACT control holds
+    print("PASS test_engine_loop_a_extract_ledger (★ ENGINE Loop A cycle-3: extract/ frontend measured as a SEPARATE "
+          "fold-unit ledger [own denominator, never summed]; corpus dig = 0 folds of 536 non-unary UNCLASSIFIED "
+          "[router optimistic, extractor z3 gates DECLINE all 154 routed] — honest ceiling triple-confirmed; ★★ hash "
+          "DECLINEs at the extractor, no false fold manufactured)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

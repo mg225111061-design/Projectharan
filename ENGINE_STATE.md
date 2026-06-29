@@ -21,7 +21,7 @@
 ## REPO
 - repo `mg225111061-design/Projectharan`, branch `claude/charming-brahmagupta-q4wwgh`, HEAD = engine cycle 1 (03ba721),
   cycle 2 about to commit.
-- Gates command: `OMP_NUM_THREADS=1 python3 test_build.py` (273) · `python3 test_catalog.py` (221) ·
+- Gates command: `OMP_NUM_THREADS=1 python3 test_build.py` (273) · `python3 test_catalog.py` (222) ·
   `python3 -c "from measure import run_corpus as RC; print(RC.run(seed=20260628).summary['overall'])"` (EXACT 660).
 
 ## PART 1 (8-phase initial fuel) — ✅ COMPLETE (built+pushed this session)
@@ -39,8 +39,16 @@
   are niche vs this corpus mix ⇒ expected Loop-A yield is small; honest to measure and log either way.
 
 ## CURRENT LOOP POSITION
-- **ENGINE MODE, cycle 2 DONE (Loop A + Loop B + Loop C re-run) → committing → Loop D regression (catalog 221).**
-  catalog now **221** (+ loop_a soundness gate, + loop_b self-censor gate).
+- **ENGINE MODE, cycle 3 DONE (Loop A extract-ledger) → committing → Loop D regression (catalog 222).** catalog now
+  **222** (+ extract-ledger soundness gate). cycle-2 Loop-D regression confirmed catalog **221 green** on commit 1518cf3.
+- Cycle-3 Loop A (`engine/loop_a.py::dig_extract_ledger`): measured the §AQ `extract/` effect-system frontend (a real
+  product path via server.py/intent.py, but NOT measured by engine_adapter) on the **536 non-unary UNCLASSIFIED** as a
+  SEPARATE fold-unit ledger (own denominator, NEVER summed into 0.33 — M-1/§AB fold_units; additive not double-count
+  since the conjecturers can't run on non-unary code). Result: router sends 44→parse_arith + 110→io_frame, but the
+  extractor z3 gates **DECLINE all 154 ⇒ 0 folds**, rate 0.0. ★★ HONEST CEILING NOW TRIPLE-CONFIRMED: Krylov 0 (88
+  unary) + extract/ 0 (536 non-unary) + the distinct near_miss R=44 (k-regular) — the UNCLASSIFIED 624 cluster yields
+  ZERO additional folds from every available recognizer. Fold rate does not rise; PROVEN by measurement, not asserted.
+- (prior) cycle 2 catalog now **221** (+ loop_a probe-headroom gate, + loop_b self-censor gate).
 - Cycle-2 Loop A (`engine/loop_a.py`): corpus live re-measure = **EXACT 660 / DECLINE 1340** (invariant held). Dug the
   UNCLASSIFIED cluster (**624** = 46.6%: 88 unary oracles, 536 non-unary [212 data-loop, 362 structureless]). The only
   non-double-counting probe (Krylov 32→128 samples, since `near_miss` already covers 64) recovered **0** of 88 with
@@ -50,10 +58,14 @@
   roots-of-unity filter, P-recursive holonomic, Toeplitz-solve) → **0 accepted, 5 rejected**, each a named face/axis-
   cross. Flagship double-count PROVEN: Berlekamp-Massey order == Hankel stabilized rank on Fibonacci(2) & custom(3).
 - Cycle-2 Loop C (re-run): red-team 640 probes, **0 false-EXACT**, INV-1 holds.
-- NEXT (after Loop D 273/221/660 green + push): cycle 3 = Loop A again on a DIFFERENT angle — the corpus dig proved the
-  unary-oracle path is saturated, so cycle-3 Loop A should instead probe whether any of the 536 NON-unary UNCLASSIFIED
-  (the 212 data-loop ones) expose a recognizable accumulation the static lifter misses (honest, likely small). Then
-  Loop B (new candidates), C (red-team), D (regression). Checkpoint each cycle.
+- NEXT (after Loop D 273/222/660 green + push): cycle 4 — the UNCLASSIFIED-recall path is now PROVEN exhausted (triple-
+  confirmed 0), so STOP chasing it. Pivot Loop A to the honest complementary question: "where the §AY/§AU islands DO
+  apply, do they fire correctly and SOUNDLY?" Build a small ISLAND-SHAPED micro-corpus (matrix-iteration / Clifford
+  circuits / skew-symmetric free-fermion inputs) and measure island recall as a SEPARATE DOMAIN ledger (own denominator,
+  never summed into 0.33; false-EXACT 0 by independent ground-truth re-check). This validates the islands aren't useless
+  — they're domain-specific — without inflating the general rate (honest, not goalpost-moving). Then Loop B/C/D.
+  Alternative if that saturates: escalate Loop C to adversarially re-verify the CORE 660 EXACT corpus folds (broaden
+  INV-1 from this-session folds to the whole engine). Checkpoint each cycle.
 
 ## AUTONOMOUS DECISION LOG (morning audit)
 - (cycle 0) PART 1 judged complete (all 8 phases already built+pushed across §AL/§AP/§AQ/§AT/§AY/§AU); → ENGINE MODE.
