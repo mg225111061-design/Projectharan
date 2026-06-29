@@ -5073,6 +5073,110 @@ def test_ak_report_M3_precision_gate():
           "5 honest annotations)")
 
 
+def test_al1_strip_structural_disguises():
+    """§AL §1 — the FIVE structural disguises the §AI black-box CANNOT see raw are stripped into foldable oracles
+    (genuine recall): ★ naive O(2ⁿ) recursion (memoized → feasible → folds); ★ a tuple-returning multivar (component
+    projected); ★ a cross-function accumulator (dataflow-stitched, REUSE §AI §2); ★ a closure (call-sequence unwrapped);
+    ★ an object's stateful method (state machine extracted) — each then DISPOSED by the §AI z3+held-out gate (S-2)."""
+    from recall.strip import recursion_to_loop as RL, multivar_collapse as MC, interproc_gather as IG, \
+        closure_unwrap as CU, object_state_extract as OE
+    assert RL.fold("def f(n):\n    return n if n < 2 else f(n-1) + f(n-2)\n").folded         # ★ exp recursion → memo
+    assert MC.fold("def f(n):\n    a=0\n    b=0\n    for k in range(n+1):\n        a+=1\n        b+=a\n    return (a,b)\n").folded
+    assert IG.fold({"inc": "def inc(s): s = s + 3", "dbl": "def dbl(s): s = 2*s + 1"}, ["inc", "dbl"]).folded
+    assert CU.fold("def make():\n    s=[0]\n    def step():\n        s[0]+=1\n        return s[0]\n    return step\n").folded
+    assert OE.fold("class C:\n    def __init__(self):\n        self.s=0\n    def step(self):\n        self.s+=2\n        return self.s\n").folded
+    for m in (RL, MC, IG, CU, OE):
+        assert m.adversarial_battery()["all_ok"]
+    print("PASS test_al1_strip_structural_disguises (5 structural disguises the raw black-box can't see — exp-recursion "
+          "[memoized], tuple-multivar [projected], cross-function accumulator [stitched, REUSE §AI §2], closure "
+          "[unwrapped], object-state [extracted] — stripped to oracles & DISPOSED by the §AI z3+held-out gate)")
+
+
+def test_al2_strip_overlap_disguises():
+    """§AL §1 (overlap) — three disguises that overlap existing coverage but are still z3-gated: ★ control-flow branches
+    split per-residue-class & each folds; ★ strength-reduction inverse (repeated-mul → geometric); ★ a window over a
+    structured stream folds; ★★ each strip module REJECTS its non-foldable adversary (chaos/random/data-dependent) ⇒
+    false-EXACT 0 (the strips never manufacture a fold — the §AI gate disposes)."""
+    from recall.strip import control_flatten as CF, strength_reduction_inverse as SR, alg_window_relation as AW
+    assert CF.fold(lambda n: 2 * n if n % 2 == 0 else 3 * n + 1).folded                       # per-guard split
+
+    def repeated_mul(n):                                                                      # strength-reduction disguise
+        x = 1
+        for _ in range(n):
+            x *= 3
+        return x
+    assert SR.fold(repeated_mul).folded                                                       # repeated-mul → geometric
+    assert AW.fold(lambda k: 3 * k + 1, 4).folded                                             # window over linear stream
+    for m in (CF, SR, AW):
+        assert m.adversarial_battery()["all_ok"]                                              # ★★ each rejects its adversary
+    print("PASS test_al2_strip_overlap_disguises (control-flow per-residue split, strength-reduction-inverse → "
+          "geometric, window-over-structured-stream — all z3-gated; ★★ each REJECTS chaos/random/data-dependent "
+          "adversaries [false-EXACT 0; strips normalize, the gate disposes])")
+
+
+def test_al3_depth_multiscale_holdout_S2():
+    """§AL §2 — ★★ THE SOUL (S-2): observation is not proof. base-10 digit-sum MATCHES a contiguous Berlekamp-Massey
+    recurrence on the probe, but the MULTI-SCALE held-out (straddling n≈100/1000/10000 carry boundaries) REFUTES it ⇒
+    DECLINE — the §AK digit-trap is now PERMANENTLY blocked (false-EXACT 0); ★ a high-order recurrence under-determined
+    at a shallow probe folds at a deeper probe (multi-scale verified); ★ depth shows DIMINISHING RETURNS."""
+    from recall import depth as D
+    import native_sequence as NS
+    from fractions import Fraction
+    ds = lambda n: sum(int(x) for x in str(n))
+    seq = [Fraction(ds(n)) for n in range(48)]
+    C, L = NS.berlekamp_massey_Q(seq)
+    assert L >= 1 and NS._verify_recurrence(seq, C, L)                                        # ★ observation MATCHES contiguously
+    assert not D.multiscale_witness_ok(ds, C, L)                                              # ★★ but carry-scale REFUTES (S-2)
+    assert not D.deep_conjecture(ds).folded                                                   # ⇒ DECLINE (digit-trap blocked)
+    def high_order(n):
+        a = [1, 1, 1, 1, 1, 1]
+        for i in range(6, n + 1):
+            a.append(a[i - 1] + a[i - 6])
+        return a[n] if n >= 6 else 1
+    hr = D.deep_conjecture(high_order)
+    assert hr.folded and hr.order == 6 and hr.multiscale_ok                                   # ★ folds at depth, multi-scale verified
+    assert D.adversarial_battery()["all_ok"]
+    print("PASS test_al3_depth_multiscale_holdout_S2 (★★ S-2 the soul: base-10 digit-sum MATCHES a contiguous BM "
+          "recurrence but the MULTI-SCALE held-out [n≈100/1000/10000 carries] REFUTES it ⇒ DECLINE [§AK digit-trap "
+          "permanently blocked, false-EXACT 0]; ★ order-6 recurrence folds at a deeper probe; diminishing returns)")
+
+
+def test_al4_declared_max():
+    """§AL §3 — spec-declared recall maximized (information by DECLARATION, no conjecture): a declared `monotone` /
+    `periodic` / `prime` activates a fold the engine couldn't prove from bare ground, as a CONDITIONAL theorem with the
+    assumption ALWAYS in the cert; ★ the §AI structures route to specfold (bounded_state z3-discharged); ★ the SAME
+    structure WITHOUT a declaration DECLINES (no information); ★ the assumption is never hidden."""
+    from recall import declared_max as DM
+    mono = DM.declared_fold_max("monotone", "forall i: a[i] <= a[i+1]")
+    assert mono.issued and mono.grade == "EXACT" and "under requires" in mono.detail          # ★ assumption transparent
+    assert DM.declared_fold_max("bounded_state", "0 <= s < 65536").z3_discharged              # ★ REUSE specfold, z3-discharged
+    assert not DM.declared_fold_max("monotone", None).issued                                  # ★ no declaration ⇒ DECLINE
+    assert DM.adversarial_battery()["all_ok"]
+    print("PASS test_al4_declared_max (declared monotone/periodic/prime activate folds the engine can't prove from bare "
+          "ground [CONDITIONAL 'R⟹folded≡original', assumption ALWAYS in cert]; ★ §AI structures route to specfold "
+          "[bounded_state z3-discharged]; ★ undeclared ⇒ DECLINE; assumption never hidden)")
+
+
+def test_al_report_soul():
+    """§AL report — ★★ THE SOUL held end-to-end: every recovered fold went through the §AI z3 ∀-proof + held-out=200
+    gate (the strips only normalize), so false-EXACT is 0; the digit-function P-2 trap is PERMANENTLY blocked
+    (multi-scale held-out); chaos/random/structureless DECLINE; ★ S-4 the general backend stays low (structureless code
+    has no disguise to strip); ★ S-1 no new mechanism, no new certificate kind; ≥6 of 8 disguise dimensions recovered."""
+    import al_report as R
+    rep = R.report()
+    assert rep["recall_recovered_count"] >= 6                                                 # real recall
+    assert rep["precision_S3"]["p2_digit_trap_permanently_blocked"]                           # ★★ the soul
+    assert rep["precision_S3"]["chaotic_random_declines"] and rep["precision_S3"]["all_strip_folds_z3_gated"]
+    assert rep["precision_S3"]["false_exact"] == 0                                            # ★★ false-EXACT 0
+    assert rep["honest_S4"]["general_backend_still_low"]                                      # ★ S-4 honest
+    assert rep["S1_no_new_mechanism"] and rep["new_certificate_kinds"] == 0                   # ★ S-1
+    assert all(rep["batteries"].values())
+    assert R.adversarial_battery()["all_ok"]
+    print(f"PASS test_al_report_soul (★★ SOUL held: {rep['recall_recovered_count']}/8 disguises recovered, ALL through "
+          "the §AI z3+held-out gate ⇒ false-EXACT 0; digit-trap PERMANENTLY blocked [multi-scale held-out]; chaos/"
+          "random/structureless DECLINE; ★ S-4 general backend still low; ★ S-1 no new mechanism/kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

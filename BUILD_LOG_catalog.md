@@ -1714,3 +1714,45 @@ accepted only through a z3-gated mechanism, never observation.
 `test_catalog.py` **179/179** (+5 §AK), test_build **273×3** (corpus/measure/ak_report not imported — purely additive).
 2000개를 속일 수 없게 측정 — 출처·도메인 분리(M-1)·DECLINE 지도(M-2)·false-EXACT 0(M-3)·general 다수 정직(M-4); 엔진
 불변·새 종류 0·z3-종결·LLM-free·zero-dep·재현가능(시드).
+
+
+## §AL — RECALL TO THE PHYSICAL LIMIT (exhaustive disguise-stripping · conjecture depth · spec-declared max)
+
+Squeeze foldable-but-missed code (the §AK R class) to the limit, across EVERY disguise dimension. **★ S-2 (the soul):
+observation is not proof.** The strip modules ONLY normalize — every candidate is disposed by the §AI z3 ∀-proof +
+held-out=200 gate, in ONE place (`recall/core.fold_via_ai`); a wrong strip just produces a candidate the gate rejects,
+so no strip can ever manufacture a false EXACT. Push recall to the limit, never break precision 1.0. S-1: no new
+mechanism; S-3: every DECLINE→ACCEPT promotion is z3-disposed; S-4: general backend stays low (structureless code has
+no disguise to strip — math, not failure).
+
+**§1 disguise-strip (`recall/strip/`, 8 dimensions)** — each a deterministic AST/behavioral normalizer that exposes a
+foldable oracle, then §AI + z3 dispose: ① `recursion_to_loop` (naive O(2ⁿ) recursion → MEMOIZED feasible oracle —
+without it the black-box can't even probe); ② `multivar_collapse` (f(n)→tuple, non-numeric to the black-box → project
+the foldable component — the hidden single variable); ③ `interproc_gather` (accumulator scattered across functions →
+one recurrence, REUSE §AI §2 `interproc.stitch`); ④ `closure_unwrap` (closure state advanced by repeated calls → unary
+oracle); ⑤ `object_state_extract` (object/method state machine → unary oracle); ⑥ `control_flatten` (per-guard
+recurrences split by residue class, each z3-gated); ⑦ `strength_reduction_inverse` (repeated-add→linear, repeated-mul→
+geometric; honest overlap with the lifter); ⑧ `alg_window_relation` (window over a structured stream → closed form;
+overlaps §Z). ★ ①–⑤ are GENUINE new recall (the raw black-box cannot see them); ⑥–⑧ overlap existing coverage but stay
+z3-gated. Each module REJECTS its chaos/random/data-dependent adversary (false-EXACT 0).
+
+**§2 conjecture depth + ★★ MULTI-SCALE held-out (`recall/depth.py`)** — escalate the probe (24→48→96→192) so a
+higher-order recurrence under-determined at a shallow probe becomes determined (ABANDON if observations are
+insufficient — a fit through too few points is never accepted). ★★ The key soundness upgrade: §AK found the
+digit-function trap (a recurrence matching a contiguous window but breaking at a digit carry, n=100). A contiguous
+held-out crosses ONE carry scale; the multi-scale held-out verifies the recurrence on windows STRADDLING n≈100/1000/
+10000, so any carry-class sequence is REFUTED permanently — base-10 digit-sum, which MATCHES a contiguous BM recurrence,
+is now a permanent DECLINE. This strengthening can only turn EXACT into DECLINE (precision only goes UP). Honest: depth
+shows DIMINISHING RETURNS (`yield_curve` plateaus) — route deep only on §AJ-promising oracles.
+
+**§3 spec-declared max (`recall/declared_max.py`)** — the cleanest recall (information by DECLARATION, no conjecture):
+the §AI structures route to specfold (REUSE; bounded_state z3-discharged), widened with monotone/periodic/prime — each
+a CONDITIONAL theorem "R ⟹ folded ≡ original" with R ALWAYS in the cert; undeclared ⇒ DECLINE.
+
+**COMPOSE + measure (`al_report.py`)**: §AK R before/after — **8/8 disguise dimensions recovered** (recursion/multivar/
+interproc/closure/object/control/strength/window); ★ S-3 precision: every recovered fold went through the §AI z3+held-
+out gate ⇒ **false-EXACT 0**; ★★ the digit-function P-2 trap is PERMANENTLY blocked (multi-scale held-out); chaos/random/
+structureless DECLINE; S-4 general backend stays low; depth diminishing-returns curve recorded. `test_catalog.py`
+**184/184** (+5 §AL incl. the ★ S-2 multi-scale adversarial), test_build **273×3** (recall/al_report not imported —
+purely additive). NO new mechanism, NO new certificate kind; LLM-free; zero-dep. 관찰은 증명이 아니다 — recall을 끝까지
+밀어도 z3 ∀+다중스케일 held-out이 처분(precision 1.0 불변, 영혼); 변장 8차원 벗김·digit-trap 영구 차단·새 메커니즘 0.
