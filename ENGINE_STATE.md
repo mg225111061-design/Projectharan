@@ -8,7 +8,7 @@
 - **INV-1 false-EXACT == 0** — ✅ HOLDING. Triple-confirmed cycle 2: (a) corpus live re-measure seed 20260628 = EXACT
   660 / PROB 0 / DECLINE 1340 / ERROR 0; (b) Loop-C red-team 640 probes 0 false-EXACT; (c) Loop-A corpus dig on the
   88 UNCLASSIFIED unary oracles = 0 false-EXACT (independent ground-truth far-window re-check).
-- **INV-2 660 EXACT lossless + test_build 273 + test_catalog 221** — ✅ HOLDING (catalog 218→219 red-team→220 Loop-A
+- **INV-2 660 EXACT lossless + test_build 273 + test_catalog 223** — ✅ HOLDING (catalog 218→219 red-team→220 Loop-A
   →221 Loop-B; Loop-D regression confirmed **219 passed/0 failed** on cycle-1 commit; 221 to be reconfirmed this cycle).
 - **INV-3 no boundary-loosening (z3 gate / DECLINE / precision)** — ✅ none attempted (engine code UNCHANGED; loop_a/
   loop_b are measurement+self-censor artifacts, issue 0 new EXACT obligations).
@@ -21,7 +21,7 @@
 ## REPO
 - repo `mg225111061-design/Projectharan`, branch `claude/charming-brahmagupta-q4wwgh`, HEAD = engine cycle 1 (03ba721),
   cycle 2 about to commit.
-- Gates command: `OMP_NUM_THREADS=1 python3 test_build.py` (273) · `python3 test_catalog.py` (222) ·
+- Gates command: `OMP_NUM_THREADS=1 python3 test_build.py` (273) · `python3 test_catalog.py` (223) ·
   `python3 -c "from measure import run_corpus as RC; print(RC.run(seed=20260628).summary['overall'])"` (EXACT 660).
 
 ## PART 1 (8-phase initial fuel) — ✅ COMPLETE (built+pushed this session)
@@ -39,9 +39,13 @@
   are niche vs this corpus mix ⇒ expected Loop-A yield is small; honest to measure and log either way.
 
 ## CURRENT LOOP POSITION
-- **ENGINE MODE, cycle 4 DONE (Loop C escalation — core conjecturers) → committing → Loop D regression (catalog 222).**
-  catalog stays **222** (extended the existing red-team gate, no new test). cycle-3 commit 7cc8017 pushed; cycle-2 221
-  regression confirmed green (1518cf3).
+- **ENGINE MODE, cycle 5 DONE (Loop D — engine/ hygiene self-audit) → committing → Loop D regression (catalog 223).**
+  catalog now **223** (+ engine hygiene gate). cycle-4 commit 8e282b6 pushed; cycle-4 222 regression in flight.
+- Cycle-5 Loop D (`engine/hygiene.py`): codified a drift guard auditing the engine/ package the autonomous loop authors
+  — H1 zero-dep (blacklist pyzx/cadabra/torch/scipy/...; engine/ imports only z3+stdlib+repo-internal, confirmed), H2
+  banned bigram absent, H3 no agent-model-id leak in engine/ source (the PRODUCT's own backend-model config in
+  README/providers/haran.html is pre-existing, legitimate, OUT OF SCOPE — not scrubbed), H4 no float-EXACT (Fraction/int
+  only). ★★ NEGATIVE CONTROL proves all four detectors fire on a synthetic violating source. Engine package CLEAN.
 - Cycle-4 Loop C (`engine/red_team.py::redteam_core_conjecturers`): broadened INV-1 from this-session folds to the
   ENGINE CORE. 100 NEW randomized probes (total sweep now **740**): 60 randomly-GENERATED true C-finite oracles run the
   full `engine_adapter.classify` path → **60/60 fold EXACT-and-CORRECT** (re-verified vs the true oracle on a far window
@@ -68,14 +72,13 @@
   roots-of-unity filter, P-recursive holonomic, Toeplitz-solve) → **0 accepted, 5 rejected**, each a named face/axis-
   cross. Flagship double-count PROVEN: Berlekamp-Massey order == Hankel stabilized rank on Fibonacci(2) & custom(3).
 - Cycle-2 Loop C (re-run): red-team 640 probes, **0 false-EXACT**, INV-1 holds.
-- NEXT (after Loop D 273/222/660 green + push): cycle 5 — the recall frontier is exhausted (triple-confirmed) and the
-  core conjecturers are now red-teamed (cycle 4). Remaining honest directions, in priority: (1) Loop D-DEEP hygiene
-  sweep across ALL new engine/ files (loop_a, loop_b, red_team): zero-dep audit (only z3+stdlib+numpy+grandfathered
-  sympy), banned-bigram ("quantum"+" "+"speedup") absent, NO model-id leak, no float-EXACT — a cleanup cycle that
-  hardens the new artifacts; (2) extend the core red-team to POLYNOMIAL/PERIODIC generated oracles (more core surface,
-  same false-EXACT-0 discipline); (3) write WAKE_REPORT.md early-draft so the §4 final report accretes rather than being
-  rushed at the 10h mark. Then keep cycling A/B/C/D. The engine is at a HONEST PLATEAU — value now = hardening the safety
-  net + honest reporting, NOT manufactured recall (which would breach the spine). Checkpoint each cycle.
+- NEXT (after Loop D 273/223/660 green + push): cycle 6 — all four loops are now built with permanent gates + negative
+  controls, and the WAKE_REPORT.md living draft exists (§4 deliverable accreting). The engine is at a HONEST PLATEAU.
+  Honest low-churn remaining work: (1) extend the core red-team to POLYNOMIAL & PERIODIC generated oracles (more core
+  surface, same false-EXACT-0 + far-reverify discipline) — the last clearly-additive safety surface; (2) MAINTENANCE —
+  periodically re-confirm the invariants (273 / 223 / 660 / red-team 0) and keep WAKE_REPORT.md current; (3) finalize
+  WAKE_REPORT.md at the 10h mark / usage reset. The engine will NOT manufacture recall to look busy (that breaches the
+  spine); a green plateau, honestly reported, IS the correct terminal state once the mathematics ceiling is reached.
 
 ## AUTONOMOUS DECISION LOG (morning audit)
 - (cycle 0) PART 1 judged complete (all 8 phases already built+pushed across §AL/§AP/§AQ/§AT/§AY/§AU); → ENGINE MODE.

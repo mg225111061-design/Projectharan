@@ -5957,6 +5957,24 @@ def test_engine_loop_a_extract_ledger():
           "DECLINEs at the extractor, no false fold manufactured)")
 
 
+def test_engine_loop_d_hygiene():
+    """§3 ENGINE Loop D (cycle 5) — HYGIENE self-audit of the engine/ package the autonomous loop authors (drift guard).
+    ★ H1 zero-dep (no blacklisted external heavy dep — pyzx/cadabra/torch/scipy/...; only z3+stdlib+numpy+grandfathered
+    sympy+repo-internal), H2 the permanently-banned bigram never appears contiguously, H3 the running model identifier
+    never leaks into engine/ source (chat-only; the PRODUCT's own backend-model config elsewhere is legitimate and out
+    of scope), H4 no EXACT verdict computed from a Python float (exact ℚ/int only). ★★ A NEGATIVE CONTROL proves each
+    detector actually fires on a synthetic violating source — a green audit that cannot detect a violation is worthless."""
+    from engine import hygiene as HY
+    rep = HY.adversarial_battery()
+    assert rep["all_ok"], (rep["failed"], rep["audit"]["violations"])
+    assert rep["cases"]["engine_package_clean"]                     # H1–H4 all clean on the real engine/ package
+    assert all(rep["cases"][k] for k in ("neg_control_H1_import", "neg_control_H2_bigram",
+                                         "neg_control_H3_modelid", "neg_control_H4_floatexact"))  # ★★ detectors fire
+    print("PASS test_engine_loop_d_hygiene (★ ENGINE Loop D: the engine/ package is clean on H1 zero-dep / H2 banned "
+          "bigram / H3 no agent-id leak / H4 no float-EXACT; ★★ a negative control proves all four detectors fire — "
+          "the autonomous loop cannot silently drift its own modules off the honesty spine)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
