@@ -156,20 +156,82 @@ def redteam_stabilizer(trials: int = 80) -> dict:
     return {"checked": checked, "false_exact": false_exact}
 
 
+# ── CORE conjecturer path (cycle 4): random TRUE foldables must fold EXACT-and-CORRECT; random hashes must DECLINE ──
+def _cfinite_oracle_src(c: List[int], init: List[int]) -> str:
+    """Emit a self-contained unary oracle f(n) for the C-finite sequence f(n)=Σ c[i]·f(n-1-i) (memoized default-arg ⇒
+    O(n) amortized so the far-window re-verification stays cheap). This is genuine foldable code for the black-box path."""
+    terms = " + ".join(f"({c[i]})*_s[m-1-{i}]" for i in range(len(c)))
+    init_lit = repr(list(init))
+    return (f"def f(n, _s={init_lit}):\n"
+            f"    while len(_s) <= n:\n"
+            f"        m = len(_s)\n"
+            f"        _s.append({terms})\n"
+            f"    return _s[n]\n")
+
+
+def redteam_core_conjecturers(foldable_trials: int = 60, hash_trials: int = 40) -> dict:
+    """★ CYCLE-4 Loop-C ESCALATION — broaden INV-1 from this-session folds to the ENGINE CORE. Randomly GENERATE true
+    C-finite oracles (the conjecturers' bread-and-butter) and confirm the full `engine_adapter.classify` path folds them
+    EXACT **and** the recovered closed form matches the TRUE oracle on a FAR window n≈400-420 (via the EXISTING
+    `engine_adapter.reverify_exact` — reuse, not reimplement); a recovered-but-wrong fold is a false-EXACT. ★★ Randomly
+    GENERATE genuine hash oracles (information floor) and confirm they are NEVER issued EXACT/PROBABILISTIC. This is a NEW
+    randomized adversarial surface over the core (distinct from the FIXED 660-corpus reverify and the §AY/§AU probes)."""
+    from corpus.build_corpus import CorpusItem
+    from measure import engine_adapter as EA
+    rng = _LCG(20260629)
+    false_exact, checked, folded = 0, 0, 0
+    for t in range(foldable_trials):
+        d = rng.nxt(1, 3)
+        c = [rng.nxt(-3, 3) for _ in range(d)]
+        if all(x == 0 for x in c):
+            c[0] = 1                                              # avoid the degenerate all-zero (eventually-0) tail
+        init = [rng.nxt(-3, 3) for _ in range(d)]
+        src = _cfinite_oracle_src(c, init)
+        item = CorpusItem(f"rt:core:{t}", "numeric", "synthetic", src, "f", True, "cfinite_random")
+        r = EA.classify(item)
+        if r.classification == EA.EXACT_FOLD:
+            folded += 1
+            rv = EA.reverify_exact(item)                         # ★ independent far-window ground-truth re-check
+            if rv.get("false_exact"):
+                false_exact += 1                                 # ★ EXACT but diverges from the true oracle = false-EXACT
+        checked += 1
+    hash_false_exact = 0
+    for t in range(hash_trials):
+        seed = rng.nxt(0, 10 ** 9)
+        src = (f"def f(n):\n    import hashlib\n"
+               f"    return int.from_bytes(hashlib.sha256(str(n + {seed}).encode()).digest()[:6], 'big')\n")
+        item = CorpusItem(f"rt:hash:{t}", "crypto_preprocessing", "synthetic", src, "f", True, "hash_oracle")
+        r = EA.classify(item)
+        if r.classification in (EA.EXACT_FOLD, EA.PROBABILISTIC_FOLD):
+            hash_false_exact += 1                                # ★ a hash oracle issued a fold = false-EXACT
+        checked += 1
+    return {"checked": checked, "false_exact": false_exact + hash_false_exact,
+            "foldable_folded": folded, "foldable_trials": foldable_trials,
+            "hash_false_exact": hash_false_exact, "hash_trials": hash_trials}
+
+
+_REPORT_CACHE = {}      # the sweep is fully deterministic (seeded LCG) ⇒ memoize so a second call in-process is free
+
+
 def red_team_report() -> dict:
+    if "r" in _REPORT_CACHE:
+        return _REPORT_CACHE["r"]
     teams = {
         "pfaffian": redteam_pfaffian(),
         "wick_free_vs_interacting": redteam_wick(),
         "krylov_moment": redteam_krylov(),
         "proof_carrying": redteam_proof_carrying(),
         "stabilizer_css": redteam_stabilizer(),
+        "core_conjecturers": redteam_core_conjecturers(),
     }
     total_false_exact = sum(v["false_exact"] for v in teams.values())
     total_checked = sum(v["checked"] for v in teams.values())
-    return {"teams": teams, "total_checked": total_checked, "total_false_exact": total_false_exact,
-            "INV_1_holds": total_false_exact == 0,
-            "note": "Loop C — every EXACT fold attacked with randomized adversarial inputs + independent ground-truth "
-                    "re-check; every boundary forced to DECLINE. false_exact MUST be 0 (INV-1)."}
+    rep = {"teams": teams, "total_checked": total_checked, "total_false_exact": total_false_exact,
+           "INV_1_holds": total_false_exact == 0,
+           "note": "Loop C — every EXACT fold attacked with randomized adversarial inputs + independent ground-truth "
+                   "re-check; every boundary forced to DECLINE. false_exact MUST be 0 (INV-1)."}
+    _REPORT_CACHE["r"] = rep
+    return rep
 
 
 def adversarial_battery() -> dict:
@@ -177,12 +239,15 @@ def adversarial_battery() -> dict:
     combinatorial, Wick free-vs-interacting, Krylov prediction vs ground truth, proof-carrying tamper, Clifford+T);
     ★ every boundary (random stream / sampling cert / injected T) DECLINEs."""
     r = red_team_report()
+    core = r["teams"]["core_conjecturers"]
     cases = {
         "no_false_exact": r["total_false_exact"] == 0,
         "inv1_holds": r["INV_1_holds"],
         "krylov_random_declines": r["teams"]["krylov_moment"]["random_stream_declines"],
         "proof_carrying_sampling_rejected": r["teams"]["proof_carrying"]["sampling_rejected"],
-        "swept_enough": r["total_checked"] >= 600,
+        "core_hash_never_folds": core["hash_false_exact"] == 0,           # ★ random hash oracles never issued a fold
+        "core_recall_nonvacuous": core["foldable_folded"] >= core["foldable_trials"] // 2,  # the test isn't vacuous
+        "swept_enough": r["total_checked"] >= 700,
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

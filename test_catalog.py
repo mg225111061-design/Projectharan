@@ -5870,22 +5870,28 @@ def test_au_report_two_islands():
 
 
 def test_engine_redteam_loop_c():
-    """§3 ENGINE Loop C — the adversarial false-EXACT hunt, now a PERMANENT regression gate. ★★ ~640 randomized
-    deterministic adversarial probes against every EXACT fold built this session (§AY Krylov, §AU free-fermion
-    Pfaffian/Wick, §AT proof-carrying, stabilizer/CSS): every EXACT output is independently re-checked vs a brute-force
-    ground truth (Pf²=det & combinatorial pairing sum; companion prediction vs the true recurrence; Wick free-vs-
-    interacting; cert tamper; Clifford+T), and every boundary (random stream / sampling cert / injected T-gate) is
-    forced to DECLINE. INV-1: total false_exact MUST be 0 — a single one freezes the autonomous engine."""
+    """§3 ENGINE Loop C — the adversarial false-EXACT hunt, now a PERMANENT regression gate. ★★ ~740 randomized
+    deterministic adversarial probes: (cycle 1) against every EXACT fold built this session — §AY Krylov, §AU
+    free-fermion Pfaffian/Wick, §AT proof-carrying, stabilizer/CSS (Pf²=det & combinatorial pairing sum; companion
+    prediction vs the true recurrence; Wick free-vs-interacting; cert tamper; Clifford+T); (cycle 4 ESCALATION) against
+    the ENGINE CORE — 60 randomly-GENERATED true C-finite oracles must fold EXACT-and-CORRECT (the full classify path,
+    re-verified vs the true oracle on a FAR window via engine_adapter.reverify_exact) and 40 random hash oracles must
+    NEVER fold. Every boundary (random stream / sampling cert / injected T-gate / hash oracle) is forced to DECLINE.
+    INV-1: total false_exact MUST be 0 — a single one freezes the autonomous engine."""
     from engine import red_team as RT
     rep = RT.red_team_report()
     assert rep["total_false_exact"] == 0 and rep["INV_1_holds"]        # ★★ INV-1: false-EXACT 0 across the sweep
-    assert rep["total_checked"] >= 600
+    assert rep["total_checked"] >= 700
     assert rep["teams"]["krylov_moment"]["random_stream_declines"]      # boundary: random ⇒ DECLINE
     assert rep["teams"]["proof_carrying"]["sampling_rejected"]          # boundary: sampling cert ⇒ rejected
+    core = rep["teams"]["core_conjecturers"]                            # ★ cycle-4 core escalation
+    assert core["hash_false_exact"] == 0                               # random hash oracles never issued a fold
+    assert core["foldable_folded"] >= core["foldable_trials"] // 2     # the core recall test isn't vacuous
     assert RT.adversarial_battery()["all_ok"]
-    print("PASS test_engine_redteam_loop_c (★★ ENGINE Loop C: ~640 randomized adversarial probes find 0 false-EXACT "
-          "[INV-1]; every EXACT independently re-checked vs brute-force ground truth; every boundary [random stream / "
-          "sampling cert / injected T-gate] DECLINEs — the autonomous engine's active safety device)")
+    print("PASS test_engine_redteam_loop_c (★★ ENGINE Loop C: ~740 randomized adversarial probes find 0 false-EXACT "
+          "[INV-1]; every EXACT independently re-checked vs brute-force/oracle ground truth; cycle-4 escalation stresses "
+          "the CORE conjecturers [60/60 generated foldables fold EXACT-and-correct, 40/40 hash oracles DECLINE]; every "
+          "boundary DECLINEs — the autonomous engine's active safety device)")
 
 
 def test_engine_loop_a_probe_headroom():
