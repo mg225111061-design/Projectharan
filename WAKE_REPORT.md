@@ -6,6 +6,10 @@
 > precision is intact (false-EXACT 0), and the cycles' value is hardening the safety net + honest measurement, NOT
 > manufactured fold-rate.** Inventing recall here would breach the HONESTY SPINE; the engine refused to.
 
+## §-1 Capstone invariant snapshot @ HEAD 628f09a (cycle 6) — ALL GREEN
+- `test_build`: **273 passed / 0 failed**. `test_catalog`: **223 passed / 0 failed**. corpus (seed 20260628): **EXACT
+  660 / PROB 0 / DECLINE 1340 / ERROR 0**. Loop-C red-team: **820 probes / 0 false-EXACT**. Every §0 invariant holds.
+
 ## §0 The single number that matters: false-EXACT == 0 (INV-1)
 - **0 false-EXACT across every probe this run.** Triple-independent confirmation:
   1. corpus live re-measure (seed 20260628, n=2000): EXACT 660 / PROB 0 / DECLINE 1340 / ERROR 0 — unchanged.

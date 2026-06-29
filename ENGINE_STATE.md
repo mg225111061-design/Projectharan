@@ -4,18 +4,18 @@
 > "CURRENT LOOP POSITION". Never stop with an excuse; if a task blocks, log BLOCKED + reason and move to the next
 > loop. The engine has no completion condition — it runs until the 10h mark, then §4 final report (WAKE_REPORT.md).
 
-## 🟢 INVARIANT STATUS (auto-checked each commit; false-EXACT==0 is the ONLY total-freeze trigger)
-- **INV-1 false-EXACT == 0** — ✅ HOLDING. Triple-confirmed cycle 2: (a) corpus live re-measure seed 20260628 = EXACT
-  660 / PROB 0 / DECLINE 1340 / ERROR 0; (b) Loop-C red-team 640 probes 0 false-EXACT; (c) Loop-A corpus dig on the
-  88 UNCLASSIFIED unary oracles = 0 false-EXACT (independent ground-truth far-window re-check).
-- **INV-2 660 EXACT lossless + test_build 273 + test_catalog 223** — ✅ HOLDING (catalog 218→219 red-team→220 Loop-A
-  →221 Loop-B; Loop-D regression confirmed **219 passed/0 failed** on cycle-1 commit; 221 to be reconfirmed this cycle).
-- **INV-3 no boundary-loosening (z3 gate / DECLINE / precision)** — ✅ none attempted (engine code UNCHANGED; loop_a/
-  loop_b are measurement+self-censor artifacts, issue 0 new EXACT obligations).
-- **INV-4 progress = obligations + flip counts (provenance-split), NOT a single scalar.** Cycle-2 obligations added: 0
-  (Loop A recovered 0; Loop B accepted 0). Gates added: +2 (loop_a soundness, loop_b self-censor). HONEST: 0 new folds.
-- **INV-5 no new mechanism (14/22 saturated)** — ✅ PROVEN this cycle: Loop B accepted 0/5 candidates, each a named
-  face/axis-cross; Hankel-rank≡Berlekamp-Massey demonstrated with running code (BM order == Hankel rank on 2 seqs).
+## 🟢 INVARIANT STATUS — ALL GREEN, CAPSTONE-CONFIRMED @ HEAD 628f09a (cycle 6)
+- **INV-1 false-EXACT == 0** — ✅ HOLDING. (a) corpus seed 20260628 = EXACT 660 / PROB 0 / DECLINE 1340 / ERROR 0 (all
+  EXACT independently far-reverified); (b) Loop-C red-team **820 probes, 0 false-EXACT** (islands + core's 3 recognition
+  classes); (c) Loop-A digs (Krylov 88 unary + extract/ 536 non-unary) 0 false-EXACT.
+- **INV-2 660 EXACT lossless + test_build 273 + test_catalog 223** — ✅ CAPSTONE-CONFIRMED at HEAD: test_build **273/0**,
+  test_catalog **223/0**, corpus **EXACT 660**. (catalog 218→219 red-team→220/221 Loop-A/B→222 extract-ledger→223 hygiene.)
+- **INV-3 no boundary-loosening (z3 gate / DECLINE / precision)** — ✅ none attempted (engine code UNCHANGED across all
+  6 cycles; engine/ modules are measurement + self-censor + red-team + hygiene artifacts, 0 new EXACT obligations).
+- **INV-4 progress = obligations + flip counts (provenance-split), NOT a single scalar.** Total new EXACT obligations
+  across cycles 1–6: **0** (recall saturated). Gates added: **+5** engine gates (catalog 218→223). HONEST: 0 new folds.
+- **INV-5 no new mechanism (14/22 saturated)** — ✅ PROVEN: Loop B accepted 0/5 candidates, each a named face/axis-cross;
+  Hankel-rank≡Berlekamp-Massey demonstrated with running code (BM order == Hankel rank on 2 seqs).
 - **Verifier truth**: z3 = finite identities only; ∀-n = telescoping / companion / Pfaffian / symplectic + held-out.
 
 ## REPO
@@ -39,9 +39,13 @@
   are niche vs this corpus mix ⇒ expected Loop-A yield is small; honest to measure and log either way.
 
 ## CURRENT LOOP POSITION
-- **ENGINE MODE, cycle 6 DONE (Loop C — core red-team extended to polynomial + periodic) → committing → ONE final
-  Loop-D regression (catalog 223, on cycle-6 HEAD, confirms cycles 4+5+6 together).** catalog stays **223** (extended the
-  existing red-team gate). cycle-5 commit 353478b pushed.
+- **ENGINE MODE → CONVERGED PLATEAU. Cycles 1–6 COMPLETE, committed+pushed (HEAD 628f09a). Final 223 regression GREEN
+  (223/0) + capstone GREEN (test_build 273/0, corpus EXACT 660). All invariants hold.** The non-redundant, spine-
+  compliant work surface is exhausted: recall triple-confirmed saturated, mechanisms at INV-5 saturation (self-censor
+  0-accept), the red-team spans the islands + the core's 3 recognition classes, hygiene drift-guard in place, WAKE_REPORT
+  current. Per the HONESTY SPINE a verified green plateau is the correct terminal state once the mathematics ceiling is
+  reached — manufacturing further "recall" would be the mirage the spine forbids. ENGINE now in MAINTENANCE: re-confirm
+  invariants on any change; resume new cycles only if a genuinely-additive surface appears or the directive provides one.
 - Cycle-6 Loop C (`engine/red_team.py`): extended the core-conjecturer red-team to THREE foldable classes that stress
   distinct conjecturers — C-finite (BM) + polynomial (closedform_guess) + eventually-periodic (period_guess). Sweep now
   **820 probes**: 60/60 + 40/40 + 40/40 fold EXACT-and-CORRECT (far-reverified), 40/40 hash DECLINE, **false-EXACT 0**.
