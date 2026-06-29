@@ -5869,6 +5869,25 @@ def test_au_report_two_islands():
           "absent [+source grep]; ★ Zeilberger REUSED; ★ 8 REJECTED walls each a named theorem)")
 
 
+def test_engine_redteam_loop_c():
+    """§3 ENGINE Loop C — the adversarial false-EXACT hunt, now a PERMANENT regression gate. ★★ ~640 randomized
+    deterministic adversarial probes against every EXACT fold built this session (§AY Krylov, §AU free-fermion
+    Pfaffian/Wick, §AT proof-carrying, stabilizer/CSS): every EXACT output is independently re-checked vs a brute-force
+    ground truth (Pf²=det & combinatorial pairing sum; companion prediction vs the true recurrence; Wick free-vs-
+    interacting; cert tamper; Clifford+T), and every boundary (random stream / sampling cert / injected T-gate) is
+    forced to DECLINE. INV-1: total false_exact MUST be 0 — a single one freezes the autonomous engine."""
+    from engine import red_team as RT
+    rep = RT.red_team_report()
+    assert rep["total_false_exact"] == 0 and rep["INV_1_holds"]        # ★★ INV-1: false-EXACT 0 across the sweep
+    assert rep["total_checked"] >= 600
+    assert rep["teams"]["krylov_moment"]["random_stream_declines"]      # boundary: random ⇒ DECLINE
+    assert rep["teams"]["proof_carrying"]["sampling_rejected"]          # boundary: sampling cert ⇒ rejected
+    assert RT.adversarial_battery()["all_ok"]
+    print("PASS test_engine_redteam_loop_c (★★ ENGINE Loop C: ~640 randomized adversarial probes find 0 false-EXACT "
+          "[INV-1]; every EXACT independently re-checked vs brute-force ground truth; every boundary [random stream / "
+          "sampling cert / injected T-gate] DECLINEs — the autonomous engine's active safety device)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
