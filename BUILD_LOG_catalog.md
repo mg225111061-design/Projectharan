@@ -1855,3 +1855,67 @@ certificate kind; LLM-free; zero-dep (z3+stdlib).
 동반(실패 커널 방출 안 됨, 빠른 라이브러리는 못 주는 차별점)·§1 물리 불변식은 precision-1.0의 물리판(비보존/CFL위반
 REJECT)·§3 PTX 백본 위 검증 레이어(재발명 안 함)·A-3 crypto 제외·A-4 GPU 없으면 PTX-검증-완료(조작 숫자 0)·새
 메커니즘 0·새 증명서 종류 0.
+
+---
+
+## §AP — 4-WAY CROSS-VALIDATED RECALL ×6 (each a normalizer over the existing z3 gate; measured, not estimated)
+
+Six recall mechanisms, each a NORMALIZER that strips a disguise and routes through the EXISTING z3-gated disposer —
+**S-1: no new fold mechanism, no new disposer, no new certificate kind.** The spine: **S-2 (soul)** observation is not
+proof (z3 ∀-proof + multi-scale held-out disposes; AI hand-derived closed forms are RE-PROVEN, never trusted);
+**S-3** every mechanism is MEASURED; **S-4** most AI "fold" examples are Fibonacci/Σk²/EMA = already folded, so these
+close DISGUISES (the honest delta on a structureless corpus is small — that honesty is the result).
+
+**§1 `recall/compose/` — CROSS-LENS compositional fold (atomize·fold_each·recombine).** The genuine win is a stream in
+NEITHER closed class: **Fibonacci (C-finite, exponential ⇒ not k-regular) + popcount (k-automatic ⇒ not C-finite)** —
+no single conjecturer folds the sum, but `atomize` (the decomposition the code exposes) → `fold_each` (each atom in its
+OWN lens, z3-gated) → `recombine` (the combine operator re-verified on carry-straddle scales) does. Blind inversion of
+an arbitrary sum is under-determined (P-2), so we use the code's exposed decomposition, never a guessed split. A random
+atom ⇒ DECLINE; a single atom is refused.
+
+**§2 `recall/libsig/` — scipy/numpy signal recognition (the §AN R=44 GENERALIZED).** A recurrence hidden behind a
+library name is invisible to the black-box extractor. `signature_match` names the idiom (cumsum→linear, lfilter/IIR→
+ARMA C-finite, EMA→geometric, moving-average→window, **popcount→M22 = the R=44 identity**, cumprod→holonomic);
+`extract_recurrence` routes the oracle to that existing lens. Transcendental DFT/FFT is an honest DECLINE; a body NAMED
+popcount but computing randomness DECLINEs (the z3 gate disposes, not the name).
+
+**§3 `recall/stride/` — loop-stride recall with HETEROGENEOUS lenses.** Separated by index mod k, each substream may
+need a DIFFERENT lens (the addition over §AN's BM-only stride): even→Fibonacci (C-finite via BM+multi-scale), odd→
+popcount (k-automatic via M22) — the interleave is in neither class, only the separation folds it. Fast: one BM probe +
+the §AL multi-scale carry-straddle held-out per substream; M22 only on logarithmic-growth data (fail-fast). A random
+substream ⇒ DECLINE.
+
+**§4 `recall/interproc/` — summarize·unalias·gather (REUSE §AI §2 stitch).** The genuine win over §AI §2 is **§4.2
+unalias**: copy-propagating local state-aliases so a laundered-but-affine handler (`t = s; s = 2*t + 1`) folds instead
+of false-DECLINING (the free symbol `t` made stitch alone decline). `gather` z3-proves the composition ≡ sequential.
+Genuine multi-STATE coupling and non-affine updates stay honest DECLINEs.
+
+**§5 `recall/defunctionalize.py` + `recall/bv_lia_lift.py` — the 9th & 10th disguise dimensions.** defunctionalize
+RESOLVES a higher-order dispatch (`ops[select(k)](state)`) to a first-order recurrence — a periodic dispatch is a
+per-residue recurrence (REUSE control_flatten), a chaotic dispatch DECLINEs. bv_lia_lift PROVES the bit→LIA identities
+with z3 over bitvectors (x<<k ≡ x·2ᵏ, x>>k ≡ x//2ᵏ, x&(2ᵏ−1) ≡ x mod 2ᵏ) ∀x and **REFUTES a wrong variant of each** —
+★★ S-2: these are exactly the AI hand-derived closed forms the spine demands be re-proven. Genuine bit-MIXING
+(xorshift) does NOT lift and stays a DECLINE.
+
+**§6 `recall/chc_strip/` — array-dependence removal (invariant_find·scalarize).** A self-referential array loop
+(`a[i] = expr(a[i−k], i)`, fixed offsets, no external data) is a recurrence in disguise; `invariant_find` proves
+scalarizability (AST) **plus a z3 CHC INDUCTIVE invariant** for the affine case (the triangular closed form satisfies
+a[i]=a[i−1]+i ∀i — and a wrong closed form is refuted), and `scalarize` collapses the O(n) array loop to the O(1)/
+O(log n) closed form (disposed by the existing conjecturers). A loop reading external data (`a[i]=a[i−1]+data[i]`) or a
+global offset (`a[n−i]`) is an honest DECLINE.
+
+**MEASURED (`ap_report.py`, S-3):** focused labeled-corpus recall **1.0** (9/9 disguised-foldables recalled) with
+**false-EXACT 0** (7/7 adversarial non-foldables DECLINE); a real **§AK 2000-corpus re-run** of the corpus-applicable
+TRANSFORMERS (chc_strip + stride) on the sampled DECLINEs → **0 promotions, false-EXACT 0** — the HONEST S-4 result:
+the §AK corpus's non-foldables are genuinely non-foldable (data-dependent / transcendental / chaotic), not disguised
+(compose/libsig/interproc/defunctionalize/bv_lia need structural inputs the black-box corpus doesn't expose, or don't
+transform the oracle, so they are measured on the focused corpus). ★★ the AI hand-derived closed forms (bit→LIA
+identities + the CHC inductive invariant) are all **z3-RE-PROVEN and a wrong variant refuted** (S-2).
+
+`test_catalog.py` **198/198** (+7 §AP: one per mechanism + the measured report, each with ★ adversarial declines),
+test_build **273×3** (recall.compose/libsig/stride/interproc/chc_strip/defunctionalize/bv_lia_lift/ap_report **not
+imported** — purely additive). NO new mechanism, NO new certificate kind; LLM-free; zero-dep (z3+stdlib).
+4-교차검증 recall 6종 — 합성(교차렌즈 Fib⊕popcount)·libsig(R=44 일반형)·stride(이종 렌즈)·interproc(alias 해소)·
+defunc/bv→lia(9·10번째 변장, z3 비트항등식 재증명)·chc(배열의존 제거, z3 CHC 불변식) — 전부 기존 z3 게이트의
+정규화기(S-1 새 메커니즘 0); 측정(S-3) focused recall 1.0·§AK 재실행 false-EXACT 0; AI 닫힌형 전부 z3 재증명(S-2);
+S-4 정직(§AK 델타 ~0 = 진짜 안 접히는 것이지 변장 아님).

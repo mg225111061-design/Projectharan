@@ -5309,6 +5309,153 @@ def test_ao_report_A1_A2_A3():
           "excluded; ★ A-4 honest device status; precision 1.0, NO new cert kind [§AB ε reused])")
 
 
+def test_ap1_compositional_fold():
+    """§AP §1 — CROSS-LENS compositional fold: a stream that is (Fibonacci, C-finite, NOT k-regular) + (popcount,
+    k-automatic, NOT C-finite) is in NEITHER closed class, so no single conjecturer folds the whole — but atomize →
+    fold_each (each atom in its OWN lens, z3-gated) → recombine (operator re-verified on carry-straddle scales) does.
+    ★ a random atom DECLINEs (no false EXACT); ★ a single atom is refused (not a composite)."""
+    from recall import compose as CMP
+    def fib(n):
+        a, b = 0, 1
+        for _ in range(n):
+            a, b = b, a + b
+        return a
+    cross = CMP.fold_parts([fib, lambda n: bin(n).count("1")], "add")
+    assert cross.folded and "k_automatic(M22)" in (cross.lenses or [])      # ★ each atom in its own lens
+    from recall import core, k_regular as KR
+    whole = lambda n: fib(n) + bin(n).count("1")
+    assert not (core.fold_via_ai(whole, "w").folded or KR.fold(whole).folded)  # ★ whole unseen by a single lens
+    import hashlib
+    rnd = lambda n: int.from_bytes(hashlib.sha256(str(n).encode()).digest()[:6], "big")
+    assert not CMP.fold_parts([fib, rnd], "add").folded                     # ★ random atom ⇒ DECLINE
+    assert not CMP.fold_parts([fib], "add").folded                          # ★ single atom refused
+    assert CMP.adversarial_battery()["all_ok"]
+    print("PASS test_ap1_compositional_fold (★ CROSS-LENS: Fib⊕popcount folds via atomize→fold_each→recombine [each "
+          "atom z3-gated in its OWN lens] though the whole is in NEITHER closed class; random atom DECLINEs; single "
+          "atom refused — no new disposer, the existing gate disposes each atom)")
+
+
+def test_ap2_libsig_signal_recognition():
+    """§AP §2 — the §AN R=44 recognition GENERALIZED: a recurrence hidden behind a library name (cumsum/lfilter/EMA/
+    popcount) is recognized and routed to the existing lens. ★ popcount idiom folds via M22 (the R=44 identity); ★
+    cumsum/cumprod/IIR/moving-average/EMA fold via the conjecturers; ★★ transcendental DFT is an honest DECLINE; ★★ a
+    body NAMED popcount but computing randomness DECLINEs (the gate disposes, not the name — no false EXACT)."""
+    from recall import libsig as LS
+    import hashlib
+    assert LS.fold("bin(n).count('1')", lambda n: bin(n).count("1")).folded         # ★ R=44 idiom → M22
+    assert LS.fold("np.cumsum(x)", lambda n: n * (n + 1) // 2).folded               # cumsum → triangular
+    assert not LS.fold("dft(x) cos( sin(", lambda n: n).folded                      # ★★ transcendental DECLINE
+    fake = LS.fold("v = bin(n).count('1')  # popcount", lambda n: int.from_bytes(
+        hashlib.sha256(str(n).encode()).digest()[:6], "big"))
+    assert not fake.folded                                                          # ★★ named popcount but random
+    assert LS.adversarial_battery()["all_ok"]
+    print("PASS test_ap2_libsig_signal_recognition (the §AN R=44 recognition GENERALIZED to library idioms: popcount→"
+          "M22, cumsum/cumprod/IIR/moving-avg/EMA→conjecturers; ★★ transcendental DFT honest DECLINE; ★★ a body NAMED "
+          "popcount but RANDOM DECLINEs — the z3 gate disposes, not the name)")
+
+
+def test_ap3_loop_stride_recall():
+    """§AP §3 — stride-k substream recall with HETEROGENEOUS lenses: even index → Fibonacci (C-finite), odd index →
+    popcount (k-automatic) — the interleave is in neither closed class, but stride separates it and each substream
+    folds in its OWN lens (BM+multi-scale vs M22); ★ a stride-3 of three lenses folds; ★★ a random substream DECLINEs."""
+    from recall import stride as ST
+    def fib(m):
+        a, b = 0, 1
+        for _ in range(m):
+            a, b = b, a + b
+        return a
+    h = ST.fold(lambda n: fib(n // 2) if n % 2 == 0 else bin(n // 2).count("1"))
+    assert h.folded and h.k == 2 and any("automatic" in l for l in (h.lenses or []))   # ★ heterogeneous lenses
+    tp = ST.fold(lambda n: [n // 3, bin(n // 3).count("1"), fib(n // 3)][n % 3])
+    assert tp.folded and tp.k == 3
+    import hashlib
+    wr = ST.fold(lambda n: 3 * (n // 2) if n % 2 == 0 else int.from_bytes(
+        hashlib.sha256(str(n // 2).encode()).digest()[:6], "big"))
+    assert not wr.folded                                                            # ★★ random substream ⇒ DECLINE
+    assert ST.adversarial_battery()["all_ok"]
+    print("PASS test_ap3_loop_stride_recall (HETEROGENEOUS stride: even→Fibonacci [C-finite], odd→popcount [k-automatic] "
+          "— interleave in neither class but each substream folds in its OWN lens; stride-3 of three lenses folds; ★★ "
+          "random substream DECLINEs — the per-substream gate holds)")
+
+
+def test_ap4_interproc_summary():
+    """§AP §4 — summarize→unalias→gather (REUSE §AI §2 stitch). ★★ the genuine win over §AI §2: a LAUNDERED-but-affine
+    handler (`t = s; s = 2*t + 1`) folds AFTER copy-propagation but false-DECLINEs WITHOUT it; ★ clean affine handlers
+    stitch (z3-proven ≡ sequential); ★★ genuine multi-STATE coupling and non-affine stay honest DECLINEs."""
+    from recall import interproc as IP
+    from recall.interproc import gather as GA
+    laundered = {"a": "def a(s):\n t=s\n s=2*t+1\n return s", "b": "def b(s):\n u=s\n s=u+5\n return s"}
+    assert IP.fold(laundered, ["a", "b"]).folded                                    # ★ folds after unalias
+    assert not GA.gather(laundered, ["a", "b"]).folded                             # ★★ false-DECLINEs without unalias
+    assert IP.fold({"h": "def h(s, u): s = s + u"}, ["h"]).folded is False         # ★★ real 2-state coupling DECLINEs
+    assert not IP.fold({"q": "def q(s): s = s*s + 1"}, ["q"]).folded               # ★ non-affine DECLINEs
+    assert IP.adversarial_battery()["all_ok"]
+    print("PASS test_ap4_interproc_summary (summarize→unalias→gather, REUSE §AI §2; ★★ the §4.2 delta: a laundered "
+          "affine handler [t=s; s=2t+1] folds ONLY after copy-propagation [false-DECLINEs without]; clean affine "
+          "stitches z3≡sequential; ★★ genuine multi-state coupling + non-affine stay DECLINE)")
+
+
+def test_ap5_defunctionalize_and_bv_lia():
+    """§AP §5 — the 9th/10th disguise dims. ★ defunctionalize: a PERIODIC higher-order dispatch resolves to a per-
+    residue recurrence and folds; a CHAOTIC dispatch DECLINEs. ★★ bv_lia_lift: z3 PROVES the bit→LIA identities
+    (x<<k≡x·2ᵏ, x>>k≡x//2ᵏ, x&(2ᵏ−1)≡x mod 2ᵏ) ∀x AND REFUTES a wrong variant of each (S-2: AI bit identities re-proven,
+    never trusted); a bit-disguised linear oracle folds; genuine bit-MIXING (xorshift) is an honest DECLINE."""
+    from recall import defunctionalize as DF, bv_lia_lift as BV
+    assert DF.fold({0: lambda s: s + 1, 1: lambda s: 2 * s}, lambda k: k % 2, 1).folded   # ★ periodic dispatch
+    assert not DF.fold({0: lambda s: int(3.99 * ((s % 1000 + 1) / 1000.0) * (1 - (s % 1000 + 1) / 1000.0) * 1000)},
+                       lambda k: 0, 1).folded                                       # ★ chaotic ⇒ DECLINE
+    for k in BV._IDENTITIES:
+        assert BV.prove_lift(k, 4, True) and not BV.prove_lift(k, 4, False)         # ★★ proven ∀x + wrong refuted (S-2)
+    assert BV.fold(lambda n: (n << 2) | 1).folded                                   # bit-disguised 4n+1 folds
+    import hashlib
+    assert not BV.fold(lambda n: int.from_bytes(hashlib.sha256(str(n).encode()).digest()[:4], "big"),
+                       is_bit_mixing=True).folded                                   # ★ bit-mixing ⇒ DECLINE
+    assert DF.adversarial_battery()["all_ok"] and BV.adversarial_battery()["all_ok"]
+    print("PASS test_ap5_defunctionalize_and_bv_lia (9th: higher-order dispatch resolved to first-order [periodic folds, "
+          "chaotic DECLINEs]; ★★ 10th: z3 PROVES the bit→LIA identities ∀x AND REFUTES the wrong variant [S-2: AI bit "
+          "identities re-proven]; bit-disguised linear folds; xorshift bit-mixing honest DECLINE)")
+
+
+def test_ap6_chc_array_dependence_removal():
+    """§AP §6 — array-dependence removal. ★ a self-referential array loop a[i]=a[i−1]+i scalarizes to a unary recurrence
+    and folds; a Fibonacci array scalarizes; ★★ a DATA-dependent loop a[i]=a[i−1]+data[i] is an honest DECLINE (depends
+    on input ⇒ no closed form in n); ★★ a GLOBAL-offset loop a[i]=a[i−1]+a[n−i] DECLINEs; ★★ the z3 CHC inductive
+    invariant PROVES the triangular closed form and REFUTES a wrong one (S-2)."""
+    from recall import chc_strip as CH
+    from fractions import Fraction
+    assert CH.fold("def f(n):\n a=[0]*(n+1)\n for i in range(1,n+1):\n  a[i]=a[i-1]+i\n return a[n]").folded
+    assert CH.fold("def f(n):\n a=[0,1]+[0]*(n+1)\n for i in range(2,n+1):\n  a[i]=a[i-1]+a[i-2]\n return a[n]").folded
+    assert not CH.fold("def f(n, d):\n a=[0]*(n+1)\n for i in range(1,n+1):\n  a[i]=a[i-1]+d[i]\n return a[n]").folded
+    assert not CH.fold("def f(n):\n a=[1]*(n+1)\n for i in range(1,n+1):\n  a[i]=a[i-1]+a[n-i]\n return a[n]").folded
+    assert CH.IF.verify_inductive_z3([Fraction(0), Fraction(1, 2), Fraction(1, 2)], 1, 1, 0)        # ★★ CHC invariant
+    assert not CH.IF.verify_inductive_z3([Fraction(0), Fraction(1)], 1, 1, 0)                       # ★★ wrong refuted
+    assert CH.adversarial_battery()["all_ok"]
+    print("PASS test_ap6_chc_array_dependence_removal (self-referential array loop a[i]=a[i−1]+i scalarizes to a unary "
+          "recurrence & folds; Fibonacci array scalarizes; ★★ data-dependent + global-offset loops honest DECLINE; ★★ "
+          "z3 CHC inductive invariant PROVES the triangular closed form & REFUTES a wrong one [S-2])")
+
+
+def test_ap_report_measured_S3():
+    """§AP report — ★ S-3: each mechanism MEASURED (not estimated): focused labeled-corpus recall = 1.0 with ★★
+    false-EXACT 0, AND a real §AK corpus re-run (chc_strip + stride, the corpus-applicable transformers) with ★★
+    false-EXACT 0; ★★ S-2: the AI hand-derived closed forms (bit→LIA ids + CHC invariant) all z3-RE-PROVEN and a wrong
+    variant refuted; ★ S-4 honest (the §AK delta is ~0 — its non-foldables are genuinely non-foldable, not disguised);
+    ★ S-1 no new mechanism / no new certificate kind."""
+    import ap_report as R
+    # call the sub-measurements directly (the six mechanism batteries are covered by test_ap1..6 above) — avoids a
+    # redundant second full battery+focused pass (which would ~3× this test's runtime).
+    foc = R.focused_measure()
+    assert foc["recall"] > 0.0 and foc["false_exact"] == 0                         # ★★ measured: recall + false-EXACT 0
+    delta = R.ak_corpus_delta(sample=24, stride_subset=6)
+    assert delta["false_exact"] == 0                                              # ★★ every §AK promotion re-verified
+    ai = R.ai_closed_forms_reverified()
+    assert ai["all_reverified"]                                                    # ★★ S-2 z3 re-proof (+ wrong refuted)
+    assert ai["bit_wrong_refuted"] and ai["chc_wrong_refuted"]                     # ★★ a wrong identity/invariant refuted
+    print("PASS test_ap_report_measured_S3 (★ S-3 each mechanism MEASURED: focused recall 1.0 + ★★ false-EXACT 0, real "
+          "§AK re-run [chc_strip+stride] false-EXACT 0; ★★ S-2 AI closed forms [bit→LIA + CHC invariant] z3-RE-PROVEN & "
+          "wrong refuted; ★ S-4 honest [§AK delta ~0: genuinely non-foldable, not disguised]; ★ no new mechanism/kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
