@@ -5888,6 +5888,48 @@ def test_engine_redteam_loop_c():
           "sampling cert / injected T-gate] DECLINEs — the autonomous engine's active safety device)")
 
 
+def test_engine_loop_a_probe_headroom():
+    """§3 ENGINE Loop A — the corpus-driven fold-rate hunt's SOUNDNESS WITNESS, now a permanent gate. The engine's
+    black-box path probes _PROBE=32 samples (BM determines a recurrence only when 2L+2≤32 ⇒ order L≤15). ★ A genuine
+    order-18 C-finite oracle is therefore DECLINED at 32 samples but RECOVERED at 128 — real recall headroom that comes
+    from MORE DATA, not a new algorithm (and `near_miss` already exploits this at probe=64, so 32→128 is a measured
+    delta, never a double-count). ★★ The recovery re-verifies against the TRUE oracle on a FAR window n∈[400,420], and
+    a hash stream STILL DECLINEs at 128 — more data never manufactures a false-EXACT (INV-1). The full corpus dig
+    (logged in ENGINE_STATE) found 0 such oracles in the corpus AND 0 false-EXACT — an independent confirmation of the
+    honest ceiling beyond the Loop-C red team."""
+    from engine import loop_a as LA
+    rep = LA.adversarial_battery()
+    assert rep["all_ok"], rep["failed"]
+    assert rep["cases"]["order18_declined_at_32"] and rep["cases"]["order18_recovered_at_128"]   # headroom is real
+    assert rep["cases"]["recovery_far_reverifies"]                  # ★ recovery matches ground truth far out
+    assert rep["cases"]["hash_declines_at_128"]                    # ★ more data never manufactures a false-EXACT
+    print("PASS test_engine_loop_a_probe_headroom (★ ENGINE Loop A soundness: an order-18 oracle is declined at the "
+          "engine's 32-sample probe but recovered at 128 and re-verifies vs the TRUE oracle on n∈[400,420]; ★★ a hash "
+          "stream still DECLINEs at 128 — more data never manufactures a false-EXACT; corpus dig found 0 recovery + 0 "
+          "false-EXACT [the honest ceiling, logged])")
+
+
+def test_engine_loop_b_self_censor():
+    """§3 ENGINE Loop B — autonomous candidate research under the F1–F4 self-censor + INV-5 anti-double-count, now a
+    permanent gate. ★ At mechanism saturation (14/22) the self-censor ACCEPTS 0 of 5 proposed fold candidates: each is
+    a FACE of an existing mechanism (C-finite/BM, rational-GF, periodic/exp-poly, holonomic island) or crosses the A/B
+    axis — every rejection carries the NAMED mechanism it duplicates. ★★ The flagship rejection is PROVEN with running
+    code, not asserted: Berlekamp–Massey order == Hankel stabilized rank on two independent C-finite sequences (so the
+    'Hankel-rank fold' recognizes exactly the class M13 already does ⇒ 0 new recall). This is INV-5 working — the engine
+    does not re-acquire a recognizer it already has."""
+    from engine import loop_b as LB
+    rep = LB.adversarial_battery()
+    assert rep["all_ok"], rep["failed"]
+    r = LB.self_censor_report()
+    assert r["n_accepted"] == 0 and r["n_rejected"] == 5             # ★ INV-5: nothing novel survives at saturation
+    assert all(rej["duplicates"] for rej in r["rejected"])           # every rejection names the mechanism it duplicates
+    assert r["hankel_eq_bm_demo"]["fibonacci"]["agree"]              # ★★ Hankel-rank ≡ BM order (proven, not asserted)
+    assert r["hankel_eq_bm_demo"]["custom_order3"]["agree"]
+    print("PASS test_engine_loop_b_self_censor (★ ENGINE Loop B: the F1–F4 + INV-5 self-censor accepts 0 of 5 proposed "
+          "candidates — each a named face/axis-cross of an existing mechanism; ★★ Hankel-rank≡Berlekamp-Massey PROVEN "
+          "on two C-finite sequences ⇒ 0 new recall [no double-count, no new mechanism])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
