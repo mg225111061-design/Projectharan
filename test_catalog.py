@@ -5592,6 +5592,67 @@ def test_aq_report_dual_metric():
           "20-30% over-claim rejected]; ★ S-4 honest §AK delta; ★ no new mechanism/kind; 8 section batteries green)")
 
 
+def test_as1_adversarial_soundness_T1_T5():
+    """§AS §1 — the adversarial battery (the arbiter): 3 external AIs' soundness criticisms injected as attacks into the
+    real EXACT path. ★ T1 (Int/i64) refuted by pillar3.bv_validate; ★ T2 (Real/IEEE-754) — ℝ never shipped as float-EXACT
+    (gapfold.float_exact FP theory); ★ T3 (signed/shift) two's-complement BV; ★ T4 taint honestly scoped + the ONE
+    reproduced §2.3 gap (effect-gate eval/exec/setattr→'pure') FIXED to opaque→DECLINE; ★ T5 z3-unknown→DECLINE. All
+    SAFE = no criticism reproduced a false-EXACT (the gates the critics said were missing already exist)."""
+    import test_adversarial_soundness as AB
+    b = AB.run_battery()
+    assert b["all_safe"] and not b["reproduced_bugs"]                              # ★ 5/5 SAFE, 0 reproduced false-EXACT
+    from extract.classify import effect_gate as EG, route as RT
+    assert EG.classify_effect("def f(s): return eval(s)").effect == EG.OPAQUE      # ★ the reproduced §2.3 gap, fixed
+    assert RT.route("def f(s): return eval(s)").target == "DECLINE"               # ★ opaque ⇒ DECLINE-route (was 'pure')
+    assert AB.adversarial_battery()["all_ok"]
+    print("PASS test_as1_adversarial_soundness_T1_T5 (the arbiter: T1 Int/i64·T2 Real/IEEE·T3 signed/shift·T4 taint·T5 "
+          "∀-unknown all SAFE — no criticism reproduces a false-EXACT [gates already exist]; the ONE real §2.3 gap "
+          "[effect-gate eval/exec→'pure'] FIXED to opaque→DECLINE)")
+
+
+def test_as2_tier2_robustness_z3guard():
+    """§AS §3 — Tier-2 production robustness (precision UNTOUCHED). ★★ §3.1 z3-Context thread-safety was REPRODUCED (a
+    24-thread segfault, rc=139) ⇒ FIXED: z3_guard serializes z3 (wired into equiv_check); 24 concurrent solves no longer
+    crash and all agree. ★ §3.2 a hanging worker is reclaimed by the hard timeout and a memory bomb is contained — the
+    parent survives (graceful degradation, no hang/zombie). ★ §3.3 e-graph cap already exists ⇒ VERIFIED-SAFE."""
+    import z3_guard
+    b = z3_guard.adversarial_battery()
+    assert b["cases"]["z3_concurrency_no_crash"] and b["cases"]["all_concurrent_proofs_agree"]   # ★★ §3.1 segfault fixed
+    assert b["cases"]["hang_reclaimed_by_timeout"] and b["cases"]["membomb_contained"]           # ★ §3.2 containment
+    assert b["cases"]["normal_worker_ok"]                                                        # ★ graceful (normal path)
+    assert b["all_ok"]
+    # ★ the guard is wired into the dominant z3 gate (concurrent unguarded-caller solves no longer crash)
+    import threading
+    from catalog import equiv_check as EC
+    res = []
+    def w():
+        res.append(EC.prove_equiv_z3(lambda e: e["x"] * 2, lambda e: e["x"] + e["x"], ["x"]).proved)
+    ts = [threading.Thread(target=w) for _ in range(16)]
+    [t.start() for t in ts]; [t.join() for t in ts]
+    assert len(res) == 16 and all(res)
+    print("PASS test_as2_tier2_robustness_z3guard (★★ §3.1 reproduced segfault [rc=139] FIXED — z3_guard serializes z3, "
+          "wired into equiv_check; 24 concurrent solves agree, no crash; ★ §3.2 hang→timeout + membomb contained "
+          "[parent survives]; ★ §3.3 e-graph cap VERIFIED-SAFE)")
+
+
+def test_as_report_rejected_and_invariant():
+    """§AS report — ★ the 2 REPRODUCED bugs fixed (effect-gate opaque→DECLINE; z3 concurrency) with regressions; ★ the
+    4 phantom soundness criticisms VERIFIED-SAFE (gates already exist, 0 code change); ★ 8 REJECTED criticisms each
+    documented with a reason (0 code change); ★★ precision 1.0 / false-EXACT 0 invariant — no fix changed any verdict."""
+    import as_report as R
+    rep = R.report()
+    assert rep["tier1_battery"]["all_safe"]
+    assert all(rep["effect_gate_hardening"].values())                             # ★ reproduced fix #1
+    assert rep["tier2_robustness"]["z3_concurrency_fixed"]                        # ★ reproduced fix #2
+    assert rep["tier2_robustness"]["egraph_cap_verified_safe"]                    # ★ VERIFIED-SAFE, 0 change
+    assert len(rep["rejected"]) == 8                                              # ★ the 8 REJECTED documented
+    assert rep["precision_invariant"]["precision"] == 1.0 and rep["precision_invariant"]["false_exact"] == 0
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_as_report_rejected_and_invariant (★ 2 reproduced bugs fixed [effect-gate opaque; z3 concurrency]; "
+          "★ 4 phantom criticisms VERIFIED-SAFE [gates exist, 0 change]; ★ 8 REJECTED documented with reasons [0 change]; "
+          "★★ precision 1.0 / false-EXACT 0 invariant — no verdict changed)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

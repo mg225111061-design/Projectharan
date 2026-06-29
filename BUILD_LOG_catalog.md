@@ -1986,3 +1986,53 @@ aq_report **not imported** — purely additive). NO new mechanism, NO new certif
 체크섬(CRC=GF(2)행렬·Adler=망원·Luhn=유한룩업[2d-mod-9 d=9 반증]·Rabin-Karp=Horner·FNV 정직 DECLINE)·파싱(Horner·
 윤년식 재증명)·주기FSM(i%k→행렬거듭)·I/O산술(frame rule)·Q9(EXACT I/O횟수 ⌈S/CHUNK⌉, 유일 신규); AI 닫힌형 전부
 z3 재증명(S-2)·이중지표 분리(S-3 Axis B≈0)·false-EXACT 0·새 메커니즘/종류 0.
+
+---
+
+## §AS — ADVERSARIAL HARDENING (criticisms as proposed bugs; measurement-first; fix only what reproduces)
+
+Three external AIs adversarially critiqued the engine's soundness, bottlenecks, and structure. §AS treats each criticism
+as a **PROPOSED bug** and disposes it with our own VERIFIER — **the data, not the criticism, decides what is real**.
+Discipline: **measurement-first** (a claimed hole is REAL only if a failing adversarial test REPRODUCES it; phantoms are
+marked VERIFIED-SAFE with ZERO code change, §0.2 repo-first), **one fix = one regression**, and **no fix changes any
+verdict** (precision 1.0 / false-EXACT 0 untouched). This is an *orthogonal hardening track* — not coverage.
+
+**§1 `test_adversarial_soundness.py` — the arbiter (T1-T5).** Each injects an attack into the real EXACT path; SAFE iff
+proven exactly under the faithful machine model OR DECLINE. **Result: 5/5 SAFE — no criticism reproduced a false-EXACT.**
+- **T1 Int-vs-i64** → VERIFIED-SAFE: `pillar3/bv_validate.py` already proves rewrites over 32-bit two's-complement and
+  REFUTES the ℤ-only-true peepholes (`(x+1)>x`, `(x*2)/2==x`); `idealized_vs_machine_contrast()` shows ℤ-PROVEN /
+  bv-REFUTED. Python ints are bignums, so the Int-sort equiv path is ALSO faithful for the Python target.
+- **T2 Real-vs-IEEE-754** → VERIFIED-SAFE: `gapfold/float_exact.py` uses z3's **IEEE-754 FloatingPoint theory** (EXACT
+  only when bit-exact by rounding-mode independence; everything else APPROX-ε/DECLINE). ℝ-equivalence is never shipped as
+  float-EXACT; `pillar3/interval.py` bounds overflow.
+- **T3 signed/unsigned·shift/mask** → VERIFIED-SAFE: same BV gate + `recall/bv_lia_lift` (bit→LIA proven mod 2^w).
+- **T4 taint false-negative** → the taint analyzer (HARAN, reflection-free) is honestly scoped ("no flow in the MODELLED
+  graph") and DECLINEs unparseable input; the false-negative class is structurally N/A. ★ **The ONE reproduced gap**:
+  the §AQ `effect_gate` silently classified `eval`/`exec`/`setattr` as **pure** (a §2.3 fall-through) ⇒ **FIXED** to a
+  new `OPAQUE` effect that routes to DECLINE (precision untouched — the gate only routes; the z3 gate downstream always
+  held precision). Regression in `effect_gate.adversarial_battery`.
+- **T5 ∀/array unknown** → VERIFIED-SAFE: `equiv_check.prove_equiv_z3` returns proved=True ONLY on z3 UNSAT; sat ⇒
+  DECLINE-with-counterexample, **unknown ⇒ DECLINE** (never PROVEN).
+
+**§3 Tier-2 production robustness (precision UNTOUCHED).** ★★ **§3.1 was a REAL reproduced bug**: 24 concurrent z3 solves
+**SEGFAULTED the process (rc=139)** — z3's default Context/ASTs are not thread-safe. **FIXED** with `z3_guard.py` (a global
+re-entrant lock, `z3_serialized()`/`@guarded`) **wired into `equiv_check.prove_equiv_z3`** (the dominant gate); 24
+concurrent solves now agree with no crash. **§3.2** `z3_guard.run_bounded` runs heavy z3/Gröbner in a child process under
+`RLIMIT_AS` + a hard timeout — a C-level OOM / hang is contained, the parent survives (graceful degradation, no zombie);
+`latency_budget.run_with_budget` already provides the Python-level timeout→DEFER. **§3.3** the e-graph already has a
+`node_cap` + iteration bound (`egraph.saturate`) ⇒ VERIFIED-SAFE.
+
+**§4 — 8 REJECTED criticisms (each documented in `as_report.py`, ZERO code change):** the single-file archive mistaken
+for the dev tree; the "idle math core" (a measured honest ceiling); over-DECLINE (a coverage issue, not soundness);
+PROBABILISTIC mixing (runtime-separated by the Verdict ADT); "k-induction only sound within K" (a misunderstanding —
+proper k-induction is unbounded-sound); agent oscillation (proposer-verifier + regression gate); "ABFT duplicates proof"
+(ABFT defends HARDWARE faults proofs don't cover); "PTX→adopt MLIR/Triton" (would violate zero-dependency — forbidden).
+
+**MEASURED (`as_report.py`):** Tier-1 5/5 SAFE; 2 reproduced bugs fixed (effect-gate opaque→DECLINE; z3 concurrency) with
+FAIL→PASS regressions; 4 phantom criticisms VERIFIED-SAFE (gates already exist); 8 REJECTED documented; **precision 1.0 /
+false-EXACT 0 / 660 EXACT invariant** (no verdict changed). `test_catalog.py` **208/208** (+3 §AS), test_build **273**;
+zero-dep (z3_guard is stdlib threading/multiprocessing/resource only). NO new mechanism, NO new certificate kind.
+적대적 비판 3건을 *제안된 버그*로 보고 우리 VERIFIER로 처분 — 측정으로 재현된 것만 수정. T1-T5 전부 SAFE(게이트
+이미 존재); 재현된 2건만 고침: §AQ effect-gate의 eval/exec/setattr→'pure' 폴스루를 opaque→DECLINE로(§2.3), z3 동시성
+segfault(rc=139)를 z3_guard 직렬화로(equiv_check에 배선). 헛소리 8건 이유 명시·코드 0. precision 1.0·false-EXACT 0·
+660 EXACT 불변(어떤 판정도 안 바뀜)·새 메커니즘/종류 0·zero-dep.

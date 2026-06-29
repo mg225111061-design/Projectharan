@@ -23,6 +23,9 @@ class Route:
 
 def route(src: str) -> Route:
     eff = EG.classify_effect(src)
+    if eff.effect == EG.OPAQUE:
+        return Route("DECLINE", eff.effect, "opaque/reflective (eval/exec/getattr/...) ⇒ unanalyzable ⇒ DECLINE "
+                                            "(★ §2.3: never a silent 'pure' fall-through)")
     if eff.effect == EG.NONDET:
         return Route("DECLINE", eff.effect, "nondet ⇒ no ∀-input determinism ⇒ permanent DECLINE (never routed to a fold)")
     t = AT.tag(src)

@@ -33,23 +33,25 @@ def prove_equiv_z3(build_lhs: Callable, build_rhs: Callable, var_names: List[str
                    sort: str = "Int", assumptions: Optional[Callable] = None) -> EquivResult:
     """Prove ∀ vars: lhs == rhs by checking UNSAT of (lhs != rhs ∧ assumptions). build_* take a dict {name: z3 var}."""
     import z3
-    mk = z3.Int if sort == "Int" else (z3.Real if sort == "Real" else z3.Int)
-    env = {v: mk(v) for v in var_names}
-    s = z3.Solver()
-    if assumptions is not None:
-        s.add(assumptions(env))
-    try:
-        s.add(build_lhs(env) != build_rhs(env))
-    except Exception as e:  # noqa: BLE001
-        return EquivResult(False, "none", None, f"encoding error: {type(e).__name__}: {e}")
-    r = s.check()
-    if r == z3.unsat:
-        return EquivResult(True, "z3_forall", None, "∀ vars: lhs == rhs (UNSAT of inequality)")
-    if r == z3.sat:
-        m = s.model()
-        cex = {v: (m[env[v]].as_long() if m[env[v]] is not None else None) for v in var_names}
-        return EquivResult(False, "none", cex, f"counterexample {cex} — NOT equivalent")
-    return EquivResult(False, "none", None, "z3 unknown")
+    from z3_guard import z3_serialized                          # ★ §AS/§3.1 — serialize z3 across threads (z3's
+    with z3_serialized():                                       #   default context is NOT thread-safe; concurrent
+        mk = z3.Int if sort == "Int" else (z3.Real if sort == "Real" else z3.Int)   #   solves segfault otherwise)
+        env = {v: mk(v) for v in var_names}
+        s = z3.Solver()
+        if assumptions is not None:
+            s.add(assumptions(env))
+        try:
+            s.add(build_lhs(env) != build_rhs(env))
+        except Exception as e:  # noqa: BLE001
+            return EquivResult(False, "none", None, f"encoding error: {type(e).__name__}: {e}")
+        r = s.check()
+        if r == z3.unsat:
+            return EquivResult(True, "z3_forall", None, "∀ vars: lhs == rhs (UNSAT of inequality)")
+        if r == z3.sat:
+            m = s.model()
+            cex = {v: (m[env[v]].as_long() if m[env[v]] is not None else None) for v in var_names}
+            return EquivResult(False, "none", cex, f"counterexample {cex} — NOT equivalent")
+        return EquivResult(False, "none", None, "z3 unknown")
 
 
 def inductive_sum_equiv(closed_form: Callable, body: Callable, base_value, base_n: int = 0,
