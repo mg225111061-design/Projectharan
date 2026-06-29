@@ -5881,17 +5881,19 @@ def test_engine_redteam_loop_c():
     from engine import red_team as RT
     rep = RT.red_team_report()
     assert rep["total_false_exact"] == 0 and rep["INV_1_holds"]        # ★★ INV-1: false-EXACT 0 across the sweep
-    assert rep["total_checked"] >= 700
+    assert rep["total_checked"] >= 800
     assert rep["teams"]["krylov_moment"]["random_stream_declines"]      # boundary: random ⇒ DECLINE
     assert rep["teams"]["proof_carrying"]["sampling_rejected"]          # boundary: sampling cert ⇒ rejected
-    core = rep["teams"]["core_conjecturers"]                            # ★ cycle-4 core escalation
+    core = rep["teams"]["core_conjecturers"]                            # ★ cycle-4/6 core escalation
     assert core["hash_false_exact"] == 0                               # random hash oracles never issued a fold
-    assert core["foldable_folded"] >= core["foldable_trials"] // 2     # the core recall test isn't vacuous
+    assert core["foldable_folded"] >= core["foldable_trials"] // 2     # C-finite class not vacuous
+    assert core["poly_folded"] >= core["poly_trials"] // 2             # ★ cycle-6 polynomial class (closedform) not vacuous
+    assert core["periodic_folded"] >= core["periodic_trials"] // 2     # ★ cycle-6 periodic class (period) not vacuous
     assert RT.adversarial_battery()["all_ok"]
-    print("PASS test_engine_redteam_loop_c (★★ ENGINE Loop C: ~740 randomized adversarial probes find 0 false-EXACT "
-          "[INV-1]; every EXACT independently re-checked vs brute-force/oracle ground truth; cycle-4 escalation stresses "
-          "the CORE conjecturers [60/60 generated foldables fold EXACT-and-correct, 40/40 hash oracles DECLINE]; every "
-          "boundary DECLINEs — the autonomous engine's active safety device)")
+    print("PASS test_engine_redteam_loop_c (★★ ENGINE Loop C: ~820 randomized adversarial probes find 0 false-EXACT "
+          "[INV-1]; every EXACT independently re-checked vs brute-force/oracle ground truth; cycle-4/6 escalation stresses "
+          "the CORE conjecturers across 3 classes [C-finite 60/60 + polynomial 40/40 + periodic 40/40 fold EXACT-and-"
+          "correct, 40/40 hash oracles DECLINE]; every boundary DECLINEs — the autonomous engine's active safety device)")
 
 
 def test_engine_loop_a_probe_headroom():

@@ -169,7 +169,19 @@ def _cfinite_oracle_src(c: List[int], init: List[int]) -> str:
             f"    return _s[n]\n")
 
 
-def redteam_core_conjecturers(foldable_trials: int = 60, hash_trials: int = 40) -> dict:
+def _poly_oracle_src(coeffs: List[int]) -> str:
+    """Emit f(n)=Σ coeffs[i]·nⁱ — a closed-form polynomial (C-finite of order deg+1); stresses closedform_guess."""
+    terms = " + ".join(f"({coeffs[i]})*(n**{i})" for i in range(len(coeffs)))
+    return f"def f(n):\n    return {terms}\n"
+
+
+def _periodic_oracle_src(table: List[int]) -> str:
+    """Emit f(n)=table[n%p] — an eventually-periodic sequence (C-finite via the cyclic recurrence); stresses period_guess."""
+    return f"def f(n):\n    return {repr(list(table))}[n % {len(table)}]\n"
+
+
+def redteam_core_conjecturers(foldable_trials: int = 60, hash_trials: int = 40,
+                              poly_trials: int = 40, periodic_trials: int = 40) -> dict:
     """★ CYCLE-4 Loop-C ESCALATION — broaden INV-1 from this-session folds to the ENGINE CORE. Randomly GENERATE true
     C-finite oracles (the conjecturers' bread-and-butter) and confirm the full `engine_adapter.classify` path folds them
     EXACT **and** the recovered closed form matches the TRUE oracle on a FAR window n≈400-420 (via the EXISTING
@@ -205,9 +217,36 @@ def redteam_core_conjecturers(foldable_trials: int = 60, hash_trials: int = 40) 
         if r.classification in (EA.EXACT_FOLD, EA.PROBABILISTIC_FOLD):
             hash_false_exact += 1                                # ★ a hash oracle issued a fold = false-EXACT
         checked += 1
+    # ── cycle-6: polynomial (closedform_guess) + periodic (period_guess) foldable classes, same reverify discipline ──
+    poly_folded = 0
+    for t in range(poly_trials):
+        deg = rng.nxt(1, 3)
+        coeffs = [rng.nxt(-4, 4) for _ in range(deg + 1)]
+        if coeffs[-1] == 0:
+            coeffs[-1] = 1                                        # keep the stated degree (leading coeff ≠ 0)
+        item = CorpusItem(f"rt:poly:{t}", "numeric", "synthetic", _poly_oracle_src(coeffs), "f", True, "poly_random")
+        r = EA.classify(item)
+        if r.classification == EA.EXACT_FOLD:
+            poly_folded += 1
+            if EA.reverify_exact(item).get("false_exact"):
+                false_exact += 1                                 # ★ EXACT-but-wrong polynomial fold = false-EXACT
+        checked += 1
+    periodic_folded = 0
+    for t in range(periodic_trials):
+        p = rng.nxt(2, 6)
+        table = [rng.nxt(-5, 5) for _ in range(p)]
+        item = CorpusItem(f"rt:per:{t}", "numeric", "synthetic", _periodic_oracle_src(table), "f", True, "periodic_random")
+        r = EA.classify(item)
+        if r.classification == EA.EXACT_FOLD:
+            periodic_folded += 1
+            if EA.reverify_exact(item).get("false_exact"):
+                false_exact += 1                                 # ★ EXACT-but-wrong periodic fold = false-EXACT
+        checked += 1
     return {"checked": checked, "false_exact": false_exact + hash_false_exact,
             "foldable_folded": folded, "foldable_trials": foldable_trials,
-            "hash_false_exact": hash_false_exact, "hash_trials": hash_trials}
+            "hash_false_exact": hash_false_exact, "hash_trials": hash_trials,
+            "poly_folded": poly_folded, "poly_trials": poly_trials,
+            "periodic_folded": periodic_folded, "periodic_trials": periodic_trials}
 
 
 _REPORT_CACHE = {}      # the sweep is fully deterministic (seeded LCG) ⇒ memoize so a second call in-process is free
@@ -246,8 +285,10 @@ def adversarial_battery() -> dict:
         "krylov_random_declines": r["teams"]["krylov_moment"]["random_stream_declines"],
         "proof_carrying_sampling_rejected": r["teams"]["proof_carrying"]["sampling_rejected"],
         "core_hash_never_folds": core["hash_false_exact"] == 0,           # ★ random hash oracles never issued a fold
-        "core_recall_nonvacuous": core["foldable_folded"] >= core["foldable_trials"] // 2,  # the test isn't vacuous
-        "swept_enough": r["total_checked"] >= 700,
+        "core_cfinite_nonvacuous": core["foldable_folded"] >= core["foldable_trials"] // 2,   # C-finite class not vacuous
+        "core_poly_nonvacuous": core["poly_folded"] >= core["poly_trials"] // 2,              # polynomial class not vacuous
+        "core_periodic_nonvacuous": core["periodic_folded"] >= core["periodic_trials"] // 2,  # periodic class not vacuous
+        "swept_enough": r["total_checked"] >= 800,
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

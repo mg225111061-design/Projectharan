@@ -39,8 +39,12 @@
   are niche vs this corpus mix ⇒ expected Loop-A yield is small; honest to measure and log either way.
 
 ## CURRENT LOOP POSITION
-- **ENGINE MODE, cycle 5 DONE (Loop D — engine/ hygiene self-audit) → committing → Loop D regression (catalog 223).**
-  catalog now **223** (+ engine hygiene gate). cycle-4 commit 8e282b6 pushed; cycle-4 222 regression in flight.
+- **ENGINE MODE, cycle 6 DONE (Loop C — core red-team extended to polynomial + periodic) → committing → ONE final
+  Loop-D regression (catalog 223, on cycle-6 HEAD, confirms cycles 4+5+6 together).** catalog stays **223** (extended the
+  existing red-team gate). cycle-5 commit 353478b pushed.
+- Cycle-6 Loop C (`engine/red_team.py`): extended the core-conjecturer red-team to THREE foldable classes that stress
+  distinct conjecturers — C-finite (BM) + polynomial (closedform_guess) + eventually-periodic (period_guess). Sweep now
+  **820 probes**: 60/60 + 40/40 + 40/40 fold EXACT-and-CORRECT (far-reverified), 40/40 hash DECLINE, **false-EXACT 0**.
 - Cycle-5 Loop D (`engine/hygiene.py`): codified a drift guard auditing the engine/ package the autonomous loop authors
   — H1 zero-dep (blacklist pyzx/cadabra/torch/scipy/...; engine/ imports only z3+stdlib+repo-internal, confirmed), H2
   banned bigram absent, H3 no agent-model-id leak in engine/ source (the PRODUCT's own backend-model config in

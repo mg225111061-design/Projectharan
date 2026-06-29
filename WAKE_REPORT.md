@@ -9,7 +9,7 @@
 ## §0 The single number that matters: false-EXACT == 0 (INV-1)
 - **0 false-EXACT across every probe this run.** Triple-independent confirmation:
   1. corpus live re-measure (seed 20260628, n=2000): EXACT 660 / PROB 0 / DECLINE 1340 / ERROR 0 — unchanged.
-  2. Loop-C red-team: **740** randomized deterministic adversarial probes, 0 false-EXACT.
+  2. Loop-C red-team: **820** randomized deterministic adversarial probes, 0 false-EXACT.
   3. Loop-A digs: 88 UNCLASSIFIED unary oracles (Krylov) + 536 non-unary (extract/) — 0 false-EXACT, every boundary DECLINEs.
 - INV-1 is the only total-freeze trigger; it never tripped.
 
@@ -41,9 +41,10 @@
   | B5 | Toeplitz-solve iteration fold | REJECT (F4+INV-5) | crosses Axis A (=M13) with Axis B (speedup) + double-count |
 
 ## §4 Safety net broadened (Loop C) + drift guard (Loop D)
-- Loop C now red-teams the **engine CORE** (not just this-session folds): 60/60 randomly-generated true C-finite oracles
-  fold EXACT-and-CORRECT (re-verified vs the true oracle on a far window n≈400-420 via the existing reverify_exact);
-  40/40 random hash oracles DECLINE. Perfect recall + perfect precision under randomized adversarial generation.
+- Loop C now red-teams the **engine CORE** (not just this-session folds) across THREE foldable classes that stress
+  distinct conjecturers: C-finite/BM 60/60 + polynomial/closedform 40/40 + eventually-periodic/period 40/40 all fold
+  EXACT-and-CORRECT (re-verified vs the true oracle on a far window n≈400-420 via the existing reverify_exact); 40/40
+  random hash oracles DECLINE. Perfect recall + perfect precision (false-EXACT 0) under randomized adversarial generation.
 - Loop D `hygiene.py` audits the engine/ package the loop authors itself: H1 zero-dep, H2 banned-bigram absent, H3 no
   agent-model-id leak (the product's own backend-model config is pre-existing/legitimate/out-of-scope), H4 no
   float-EXACT — each with a negative control proving the detector fires. Engine package CLEAN.
