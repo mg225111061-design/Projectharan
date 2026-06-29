@@ -5177,6 +5177,59 @@ def test_al_report_soul():
           "random/structureless DECLINE; ★ S-4 general backend still low; ★ S-1 no new mechanism/kind)")
 
 
+def test_an1_k_regular_recognition_and_quasi():
+    """§AN §1/§2 — recognize the k-regular structure §AK measured as the recall gap: ★ popcount (base-2 AUTOMATIC,
+    the actual R=44) folds via the EXISTING M22 k-kernel with a DOUBLE-WINDOW held-out (160 AND 280 terms — a spurious
+    fit breaks); ★ base-3 digit-sum folds (k=3); ★ an interleaved pair of linear streams folds (stride-2, BM); ★★ a
+    genuine random oracle DECLINEs (no false EXACT); ★ base-10 digit-sum HONESTLY stays DECLINE (M22 k=10 kernel
+    doesn't close — a deeper gap, not faked); ★ §2 quasi: a periodic-coefficient branch folds (REUSE control_flatten)."""
+    from recall import k_regular as KRG
+    pc = KRG.fold(lambda n: bin(n).count("1"))
+    assert pc.folded and pc.kind == "k_automatic(M22)" and pc.k == 2                          # ★ the R=44 structure
+    assert not KRG.fold(lambda n: int.from_bytes(__import__("hashlib").sha256(str(n).encode()).digest()[:6], "big")).folded  # ★★ random ⇒ DECLINE
+    assert not KRG.fold(lambda n: sum(int(c) for c in str(n))).folded                         # ★ base-10 honest DECLINE
+    assert KRG.fold_k_periodic_coeff(lambda n: 2 * n if n % 2 == 0 else 3 * n + 1).folded     # §2 quasi (REUSE control_flatten)
+    assert KRG.adversarial_battery()["all_ok"]
+    print("PASS test_an1_k_regular_recognition_and_quasi (★ popcount [base-2 AUTOMATIC = the measured R=44] folds via "
+          "the existing M22 k-kernel, double-window held-out; base-3 digit-sum folds; interleaved-linear folds [stride-2]; "
+          "★★ random DECLINEs; ★ base-10 digit-sum HONESTLY DECLINEs [M22 k=10 limit]; §2 quasi periodic-coeff folds)")
+
+
+def test_an_R44_regression_realworld_delta():
+    """§AN — ★★ THE measured deliverable: re-run §AK's R=44 (the 44 popcount DECLINEs §AK found to actually fold). Each
+    was DECLINEd by the raw §AK engine (recognition gap); §AN routes to M22 and folds ALL 44 ⇒ the realworld fold rate
+    rises 6.84% → 10.04%. ★★ false-EXACT 0 — every promotion re-verified by M22 exact ℚ re-substitution on 400 terms
+    (independent, far beyond any fit); the §AK 660 EXACT are untouched (additive recognition, S-1)."""
+    import an_report as R
+    rep = R.report()
+    r44, rw = rep["r44_rerun"], rep["realworld_delta"]
+    assert r44["r_total"] == 44 and r44["recovered"] == 44                                    # ★ all 44 closed
+    assert r44["before_decline"] == 44                                                        # ★ baseline: raw engine DECLINEd them
+    assert r44["false_exact"] == 0 and rep["precision"]["gate_pass"]                          # ★★ false-EXACT 0 (M22 on 400 terms)
+    assert rw["fold_rate_before"] < rw["fold_rate_after"]                                      # ★ realworld delta (6.84%→10.04%)
+    assert rep["S1_no_new_mechanism"] and rep["new_certificate_kinds"] == 0                   # ★ recognition, not capability
+    print(f"PASS test_an_R44_regression_realworld_delta (★★ §AK R=44 re-run: {r44['recovered']}/44 popcount DECLINEs "
+          f"PROMOTED to EXACT via the existing M22 [recognition gap, no new mechanism]; realworld fold rate "
+          f"{rw['fold_rate_before']}→{rw['fold_rate_after']}; ★★ false-EXACT {r44['false_exact']} [M22 re-substitution "
+          "on 400 terms]; §AK 660 EXACT untouched)")
+
+
+def test_an_report_honest_correction():
+    """§AN report — ★ the honest correction (M-1/S-4): the R=44 are base-2 AUTOMATIC sequences (popcount), recovered by
+    the M22 k-kernel — NOT 'disguised 2nd-order linear recurrences'; the directive's core (recognition gap, no new
+    mechanism) holds and its structural sub-label was imprecise; ★ base-10 digit-sum honestly still DECLINEs; ★ the
+    k-quasi generalization is preventive (reuses existing folds); ★ no new mechanism / no new certificate kind."""
+    import an_report as R
+    rep = R.report()
+    assert "automatic" in rep["honest_correction"].lower() and "M22" in rep["honest_correction"]
+    assert rep["honest_scope"]["base10_digitsum_still_declines"]                              # ★ honest deeper gap
+    assert rep["k_regular_battery"] and rep["S1_no_new_mechanism"] and rep["new_certificate_kinds"] == 0
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_an_report_honest_correction (★ honest correction: R=44 are base-2 AUTOMATIC [popcount] via M22, "
+          "NOT 2nd-order linear recurrences — directive's core [recognition gap, no new mechanism] holds, sub-label "
+          "corrected; ★ base-10 digit-sum still DECLINEs honestly; ★ quasi is preventive; no new mechanism/kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

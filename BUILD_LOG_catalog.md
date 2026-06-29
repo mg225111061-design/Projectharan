@@ -1756,3 +1756,35 @@ structureless DECLINE; S-4 general backend stays low; depth diminishing-returns 
 **184/184** (+5 §AL incl. the ★ S-2 multi-scale adversarial), test_build **273×3** (recall/al_report not imported —
 purely additive). NO new mechanism, NO new certificate kind; LLM-free; zero-dep. 관찰은 증명이 아니다 — recall을 끝까지
 밀어도 z3 ∀+다중스케일 held-out이 처분(precision 1.0 불변, 영혼); 변장 8차원 벗김·digit-trap 영구 차단·새 메커니즘 0.
+
+
+## §AN — CLOSE THE ONE MEASURED RECALL GAP (k-regular k=2, the §AK R=44)
+
+§AK's 2000-code measurement found exactly ONE recall gap: **R=44, all `k-regular(k=2)`**. §AN closes it — measurement-
+driven, not guessed. ★ **Honest correction (M-1/S-4)**: inspected, those 44 are `bin(n).count('1')` — POPCOUNT, a
+**base-2 AUTOMATIC sequence** (a[n] is a function of n's base-2 digits), recovered by the **k-kernel linear
+representation** (the existing M22 `mech_kregular`) — NOT "disguised 2nd-order linear recurrences (a[n] depends on
+a[n-2])" as the directive's structural sub-label put it. The directive's CORE is exactly right, though: M22 ALREADY
+folds them; the §AK black-box recall path simply never ROUTED to M22 — a **recognition gap, not a capability gap, no
+new mechanism (S-1)**.
+
+**`recall/k_regular.py`**: `fold_k_automatic` recognizes a base-k automatic sequence via the EXISTING M22 k-kernel
+(k∈{2,3,4}), gated by a DOUBLE-WINDOW held-out (160 AND 280 terms — a spurious fit breaks on the longer window) — this
+is the R=44 closer (REUSE `mech_kregular`, no new mechanism). `fold_stride_interleave` builds the directive's
+interpretation (k independent recurrences interleaved in one stream → separate the stride-k substreams, BM-fold each
+with the §AL multi-scale held-out) — a genuine adjacent pattern (honestly, an interleave of C-finite streams is itself
+C-finite, so single-stream BM usually already catches it). §2 quasi: `fold_k_periodic_coeff` (REUSE §AL
+`control_flatten` per-residue) + k-mutual (REUSE §AD companion) — preventive, no overfit.
+
+**MEASURED (`an_report.py`, the gate)** — re-run §AK's R=44 the same way it was found: **44/44 popcount DECLINEs
+PROMOTED to EXACT** via the existing M22; before each was DECLINEd by the raw §AK engine (the recognition gap), after
+each folds. **realworld fold rate 6.84% → 10.04%** (94→138 EXACT of 1374 realworld_style — the only meaningful
+denominator, synthetic is already at its 90% ceiling). ★★ **false-EXACT 0**: every promotion re-verified by M22 exact
+ℚ re-substitution on 400 terms (independent, far beyond any fit) + the double-window held-out; the §AK 660 EXACT are
+untouched (additive recognition). ★ Honest scope: base-10 digit-sum still DECLINEs (the M22 k=10 kernel doesn't close —
+a deeper gap, not faked); general backend unaffected (the gap was realworld popcount).
+
+`test_catalog.py` **187/187** (+3 §AN incl. the ★ R=44 regression + the ★ multi-scale held-out), test_build **273×3**
+(k_regular/an_report not imported — purely additive). NO new mechanism, NO new certificate kind; LLM-free; zero-dep.
+§AK가 직접 측정한 단 하나의 갭(k-regular k=2 = popcount, 44개)을 기존 M22 라우팅으로 닫음(인식 문제지 능력 아님) —
+realworld 6.84%→10.04%·false-EXACT 0·새 메커니즘 0·정직한 보정(automatic이지 2차 점화 아님).
