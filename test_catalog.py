@@ -5797,6 +5797,78 @@ def test_at_report_clocks_separated():
           "EXACT 0; no new mechanism/cert kind)")
 
 
+def test_au1_free_fermion_island():
+    """§AU flagship — the SECOND classical-simulation island (free-fermion/Gaussian; mathmode/free_fermion.py). ★ FF-1
+    Wick→Pfaffian: a rational skew-LU Pfaffian ≡ the combinatorial pairing sum AND Pf²=det; a FREE 4-point folds, an
+    INTERACTING (connected) 4-point DECLINEs. ★ FF-3 Bogoliubov: an orthogonal R folds Γ→RᴺΓRᵀᴺ, a non-orthogonal R
+    DECLINEs. ★ FF-4 Jordan–Wigner: transverse-Ising (Z+XX) is free, XXZ (ZZ) DECLINEs (quartic). ★ FF-2 Peschel: a
+    pure projector (C²=C) gives entropy, a mixed C DECLINEs. ★ CV-1 symplectic vs non-symplectic. ★★ float ⇒ DECLINE."""
+    from mathmode import free_fermion as FF
+    import kernel_verdict as KV
+    assert FF.adversarial_battery()["all_ok"]
+    A4 = [[0, 2, -1, 3], [-2, 0, 5, -1], [1, -5, 0, 2], [-3, 1, -2, 0]]
+    assert FF.pfaffian_Q(A4) == FF.pfaffian_combinatorial(A4) and FF.pfaffian_Q(A4) ** 2 == FF.det_Q(A4)  # ★ Pf²=det
+    assert FF.wick_pfaffian_fold(A4).status == KV.EXACT                                       # free correlator folds
+    assert FF.is_wick_consistent(A4, {(0, 1, 2, 3): FF.pfaffian_Q(A4) + 1}).status == KV.DECLINE  # ★ interacting ⇒ DECLINE
+    assert FF.jw_is_quadratic([{"op": "XX", "range": 1}, {"op": "YY", "range": 1}, {"op": "ZZ", "range": 1}]).status == KV.DECLINE  # ★ XXZ quartic
+    assert FF.wick_pfaffian_fold([[0.0, 1.0], [-1.0, 0.0]]).status == KV.DECLINE              # ★★ float ⇒ DECLINE
+    print("PASS test_au1_free_fermion_island (★ FF-1 Pfaffian=pairing-sum & Pf²=det, free folds / interacting DECLINEs; "
+          "★ FF-3 Bogoliubov orthogonal folds; ★ FF-4 JW transverse-Ising free / XXZ DECLINEs [quartic]; ★ FF-2 Peschel "
+          "pure vs mixed; ★ CV-1 symplectic; ★★ float ⇒ DECLINE [no float-EXACT])")
+
+
+def test_au2_island_hooks():
+    """§AU hooks (new recognition branches, 14/22 unchanged). ★ KOOP: a Koopman-closed nonlinear map folds, one whose
+    observable image escapes the span DECLINEs (mixing/degree-growth). ★ LIE-1 Wei–Norman: closed (finite) Lie algebra
+    folds, an OPEN one (sl(2): [X,Y]∉span) DECLINEs. ★ LIE-2 Magnus: nilpotent terminates, sl(2) (non-nilpotent)
+    DECLINEs. ★ CODE-1 CSS: a valid CSS code (H_X H_Zᵀ=0) gives k logical qubits, a non-commuting pair DECLINEs. ★ SW:
+    hook-length dim ≡ SYT count, U_q DECLINEs; the 6j×Zeilberger link REUSES mathmode.telescoping (NOT reimplemented)."""
+    import island_hooks as IH
+    import kernel_verdict as KV
+    assert IH.adversarial_battery()["all_ok"]
+    Xg, Yg = [[0, 1], [0, 0]], [[0, 0], [1, 0]]
+    assert IH.wei_norman_fold([Xg, Yg]).status == KV.DECLINE                # ★ sl(2) open ⇒ DECLINE
+    assert IH.magnus_terminate([[[0, 1, 0], [0, 0, 1], [0, 0, 0]]]).status == KV.EXACT   # ★ nilpotent ⇒ terminates
+    assert IH.schur_weyl_dim([3, 1]).result["dim"] == 3                     # dim S_(3,1) = 3 (hook-length ≡ SYT)
+    assert IH.schur_weyl_dim([3, 1], quantum_deformed=True).status == KV.DECLINE          # ★ U_q ⇒ DECLINE
+    from mathmode import telescoping as TS
+    assert hasattr(TS, "zeilberger") and IH.sixj_zeilberger_link().status in (KV.EXACT, KV.PROBABILISTIC)  # ★ reuse
+    print("PASS test_au2_island_hooks (★ KOOP closed-folds/escape-DECLINEs; ★ LIE-1 finite-Lie folds / sl(2) DECLINEs; "
+          "★ LIE-2 nilpotent terminates / sl(2) non-nilpotent DECLINEs; ★ CODE-1 valid CSS k-logical / non-commuting "
+          "DECLINEs; ★ SW hook-length≡SYT, U_q DECLINEs; ★ 6j×Zeilberger REUSES mathmode.telescoping, not reimplemented)")
+
+
+def test_au_report_two_islands():
+    """§AU report + TW — ★ TW tensor-contraction: a low-treewidth chain folds (VE ≡ naive sum), a 2D grid (#P-hard
+    PEPS regime / high treewidth) DECLINEs. ★★ the TWO classical-sim islands are documented (Clifford 𝔽₂ ∧ free-fermion/
+    Gaussian), union ⊊ universal QC; ★★ false-EXACT 0; ★ banned bigram (quantum+speedup) absent; ★ Zeilberger REUSED
+    (not reimplemented); ★ 8 REJECTED walls each a named theorem (interacting=Wick, 2D PEPS=#P-hard, non-Gaussian=
+    Hudson, …)."""
+    from extract import tensor_contract as TC
+    import au_report as R
+    import kernel_verdict as KV
+    chain, nv = TC._chain_factors(8)
+    assert TC.contract_grade(chain, nv, tw_cap=4).status == KV.EXACT        # ★ low treewidth folds
+    grid, gnv = TC._grid_factors(6, 6)
+    assert TC.contract_grade(grid, gnv, tw_cap=3).status == KV.DECLINE      # ★ high treewidth / #P-hard ⇒ DECLINE
+    rep = R.report()
+    assert rep["all_batteries_ok"] and rep["false_exact_0"]
+    assert "island_1_clifford" in rep["two_islands"] and "island_2_free_fermion" in rep["two_islands"]
+    assert rep["banned_phrase_absent"] and rep["zeilberger_reused_not_reimplemented"]
+    assert len(rep["rejected"]) == 8
+    assert R.adversarial_battery()["all_ok"]
+    # ★★ source grep: banned bigram absent from the §AU modules (assembled here so it never appears contiguously)
+    import os
+    banned = "quantum" + " " + "speedup"
+    base = os.path.dirname(os.path.abspath(__file__))
+    for path in ("mathmode/free_fermion.py", "island_hooks.py", "extract/tensor_contract.py", "au_report.py"):
+        with open(os.path.join(base, path), encoding="utf-8") as fh:
+            assert banned not in fh.read().lower(), f"banned bigram in {path}"
+    print("PASS test_au_report_two_islands (★ TW low-treewidth folds / 2D-grid #P-hard DECLINEs; ★★ TWO islands "
+          "documented [Clifford 𝔽₂ ∧ free-fermion/Gaussian], union ⊊ universal QC; ★★ false-EXACT 0; ★ banned bigram "
+          "absent [+source grep]; ★ Zeilberger REUSED; ★ 8 REJECTED walls each a named theorem)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
