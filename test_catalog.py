@@ -5230,6 +5230,85 @@ def test_an_report_honest_correction():
           "corrected; ★ base-10 digit-sum still DECLINEs honestly; ★ quasi is preventive; no new mechanism/kind)")
 
 
+def test_ao1_physical_numerical_invariants():
+    """§AO §1 — precision-1.0's PHYSICS version: an accelerated kernel must not break the laws it obeys. ★ a diffusion
+    stencil CONSERVES mass (z3 ∀u) but a non-conservative one is REJECTED (false 'conserved' 0); ★ a column-stochastic
+    kernel preserves Σp=1 but a leaky/negative one is REJECTED; ★★ a CFL-violating time-stepper (c=0.6) is REJECTED
+    (|g|>1 ⇒ blows up); ★ mixed-precision iterative refinement is VALID only when contracting (ρ<1), as APPROX_FOLD
+    (never EXACT — §AB ε reused); a diverging one (ρ≥1) is REJECTED."""
+    from accel.invariant import conservation as C, probability as P, stability as S, iter_refine as IR
+    assert C.verify_conservation(C.circulant_update([1.0, -2.0, 1.0])).conserved          # diffusion conserves mass
+    assert not C.verify_conservation(C.circulant_update([1.0, -1.0, 1.0])).conserved       # ★ non-conservative REJECTED
+    assert P.verify_probability([[0.5, 0.2, 0.3], [0.3, 0.5, 0.3], [0.2, 0.3, 0.4]]).valid # stochastic preserves Σp
+    assert not P.verify_probability([[0.5, 0.2, 0.3], [0.3, 0.5, 0.3], [0.1, 0.2, 0.3]]).valid  # ★ leak REJECTED
+    assert S.verify_cfl_diffusion(__import__("fractions").Fraction(1, 2)).stable           # CFL=½ stable
+    assert not S.verify_cfl_diffusion(__import__("fractions").Fraction(3, 5)).stable        # ★★ CFL violated REJECTED
+    ir = IR.verify_iter_refine(__import__("fractions").Fraction(1, 2), 4)
+    assert ir.valid and ir.grade == "APPROX_FOLD"                                          # ★ never EXACT (§AB ε)
+    assert not IR.verify_iter_refine(__import__("fractions").Fraction(6, 5), 4).valid       # ★ diverging REJECTED
+    for m in (C, P, S, IR):
+        assert m.adversarial_battery()["all_ok"]
+    print("PASS test_ao1_physical_numerical_invariants (★ conservation: diffusion conserves mass ∀u / non-conservative "
+          "REJECTED; probability: Σp=1 preserved / leak REJECTED; ★★ CFL stability: c=½ stable / c=0.6 REJECTED [blows "
+          "up]; mixed-precision iterative refinement APPROX_FOLD-valid iff ρ<1 [§AB ε, never EXACT] / diverging REJECTED)")
+
+
+def test_ao2_verified_compiler_transforms():
+    """§AO §2 — verified compiler transforms, each z3-EQUIVALENCE-gated (A-2, the differentiator): ★ matmul+bias+ReLU
+    fusion proven ≡ sequential / a wrong fusion REJECTED; ★ a loop interchange preserving dependences is legal / one
+    that reverses a dependence REJECTED (polyhedral); ★ Winograd ≡ direct conv over ℚ / a coefficient error REJECTED;
+    ★ five scalar passes proven ≡ / every wrong variant REJECTED; ★ vectorization legal iff lanes-equiv AND regions
+    disjoint / an aliasing map REJECTED."""
+    from accel.xform import fusion as F, polyhedral as PH, winograd as W, scalar_opt as SO, vectorize as V
+    import kernel_verdict as KV
+    assert F.verify_fusion(True).status == KV.EXACT and F.verify_fusion(False).status == KV.DECLINE      # ★ A-2
+    assert PH.interchange_legal([(1, 0)]).legal and not PH.interchange_legal([(1, -1)]).legal              # ★ dependence legality
+    assert W._verify_output(0, True).status == KV.EXACT and W._verify_output(0, False).status == KV.DECLINE  # ★ Winograd ≡ direct
+    assert SO.verify_pass("cse", True).status == KV.EXACT and SO.verify_pass("cse", False).status == KV.DECLINE
+    assert V.verify_vectorize(0, 64, 64, 128).legal and not V.verify_vectorize(0, 64, 0, 64).legal          # ★ aliasing gate
+    for m in (F, PH, W, SO, V):
+        assert m.adversarial_battery()["all_ok"]
+    print("PASS test_ao2_verified_compiler_transforms (each transform z3-EQUIVALENCE-gated [A-2]: fusion/Winograd/scalar "
+          "passes proven ≡ source & every WRONG variant REJECTED; polyhedral interchange legal iff dependence-preserving; "
+          "vectorize legal iff lanes-equiv AND regions disjoint [§AG sep_alias] — a fast library can't give this proof)")
+
+
+def test_ao3_backend_verified_emit():
+    """§AO §3 — backend: ride the PTX stack (REUSE gpu.ptx_codegen), differentiate by the cert attached to every kernel.
+    ★★ A-2: a translation-validated tiled GEMM is emitted WITH an equivalence cert, but the BUGGY tiled GEMM is NOT
+    emitted (never ship an unverified kernel); ★ a conservative+stable dynamics kernel is emitted WITH a physics cert,
+    a CFL-violating one is NOT; ★ A-4 honest device status (PTX-verified-complete, throughput device-pending — no GPU)."""
+    from accel.backend import verified_emit as VE
+    good = VE.emit_verified_gemm()
+    bad = VE.emit_verified_gemm(buggy=True)
+    assert good.emitted and good.equiv_certified                                           # ★ emitted WITH cert
+    assert not bad.emitted                                                                 # ★★ A-2: buggy NOT emitted
+    assert "device-pending" in good.device_status                                          # ★ A-4 honest
+    assert VE.adversarial_battery()["all_ok"]
+    print("PASS test_ao3_backend_verified_emit (ride the PTX stack, differentiate by the cert: ★★ A-2 verified tiled "
+          "GEMM emitted WITH equivalence cert, BUGGY tiled GEMM NOT emitted; conservative+stable dynamics emitted WITH "
+          "physics cert, CFL-violating NOT; ★ A-4 honest device status [PTX-verified-complete, device-pending])")
+
+
+def test_ao_report_A1_A2_A3():
+    """§AO report — ★ A-1: acceleration is a SEPARATE metric, it does NOT change the §AK fold rate (never summed with
+    the numerator); ★★ A-2: every emitted kernel carries a z3-equivalence proof and every wrong transform is rejected
+    (the differentiator vs a fast library); ★ §1 invariant-violating acceleration accepted = 0; ★ A-3 crypto/RNG/MCMC
+    cores excluded; ★ A-4 honest device status; precision 1.0; NO new certificate kind (§AB ε reused)."""
+    import ao_report as R
+    rep = R.report()
+    assert not rep["A1_separate_from_fold"]["acceleration_changes_fold_rate"]              # ★ A-1
+    assert rep["A2_translation_validation"]["every_emitted_kernel_certified"] and rep["A2_translation_validation"]["wrong_transforms_rejected"]
+    assert rep["class1_invariant_violations_accepted"] == 0                                # ★ false 'preserved' 0
+    assert rep["A3_crypto_excluded"]                                                       # ★ A-3
+    assert "device-pending" in rep["A4_device_status"]                                     # ★ A-4 honest
+    assert rep["precision"] == 1.0 and rep["new_certificate_kinds"] == 0
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_ao_report_A1_A2_A3 (★ A-1 acceleration ≠ fold [fold rate unchanged, separate metric]; ★★ A-2 every "
+          "kernel z3-certified + wrong transforms rejected [the differentiator]; §1 invariant violations 0; ★ A-3 crypto "
+          "excluded; ★ A-4 honest device status; precision 1.0, NO new cert kind [§AB ε reused])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

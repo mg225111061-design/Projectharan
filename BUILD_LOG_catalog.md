@@ -1788,3 +1788,70 @@ a deeper gap, not faked); general backend unaffected (the gap was realworld popc
 (k_regular/an_report not imported — purely additive). NO new mechanism, NO new certificate kind; LLM-free; zero-dep.
 §AK가 직접 측정한 단 하나의 갭(k-regular k=2 = popcount, 44개)을 기존 M22 라우팅으로 닫음(인식 문제지 능력 아님) —
 realworld 6.84%→10.04%·false-EXACT 0·새 메커니즘 0·정직한 보정(automatic이지 2차 점화 아님).
+
+---
+
+## §AO — ACCELERATE THE NON-FOLDABLE MAJORITY (verified accel stack, kept SEPARATE from the fold rate)
+
+§AK MEASURED that the realworld majority (≈93%) and the general backend (≈90%) do **not** fold — that is **mathematics,
+not failure**. §AO takes the honest next step: *accelerate* a STRUCTURED-numeric subset of that majority with
+**z3-EQUIVALENCE-verified** fast kernels, while keeping acceleration **rigorously separate** from the fold rate.
+
+**★ The four honesty axes (the spine of §AO):**
+- **A-1 — acceleration ≠ fold.** Speedup is a SEPARATE metric. It is *never* summed with the §AK fold numerator;
+  the fold rate is unchanged by §AO (`ao_report.A1_separate_from_fold.acceleration_changes_fold_rate == False`).
+- **A-2 — translation validation is THE differentiator.** Every emitted kernel carries a z3 ∀-equivalence proof
+  (kernel ≡ its reference on ALL inputs). A kernel that fails validation is **NOT emitted** — this is exactly what a
+  "fast library" cannot give you. Measured by rejecting the classic WRONG variant of every transform.
+- **A-3 — crypto / hardware-RNG / MCMC EXCLUDED.** Non-deterministic / side-channel cores are refused by policy
+  before any transform is attempted (`_crypto_excluded`).
+- **A-4 — honest device status.** With no GPU/ptxas present, the artifact is **"PTX-verified-complete (throughput
+  device-pending)"** — never a fabricated speedup number.
+
+**§1 — physical/numerical INVARIANTS (`accel/invariant/`) = precision-1.0's PHYSICS version.** An accelerated kernel
+must not break the laws it obeys; each law is z3-PROVEN ∀, not assumed:
+- `conservation.py` — `circulant_update(stencil)` builds the update matrix; `verify_conservation(M)` z3-proves
+  Σ(Mu)==Σu ∀u. The diffusion stencil [1,−2,1] CONSERVES mass; a non-conservative [1,−1,1] is **REJECTED** (false
+  "conserved" 0).
+- `probability.py` — `verify_probability(P)` z3-proves column-stochastic Σ(Pp)==Σp + nonnegativity; a leaky or
+  negative kernel is **REJECTED**.
+- `stability.py` — `verify_cfl_diffusion(c)` z3-proves ∀s∈[0,1] |1−4c·s|≤1 (no trig, the amplification factor over
+  the symbol range). CFL=½ is stable; **c=0.6 is REJECTED** (|g|>1 ⇒ the scheme blows up).
+- `iter_refine.py` — mixed-precision iterative refinement, VALID only when contracting (ρ<1), graded **APPROX_FOLD**
+  (ε=ρ^steps, REUSE §AB `approx_fold`, **never EXACT**); a diverging ρ≥1 is REJECTED.
+
+**§2 — verified compiler TRANSFORMS (`accel/xform/`), each z3-equivalence-gated ("CompCert for the accelerator").**
+The speedup is real, the math is *proven identical*, and a WRONG variant of every pass is **REJECTED**:
+- `fusion.py` — matmul+bias+ReLU fusion proven ≡ the sequential form (REUSE `catalog.topic_a.translation_validate`);
+  a wrong fusion (ReLU-before-bias) is rejected.
+- `polyhedral.py` — `interchange_legal(deps)` by lex-positivity of the permuted dependence vectors; dep (1,0) legal,
+  (1,−1) **rejected** (reverses a dependence); `tiling_equiv`.
+- `winograd.py` — F(2,3) Winograd convolution proven ≡ direct conv **over ℚ** (`translation_validate` sort="Real");
+  a coefficient error is rejected.
+- `scalar_opt.py` — five classic passes (strength-reduction · CSE · LICM · const-fold · DCE), each z3 ∀-proven ≡ the
+  original; the classic bug of each is **rejected**.
+- `vectorize.py` — lane-equivalence (z3) AND an **aliasing legality gate** (output region disjoint from input via the
+  §AG `sep_alias.promote_regions` separation-logic prover); an in-place aliasing map (possible loop-carried
+  dependence) is **rejected**.
+
+**§3 — BACKEND emit (`accel/backend/verified_emit.py`) — ride the stack, differentiate by the cert.** We do NOT
+reinvent MLIR/LLVM/Triton/XLA. We REUSE `gpu.ptx_codegen` (PTX emission + honest device status) and ATTACH to every
+kernel a §2 equivalence certificate and, where physical, a §1 invariant certificate. `emit_verified_gemm` emits a
+tiled-GEMM PTX kernel **only if `tv.status == KV.EXACT`** — the buggy tiled GEMM fails translation validation and is
+**NOT emitted** (★★ A-2). `emit_verified_dynamics` emits only if BOTH conservation AND CFL stability hold.
+
+**MEASURED (`ao_report.py`, the gate):** all §1+§2+§3 batteries green; A-2 every emitted kernel certified AND every
+wrong transform rejected; **class1 invariant-violations accepted = 0** (false "preserved" 0); A-1 acceleration does
+NOT change the fold rate; A-3 crypto excluded; A-4 device status honest; precision 1.0; **new certificate kinds 0**
+(§AB APPROX-ε + existing equivalence/invariant kinds reused). **Honest scope:** acceleration targets STRUCTURED-numeric
+kernels (dynamics/GEMM/conv/filter); the general-backend control-flow majority is **not** accelerable as a verified
+kernel either (control flow stays control flow) — honest, exactly like the fold rate.
+
+`test_catalog.py` **191/191** (+4 §AO: §1 invariants incl. ★ CFL/conservation rejection, §2 transforms incl. ★ every
+wrong-variant rejection, §3 backend incl. ★★ buggy-GEMM-not-emitted, ao_report A-1/A-2/A-3), test_build **273×3**
+(accel.invariant/accel.xform/accel.backend/ao_report **not imported** — purely additive). NO new mechanism, NO new
+certificate kind; LLM-free; zero-dep (z3+stdlib).
+못 접는 다수(§AK 측정)를 z3-등가검증 커널로 *가속* — A-1 가속≠fold(분자 불변, 분리 지표)·A-2 모든 커널 z3 등가증명
+동반(실패 커널 방출 안 됨, 빠른 라이브러리는 못 주는 차별점)·§1 물리 불변식은 precision-1.0의 물리판(비보존/CFL위반
+REJECT)·§3 PTX 백본 위 검증 레이어(재발명 안 함)·A-3 crypto 제외·A-4 GPU 없으면 PTX-검증-완료(조작 숫자 0)·새
+메커니즘 0·새 증명서 종류 0.
