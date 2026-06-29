@@ -5456,6 +5456,142 @@ def test_ap_report_measured_S3():
           "wrong refuted; ★ S-4 honest [§AK delta ~0: genuinely non-foldable, not disguised]; ★ no new mechanism/kind)")
 
 
+def test_aq1_classifier_effect_gate():
+    """§AQ §1 — the classifier frontend (the multiplier): AST tag → effect gate (pure/io/nondet) → route. ★ a pure
+    arithmetic loop is PURE, a read-loop is IO (residual frame), a rand/time fragment is NONDET; ★★ the determinism
+    gate: a nondet fragment NEVER routes to a fold (permanent DECLINE); ★ each shape routes to its extractor; ★ wrong
+    routing cannot cause a false fold (the z3 gate at each extractor holds precision)."""
+    from extract import classify as CLS
+    from extract.classify import effect_gate as EG
+    assert EG.classify_effect("def f(n):\n s=0\n for i in range(n): s+=i\n return s").effect == EG.PURE
+    assert EG.classify_effect("def f(fd):\n while read(fd,4096)>0: pass").effect == EG.IO
+    assert EG.classify_effect("import random\ndef f(n): return random.randint(0,n)").effect == EG.NONDET   # ★★
+    assert CLS.classify("def crc32(d):\n c=0\n for b in d: c=(c>>8)^b\n return c")["route"] == "checksum"
+    assert CLS.classify("import random\ndef f(n): return random.random()")["route"] == "DECLINE"           # ★★ nondet
+    assert CLS.adversarial_battery()["all_ok"]
+    print("PASS test_aq1_classifier_effect_gate (the multiplier: AST tag → ★effect gate [pure/io/nondet] → route; pure "
+          "arith→PURE, read-loop→IO[residual], rand→NONDET; ★★ nondet never routes to a fold; wrong route can't cause a "
+          "false fold — the z3 gate at each extractor holds precision)")
+
+
+def test_aq2_checksum_recognition():
+    """§AQ §2 — checksums = C-finite/GF(2)/telescoping in disguise, ★REDUCED to existing mechanisms with every AI closed
+    form z3-RE-VERIFIED (S-2): CRC→matrix-power (GF(2)-linear), Adler→telescoping, Luhn→finite lookup, Rabin-Karp→
+    Horner; ★★ Luhn's convenient 2d-mod-9 form is REFUTED at d=9 (the AI hand-calc error caught); ★★ FNV is an honest
+    z3 DECLINE (the GF(2)-affine claim does not survive); ★★ MurmurHash/Pearson/crypto permanent DECLINE; ★ Axis A +1,
+    Axis B ≈0 (S-3)."""
+    from extract import checksum as CK
+    from extract.checksum import accum as ACC
+    assert CK.fold("def crc32(d):\n c=0\n for b in d: c=(c>>8)^b\n return c").reduces_to.startswith("matrix_power")
+    assert CK.fold("def adler(d):\n a=1;b=0\n for x in d: a+=x; b+=a\n return b").folded
+    luhn = ACC.prove_luhn_lookup()
+    assert luhn["correct_proven"] and luhn["naive_2d_mod_9_refuted"] and luhn["counterexample_d"] == 9        # ★★ S-2
+    assert not CK.fold("def fnv1a(d):\n h=2166136261\n for b in d: h=(h^b)*16777619\n return h").folded        # ★★ honest
+    assert not CK.fold("def mm(d): return murmurhash(d)").folded                                              # ★★ permanent
+    assert CK.fold("def crc(d): return 0").axis_b.startswith("~0")                                            # ★ Axis B≈0
+    assert CK.adversarial_battery()["all_ok"]
+    print("PASS test_aq2_checksum_recognition (CRC→matrix-power[GF(2)-linear], Adler→telescoping, Luhn→finite-lookup, "
+          "Rabin-Karp→Horner, all z3-re-verified; ★★ Luhn 2d-mod-9 REFUTED at d=9 [S-2 catch]; ★★ FNV honest DECLINE; "
+          "★★ MurmurHash/Pearson/crypto permanent DECLINE; Axis A +1 / Axis B ≈0)")
+
+
+def test_aq3_parse_arithmetic():
+    """§AQ §3 — parsing IS Horner `n=n·B+d`, ★REDUCED to C-finite, z3-verified. ★ atoi (B=10/16/128) z3-proven Horner;
+    ★★ the Gregorian leap-year formula is z3-RE-VERIFIED (400-periodic, 97/cycle) and the naive Julian is REFUTED (S-2);
+    ★ base64/IPv4 = exact BV field-pack (O(1)); ★ float = integer mantissa EXACT + ·10^e scaling §AB APPROX-ε (honest
+    split, S-5)."""
+    from extract import parse_arith as PA
+    from extract.parse_arith import date as DT, float_parse as FP
+    assert PA.fold("def atoi(s):\n n=0\n for c in s: n=n*10+ord(c)\n return n").kind == "horner"
+    assert DT.prove_gregorian_period(True) and not DT.prove_gregorian_period(False)                           # ★★ S-2
+    assert PA.fold("def ip(s): return inet_aton(s)").kind == "bitpack"
+    flt = PA.fold("def atof(s): return parse_double(s)")
+    assert flt.folded and "APPROX-ε" in flt.reduces_to and FP.scale_is_approx().scale_grade == "APPROX_FOLD"  # ★ honest
+    assert PA.adversarial_battery()["all_ok"]
+    print("PASS test_aq3_parse_arithmetic (parsing = Horner n=n·B+d → C-finite, z3-proven; ★★ Gregorian leap-year "
+          "400-periodic z3-RE-VERIFIED & Julian REFUTED [S-2]; base64/IPv4 = exact BV pack [O(1)]; float = int mantissa "
+          "EXACT + ·10^e APPROX-ε [honest split, S-5])")
+
+
+def test_aq4_periodic_fsm():
+    """§AQ §4 — control flow that is a deterministic function of the loop counter (`i mod k`) → period P → ★REDUCE to
+    matrix-power / control_flatten. ★ a period-3 FSM is recognized and its oracle folds; ★★ a DATA-dependent branch is
+    an honest DECLINE (not a function of i); ★ the `k²<m` guard has the exact ⌊√m⌋ iteration count (z3-verified)."""
+    from extract import periodic_fsm as FSM
+    from extract.periodic_fsm import period_find as PF, poly_bound as PB
+    def fsm_oracle(n):
+        s = 0
+        for i in range(n):
+            s += 1 if i % 3 == 0 else (2 if i % 3 == 1 else 0)
+        return s
+    r = FSM.fold("def f(n):\n s=0\n for i in range(n):\n  if i%3==0: s+=1\n  elif i%3==1: s+=2\n return s", fsm_oracle)
+    assert r.folded and r.period == 3 and "matrix_power" in r.reduces_to
+    assert not PF.analyze("def f(n,data):\n s=0\n for i in range(n):\n  if data[i]>0: s+=1\n return s").periodic  # ★★
+    assert PB.isqrt(100) == 10 and PB.isqrt(99) == 9 and PB.prove_isqrt_bound(500)                            # ★ exact bound
+    assert FSM.adversarial_battery()["all_ok"]
+    print("PASS test_aq4_periodic_fsm (i mod k control flow → period P=lcm → matrix-power/control_flatten reduction; "
+          "★★ data-dependent branch honest DECLINE [not a function of i]; ★ k²<m guard has exact ⌊√m⌋ count [z3-verified])")
+
+
+def test_aq5_io_arith_effect_isolation():
+    """§AQ §5 — the separation-logic FRAME RULE isolates pure arithmetic AROUND I/O so it folds (I/O = residual). ★ the
+    alignment bit-trick (x+a−1)&~(a−1) == a·⌈x/a⌉ is z3 BV-PROVEN; ★ offset=i·CHUNK (linear), TCP seq (modular BV),
+    backoff (geometric) fold beside their I/O; ★★ a wrong align mask (~a) is z3-REFUTED; ★ Axis A +1, Axis B ≈0 (S-3)."""
+    from extract import io_arith as IOA
+    from extract.io_arith import align as AL
+    assert AL.prove_align_up(12, 32, True) and not AL.prove_align_up(12, 32, False)                           # ★★ page align + wrong refuted
+    a = IOA.fold("def alloc(x):\n read_page()\n return (x+4095)&~4095")
+    assert a.folded and a.io_residual and "bit-trick" in a.reduces_to
+    assert IOA.fold("def r(fd,i):\n read(fd,4096)\n offset = i*4096\n return offset").folded
+    assert IOA.fold("def s(sock,l):\n sock.send(b)\n seq = (seq+l)%(2**32)\n return seq").folded
+    assert a.axis_b == "~0"                                                                                   # ★ Axis B≈0
+    assert IOA.adversarial_battery()["all_ok"]
+    print("PASS test_aq5_io_arith_effect_isolation (frame rule: I/O = residual, surrounding arithmetic folds; ★ align "
+          "bit-trick (x+a−1)&~(a−1)=a·⌈x/a⌉ z3 BV-PROVEN; offset/seq/backoff fold; ★★ wrong mask REFUTED; Axis A +1 / "
+          "Axis B ≈0)")
+
+
+def test_aq6_q9_io_count():
+    """§AQ §6 — Q9, the only genuinely-NEW claim: EXACT I/O call counts. ★ a fixed-step chunk loop ⇒ ⌈S/CHUNK⌉ reads
+    (z3-certified, the new gem); ★★ a data-driven `while read()>0` loop is honestly an UPPER BOUND = SPEED/KoAT re-hash
+    (NOT claimed new — S-5); ★★ the wrong ⌊S/C⌋ undercount is z3-REFUTED; ★ Axis A strongly positive, Axis B ≈0 (the
+    I/O still happens — the count predicts, it does not remove)."""
+    from extract import io_count as IOC
+    from extract.io_count import count_forms as CF, exact_vs_bound as EVB
+    exact = IOC.fold("def f(S):\n pos=0;n=0\n while pos<S:\n  read(fd,4096); pos+=4096; n+=1\n return n")
+    assert exact.is_exact_count and exact.is_new and exact.axis_a == "strong+" and exact.axis_b == "~0"        # ★ new gem
+    bound = IOC.fold("def f(fd):\n n=0\n while read(fd,4096)>0: n+=1\n return n")
+    assert (not bound.is_exact_count) and (not bound.is_new) and "SPEED" in bound.reduces_to                  # ★★ S-5
+    assert CF.prove_ceil_count(4096, 100000, True) and not CF.prove_ceil_count(4096, 100000, False)           # ★★ undercount refuted
+    assert EVB.classify("def f():\n for k in range(10):\n  if recv(): break").kind == "BOUND"                 # ★★ data-break bound
+    assert IOC.adversarial_battery()["all_ok"]
+    print("PASS test_aq6_q9_io_count (★ EXACT count ⌈S/CHUNK⌉ z3-certified [the new gem, Axis A strong / Axis B ≈0]; "
+          "★★ data-driven loop = UPPER BOUND = SPEED/KoAT re-hash, NOT new [S-5]; ★★ wrong ⌊S/C⌋ undercount REFUTED; "
+          "data-driven early break ⇒ bound)")
+
+
+def test_aq_report_dual_metric():
+    """§AQ report — ★★ S-2: every AI hand-derived closed form (CRC/Adler/Luhn/Rabin-Karp/leap-year/align/Q9) z3-RE-PROVEN
+    AND every wrong variant refuted (Luhn 2d-mod-9 at d=9; FNV honest DECLINE) ⇒ false-EXACT 0; ★★ S-3: Axis A
+    (coverage/verification-value) and Axis B (Amdahl speedup) reported SEPARATELY and NEVER summed (CRC/io/Q9 =
+    Axis-A-positive / Axis-B-≈0; the '20-30%' over-claim rejected); ★ S-4 honest §AK delta; ★ S-1 no new mechanism /
+    no new certificate kind; ★ all eight section batteries green."""
+    import aq_report as R
+    rep = R.report(sample=40)
+    assert rep["all_batteries_green"]
+    ai = rep["ai_closed_forms_reverified"]
+    assert ai["all_proven"] and ai["all_wrong_refuted"] and ai["fnv_honest_decline"]                          # ★★ S-2
+    assert rep["precision"]["false_exact"] == 0 and rep["precision"]["gate_pass"]
+    assert rep["axis_B_amdahl"]["never_summed_with_axis_a"]                                                   # ★★ S-3
+    assert rep["axis_A_coverage"]["n_recognized"] >= 4
+    assert rep["S1_no_new_mechanism"] and rep["new_certificate_kinds"] == 0
+    assert "MurmurHash3" in rep["permanent_declines"]
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_aq_report_dual_metric (★★ S-2 every AI closed form z3-RE-PROVEN & wrong refuted [Luhn 2d-mod-9 @ d=9; "
+          "FNV honest DECLINE] ⇒ false-EXACT 0; ★★ S-3 Axis A & Axis B SEPARATE, never summed [CRC/io/Q9 = Axis-A+/Axis-B≈0; "
+          "20-30% over-claim rejected]; ★ S-4 honest §AK delta; ★ no new mechanism/kind; 8 section batteries green)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

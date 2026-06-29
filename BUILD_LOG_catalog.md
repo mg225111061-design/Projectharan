@@ -1919,3 +1919,70 @@ imported** — purely additive). NO new mechanism, NO new certificate kind; LLM-
 defunc/bv→lia(9·10번째 변장, z3 비트항등식 재증명)·chc(배열의존 제거, z3 CHC 불변식) — 전부 기존 z3 게이트의
 정규화기(S-1 새 메커니즘 0); 측정(S-3) focused recall 1.0·§AK 재실행 false-EXACT 0; AI 닫힌형 전부 z3 재증명(S-2);
 S-4 정직(§AK 델타 ~0 = 진짜 안 접히는 것이지 변장 아님).
+
+---
+
+## §AQ — MATH FRAGMENTS IN NON-MATH CODE (classify → extract → reduce to the existing 22; dual-metric, z3-re-verified)
+
+The frontier is the *deterministic math fragments* buried in I/O / parsing / network / control-flow code. ★ Everything
+REDUCES to the existing 22 mechanisms — the new code is a **classification / extraction / effect-isolation pipeline**,
+not new math (S-1: no new mechanism, no new disposer, no new certificate kind). Only what 4 independent reports
+(GLM/Kimi/Claude/PDF) converged on AND that passes the dual-metric / Amdahl / 4-tenet gates was built.
+
+**The governing tenets:** **S-2 (the soul)** — every AI hand-derived closed form is RE-PROVEN by z3 (observation ≠
+proof; Kimi's prior hand-calc errors are exactly why); **S-3 (the dual metric, NEVER summed)** — Axis A = coverage +
+verification value (we are a VERIFIED fold compiler), Axis B = program speedup (Amdahl, for §AO priority); **S-4** — the
+effect system (pure/io/nondet) is the key gate; **S-5** — rebranded honest labels (Q9 upper-bound = SPEED/KoAT re-hash,
+EXACT count = new; data-dependent branch → spec-declared).
+
+**§1 `extract/classify/` — the classifier frontend (the multiplier).** `ast_tag` (layer 1, cheap shape tagging) →
+`effect_gate` (layer 2, the KEY gate: pure / io / nondet — nondet is a permanent DECLINE, io makes the I/O a residual
+frame) → `route` (layer 3, pure atoms → §2..§6). ★ Soundness: routing is for efficiency; a wrong route wastes one
+verifier call, never causes a false fold (the z3 gate at each extractor holds precision). It multiplies the coverage of
+every downstream §.
+
+**§2 `extract/checksum/` — checksum recognition (Axis A +1, Axis B ≈0).** CRC = a GF(2)-LINEAR register map (z3 BV proves
+`step(a⊕b)=step(a)⊕step(b)`) ⇒ matrix-power; Adler/Fletcher = double accumulation `n+Σ(n−i+1)dᵢ` ⇒ telescoping (z3 LIA);
+Luhn/ISBN = finite digit lookup — ★★ **S-2 IN ACTION: the convenient `f(d)=2d mod 9` is z3-REFUTED at d=9** (true digit-sum
+of 18 is 9, not 0) and the correct `2d−9·[d≥5]` proven; Rabin-Karp/djb2/sdbm = Horner `h=h₀·Bᴸ+Σcᵢ·B^(L−1−i)` ⇒ C-finite.
+★★ **FNV resolved by z3, not by prediction**: `(h⊕b)·P` mixes GF(2)-XOR and ℤ/2ⁿ-multiply ⇒ NOT a single-algebra affine map
+⇒ honest DECLINE (the 4-report split adjudicated by proof). MurmurHash3/Pearson/crypto = permanent DECLINE.
+
+**§3 `extract/parse_arith/` — Horner (Axis A +1, highest frequency, Axis B ≈0).** Parsing IS `n=n·B+d` ⇒ C-finite Horner
+(z3 LIA, atoi/base/UUID/varint); base64/IPv4 = exact disjoint-field BV pack (z3 BV, already O(1)); ★★ the Gregorian
+leap-year count `⌊y/4⌋−⌊y/100⌋+⌊y/400⌋` z3-RE-VERIFIED as 400-periodic (97/cycle) and the naive Julian REFUTED (S-2);
+float = integer mantissa EXACT (Horner) + ·10^e binary scaling → §AB APPROX-ε (honest split, S-5; never claimed EXACT).
+
+**§4 `extract/periodic_fsm/` — periodic control flow.** `i%k` branch guards ⇒ period P=lcm ⇒ M_P^(N/P) matrix-power
+(`stride_fold` reuses control_flatten); `k²<m` guard ⇒ exact ⌊√m⌋ count (z3-verified). ★ A DATA-dependent branch is not
+a function of i ⇒ honest DECLINE (→ §5 / spec-declared).
+
+**§5 `extract/io_arith/` — effect-isolation frame (Axis A +1, Axis B ≈0).** The separation-logic frame rule frames the
+I/O off as a residual so the surrounding arithmetic folds: the alignment bit-trick `(x+a−1)&~(a−1)` == `a·⌈x/a⌉` (z3 BV);
+offset=i·CHUNK (linear); TCP seq (modular BV); exponential backoff `base·(2ⁿ−1)` (geometric); token-bucket (interval-
+linear). The textbook "Axis A positive, Axis B 0" case.
+
+**§6 `extract/io_count/` — ★ Q9, the only genuinely-NEW claim.** The I/O DATA never folds, but the call COUNT is
+structural: a fixed-step chunk loop does EXACTLY ⌈S/CHUNK⌉ reads (z3 LIA bracketing invariant, `requires fileSize=S`);
+pagination ⌈T/P⌉, flush ⌊N/B⌋. ★★ **S-5 separation**: an EXACT count is new; an UPPER BOUND (data-driven loop /
+data-driven `break`) is SPEED/KoAT/CoFloCo re-hashed and labelled as such, NOT new. ★ Axis B ≈0 (the I/O still happens —
+predicting the count does not remove it); Axis A strongly positive (buffer pre-alloc / cost prediction / SLA cert /
+infinite-retry detection) — the purest Axis-A-positive / Axis-B-0 contribution.
+
+**§7 (low-priority/organizing):** Verhoeff/Damm = non-commutative quasigroup ⇒ finite-monoid matrix-power, ★ NO scalar-sum
+claim (the honest line), ~0.05% frequency, completeness only. Q12 semiring lens = the organizing view ("any loop = a
+semiring path problem, matrix closure"): ℕ/min-plus/Boolean/GF(2) ⇒ EXACT, probability ⇒ PROBABILISTIC (separate).
+
+**MEASURED (`aq_report.py`, S-3):** all eight section batteries green; ★★ **every AI closed form z3-RE-PROVEN AND every
+wrong variant refuted** (Luhn 2d-mod-9 @ d=9; Julian; FNV honest DECLINE) ⇒ **false-EXACT 0**; ★★ Axis A (coverage) and
+Axis B (Amdahl) reported SEPARATELY and **never summed** (CRC/io/Q9 = Axis-A-positive / Axis-B-≈0; the "20-30%" over-claim
+rejected); ★ honest §AK delta ~0 (the numeric corpus lacks I/O/parsing idioms — §AQ's value is on non-math code it does
+not represent, M-2). new certificate kinds 0; LLM-free; zero-dep.
+
+`test_catalog.py` **205/205** (+7 §AQ: classify / checksum / parse / periodic-FSM / io-arith / Q9 / report, each with
+★ adversarial declines — nondet, MurmurHash, EXACT-vs-bound, the S-2 refutations), test_build **273×3** (extract.* /
+aq_report **not imported** — purely additive). NO new mechanism, NO new certificate kind; LLM-free; zero-dep (z3+stdlib).
+비수학 코드(I/O·파싱·제어흐름) 속 결정적 수학 조각 — 분류기(효과게이트 pure/io/nondet)→추출→기존 22개 환원(S-1);
+체크섬(CRC=GF(2)행렬·Adler=망원·Luhn=유한룩업[2d-mod-9 d=9 반증]·Rabin-Karp=Horner·FNV 정직 DECLINE)·파싱(Horner·
+윤년식 재증명)·주기FSM(i%k→행렬거듭)·I/O산술(frame rule)·Q9(EXACT I/O횟수 ⌈S/CHUNK⌉, 유일 신규); AI 닫힌형 전부
+z3 재증명(S-2)·이중지표 분리(S-3 Axis B≈0)·false-EXACT 0·새 메커니즘/종류 0.
