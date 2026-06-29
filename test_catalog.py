@@ -5757,6 +5757,46 @@ def test_ay_report_axes_rejected_and_banned_word():
           "[self-check + source grep of qfold + ay_report]; ★ 8 REJECTED [Jones-CFG false theorem, RMT …] 0 change; 14/22 same)")
 
 
+def test_at1_proof_carrying_fast_lane():
+    """§AT — proof-carrying verification (Clock B fast-lane). ★ FLIP: ∀-n claims (Faulhaber sums, Fibonacci/
+    Tribonacci recurrences) that z3 CANNOT prove (unbounded array-induction is out of scope ⇒ DECLINE) are
+    re-checked EXACT by a DECIDABLE proof-carrying certificate (telescoping coefficient-zero / companion replay).
+    ★★ false-EXACT 0: a TAMPERED cert (wrong coefficient / wrong recurrence) FAILS its re-check ⇒ DECLINE. ★★ a
+    SAMPLING cert (Schwartz–Zippel) is REJECTED from the EXACT lane (PROBABILISTIC only). ★ cert export→import→
+    independent re-check round-trips (portability)."""
+    import proof_carrying as PC
+    import kernel_verdict as KV
+    assert PC.adversarial_battery()["all_ok"]
+    # the four ∀-n demo claims all flip z3-DECLINE → cert-EXACT, with NO sampling on the EXACT lane
+    flips = PC.measure_flips([PC._faulhaber_sum_cert(), PC._sum_squares_cert(), PC._fibonacci_cert(), PC._tribonacci_cert()])
+    assert flips["flip_count"] == 4 and not flips["sampling_used_on_exact_lane"]
+    assert PC.z3_route_unbounded_declines("Σk").status == KV.DECLINE                          # z3 can't do ∀-n
+    assert PC.verify_exact_fast_lane(PC._fibonacci_cert()).verdict.status == KV.EXACT          # cert recovers EXACT
+    bad = PC.PCCert("companion_replay", "wrong", {"c": ["1", "2"], "init": ["0", "1"], "oracle_tail": [[10, "55"]]})
+    assert PC.verify_exact_fast_lane(bad).verdict.status == KV.DECLINE                         # ★★ tampered ⇒ DECLINE
+    assert PC.verify_exact_fast_lane(PC.PCCert("schwartz_zippel", "sz", {})).verdict.status == KV.DECLINE  # ★★ sampling rejected
+    print("PASS test_at1_proof_carrying_fast_lane (★ 4/4 ∀-n claims FLIP z3-DECLINE→cert-EXACT via decidable "
+          "telescoping/companion re-check [z3 can't do unbounded induction]; ★★ tampered cert DECLINEs [false-EXACT "
+          "0]; ★★ Schwartz–Zippel sampling cert REJECTED from EXACT lane; ★ export/import portability round-trips)")
+
+
+def test_at_report_clocks_separated():
+    """§AT report — ★ the FLIP count (z3-route DECLINE → cert EXACT) is measured; ★★ THE THREE CLOCKS ARE NEVER
+    CONFLATED: Clock B (cert-check time) ≠ Clock C (emitted-code runtime) ≠ Axis B (speedup ratio) — Clock B is
+    measured and reported on its own, never summed; ★★ no sampling on the EXACT lane; ★ false-EXACT 0; ★ NO new
+    mechanism (14/22) and NO new certificate kind (reuses 'exact_replay')."""
+    import pc_report as R
+    rep = R.report()
+    assert rep["flip_count"] == rep["flip_measurement"]["total"] and rep["flip_count"] > 0
+    assert rep["clocks"]["never_conflated"] and "Clock_B" in rep["clocks"] and "Clock_C" in rep["clocks"] and "Axis_B" in rep["clocks"]
+    assert not rep["exact_lane_purity"]["sampling_used"]
+    assert rep["false_exact_0"] and rep["portability"]
+    assert R.adversarial_battery()["all_ok"]
+    print("PASS test_at_report_clocks_separated (★ FLIP count z3-DECLINE→cert-EXACT measured; ★★ Clock B [cert-check] "
+          "≠ Clock C [emitted code] ≠ Axis B [speedup ratio] — never summed; ★★ no sampling on EXACT lane; ★ false-"
+          "EXACT 0; no new mechanism/cert kind)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
