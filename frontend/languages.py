@@ -107,6 +107,13 @@ _REGISTRY: List[LangSpec] = [LangSpec(*t) for t in [
     ("smalltalk", "arbitrary", "functional", "SmallInteger auto-promotes to LargePositiveInteger (arbitrary precision)"),
     ("prolog", "arbitrary", "functional", "modern Prolog (SWI/GNU) uses GMP bignums — arbitrary precision"),
     ("kdb", "go_int64", "data", "kdb+/q long = 64-bit, no promotion ⇒ two's-complement wrap"),
+    # ── §BP-7: arbitrary-precision-integer languages (cleanest EXACT) + one fixed-word ──
+    ("bc", "arbitrary", "shell_legacy", "POSIX bc — arbitrary-precision integer arithmetic (unbounded)"),
+    ("dc", "arbitrary", "shell_legacy", "POSIX dc — arbitrary-precision RPN integer arithmetic"),
+    ("factor", "arbitrary", "functional", "Factor uses bignums by default (arbitrary precision)"),
+    ("logtalk", "arbitrary", "functional", "Prolog-hosted ⇒ GMP bignums (arbitrary precision)"),
+    ("picat", "arbitrary", "functional", "Picat (B-Prolog lineage) uses bignums (arbitrary precision)"),
+    ("mercury", "go_int64", "functional", "Mercury int = machine word (64-bit), two's-complement wrap"),
 ]]
 
 LANGS: Dict[str, LangSpec] = {ls.name: ls for ls in _REGISTRY}
