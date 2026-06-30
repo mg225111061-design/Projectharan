@@ -6084,6 +6084,78 @@ def test_engine_loop_d_hygiene():
           "the autonomous loop cannot silently drift its own modules off the honesty spine)")
 
 
+def test_ba_cap1_lrs_positivity():
+    """§BA CAP-1 — LRS POSITIVITY / ULTIMATE-POSITIVITY (the sign problem; distinct from Skolem's zero problem). NEW
+    decision branch in positivity.py reusing cfinite (exact terms) + native_realroots (Sturm); capability ledger,
+    fold-rate impact 0. ★ EXACT-YES on the nonneg-induction class (Fibonacci uₙ>0 ∀n, theorem-backed). ★ EXACT-NO on
+    a finite negative witness (uₙ=−u_{n−1} alternates ⇒ NOT positive). ★★ order-6 LRS (uₙ=3u_{n−1}−u_{n−6}, no
+    finite witness) ⇒ PROVEN-FRONTIER-DECLINE: order-≥6 Positivity is OPEN (Ouaknine–Worrell) — we never guess a sign."""
+    import kernel_verdict as KV
+    import positivity as P
+    yes = P.positivity_decide([1, 1], [1, 1])                       # Fibonacci ⇒ EXACT positive
+    assert yes.status == KV.EXACT and yes.result["positive"] is True and yes.certificate is not None
+    no = P.positivity_decide([-1], [1])                             # 1,−1,1,… ⇒ finite NO witness
+    assert no.status == KV.EXACT and no.result["positive"] is False and no.certificate is not None
+    frontier = P.positivity_decide([3, 0, 0, 0, 0, -1], [1, 1, 1, 1, 1, 1])   # order 6, stays >0, OPEN
+    assert frontier.status == KV.DECLINE and "OPEN" in frontier.reason and "order 6" in frontier.reason
+    print("PASS test_ba_cap1_lrs_positivity (§BA CAP-1: nonneg-induction ⇒ uₙ>0 EXACT; finite witness ⇒ NOT-positive "
+          "EXACT; ★★ order-6 LRS ⇒ PROVEN-FRONTIER-DECLINE [Positivity open ≥ order 6] — no guessed sign)")
+
+
+def test_ba_cap6_hermite_real_root_count():
+    """§BA CAP-6 — HERMITE TRACE-FORM real-root count of a 0-dim ideal (exact in ℚ; #real = signature, #distinct-complex
+    = rank of the trace form). NEW branch in hermite_count.py reusing groebner (quotient basis) + sos_cert.inertia (the
+    round-4 Sylvester-inertia primitive); fold-rate impact 0. ★ x²−1 ⇒ 2 real; x²+1 ⇒ 0 real but 2 distinct complex
+    (the real-vs-complex distinction is the whole point). ★ PROVEN-DECLINE: ⟨x⟩ in (x,y) is positive-dimensional."""
+    import kernel_verdict as KV
+    import hermite_count as HC
+    two = HC.real_root_count(["x**2 - 1"], ["x"])
+    assert two.status == KV.EXACT and two.result["n_real"] == 2 and two.certificate is not None
+    cplx = HC.real_root_count(["x**2 + 1"], ["x"])
+    assert cplx.status == KV.EXACT and cplx.result["n_real"] == 0 and cplx.result["n_distinct_complex"] == 2
+    box = HC.real_root_count(["x**2 - 1", "y**2 - 1"], ["x", "y"])
+    assert box.status == KV.EXACT and box.result["n_real"] == 4
+    nd = HC.real_root_count(["x"], ["x", "y"])                      # positive-dimensional ⇒ DECLINE
+    assert nd.status == KV.DECLINE and "0-dimensional" in nd.reason
+    print("PASS test_ba_cap6_hermite_real_root_count (§BA CAP-6: trace-form signature counts DISTINCT real zeros — "
+          "x²−1⇒2 real, x²+1⇒0 real/2 complex, box⇒4 real; non-0-dim ⟨x⟩ ⇒ PROVEN-DECLINE)")
+
+
+def test_ba_cap5_real_radical_membership():
+    """§BA CAP-5 — REAL RADICAL membership f ∈ ʳ√I for a 0-dim ideal (real Nullstellensatz), decided by CAP-6's Hermite
+    real-count applied twice: f ∈ ʳ√I ⟺ #real(I)=#real(I+⟨f⟩). NEW branch in hermite_count.py; fold-rate impact 0.
+    ★ x³−x ∈ ʳ√⟨x²−1⟩ (vanishes on {±1}); x−1 ∉ (misses −1); ★★ x ∈ ʳ√⟨x²+1⟩ because V_ℝ is EMPTY ⇒ real radical is
+    the whole ring (the sound real-vs-complex subtlety)."""
+    import kernel_verdict as KV
+    import hermite_count as HC
+    mem = HC.real_radical_member(["x**2 - 1"], "x**3 - x", ["x"])
+    assert mem.status == KV.EXACT and mem.result["member"] is True and mem.certificate is not None
+    non = HC.real_radical_member(["x**2 - 1"], "x - 1", ["x"])
+    assert non.status == KV.EXACT and non.result["member"] is False
+    empty = HC.real_radical_member(["x**2 + 1"], "x", ["x"])        # empty real variety ⇒ ʳ√I = (1) ⇒ member
+    assert empty.status == KV.EXACT and empty.result["member"] is True
+    print("PASS test_ba_cap5_real_radical_membership (§BA CAP-5: f∈ʳ√I via two Hermite real-counts — x³−x∈ʳ√⟨x²−1⟩, "
+          "x−1∉; ★★ empty real variety ⇒ ʳ√⟨x²+1⟩=(1) ⇒ x∈ — sound real Nullstellensatz)")
+
+
+def test_ba_cap8_rabinowitsch_radical_membership():
+    """§BA CAP-8 — RADICAL ideal membership f ∈ √I via the Rabinowitsch trick (f∈√I ⟺ 1∈I+⟨1−t·f⟩), a thin SOUND
+    wrapper over the existing groebner.ideal_member_grade whose cofactor certificate IS the witness; fold-rate impact 0.
+    ★ x ∈ √⟨x²⟩ and √⟨x³⟩ (YES); 1∉√⟨x²⟩, x−1∉√⟨x²−1⟩, x∉√⟨xy⟩ (NO, each a proper extended ideal)."""
+    import kernel_verdict as KV
+    import groebner as GB
+    yes = GB.radical_member(["x**2"], "x", ["x"])
+    assert yes.status == KV.EXACT and yes.result["member"] is True and yes.certificate is not None
+    yes3 = GB.radical_member(["x**3"], "x", ["x"])
+    assert yes3.status == KV.EXACT and yes3.result["member"] is True
+    no = GB.radical_member(["x**2 - 1"], "x - 1", ["x"])
+    assert no.status == KV.EXACT and no.result["member"] is False
+    no2 = GB.radical_member(["x*y"], "x", ["x", "y"])
+    assert no2.status == KV.EXACT and no2.result["member"] is False
+    print("PASS test_ba_cap8_rabinowitsch_radical_membership (§BA CAP-8: Rabinowitsch 1∈I+⟨1−t·f⟩ reuses groebner "
+          "cofactor cert — x∈√⟨x²⟩,√⟨x³⟩; x−1∉√⟨x²−1⟩, x∉√⟨xy⟩)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

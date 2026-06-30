@@ -111,3 +111,49 @@ def ideal_member_grade(gens: Sequence[str], query: str, variables: Sequence[str]
                    detail=f"{query} ∉ ⟨{', '.join(gens)}⟩: nonzero normal form {rem.as_expr()} modulo a basis "
                           f"re-verified Gröbner (all S-pairs reduce to 0) ⇒ sound NO")
     return KV.exact({"member": False, "normal_form": str(rem.as_expr())}, "groebner", f"Buchberger ({order})", cert)
+
+
+# ── §BA CAP-8: RADICAL ideal membership f ∈ √I via the Rabinowitsch trick (reuses ideal_member_grade) ────────────
+def radical_member(gens: Sequence[str], f: str, variables: Sequence[str], order: str = "grevlex") -> KV.Verdict:
+    """Decide f ∈ √I (the ORDINARY radical) for I=⟨gens⟩ ⊂ ℚ[variables]. Rabinowitsch: f ∈ √I ⟺ 1 ∈ I + ⟨1 − t·f⟩
+    in the extended ring ℚ[variables, t] with a FRESH variable t. We reduce to the existing
+    `ideal_member_grade` deciding 1 ∈ ⟨gens ∪ {1 − t·f}⟩ — and its cofactor certificate (1 = ΣHᵢgᵢ + H·(1−tf))
+    is exactly the re-checkable Rabinowitsch witness. Sound (Hilbert Nullstellensatz over ℚ̄); EXACT decision."""
+    import sympy as sp
+    base = {str(v) for v in variables}
+    t = next(name for name in ("t", "t_", "_rab_t", "tt", "ttt") if name not in base)  # fresh variable
+    try:
+        f_expr = sp.sympify(f)
+    except (sp.SympifyError, TypeError, ValueError) as e:
+        return KV.decline(f"radical_member: parse error on f ({e}) ⇒ DECLINE", "groebner.radical")
+    ext_vars = list(variables) + [t]
+    ext_gens = list(gens) + [f"1 - ({t})*({f})"]
+    v = ideal_member_grade(ext_gens, "1", ext_vars, order=order)
+    if v.status != KV.EXACT:
+        return KV.decline(f"radical_member: extended-ideal decision DECLINEd ({v.reason}) ⇒ DECLINE", "groebner.radical")
+    member = bool(v.result.get("member"))
+    detail = (f"f ∈ √I: 1 ∈ ⟨{', '.join(gens)}, 1−{t}·({f})⟩ (Rabinowitsch) — cofactor witness from the Gröbner "
+              f"membership cert." if member
+              else f"f ∉ √I: 1 ∉ ⟨{', '.join(gens)}, 1−{t}·({f})⟩ — the extended ideal is proper "
+                   f"(re-verified Gröbner basis) ⇒ f does not vanish on V(I).")
+    cert = KV.Cert(KV.EXACT, "rabinowitsch_radical_membership", passed=True,
+                   check_cost="ideal_member_grade(1 ∈ I+⟨1−t·f⟩) cofactor re-check",
+                   detail=detail)
+    return KV.exact({"member": member, "trick": f"1 ∈ I + ⟨1 − {t}·f⟩"}, "groebner.radical",
+                    f"Rabinowitsch radical membership ({order})", cert)
+
+
+def radical_battery() -> dict:
+    """x ∈ √⟨x²⟩ and √⟨x³⟩ (YES); 1 ∉ √⟨x²⟩, x−1 ∉ √⟨x²−1⟩, x ∉ √⟨xy⟩ (NO)."""
+    out = {}
+    out["x_in_rad_x2"] = radical_member(["x**2"], "x", ["x"]).result["member"] is True
+    out["x_in_rad_x3"] = radical_member(["x**3"], "x", ["x"]).result["member"] is True
+    out["one_not_in_rad_x2"] = radical_member(["x**2"], "1", ["x"]).result["member"] is False
+    out["xm1_not_in_rad_x2m1"] = radical_member(["x**2 - 1"], "x - 1", ["x"]).result["member"] is False
+    out["x_not_in_rad_xy"] = radical_member(["x*y"], "x", ["x", "y"]).result["member"] is False
+    return out
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(radical_battery(), indent=2))
