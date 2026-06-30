@@ -6546,6 +6546,12 @@ def test_bj_structures_dispatch_languages():
     sum_c = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "c", n_bound=10 ** 9)
     assert "fold" in sum_py.engine and sum_py.grade == "EXACT" and sum_c.grade == "DECLINE"  # ★ same struct, lang gate
     assert sum_py.gated and sum_c.gated and fib.gated                            # ★ dispatching never bypasses verify
+    # ★ §BP-10: the sum dispatcher reports the closed form of the ACTUAL summand (extracted), so Σi³ gets the cubic
+    # form n²(n+1)²/4 — NOT the old hardcoded linear form. Ground-truthed against the fold engine's own closed_form.
+    import loop_decision as _LD
+    cube = DISP.dispatch("sum(i**3 for i in range(1, n+1))", "python")
+    assert str(_LD.decide_sum_collapse("k**3", var="k", lo=1).closed_form) in cube.result   # ★ degree-correct, verified
+    assert str(_LD.decide_sum_collapse("k", var="k", lo=1).closed_form) not in cube.result  # ★ not the linear form
 
     # ── (C) 80+ languages, each disposing correctly under its OWN integer model ──
     la = LANG.adversarial_battery()

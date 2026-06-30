@@ -53,15 +53,90 @@ ROUTE = {
 }
 
 
-def _dispatch_sum(kind: str, lang: str, n_bound: int) -> DispatchResult:
-    """sum/poly → the fold engine for the closed form, THEN the per-language z3 gate for soundness."""
+class _RenameVar(ast.NodeTransformer):
+    """Rename one variable to the fixed index name 'k' (so it never collides with the bound symbol 'n' in sympy)."""
+    def __init__(self, src_name: str, dst: str = "k") -> None:
+        self.src, self.dst = src_name, dst
+
+    def visit_Name(self, node: ast.Name):  # noqa: N802
+        if node.id == self.src:
+            return ast.copy_location(ast.Name(id=self.dst, ctx=node.ctx), node)
+        return node
+
+
+def _pure_in(expr: ast.AST, var: str):
+    """If `expr` is a pure arithmetic expression in ONLY `var` (integer/constant coefficients allowed; no other
+    name, call, attribute or subscript), return its source rewritten with `var`→'k'; else None. Refuse-by-default
+    so a summand we cannot read exactly is reported generically rather than mis-stated."""
+    names = {n.id for n in ast.walk(expr) if isinstance(n, ast.Name)}
+    if not names <= {var}:                                          # a foreign variable ⇒ not a clean summand
+        return None
+    if any(isinstance(n, (ast.Call, ast.Attribute, ast.Subscript, ast.Lambda)) for n in ast.walk(expr)):
+        return None                                                 # calls / attrs / indexing ⇒ refuse
+    try:
+        return ast.unparse(_RenameVar(var).visit(expr))
+    except Exception:                                               # noqa: BLE001
+        return None
+
+
+def _sum_summand(src: str):
+    """Extract the summand of a recognized Σ as a sympy-ready string in 'k', or None (⇒ report the fold generically,
+    never a wrong closed form). Handles sum(<expr> for v in range) · sum(range) · sum(v for v in range) and
+    acc += <expr> / acc = acc + <expr> / acc = <expr> + acc inside `for v in range`; summand must be pure in v."""
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError):
+        return None
+
+    def _is_range(node):
+        return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "range"
+
+    for node in ast.walk(tree):                                     # ── functional: sum(...) ──
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "sum" and node.args:
+            arg = node.args[0]
+            if isinstance(arg, ast.GeneratorExp) and len(arg.generators) == 1:
+                gen = arg.generators[0]
+                if isinstance(gen.target, ast.Name) and _is_range(gen.iter) and not gen.ifs:
+                    return _pure_in(arg.elt, gen.target.id)
+            if _is_range(arg):                                      # sum(range(...)) = Σ k
+                return "k"
+            return None                                             # sum(<other>) ⇒ not a clean Σ-of-range
+    for node in ast.walk(tree):                                     # ── accumulation inside `for v in range(...)` ──
+        if isinstance(node, ast.For) and _is_range(node.iter) and isinstance(node.target, ast.Name) and not node.orelse:
+            var = node.target.id
+            for st in node.body:
+                if isinstance(st, ast.AugAssign) and isinstance(st.op, ast.Add) and isinstance(st.target, ast.Name) \
+                        and st.target.id != var:
+                    return _pure_in(st.value, var)                  # acc += <expr in v>
+                if isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name) \
+                        and isinstance(st.value, ast.BinOp) and isinstance(st.value.op, ast.Add):
+                    acc, lo_, hi_ = st.targets[0].id, st.value.left, st.value.right
+                    if isinstance(lo_, ast.Name) and lo_.id == acc:        # acc = acc + <expr>
+                        return _pure_in(hi_, var)
+                    if isinstance(hi_, ast.Name) and hi_.id == acc:        # acc = <expr> + acc
+                        return _pure_in(lo_, var)
+    return None
+
+
+def _dispatch_sum(kind: str, lang: str, n_bound: int, src: str = "") -> DispatchResult:
+    """sum/poly → the fold engine for the closed form of the ACTUAL summand (extracted from the source, not assumed),
+    THEN the per-language z3 gate for the grade. Because the summand is read from the code, the reported closed form
+    is correct for the real degree (Σk² ≠ Σk³ ≠ Σk); a summand we cannot read exactly is reported generically — the
+    engine never asserts a wrong closed form. The GRADE depends only on the language integer model (degree-agnostic)."""
     import loop_decision as LD
-    summand = "k*k" if kind == "poly_sum" else "k"
-    dec = LD.decide_sum_collapse(summand, var="k", lo=1)
+    summand = _sum_summand(src)
+    if summand is None:                                             # summand not readable here ⇒ assert no specific form
+        dec = LD.decide_sum_collapse("k*k" if kind == "poly_sum" else "k", var="k", lo=1)
+        form_note = "Σ folds to an O(1) closed form (summand not extracted under this surface ⇒ form not asserted)"
+    else:
+        dec = LD.decide_sum_collapse(summand, var="k", lo=1)
+        cf = getattr(dec, "closed_form", None)
+        form_note = (f"Σ_{{k=1}}^n {summand} = {cf}" if dec.status == "CLOSED_FORM" and cf
+                     else f"Σ_{{k=1}}^n {summand}: {dec.status}")
     reached = dec.status == "CLOSED_FORM"
     sv = LANG.disposition_for(lang, n_bound)                        # ★ the z3 QF_BV gate under the language
     return DispatchResult(kind, ROUTE[kind], reached, sv.grade, sv.accept, gated=True,
-                          result=f"fold→{dec.complexity}; lang form={sv.form or '-'}",
+                          result=f"fold→{dec.complexity}; {form_note}",
                           note=f"fold engine reached ({dec.status}); disposition UNDER {lang}: {sv.reason[:70]}")
 
 
@@ -241,7 +316,7 @@ def dispatch(src: str, lang: str = "python", n_bound: int = 10 ** 9) -> Dispatch
         if match.kind == "product_loop":                            # product isn't a Σ closed form; route + honest defer
             return DispatchResult("product_loop", ROUTE["product_loop"], True, "DECLINE", False, True,
                                   note="product routed to fold engine; Σ-closed-form does not apply (factorial) ⇒ DECLINE")
-        return _dispatch_sum(match.kind, lang, n_bound)
+        return _dispatch_sum(match.kind, lang, n_bound, src)
     if match.kind == "linear_recurrence":
         return _dispatch_recurrence(src, lang)
     if match.kind in ("checksum", "horner"):
@@ -280,6 +355,15 @@ def adversarial_battery() -> dict:
     d_pell, d_lucas, d_badinit = dispatch(pell, "python"), dispatch(lucas, "python"), dispatch(badinit, "python")
     d_nonlin, d_foreign, d_pell_c = dispatch(nonlin, "python"), dispatch(foreign, "python"), dispatch(pell, "c")
     d_decorated, d_shadowed = dispatch(decorated, "python"), dispatch(shadowed, "python")
+    # ★ §BP-10: the sum dispatcher now reports the closed form of the ACTUAL summand (extracted), not a hardcoded
+    # linear form — Σi² and Σi³ get DEGREE-correct forms. Ground-truth each against the fold engine's own closed_form.
+    import loop_decision as _LD
+    sq_src = "def f(n):\n s=0\n for i in range(1,n+1): s += i*i\n return s"        # Σi²
+    cube_src = "sum(i**3 for i in range(1, n+1))"                                   # Σi³ (functional)
+    d_sq, d_cube = dispatch(sq_src, "python"), dispatch(cube_src, "python")
+    cf2 = str(getattr(_LD.decide_sum_collapse("k*k", var="k", lo=1), "closed_form", ""))
+    cf3 = str(getattr(_LD.decide_sum_collapse("k**3", var="k", lo=1), "closed_form", ""))
+    cf1 = str(getattr(_LD.decide_sum_collapse("k", var="k", lo=1), "closed_form", ""))
     cases = {
         "fibonacci_reaches_cfinite": d_fib.structure == "linear_recurrence" and "C-finite" in d_fib.engine and d_fib.reached,
         "fibonacci_exact_python": d_fib.grade == "EXACT" and f"={_CF.naive_nth([1, 1], [0, 1], 20)}" in d_fib.result,
@@ -299,6 +383,11 @@ def adversarial_battery() -> dict:
         "pell_c_declines": d_pell_c.grade == "DECLINE",                 # ★ C overflow under the language gate
         "decorated_declines": d_decorated.grade == "DECLINE",           # ★ a decorator could change behaviour ⇒ DECLINE
         "shadowed_declines": d_shadowed.grade == "DECLINE",             # ★ f reassigned at top level ⇒ DECLINE
+        # ── §BP-10: sum dispatch reports the DEGREE-correct verified closed form of the actual summand ──
+        "polysum_quadratic_form": bool(cf2) and cf2 in d_sq.result,     # ★ Σi² ⇒ n(n+1)(2n+1)/6, the engine's own form
+        "polysum_cubic_form": bool(cf3) and cf3 in d_cube.result,       # ★ Σi³ ⇒ n²(n+1)²/4, NOT the linear form
+        "polysum_not_linear": cf1 not in d_cube.result,                 # ★ the old hardcoded linear form is gone for cubes
+        "sum_linear_form_ok": cf1 in d_sum_py.result,                   # ★ Σi STILL reports the linear form (correct here)
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 
