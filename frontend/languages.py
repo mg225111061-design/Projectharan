@@ -119,6 +119,16 @@ _REGISTRY: List[LangSpec] = [LangSpec(*t) for t in [
     ("maxima", "arbitrary", "scientific", "Maxima (Lisp CAS) integers are bignums — arbitrary precision"),
     ("pari", "arbitrary", "scientific", "PARI/GP t_INT is arbitrary-precision"),
     ("gap", "arbitrary", "scientific", "GAP (computational algebra) integers are GMP arbitrary-precision"),
+    # ── §BP-15: more established computational-algebra systems — all arbitrary-precision integers (recurrence/sum domain) ──
+    ("magma", "arbitrary", "scientific", "Magma (number theory/algebra) integers are arbitrary-precision"),
+    ("singular", "arbitrary", "scientific", "Singular (commutative algebra) integers are GMP arbitrary-precision"),
+    ("macaulay2", "arbitrary", "scientific", "Macaulay2 (algebraic geometry) integers are GMP arbitrary-precision"),
+    ("gp", "arbitrary", "scientific", "PARI/GP calculator (gp) — arbitrary-precision integers"),
+    ("reduce", "arbitrary", "scientific", "REDUCE CAS — arbitrary-precision integer arithmetic"),
+    ("yacas", "arbitrary", "scientific", "Yacas CAS — arbitrary-precision integers"),
+    ("axiom", "arbitrary", "scientific", "Axiom CAS — arbitrary-precision Integer domain"),
+    ("fricas", "arbitrary", "scientific", "FriCAS (Axiom fork) — arbitrary-precision Integer domain"),
+    ("frink", "arbitrary", "scientific", "Frink — arbitrary-precision integers by design"),
 ]]
 
 LANGS: Dict[str, LangSpec] = {ls.name: ls for ls in _REGISTRY}

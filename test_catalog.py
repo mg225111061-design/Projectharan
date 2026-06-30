@@ -6889,7 +6889,7 @@ def test_bp2_smart_contract_languages():
     multiplier (~6.8% structural ceiling unchanged). 0 new mechanism/disposer — same z3 gate."""
     from frontend import languages as LANG, semantics as SEM
 
-    assert LANG.count() >= 112                                                 # ★ widened past 88 → 112 (§BP-2/4/7/12)
+    assert LANG.count() >= 121                                                 # ★ widened past 88 → 121 (§BP-2/4/7/12/15)
     assert all(ls.sem_key in SEM.INT_MODELS for ls in LANG.LANGS.values())     # every new lang maps to a real model
     # ★ §BP-4 enterprise/classic additions, each textbook-accurate:
     assert LANG.disposition_for("prolog").grade == "EXACT"                     # GMP bignum ⇒ arbitrary ⇒ EXACT
@@ -6899,8 +6899,8 @@ def test_bp2_smart_contract_languages():
     assert LANG.disposition_for("bc").grade == "EXACT" and LANG.disposition_for("dc").grade == "EXACT"
     assert LANG.disposition_for("factor").grade == "EXACT" and LANG.disposition_for("picat").grade == "EXACT"
     assert LANG.model_for("mercury").width == 64
-    # ★ §BP-12 math-CAS languages — all GMP arbitrary-precision ⇒ EXACT (the recurrence/sum home turf)
-    for _cas in ("sage", "maxima", "pari", "gap"):
+    # ★ §BP-12/-15 math-CAS languages — all GMP arbitrary-precision ⇒ EXACT (the recurrence/sum home turf)
+    for _cas in ("sage", "maxima", "pari", "gap", "magma", "singular", "macaulay2", "gp", "reduce", "yacas", "axiom", "fricas", "frink"):
         assert LANG.disposition_for(_cas, 5 * 10 ** 9).grade == "EXACT", _cas   # bignum ⇒ EXACT even past 2^32
     # ★ Solidity 256-bit CHECKED: Σi within 2^255 ⇒ EXACT (a 64-bit model would have wrongly DECLINEd); huge ⇒ revert
     assert LANG.model_for("solidity").width == 256 and LANG.model_for("solidity").overflow == "error"
