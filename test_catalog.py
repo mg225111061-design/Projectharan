@@ -6559,6 +6559,55 @@ def test_bj_structures_dispatch_languages():
           "RF-1: intake improvement NOT a coverage multiplier, 0 new mechanism/disposer)")
 
 
+def test_bk_production_wiring_and_pipeline_fold():
+    """§BK — wire the full engine TIER into production + whole-pipeline fold. PRODUCTION_AUDIT verified the gap:
+    freivalds/chc_solve/ic3_pdr/fast_certificates/extract/§BJ-dispatch/caches were theory-only (server.py +
+    webapi/ never imported them; structure_recognizer + loop_recurrence→cfinite WERE already wired).
+    webapi/engine_dispatch.py reaches them ALL (gap→0), exposed as engine_bridge.dispatch_engines/engines_reached.
+    ★ Wiring PRESERVES verification: Freivalds PROBABILISTIC (never EXACT), chc independent re-verify, §BJ
+    per-language gate. ★ PIPE-1 FoldCache: a repeated request recomputes nothing (Clock B→0 warm). ★ 3-clock
+    honesty: Clock A (LLM) immutable, never summed. 0 new mechanism, 0 new disposer."""
+    from pathlib import Path
+    root = Path(__file__).parent
+
+    # ── the central dispatcher reaches every gap engine (gap → 0) ──
+    from webapi import engine_dispatch as ED
+    b = ED.adversarial_battery()
+    assert b["all_ok"], b["failed"]
+    assert b["reach"]["gap_remaining"] == 0 and b["reach"]["reached"] == 7        # ★ 100% reach (gap closed)
+    pr = ED.production_reach()
+    assert pr["gap_engines"]["freivalds"]["grade"] == "PROBABILISTIC"             # ★ never dressed up as EXACT
+    assert pr["gap_engines"]["chc_solve"]["grade"] in ("EXACT", "DECLINE")        # ★ grade discipline preserved
+    assert "structure_recognizer" in pr["already_wired"]                          # honest: credit already-wired tier
+
+    # ── the production module (engine_bridge) exposes the wiring (reachable from the /api/optimize path) ──
+    from webapi import engine_bridge as EB
+    fib = "def fib(n):\n a,b=0,1\n for _ in range(n): a,b=b,a+b\n return a"
+    d = EB.dispatch_engines(fib, "python")
+    assert d is not None and "C-finite" in d["engine"] and d["reached"] and d["grade"] == "EXACT"  # weapon reaches prod
+    assert EB.engines_reached()["gap_remaining"] == 0                             # ★ the 100% meter, via production API
+
+    # ── PIPE-1 whole-pipeline fold: a repeated dispatch computes once (Clock B → 0 on the warm hit) ──
+    ED.reset_counters()
+    ED.dispatch(fib, "python"); ED.dispatch(fib, "python")                        # cold then warm
+    assert ED._COMPUTES["n"] == 1                                                  # ★ warm hit recomputes nothing
+
+    # ── 3-clock honesty (A immutable, never summed) ──
+    cl = ED.clocks()
+    assert "IMMUTABLE" in cl["A_llm"] and "NEVER claimed" in cl["felt"]
+
+    # ── ★ banned bigrams absent from §BK artifacts ──
+    for fn in ("webapi/engine_dispatch.py", "PRODUCTION_AUDIT.md", "PRODUCTION_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bk_production_wiring_and_pipeline_fold (§BK: the engine TIER was theory-only — "
+          "webapi/engine_dispatch reaches all 7 [freivalds PROBABILISTIC·fast_cert·chc_solve indep-reverify·"
+          "ic3_pdr·extract·§BJ-dispatch·foldcache], gap→0, exposed as engine_bridge.dispatch_engines/engines_reached; "
+          "Fibonacci REACHES C-finite EXACT in production; ★PIPE-1 FoldCache warm hit recomputes nothing [Clock B→0]; "
+          "★3-clock honesty: A(LLM) immutable, never summed; wiring preserves verification, 0 new mechanism/disposer)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

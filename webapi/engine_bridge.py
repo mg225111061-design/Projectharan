@@ -296,6 +296,36 @@ def _loop_collapse(code: str) -> Optional[Dict]:
     return None
 
 
+def dispatch_engines(code: str, lang: str = "python") -> Optional[Dict]:
+    """§BK — reach the full engine TIER from production: route `code` to its engine (freivalds proposer-verifier /
+    chc_solve·ic3_pdr loop-safety / extract catalog / the §BJ structure→engine dispatcher) via the central
+    `webapi.engine_dispatch`, with the §BK whole-pipeline FoldCache (Clock B → 0 on a warm hit). ★ ADDITIVE +
+    GUARDED: any failure ⇒ None, never breaks the /api/optimize response; every disposition is the engine's own
+    gated grade (Freivalds PROBABILISTIC, chc independent re-verify) — wiring preserves verification, never bypasses
+    it. The live end-to-end run is author-validated on Render (sandbox blocks the server)."""
+    try:
+        from webapi import engine_dispatch as ED                # noqa: PLC0415
+    except Exception:                                          # noqa: BLE001 — robust to a flat load path
+        try:
+            import engine_dispatch as ED                        # type: ignore  # noqa: PLC0415
+        except Exception:                                      # noqa: BLE001
+            return None
+    try:
+        return ED.dispatch(code, lang)
+    except Exception:                                          # noqa: BLE001
+        return None
+
+
+def engines_reached() -> Dict:
+    """§BK production-reach meter: how many of the previously-unwired engines the dispatcher now reaches (gap → 0).
+    Surfaceable on a /health route; honest about any engine that fails to reach."""
+    try:
+        from webapi import engine_dispatch as ED                # noqa: PLC0415
+        return ED.production_reach()
+    except Exception as e:                                      # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "gap_remaining": None}
+
+
 def modes() -> List[Dict]:
     return [_mode_contract(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND)]
 
