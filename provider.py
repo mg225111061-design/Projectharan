@@ -33,7 +33,16 @@ _OPENAI_COMPAT = "openai_compat"
 _OPENAI = "openai"            # PHASE P — native ChatGPT (api.openai.com/v1/chat/completions)
 _GEMINI = "gemini"            # PHASE P — native Gemini (generativelanguage.googleapis.com)
 _GROQ = "groq"               # PHASE P2 — Groq (OpenAI-compatible; free, no credit card)
-VALID_PROVIDERS = (_ANTHROPIC, _ANTHROPIC_COMPAT, _OPENAI_COMPAT, _OPENAI, _GEMINI, _GROQ)
+# §MRJ — the remaining family-C (OpenAI-compatible /chat/completions, Bearer) named providers. Each rides the
+# `openai_chat` transport with its own base_url; the author can override base/model in the UI or via env.
+_MISTRAL = "mistral"
+_COHERE = "cohere"
+_DEEPSEEK = "deepseek"
+_XAI = "xai"
+_TOGETHER = "together"
+_FIREWORKS = "fireworks"
+_OPENROUTER = "openrouter"
+_PERPLEXITY = "perplexity"
 
 DEFAULT_MODEL = "claude-opus-4-8"
 
@@ -42,6 +51,27 @@ _OPENAI_DEFAULT_BASE = "https://api.openai.com/v1"
 _GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta"
 _GROQ_DEFAULT_BASE = "https://api.groq.com/openai/v1"           # OpenAI-compatible /chat/completions
 
+# §MRJ — family-C registry: id → (base_url, default_model, free_no_card, get_key_url). base_url/model are
+# EDITABLE defaults in the UI (HARAN_BASE_URL / HARAN_MODEL override); filled from each vendor's public docs,
+# never guessed. Cohere/Fireworks use a vendor-specific compat path / model prefix — confirm on Render.
+_OPENAI_CHAT_REGISTRY = {
+    _GROQ:       (_GROQ_DEFAULT_BASE, "llama-3.3-70b-versatile", True, "https://console.groq.com/keys"),
+    _MISTRAL:    ("https://api.mistral.ai/v1", "mistral-large-latest", False, "https://console.mistral.ai/api-keys"),
+    _COHERE:     ("https://api.cohere.ai/compatibility/v1", "command-r-plus", False, "https://dashboard.cohere.com/api-keys"),
+    _DEEPSEEK:   ("https://api.deepseek.com/v1", "deepseek-chat", False, "https://platform.deepseek.com/api_keys"),
+    _XAI:        ("https://api.x.ai/v1", "grok-2-latest", False, "https://console.x.ai"),
+    _TOGETHER:   ("https://api.together.xyz/v1", "meta-llama/Llama-3.3-70B-Instruct-Turbo", False,
+                  "https://api.together.ai/settings/api-keys"),
+    _FIREWORKS:  ("https://api.fireworks.ai/inference/v1", "accounts/fireworks/models/llama-v3p3-70b-instruct", False,
+                  "https://fireworks.ai/account/api-keys"),
+    _OPENROUTER: ("https://openrouter.ai/api/v1", "openai/gpt-4o", True, "https://openrouter.ai/keys"),
+    _PERPLEXITY: ("https://api.perplexity.ai", "sonar", False, "https://www.perplexity.ai/settings/api"),
+}
+
+# all 14: 2 anthropic-family + native openai/gemini + the open compat gateway + the 9 openai_chat named providers
+VALID_PROVIDERS = (_ANTHROPIC, _ANTHROPIC_COMPAT, _OPENAI_COMPAT, _OPENAI, _GEMINI,
+                   *_OPENAI_CHAT_REGISTRY.keys())
+
 # Per-provider default model ids (free, no-card tiers for groq/gemini). Editable in the UI; never guessed.
 DEFAULT_MODELS = {
     _ANTHROPIC: DEFAULT_MODEL,
@@ -49,7 +79,7 @@ DEFAULT_MODELS = {
     _OPENAI: "gpt-4o",
     _OPENAI_COMPAT: "",                                         # gateway-specific; user fills it in
     _GEMINI: "gemini-3.5-flash",                                # free tier, no card (per directive; editable in UI)
-    _GROQ: "llama-3.3-70b-versatile",                           # free, fast, no card
+    **{pid: meta[1] for pid, meta in _OPENAI_CHAT_REGISTRY.items()},
 }
 
 
@@ -83,8 +113,8 @@ def base_url(p: Optional[str] = None) -> Optional[str]:
         return (os.environ.get("OPENAI_BASE_URL") or _OPENAI_DEFAULT_BASE).strip()
     if p == _GEMINI:                                              # native Gemini
         return (os.environ.get("GEMINI_BASE_URL") or _GEMINI_DEFAULT_BASE).strip()
-    if p == _GROQ:                                                # Groq (OpenAI-compatible)
-        return (os.environ.get("GROQ_BASE_URL") or _GROQ_DEFAULT_BASE).strip()
+    if p in _OPENAI_CHAT_REGISTRY:                                # groq + the named OpenAI-compatible providers
+        return _OPENAI_CHAT_REGISTRY[p][0]
     return None
 
 
@@ -112,10 +142,10 @@ def resolve_key_for(p: Optional[str] = None) -> Optional[str]:
         return (os.environ.get("OPENAI_API_KEY") or "").strip() or None
     if p == _GEMINI:
         return (os.environ.get("GEMINI_API_KEY") or "").strip() or None
-    if p == _GROQ:
-        return (os.environ.get("GROQ_API_KEY") or "").strip() or None
     if p in (_ANTHROPIC, _ANTHROPIC_COMPAT):
         return (os.environ.get("ANTHROPIC_API_KEY") or "").strip() or None
+    if p in _OPENAI_CHAT_REGISTRY:                                    # groq + named OpenAI-compatible providers
+        return (os.environ.get(f"{p.upper()}_API_KEY") or os.environ.get("OPENAI_API_KEY") or "").strip() or None
     return (os.environ.get("OPENAI_API_KEY") or "").strip() or None   # openai_compat gateways
 
 
@@ -159,12 +189,12 @@ GATEWAY_PRESETS = {
 }
 
 # Free, no-credit-card providers (the default way to test the whole site) + where to get a key.
-FREE_NO_CARD = (_GEMINI, _GROQ)
+FREE_NO_CARD = (_GEMINI, *(pid for pid, meta in _OPENAI_CHAT_REGISTRY.items() if meta[2]))   # gemini + groq + openrouter
 GET_KEY_URL = {
     _GEMINI: "https://aistudio.google.com/apikey",
-    _GROQ: "https://console.groq.com/keys",
     _OPENAI: "https://platform.openai.com/api-keys",
     _ANTHROPIC: "https://console.anthropic.com/settings/keys",
+    **{pid: meta[3] for pid, meta in _OPENAI_CHAT_REGISTRY.items()},
 }
 
 

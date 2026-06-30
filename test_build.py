@@ -10646,6 +10646,52 @@ def test_modular_recurrence_collapse():
           f"[bounded ints ⇒ O(log n) genuinely wins; perf_obs]; Pell-mod c=[2,1]; small-M & non-modular → DECLINE)")
 
 
+def test_mrj_provider_wiring():
+    """§MRJ — all 12 providers + 2 compat gateways wired through the 3 auth families, with an author-actionable
+    error→hint map and key safety. ★ Asserts: (1) ≥12 providers, each transport ∈ {anthropic_sdk, openai_chat,
+    gemini_generate}; (2) the wire shape per family is exact (Anthropic x-api-key+version+/v1/messages, Gemini
+    x-goog-api-key+:generateContent, others Bearer+/chat/completions) and the KEY is ONLY ever in headers, never
+    the URL/body; (3) _classify maps 401→key, 403→permission, ★404→model (NOT key), 429→quota; (4) health_provider
+    NEVER leaks the key (masked only)."""
+    import provider as PRV
+    import webapi.engine_bridge as EB
+    named = {"openai", "gemini", "groq", "mistral", "cohere", "deepseek", "xai", "together",
+             "fireworks", "openrouter", "perplexity"}
+    assert named <= set(PRV.VALID_PROVIDERS) and len(PRV.VALID_PROVIDERS) >= 12
+    for p in PRV.VALID_PROVIDERS:
+        assert PRV.transport_kind(p) in ("anthropic_sdk", "openai_chat", "gemini_generate")
+
+    SECRET = "sk-ant-SECRETKEY-DO-NOT-LEAK-0001"
+    # (2) wire shape + key-only-in-headers, for one provider of each family
+    kind, url, headers, body = EB._provider_request("anthropic", "claude-x", SECRET, "ping", 1)
+    assert kind == "anthropic_sdk" and url.endswith("/v1/messages")
+    assert headers.get("x-api-key") == SECRET and headers.get("anthropic-version") and "Bearer" not in str(headers)
+    kind, url, headers, body = EB._provider_request("gemini", "gemini-x", SECRET, "ping", 1)
+    assert kind == "gemini_generate" and ":generateContent" in url and headers.get("x-goog-api-key") == SECRET
+    kind, url, headers, body = EB._provider_request("groq", "llama-x", SECRET, "ping", 1)
+    assert kind == "openai_chat" and url.endswith("/chat/completions")
+    assert headers.get("Authorization") == f"Bearer {SECRET}"
+    # the key must NEVER be in the URL or the JSON body (only the header) — for every provider
+    for p in PRV.VALID_PROVIDERS:
+        _k, u, _h, b = EB._provider_request(p, PRV.default_model_for(p) or "m", SECRET, "ping", 1)
+        assert SECRET not in u and SECRET not in str(b), f"{p}: key leaked into url/body!"
+
+    # (3) ★ error→hint mapping: 401 key / 403 permission / 404 MODEL (not key) / 429 quota
+    assert EB._classify("groq", "openai_chat", "m", 401, "{}")["error_class"] == "key"
+    assert EB._classify("groq", "openai_chat", "m", 403, "forbidden")["error_class"] == "permission"
+    c404 = EB._classify("groq", "openai_chat", "bad-model", 404, "model not found")
+    assert c404["error_class"] == "model" and "키" in c404["hint"] and not c404["ok"]   # explicitly NOT a key error
+    assert EB._classify("groq", "openai_chat", "m", 429, "{}")["error_class"] == "quota"
+
+    # (4) ★ key safety: health_provider (no-key path → no network) never carries a raw key; mask never leaks
+    h = EB.health_provider("groq", None, None)
+    assert h["key_present"] is False and SECRET not in str(h)
+    assert "SECRET" not in EB._mask_key(SECRET) and EB._mask_key(SECRET).endswith("***")
+    print("PASS test_mrj_provider_wiring (§MRJ: 12+ providers across 3 auth families [anthropic x-api-key / gemini "
+          "x-goog-api-key / others Bearer], key ONLY in headers [never url/body], ★error map 401=key·403=perm·"
+          "404=MODEL-not-key·429=quota, health/mask never leak the key)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

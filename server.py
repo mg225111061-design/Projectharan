@@ -437,6 +437,16 @@ def create_app():
         p = await req.json()
         return JSONResponse(_ENGINE.validate_key(p.get("provider", ""), p.get("key", ""), p.get("model")))
 
+    @app.get("/health/provider")                               # §MRJ author diagnostic (Render env-config path)
+    async def health_provider(req: Request):                   # noqa: ANN202
+        # Reads the Render env config (HARAN_PROVIDER/HARAN_MODEL/HARAN_BASE_URL/HARAN_KEY), masks the key, and
+        # makes one tiny ping. ★ NEVER takes a key in the URL/query (it would land in access logs) — only the
+        # non-secret provider/model may be overridden via query; the key comes from the env only.
+        if _ENGINE is None:
+            return JSONResponse({"ok": False, "detail": "engine unavailable"}, status_code=503)
+        q = req.query_params
+        return JSONResponse(_ENGINE.health_provider(q.get("provider"), q.get("model")))
+
     # ── MATH mode (the second top-level mode): fold-first solving + the verified arsenal + visible reasoning ──
     @app.post("/api/math/solve")
     async def api_math_solve(req: Request):                    # noqa: ANN202

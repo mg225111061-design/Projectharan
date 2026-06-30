@@ -302,12 +302,20 @@ def modes() -> List[Dict]:
 
 _PROVIDER_LABELS = {"anthropic": "Claude (official)", "anthropic_compat": "Claude-compatible gateway",
                     "openai": "ChatGPT (OpenAI)", "openai_compat": "OpenAI-compatible gateway",
-                    "gemini": "Gemini (Google)", "groq": "Groq"}
+                    "gemini": "Gemini (Google)", "groq": "Groq", "mistral": "Mistral", "cohere": "Cohere",
+                    "deepseek": "DeepSeek", "xai": "Grok (xAI)", "together": "Together AI",
+                    "fireworks": "Fireworks AI", "openrouter": "OpenRouter", "perplexity": "Perplexity"}
 _PROVIDER_KEYVAR = {"anthropic": "ANTHROPIC_API_KEY", "anthropic_compat": "ANTHROPIC_API_KEY",
                     "openai": "OPENAI_API_KEY", "openai_compat": "OPENAI_API_KEY",
-                    "gemini": "GEMINI_API_KEY", "groq": "GROQ_API_KEY"}
+                    "gemini": "GEMINI_API_KEY", "groq": "GROQ_API_KEY", "mistral": "MISTRAL_API_KEY",
+                    "cohere": "COHERE_API_KEY", "deepseek": "DEEPSEEK_API_KEY", "xai": "XAI_API_KEY",
+                    "together": "TOGETHER_API_KEY", "fireworks": "FIREWORKS_API_KEY",
+                    "openrouter": "OPENROUTER_API_KEY", "perplexity": "PERPLEXITY_API_KEY"}
 _KEY_LABELS = {"gemini": "Google AI Studio API key", "groq": "Groq API key",
-               "openai": "OpenAI API key", "anthropic": "Anthropic API key"}
+               "openai": "OpenAI API key", "anthropic": "Anthropic API key", "xai": "xAI API key",
+               "mistral": "Mistral API key", "cohere": "Cohere API key", "deepseek": "DeepSeek API key",
+               "together": "Together API key", "fireworks": "Fireworks API key",
+               "openrouter": "OpenRouter API key", "perplexity": "Perplexity API key"}
 
 
 def providers() -> List[Dict]:
@@ -394,23 +402,45 @@ _INVALID_MARKERS = ("api_key_invalid", "api key not valid", "invalid api key", "
 
 
 def _classify(provider_id: str, kind: str, model: str, status: "Optional[int]", text: str) -> Dict:
-    """Honest classification of a live provider response. Never echoes the key. Distinguishes a genuinely
-    invalid key (live round-trip happened) from this sandbox's egress allowlist blocking the host."""
+    """Honest classification of a live provider response → an author-ACTIONABLE hint. Never echoes the key.
+    ★ The crucial distinctions (directive §4): 401=key, 403=permission, 404=MODEL-name (NOT key), 429=quota,
+    network=base_url. So a fake/typo'd model id (404) is never misread as a key problem. Also distinguishes a
+    genuine round-trip from this sandbox's egress block."""
     low = (text or "").lower()
     host = _urlparse.urlparse(_provider_request(provider_id, model, "x", "x", 1)[1]).hostname or provider_id
+    get_url = PRV.get_key_url(provider_id)
     base = {"transport": kind, "model": model, "provider": provider_id, "key_in_headers_only": True}
+
+    def out(ok, error_class, hint, *, live=True, blocked=False):
+        return {**base, "ok": ok, "live": live, "blocked": blocked, "error_class": error_class,
+                "status": status, "hint": hint, "detail": hint}
+
     if status == 200:
-        return {**base, "ok": True, "live": True, "detail": f"key valid — live {provider_id} call returned 200."}
-    if status is None or "allowlist" in low:                            # egress blocked (e.g. groq in this sandbox)
-        return {**base, "ok": False, "live": False, "blocked": True,
-                "detail": (f"request is well-formed and the key is held session-only (never logged); but this "
-                           f"sandbox's network egress blocks {host}. Add {host} to the egress allowlist to enable "
-                           f"live validation. [UNVERIFIED here: {'no network response' if status is None else status}]")}
-    if status in (400, 401, 403) and any(s in low for s in _INVALID_MARKERS):
-        return {**base, "ok": False, "live": True,
-                "detail": f"key rejected by {provider_id} (HTTP {status}). Check the key. Get one: {PRV.get_key_url(provider_id)}"}
-    return {**base, "ok": False, "live": status is not None,
-            "detail": f"{provider_id} returned HTTP {status}; could not confirm the key (response not an auth-OK)."}
+        return out(True, "ok", f"key valid — live {provider_id} call returned 200.")
+    if status is None or "allowlist" in low:                            # egress blocked (sandbox) or network down
+        return out(False, "network", f"network/base_url 오류 — {host} 에 닿지 못함 (this sandbox egress-blocks {host}; "
+                   f"on Render add it to the allowlist). base_url 확인. [UNVERIFIED: "
+                   f"{'no network response' if status is None else status}]", live=False, blocked=True)
+    if status == 401:
+        return out(False, "key", f"401 — 키가 틀렸거나 만료. {provider_id} 콘솔에서 재발급. (invalid/expired API key). "
+                   f"Get a key: {get_url}")
+    if status == 403:
+        # 403 can be a rejected key OR a valid key lacking API access — disambiguate by the body markers.
+        if any(s in low for s in _INVALID_MARKERS):
+            return out(False, "key", f"403 — 키가 거부됨. {provider_id} 콘솔에서 키 확인/재발급. Get a key: {get_url}")
+        return out(False, "permission", f"403 — 키는 맞으나 권한/지역 제한 또는 API 미활성. {provider_id} 콘솔에서 "
+                   f"API 활성화·결제 확인. (key OK but API not enabled / region / billing).")
+    if status == 404:
+        return out(False, "model", f"404 — ★모델명 문제(키 아님). '{model}' 모델이 {provider_id} 에 없음 — 모델 칸을 "
+                   f"콘솔의 실제 모델명으로 수정. (model not found on this provider; this is NOT a key error).")
+    if status == 429:
+        return out(False, "quota", f"429 — 무료 쿼터 소진 또는 rate-limit. 잠시 후 재시도 또는 결제. (quota/rate-limited).")
+    if status == 400 and any(s in low for s in _INVALID_MARKERS):
+        return out(False, "key", f"400 — 키 거부됨. 키 확인. Get a key: {get_url}")
+    if status == 400:
+        return out(False, "request", f"400 — 요청/모델 파라미터 문제(키 아님일 가능성). 모델명·요청 형식 확인. (bad request "
+                   f"— likely the model id or a parameter, not the key).")
+    return out(False, "unknown", f"{provider_id} returned HTTP {status} — 응답이 auth-OK가 아님. 모델명·키·base_url 점검.")
 
 
 def validate_key(provider_id: str, key: str, model: Optional[str] = None) -> Dict:
@@ -428,3 +458,44 @@ def validate_key(provider_id: str, key: str, model: Optional[str] = None) -> Dic
     out = _classify(provider_id, kind, mdl, status, text)
     out["get_key_url"] = PRV.get_key_url(provider_id)
     return out
+
+
+def _mask_key(k: "Optional[str]") -> str:
+    """Mask a key for safe diagnostics — show only a short non-secret prefix (e.g. 'AIza***', 'gsk_***'). NEVER
+    the full key. Returns '' for an absent key."""
+    if not k:
+        return ""
+    s = str(k)
+    return (s[:4] + "***") if len(s) > 4 else "***"
+
+
+def health_provider(provider: Optional[str] = None, model: Optional[str] = None,
+                    key: Optional[str] = None) -> Dict:
+    """`/health/provider` diagnostic (directive §3.2): read the chosen provider/family/base_url/model (env config
+    by default — HARAN_PROVIDER/HARAN_MODEL/HARAN_BASE_URL/HARAN_KEY), MASK the key, and, when a key is present,
+    make ONE tiny 'ping' on the provider's correct auth family. Returns a key-SAFE JSON shape (key_present +
+    key_masked only — the key is NEVER echoed/logged/stored) with an author-actionable hint (401 key / 403
+    permission / 404 model / 429 quota / network). Honest: in this sandbox most hosts are egress-blocked, so
+    live_call='fail'/error_class='network' is expected here; the author runs it for real on Render."""
+    prov = (provider or PRV.provider_name())
+    if prov not in PRV.VALID_PROVIDERS:
+        return {"ok": False, "provider": prov, "error_class": "unknown",
+                "hint": f"unknown provider '{prov}' — pick one of {list(PRV.VALID_PROVIDERS)}"}
+    mdl = (model or "").strip() or PRV.default_model_for(prov)
+    k = key or PRV.resolve_key_for(prov)                      # env fallback (HARAN_KEY/vendor); used once, dropped
+    fam = PRV.transport_kind(prov)
+    res = {"provider": prov, "family": fam, "base_url": PRV.base_url(prov), "model": mdl,
+           "key_present": bool(k), "key_masked": _mask_key(k)}
+    if not k:
+        res.update({"ok": False, "live_call": "no_key", "error_class": "key", "status": None,
+                    "hint": "키 없음 — Render 환경변수 HARAN_KEY 설정 또는 UI 세션 키 입력 (no key: set HARAN_KEY on "
+                            "Render, or paste a session key in the UI).", "get_key_url": PRV.get_key_url(prov)})
+        return res
+    kind, url, headers, body = _provider_request(prov, mdl, k, "ping", 1)
+    status, text = _http_post(url, headers, body)
+    cls = _classify(prov, kind, mdl, status, text)
+    res.update({"ok": cls["ok"], "live_call": "ok" if cls["ok"] else "fail", "status": status,
+                "error_class": cls.get("error_class"), "hint": cls.get("hint"),
+                "get_key_url": PRV.get_key_url(prov),
+                "sample": _extract_text(kind, text)[:160] if status == 200 else ""})
+    return res                                               # k goes out of scope here — never stored/returned

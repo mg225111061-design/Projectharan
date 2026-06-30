@@ -364,12 +364,19 @@ def claude_generate(prompt: str, api_key: Optional[str] = None, *,
     base_url = normalize_base_url(DEFAULT_BASE_URL if base_url is None else base_url)
     if api_key:
         try:
-            if provider == "openai_compat":
-                result = _live_generate_openai(prompt, api_key, model, system, max_tokens,
-                                               stream, on_delta, base_url)
-            else:   # anthropic | anthropic_compat — both use the Anthropic SDK (base_url differs)
+            if provider in ("anthropic", "anthropic_compat"):     # Anthropic Messages SDK (base_url differs)
                 result = _live_generate_anthropic(prompt, api_key, model, system, max_tokens,
                                                   thinking, stream, on_delta, base_url, provider)
+            else:
+                # every OTHER provider speaks OpenAI-compatible /chat/completions (Bearer): openai, groq,
+                # openai_compat, and the named gateways (mistral/cohere/deepseek/xai/together/fireworks/
+                # openrouter/perplexity). Gemini rides its OpenAI-compatible endpoint (…/v1beta/openai),
+                # so a native …/v1beta base is upgraded here — keeps one code path for all of family C.
+                eff_base = base_url
+                if provider == "gemini" and eff_base and eff_base.rstrip("/").endswith("/v1beta"):
+                    eff_base = eff_base.rstrip("/") + "/openai"
+                result = _live_generate_openai(prompt, api_key, model, system, max_tokens,
+                                               stream, on_delta, eff_base)
         finally:
             # explicit hygiene: forget our binding to the key the instant we're done with it. The
             # caller still owns its copy (it re-supplies per call); WE keep nothing.
