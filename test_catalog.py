@@ -6156,6 +6156,27 @@ def test_ba_cap8_rabinowitsch_radical_membership():
           "cofactor cert — x∈√⟨x²⟩,√⟨x³⟩; x−1∉√⟨x²−1⟩, x∉√⟨xy⟩)")
 
 
+def test_sec_search_gate():
+    """PART 2 — search ON/OFF toggle gate. ★ The structural guarantee: OFF ⇒ the search tool is NOT exposed to the
+    LLM (tools=[] ⇒ search is impossible, not just discouraged); ON ⇒ exactly the web_search tool is exposed but
+    the prompt instructs 'only when needed' (LLM-judged, ON ≠ every time). ★★ Fail-safe: any ambiguous/garbage
+    flag defaults to OFF (never accidentally exposes search)."""
+    import search_gate as SG
+    # OFF / fail-safe → zero tools (search structurally impossible)
+    for off in (False, None, "", "maybe", 0, "off", "no"):
+        assert SG.tools_for(off) == [] and not SG.search_available(off), f"{off!r} must gate search OFF"
+    # ON (bool + common truthy strings) → exactly the search tool exposed
+    for on in (True, "true", "on", "1", "yes", 1):
+        assert [t["name"] for t in SG.tools_for(on)] == ["web_search"] and SG.search_available(on), f"{on!r} ON"
+    # prompt policy: OFF says no-search; ON says 'only when needed' (the exception, not the default)
+    assert "OFF" in SG.system_suffix(False) and "AVAILABLE" not in SG.system_suffix(False)
+    assert "ONLY when" in SG.system_suffix(True) and "exception" in SG.system_suffix(True)
+    bat = SG.adversarial_battery()
+    assert all(bat.values()), bat
+    print("PASS test_sec_search_gate (PART 2: ★OFF ⇒ tools=[] [search impossible, structural — not a prompt plea]; "
+          "ON ⇒ web_search exposed but 'only when needed' [LLM-judged]; ★★ ambiguous flag fail-safes to OFF)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

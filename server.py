@@ -166,8 +166,15 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
     if not prompt:
         yield sse_event({"type": "error", "message": "empty prompt"})
         return
+    import search_gate as SG                                              # PART 2: search toggle gate
+    sa = p.get("searchAllowed", p.get("search_allowed"))
     try:
         yield sse_event({"type": "stage", "stage": "classify"})           # 분류중 (local, ~instant)
+        # ★ deliver the toggle to the backend + make the structural gate observable: OFF ⇒ no search tool is
+        # exposed (search impossible); ON ⇒ available but used only when needed. No search backend is wired yet
+        # (egress-blocked) so this announces the gate, not an executed search — honest.
+        yield sse_event({"type": "search", "allowed": SG.normalize(sa), "available": SG.search_available(sa),
+                         "tools": [t["name"] for t in SG.tools_for(sa)]})
         it = IN.classify_intent(prompt, api_key, provider=provider, model=model, base_url=base_url)
 
         if it.intent != "CODING":                                          # chat / question
@@ -245,6 +252,8 @@ def handle_route(payload: Optional[dict]) -> dict:
     provider, model, base_url = _gen_cfg(p)
     if not text:
         return {"error": True, "message": "empty prompt"}
+    import search_gate as SG                          # PART 2: search toggle gate (OFF ⇒ tool never exposed)
+    sa = p.get("searchAllowed", p.get("search_allowed"))
     try:
         rr = IN.route(text, mode, api_key, history, force=bool(p.get("force")),
                       provider=provider, model=model, base_url=base_url)
@@ -255,6 +264,11 @@ def handle_route(payload: Optional[dict]) -> dict:
             out["reply"] = rr.reply                  # plain answer — NO verification label
         elif rr.kind == "ask":
             out["asks"] = rr.asks                    # expected questions (suggestions)
+        # ★ the toggle's structural guarantee, observable on every reply: OFF ⇒ tools=[] (search impossible),
+        # ON ⇒ the search tool is exposed but used only when needed (LLM-judged). No search backend is wired yet
+        # (egress-blocked sandbox) so this reports the GATE, not an executed search — honest.
+        out["search"] = {"allowed": SG.normalize(sa), "available": SG.search_available(sa),
+                         "tools": [t["name"] for t in SG.tools_for(sa)]}
         return out
     except Exception as e:   # noqa: BLE001 — never leak the key
         return {"error": True, "message": f"{type(e).__name__}: {CA.redact_key(str(e))}"}
@@ -436,6 +450,17 @@ def create_app():
             return JSONResponse({"ok": False, "detail": "engine unavailable"}, status_code=503)
         p = await req.json()
         return JSONResponse(_ENGINE.validate_key(p.get("provider", ""), p.get("key", ""), p.get("model")))
+
+    @app.get("/api/search/policy")                             # PART 2: observable search-toggle gate
+    async def api_search_policy(req: Request):                 # noqa: ANN202
+        # Returns the structural gate decision for a given toggle state: OFF ⇒ no tools (search impossible),
+        # ON ⇒ the web_search tool is exposed (available) but used only when needed (LLM-judged). No key, no
+        # network — pure policy. Query: ?on=true|false (default OFF, the fail-safe).
+        import search_gate as SG                                # noqa: PLC0415
+        on = req.query_params.get("on")
+        return JSONResponse({"allowed": SG.normalize(on), "available": SG.search_available(on),
+                             "tools": [t["name"] for t in SG.tools_for(on)],
+                             "guidance": SG.system_suffix(on).strip()})
 
     @app.get("/health/provider")                               # §MRJ author diagnostic (Render env-config path)
     async def health_provider(req: Request):                   # noqa: ANN202

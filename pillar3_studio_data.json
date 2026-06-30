@@ -42,9 +42,9 @@
       ],
       "max_hotspots": null,
       "runs_complexity_sweep": true,
-      "latency_budget_s": 480.0,
-      "risk_posture": "DECLINE-a-real-win OK; ship-unproven NEVER; run-past-budget NEVER",
-      "stop_condition": "every enabled detector tried, OR the ~8-min extend budget is spent — then return the best CERTIFIED result reached (or an honest partial); never past budget, never faked"
+      "latency_budget_s": null,
+      "risk_posture": "DECLINE-a-real-win OK; ship-unproven NEVER",
+      "stop_condition": "every enabled detector tried; floor or Clock-B budget reached"
     }
   ],
   "providers": [
@@ -75,47 +75,47 @@
     },
     {
       "id": "groq",
-      "label": "groq",
+      "label": "Groq",
       "transport": "openai_chat"
     },
     {
       "id": "mistral",
-      "label": "mistral",
+      "label": "Mistral",
       "transport": "openai_chat"
     },
     {
       "id": "cohere",
-      "label": "cohere",
+      "label": "Cohere",
       "transport": "openai_chat"
     },
     {
       "id": "deepseek",
-      "label": "deepseek",
+      "label": "DeepSeek",
       "transport": "openai_chat"
     },
     {
       "id": "xai",
-      "label": "xai",
+      "label": "Grok (xAI)",
       "transport": "openai_chat"
     },
     {
       "id": "together",
-      "label": "together",
+      "label": "Together AI",
       "transport": "openai_chat"
     },
     {
       "id": "fireworks",
-      "label": "fireworks",
+      "label": "Fireworks AI",
       "transport": "openai_chat"
     },
     {
       "id": "openrouter",
-      "label": "openrouter",
+      "label": "OpenRouter",
       "transport": "openai_chat"
     },
     {
       "id": "perplexity",
-      "label": "perplexity",
+      "label": "Perplexity",
       "transport": "openai_chat"
     }
   ],
@@ -127,15 +127,15 @@
           "name": "S1_list_as_set",
           "waste_type": "list_as_set",
           "grade": "PROBABILISTIC",
-          "ratio": 1.265,
-          "ceiling": 1.28,
-          "hotspot_fraction": 0.213
+          "ratio": 1.279,
+          "ceiling": 1.31,
+          "hotspot_fraction": 0.234
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.27,
+      "cumulative_ratio": 1.293,
       "z3_calls": 0,
-      "latency_ms": 388.7,
+      "latency_ms": 556.4,
       "ran_complexity_sweep": false
     },
     {
@@ -145,31 +145,31 @@
           "name": "S1_list_as_set",
           "waste_type": "list_as_set",
           "grade": "PROBABILISTIC",
-          "ratio": 1.24,
-          "ceiling": 1.27,
-          "hotspot_fraction": 0.213
+          "ratio": 1.229,
+          "ceiling": 1.28,
+          "hotspot_fraction": 0.218
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 1.513,
-          "ceiling": 1.55,
-          "hotspot_fraction": 0.354
+          "ratio": 1.536,
+          "ceiling": 1.57,
+          "hotspot_fraction": 0.361
         },
         {
           "name": "S3_accidental_quadratic",
           "waste_type": "accidental_quadratic",
           "grade": "PROBABILISTIC",
-          "ratio": 1.875,
+          "ratio": 1.925,
           "ceiling": 1.96,
-          "hotspot_fraction": 0.488
+          "hotspot_fraction": 0.49
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.881,
+      "cumulative_ratio": 1.867,
       "z3_calls": 0,
-      "latency_ms": 947.1,
+      "latency_ms": 1356.7,
       "ran_complexity_sweep": false
     },
     {
@@ -179,15 +179,15 @@
           "name": "S4_algorithm_recognition",
           "waste_type": "algo_replace",
           "grade": "EXACT",
-          "ratio": 1.744,
-          "ceiling": 1.81,
-          "hotspot_fraction": 0.445
+          "ratio": 1.782,
+          "ceiling": 1.82,
+          "hotspot_fraction": 0.45
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 2.254,
+          "ratio": 2.277,
           "ceiling": 2.47,
           "hotspot_fraction": 0.595
         }
@@ -206,9 +206,9 @@
           "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
         }
       ],
-      "cumulative_ratio": 2.287,
+      "cumulative_ratio": 2.267,
       "z3_calls": 2,
-      "latency_ms": 1440.6,
+      "latency_ms": 2135.4,
       "ran_complexity_sweep": true
     }
   ],
@@ -222,7 +222,7 @@
         "dict_to_columnar"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 41.951,
+      "ratio": 47.033,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -238,7 +238,7 @@
         "vectorizable_loop"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 10.916,
+      "ratio": 8.745,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -251,7 +251,7 @@
         "vectorizable_loop"
       ],
       "grade": "PROBABILISTIC",
-      "ratio": 133.65,
+      "ratio": 115.494,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "differential PASS on 3 cases (δ=3/3)"
@@ -264,7 +264,7 @@
         "parallelizable_loop"
       ],
       "grade": "EXACT",
-      "ratio": 77.501,
+      "ratio": 83.67,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "coalesced_identical_lookups"
@@ -277,7 +277,7 @@
         "parallelizable_loop"
       ],
       "grade": "DECLINE",
-      "ratio": 0.985,
+      "ratio": 1.003,
       "ceiling": 1000.0,
       "hotspot_fraction": 0.999,
       "note": "no whole-program win ≥ floor — honest DECLINE (nothing worth shipping)"

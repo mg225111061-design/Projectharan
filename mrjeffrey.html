@@ -225,7 +225,7 @@ const $ = (t, p = {}, kids = []) => {
 const STEPS = [["landing","0","개요"],["chat","1","대화"]];
 const STAGE_LABEL = { classify:"분류", thinking:"생각 중", generate:"코드 생성", verify:"동치 검증", fix:"수정", optimize:"최적화" };
 
-const S = { screen:"landing", provider:null, key:"", model:"", mode:"normal",
+const S = { screen:"landing", provider:null, key:"", model:"", mode:"normal", searchAllowed:false,
   messages:[], input:"", streaming:false, settingsOpen:false, keyState:{phase:"idle"},
   live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"),
   toast:null, account:null, authPanel:false, files:[], error:null };
@@ -348,7 +348,7 @@ async function sendMessage(text, opts){
   S.messages.push(a);
   S.input=""; S.streaming=true; S.error=null; render(); scrollChat();
   if(!S.live){ a.kind="error"; a.error=ERR.no_engine; a.busy=false; S.streaming=false; render(); scrollChat(); return; }
-  const body={ prompt:text, mode:S.mode, history:buildHistory(),
+  const body={ prompt:text, mode:S.mode, history:buildHistory(), searchAllowed:!!S.searchAllowed,
     apiKey:S.key||undefined, provider:S.provider||undefined, model:S.model||undefined, force:!!opts.force };
   try{
     const resp=await fetch("/api/stream",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
@@ -519,9 +519,15 @@ function scrChat(){
   const mfi=$("input",{type:"file",multiple:"",style:"display:none"});
   mfi.addEventListener("change",e=>{ addFiles([...e.target.files]); e.target.value=""; });
   const attachChip=$("label",{class:"chip",title:DATA.file_note},["📎 파일 첨부",mfi]);
+  // PART 2 — search ON/OFF toggle: OFF ⇒ backend never exposes a search tool (0 search); ON ⇒ available but
+  // used only when needed (LLM-judged). State lifted in S, sent as `searchAllowed` on each request.
+  const searchChip=$("button",{class:"chip"+(S.searchAllowed?" on":""),
+    title:"검색 도구 토글 — 꺼짐: 검색 안 함(자체 지식). 켜짐: 필요할 때만 검색(최신·모르는 것).",
+    onclick:()=>{S.searchAllowed=!S.searchAllowed;render();}}, "🔍 검색: "+(S.searchAllowed?"켜짐":"꺼짐"));
   const toolrow=$("div",{class:"toolrow"},[
     $("button",{class:"chip"+(S.settingsOpen?" on":""),onclick:()=>{S.settingsOpen=!S.settingsOpen;render();}},"⚿ "+provName+(S.provider&&S.key?" · 키 입력됨":"")),
     attachChip,
+    searchChip,
     $("span",{class:"v-sub",style:"margin:0 4px"},"·"),
     ...modeChips,
   ]);
@@ -530,6 +536,7 @@ function scrChat(){
     $("button",{class:"ghost",style:"padding:0 6px;margin-left:4px",onclick:()=>{S.files.splice(i,1);render();}},"✕")])));
   const composer=$("div",{class:"composer"},[
     toolrow,
+    S.searchAllowed?$("div",{class:"v-sub",style:"margin-top:5px"},"검색 켜짐 — 필요할 때만 검색합니다 (아는 건 그냥 답변)"):null,
     (S.files||[]).length?fileChips:null,
     S.settingsOpen?settingsPanel():null,
     $("div",{class:"cbox"},[ta, sendBtn]),
