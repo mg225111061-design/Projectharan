@@ -6521,6 +6521,8 @@ def test_bj_structures_dispatch_languages():
     assert STRUCT.recognize("for i in r: s = s + i").kind == "sum_loop"           # ★ §BP-5: non-augmented Σ (s=s+i), was raw
     assert STRUCT.recognize("for i in r: s = s + i*i").kind == "poly_sum"         # ★ §BP-5: non-augmented Σk^d (s=s+i*i)
     assert STRUCT.recognize("for i in r: z = x + y").kind == "raw"                # ★ no var-reuse ⇒ not a false accumulation
+    assert STRUCT.recognize("for i in r: s = i + s").kind == "sum_loop"           # ★ §BP-6: operand-reversed Σ (s=i+s)
+    assert STRUCT.recognize("for i in r: s = i*i + s").kind == "poly_sum"         # ★ §BP-6: operand-reversed Σk^d
 
     # ── (B) the dispatcher REACHES the engines, every disposition gated ──
     da = DISP.adversarial_battery()
