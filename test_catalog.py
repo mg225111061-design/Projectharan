@@ -5959,6 +5959,113 @@ def test_engine_loop_a_extract_ledger():
           "DECLINEs at the extractor, no false fold manufactured)")
 
 
+def test_cap1_morales_ramis_nonintegrable():
+    """§AZ CAP-1 — Morales-Ramis: PROVE Hamiltonian non-integrability via the normal variational equation (NEW decision
+    branch in mathmode/lagrangian.py, composes the EXISTING Kovacic decision — repo-first, 0 re-implementation; fold-rate
+    impact 0 — capability ledger). ★ PROVEN-DECLINE: the Airy NVE y″−xy=0 has no Liouvillian solution (Kovacic case 4 ⇒
+    Galois SL₂(ℂ), G⁰ non-abelian) ⇒ theorem-backed NON-INTEGRABLE. ★★ no-overclaim controls: a Liouvillian NVE (y″−y=0)
+    ⇒ UNDECIDED (never 'non-integrable'); a non-invariant potential (V=x²y, V_y(x,0)≠0) ⇒ OUT_OF_SCOPE. ∀-content = the
+    Morales-Ramis theorem on an EXACT NVE + EXACT Kovacic case-4; NO z3 ∀-n claim."""
+    import sympy as sp
+    import kernel_verdict as KV
+    from mathmode import lagrangian as L
+    x = sp.Symbol("x")
+    proven = L.morales_ramis_from_nve([-x, 0, 1], x)                 # Airy NVE — canonical non-Liouvillian/SL₂
+    assert proven.status == KV.DECLINE and "PROVEN NON-INTEGRABLE" in (proven.reason or "")
+    assert "Morales-Ramis" in (proven.reason or "")                 # theorem-backed (named in the reason, repo idiom)
+    undec = L.morales_ramis_from_nve([-1, 0, 1], x)                  # y″−y=0 (exp) — Liouvillian ⇒ MUST NOT overclaim
+    assert undec.status == KV.DECLINE and "UNDECIDED" in (undec.reason or "")
+    assert "PROVEN" not in (undec.reason or "")                     # ★ the false-PROVEN guard (analog of false-EXACT)
+    oos = L.morales_ramis_nonintegrable("x**2*y")                   # y=0 not invariant ⇒ reduction invalid
+    assert oos.status == KV.DECLINE and "OUT_OF_SCOPE" in (oos.reason or "")
+    print("PASS test_cap1_morales_ramis_nonintegrable (§AZ CAP-1: Airy NVE ⇒ ★PROVEN Hamiltonian NON-INTEGRABLE "
+          "[Morales-Ramis, Kovacic case-4 reused]; Liouvillian NVE ⇒ UNDECIDED [no overclaim]; non-invariant V ⇒ "
+          "OUT_OF_SCOPE — capability ledger, fold-rate impact 0)")
+
+
+def test_cap2_darboux_first_integral():
+    """§AZ CAP-2 — Darboux/Prelle-Singer: DECIDE a polynomial first integral of dy/dx=P/Q (NEW branch in
+    mathmode/decision_integration, orthogonal to Risch/Kovacic; nullspace search + exact symbolic X(H)≡0 certificate;
+    fold-rate impact 0). ★ YES: the harmonic field (P=−x,Q=y) has first integral H=x²+y² (X(H)=0 verified). ★ PROVEN
+    bounded DECLINE: the node x′=x,y′=2y (P=2y,Q=x) has NO non-constant polynomial first integral of any degree."""
+    import kernel_verdict as KV
+    from mathmode import decision_integration as DI
+    yes = DI.darboux_first_integral("-x", "y", d=2)
+    assert yes.status == KV.EXACT and yes.certificate is not None    # H found, X(H)=0 verified symbolically
+    dec = DI.darboux_first_integral("2*y", "x", d=4)
+    assert dec.status == KV.DECLINE and "PROVEN" in (dec.reason or "")
+    print("PASS test_cap2_darboux_first_integral (§AZ CAP-2: harmonic field ⇒ first integral x²+y² [X(H)=0 verified]; "
+          "node x′=x,y′=2y ⇒ ★PROVEN bounded DECLINE [no polynomial first integral] — DECLINE-justification for ODEs)")
+
+
+def test_cap4_sylvester_solvable():
+    """§AZ CAP-4 — Sylvester AX+XB=C unique solvability via spectral separation (NEW branch in mathmode/linear_algebra,
+    self-impl resultant = Bareiss-det of the Sylvester matrix + Faddeev–LeVerrier charpoly + Kronecker solve; exact ℚ,
+    no z3; fold-rate impact 0). ★ YES: spec(A)∩spec(−B)=∅ ⇒ Res(χ_A,χ_{−B})≠0 ⇒ unique X recovered + AX+XB=C verified.
+    ★ PROVEN-DECLINE: spectra overlap ⇒ Res=0 ⇒ NO unique solution."""
+    import kernel_verdict as KV
+    from mathmode import linear_algebra as LA
+    yes = LA.sylvester_solvable([[1, 0], [0, 2]], [[3, 0], [0, 4]], [[1, 2], [3, 4]])  # {1,2} ∩ {−3,−4} = ∅
+    assert yes.status == KV.EXACT and yes.certificate is not None     # X found + AX+XB=C re-substitution verified
+    dec = LA.sylvester_solvable([[1, 0], [0, 2]], [[-1, 0], [0, 5]], [[1, 2], [3, 4]])  # −B has eigenvalue 1 ∈ spec(A)
+    assert dec.status == KV.DECLINE and "PROVEN no unique solution" in (dec.reason or "")
+    print("PASS test_cap4_sylvester_solvable (§AZ CAP-4: spectral-separation unique-solvability — Res≠0 ⇒ exact X "
+          "[AX+XB=C verified]; Res=0 ⇒ ★PROVEN no unique solution; eigenvalues never computed)")
+
+
+def test_cap5_frobenius_similarity():
+    """§AZ CAP-5 — ℚ-similarity via Frobenius invariant factors of xI−A (determinantal divisors; NEW branch in
+    linear_algebra; fold-rate impact 0). ★ Stays in ℚ[x] ⇒ bypasses the degree≥5 eigenvalue wall. ★ YES: same
+    invariant factors ⇒ A∼B. ★ PROVEN A≁B: (x−2)² vs two (x−2) blocks (same char poly, different invariant factors)."""
+    import kernel_verdict as KV
+    from mathmode import linear_algebra as LA
+    sim = LA.similar_decide([[0, -1], [1, 0]], [[0, 1], [-1, 0]])     # both minimal poly x²+1 ⇒ similar
+    assert sim.status == KV.EXACT and sim.result["similar"] is True
+    nsim = LA.similar_decide([[2, 1], [0, 2]], [[2, 0], [0, 2]])      # Jordan block vs 2·I — same χ, NOT similar
+    assert nsim.status == KV.DECLINE and "A≁B" in (nsim.reason or "")
+    deg5 = LA.similar_decide([[0, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0]],
+                             [[0, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0]])
+    assert deg5.status == KV.EXACT                                   # ★ degree-5 (irreducible quintic) decided over ℚ[x]
+    print("PASS test_cap5_frobenius_similarity (§AZ CAP-5: Frobenius invariant factors decide ℚ-similarity — similar ✓; "
+          "★PROVEN A≁B [different invariant factors, same χ]; ★degree-5 spectrum decided in ℚ[x] — the eigenvalue-wall bypass)")
+
+
+def test_cap6_jordan_weyr_structure():
+    """§AZ CAP-6 — exact Jordan/Weyr block sizes at ℚ-rational eigenvalues via the nullity sequence of (A−λI)^k (NEW
+    branch in linear_algebra; exact ℚ rank; fold-rate impact 0). ★ YES: a 2-block+1-block matrix ⇒ sizes [2,1]; 2·I ⇒
+    [1,1,1]. ★ DECLINE: non-ℚ-rational eigenvalues (±i) ⇒ honest 'extension needed' (no overclaim)."""
+    import kernel_verdict as KV
+    from mathmode import linear_algebra as LA
+    j1 = LA.jordan_structure([[2, 1, 0], [0, 2, 0], [0, 0, 2]])
+    assert j1.status == KV.EXACT and j1.result["jordan_blocks"]["2"] == [2, 1]
+    j2 = LA.jordan_structure([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    assert j2.status == KV.EXACT and j2.result["jordan_blocks"]["2"] == [1, 1, 1]
+    j3 = LA.jordan_structure([[0, -1], [1, 0]])                      # eigenvalues ±i — non-ℚ-rational
+    assert j3.status == KV.DECLINE and "extension needed" in (j3.reason or "")
+    print("PASS test_cap6_jordan_weyr_structure (§AZ CAP-6: exact Jordan blocks from the nullity sequence — [2,1] and "
+          "[1,1,1]; non-ℚ-rational spectrum ⇒ honest extension-needed DECLINE)")
+
+
+def test_cap7_algebraic_generating_function():
+    """§AZ CAP-7 — algebraic generating function ⇒ transcendence (NEW branch in mathmode/holonomic; exact ℚ truncated
+    series + held-out replay certificate; sympy nullspace = search only; fold-rate impact 0). ★ YES: the Catalan OGF is
+    algebraic (recovers zC²−C+1=0, held-out-verified). ★ PROVEN-DECLINE (bounded): the exp OGF Σz^k/k! has NO algebraic
+    relation of bounded bidegree ⇒ bounded transcendence certificate."""
+    from fractions import Fraction as Fr
+    import math
+    import kernel_verdict as KV
+    from mathmode import holonomic as H
+    cat = [1, 1, 2, 5, 14, 42, 132, 429, 1430, 4862, 16796, 58786, 208012, 742900, 2674440, 9694845]
+    alg = H.algebraic_generating_function(cat, dz=1, dy=2)
+    assert alg.status == KV.EXACT and alg.certificate is not None and "F^2" in alg.result["relation"]
+    geo = H.algebraic_generating_function([1] * 14, dz=1, dy=1)      # 1/(1−z) — algebraic degree 1
+    assert geo.status == KV.EXACT
+    exp = H.algebraic_generating_function([Fr(1, math.factorial(k)) for k in range(18)], dz=2, dy=2)
+    assert exp.status == KV.DECLINE and "TRANSCENDENCE" in (exp.reason or "")
+    print("PASS test_cap7_algebraic_generating_function (§AZ CAP-7: Catalan OGF ⇒ ALGEBRAIC [zC²−C+1=0, held-out "
+          "replay]; exp OGF ⇒ ★bounded TRANSCENDENCE certificate — no false EXACT from more terms)")
+
+
 def test_engine_loop_d_hygiene():
     """§3 ENGINE Loop D (cycle 5) — HYGIENE self-audit of the engine/ package the autonomous loop authors (drift guard).
     ★ H1 zero-dep (no blacklisted external heavy dep — pyzx/cadabra/torch/scipy/...; only z3+stdlib+numpy+grandfathered

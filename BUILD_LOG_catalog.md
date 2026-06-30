@@ -2211,3 +2211,42 @@ Pfaffian·FF-3 Bogoliubov·FF-2 Peschel·FF-4 JW·CV-1 심플렉틱) + 6 인식 
 14/22 불변. EXACT는 두 섬(Clifford 𝔽₂ ∧ 자유페르미온/가우시안) 안에서만, 경계는 전부 이름붙은 정리로 DECLINE(상호
 작용=Wick·2D PEPS=#P-hard·비가우시안=Hudson·고treewidth=Markov-Shi·mixing=연속스펙트럼). Zeilberger 재사용(재구현 0,
 §5.5)·zero-dep self-impl(pyzx/cadabra 부재)·금지 bigram 부재·새 메커니즘/증명서 종류 0.
+
+## §AZ — math-mode CAPABILITY LEDGER expansion (decision/proof power; ★fold-rate impact 0, capability ≠ fold-rate)
+**Identity (nailed first):** this widens the class of math structures JEFF can DECIDE / PROVE / normalize — it does NOT
+raise the fold rate (the corpus fixes that; the engine is at a measured plateau, unchanged). Every item below has
+**fold-rate impact 0**; the deliverable is the capability ledger, not a corpus number. ★ Highest value = the completion
+of HONEST_DEFER: turning UNKNOWN/timeout DECLINEs into **theorem-backed PROVEN DECLINEs** (precision 1.0 preserved). All
+entries are NEW decision branches in EXISTING math-mode modules (0 new files; **14/22 mechanism count UNCHANGED**;
+zero-dep self-impl; repo-first — §B re-submissions NOT rebuilt, confirmed by diff).
+
+BUILT (6/8) — each with a decision-YES test AND a PROVEN-DECLINE/boundary test:
+- **CAP-1 Morales-Ramis** (`lagrangian.morales_ramis_nonintegrable`/`_from_nve`) — PROVE Hamiltonian NON-integrability:
+  build the normal variational equation along the y=0 invariant line (energy reduction, exact ℚ(x)) → REUSE the existing
+  `decision_integration.kovacic_liouvillian` (repo-first, 0 re-impl) → Kovacic case-4 (no Liouvillian sol ⇒ Galois SL₂,
+  G⁰ non-abelian) ⇒ ★PROVEN NON-INTEGRABLE. Liouvillian ⇒ UNDECIDED (necessary condition — "integrable" NEVER claimed).
+- **CAP-2 Darboux/Prelle-Singer** (`decision_integration.darboux_first_integral`) — DECIDE a polynomial first integral of
+  dy/dx=P/Q (X(H)=Q·H_x+P·H_y≡0) up to degree d; EXACT (H found, X(H)≡0 verified) or ★PROVEN bounded DECLINE.
+- **CAP-4 Sylvester** (`linear_algebra.sylvester_solvable`) — unique solvability of AX+XB=C via Res(χ_A,χ_{−B}) (self-impl
+  resultant = Bareiss-det of the Sylvester matrix; eigenvalues never computed); EXACT (Kronecker solve + AX+XB=C
+  re-substitution) or ★PROVEN no-unique-solution (Res=0, spectra overlap).
+- **CAP-5 Frobenius ℚ-similarity** (`linear_algebra.similar_decide`) — invariant factors of xI−A via determinantal
+  divisors (ℚ[x]); ★bypasses the degree≥5 eigenvalue wall (stays in ℚ[x]); EXACT similar / ★PROVEN A≁B.
+- **CAP-6 Jordan/Weyr** (`linear_algebra.jordan_structure`) — exact block sizes at ℚ-rational eigenvalues from the
+  nullity sequence of (A−λI)^k; non-ℚ-rational spectrum ⇒ honest extension-needed DECLINE.
+- **CAP-7 algebraic GF/transcendence** (`holonomic.algebraic_generating_function`) — DECIDE algebraicity of an OGF by a
+  bounded bidegree ansatz P(z,F)=0 (held-out replay certificate); EXACT (e.g. Catalan zC²−C+1=0) or ★bounded
+  TRANSCENDENCE certificate (e.g. exp Σz^k/k!).
+
+DEFERRED (2/8) — HONEST, soundness-critical (precision 1.0 forbids shipping an unverified decision; the directive itself
+permits UNKNOWN/OUT_OF_SCOPE for CAP-3):
+- **CAP-3 order≥3 differential-Galois reducibility** (eigenring) — a sound "PROVEN non-Liouvillian" for order≥3 needs
+  full Ore-operator eigenring + irreducibility machinery with real false-EXACT risk; deferred rather than overclaim.
+- **CAP-8 Chyzak multivariate creative telescoping** — multivariate Ore-Gröbner telescoper discovery is heavy and
+  error-prone; the existing single-index `telescoping.zeilberger` already covers the verified one-index case.
+
+REJECTED (§4, code change 0; confirmed not rebuilt by diff): document-14's 5 re-submissions — Kovacic(order 2),
+Petkovšek, q-Zeilberger, Smith(ℤ), Sturm are ALL already implemented; CAP-1 REUSES kovacic_liouvillian, CAP-5 is the
+NET-NEW ℚ[x]/similarity generalization (not the ℤ Smith). Verifier truth: every cert is exact ℚ/ℚ[x]/symbolic +
+held-out — NO "z3 proves ∀-n". Gates: test_build 273, test_catalog 223→229 (+6 CAP tests), corpus EXACT 660 invariant
+(the new branches are NOT imported by the corpus engine — pure capability addition).

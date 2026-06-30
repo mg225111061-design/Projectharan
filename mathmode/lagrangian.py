@@ -81,11 +81,69 @@ def lie_point_symmetry(f: sp.Expr, xi: sp.Expr, eta: sp.Expr, x: sp.Symbol, y: s
     return KV.exact(is_sym, "lagrangian.lie_point_symmetry", "DECISION (Lie point symmetry of a 1st-order ODE)", cert)
 
 
+# ── CAP-1 (§AZ): Morales-Ramis — PROVE Hamiltonian NON-integrability via the normal variational equation ──────────
+# Capability ledger, NOT a fold-rate item (fold-rate impact: 0). Composes the EXISTING Kovacic decision
+# (decision_integration.kovacic_liouvillian) — repo-first, 0 re-implementation. ∀-content = the Morales-Ramis theorem
+# applied to an EXACT (symbolic, polynomial) NVE + the EXACT Kovacic case-4 classification; NO z3 ∀-n claim (verifier
+# truth §0). ★ Highest value = completing HONEST_DEFER: an UNKNOWN integrability question becomes a *theorem-backed*
+# PROVEN-NON-INTEGRABLE decline. Necessary condition only ⇒ "integrable" is NEVER asserted.
+def _nve_coeffs_along_axis(V: sp.Expr, x: sp.Symbol, y: sp.Symbol, h: sp.Expr):
+    """Normal variational equation coeffs [a0,a1,a2] (∈ ℚ(x)) for the transverse coordinate along the invariant line
+    y=0 of H=½(pₓ²+p_y²)+V, parametrised by the energy variable x: 2(h−U)·Y″ − U′·Y′ + V_yy(x,0)·Y = 0, U=V(x,0).
+    Requires y=0 invariant (V_y(x,0)≡0). Returns (coeffs, None) or (None, reason)."""
+    Vy0 = sp.simplify(sp.diff(V, y).subs(y, 0))
+    if Vy0 != 0:
+        return None, f"y=0 is NOT an invariant line: V_y(x,0) = {sp.sstr(Vy0)} ≢ 0 (energy reduction invalid)"
+    U = sp.simplify(V.subs(y, 0))                              # potential restricted to the invariant line
+    a2 = sp.simplify(2 * (h - U))
+    if a2 == 0:
+        return None, "2(h−U) ≡ 0 (degenerate: no transverse dynamics along this line)"
+    a1 = sp.simplify(-sp.diff(U, x))
+    a0 = sp.simplify(sp.diff(V, y, 2).subs(y, 0))
+    return [a0, a1, a2], None
+
+
+def morales_ramis_from_nve(coeffs, x: sp.Symbol = None) -> KV.Verdict:
+    """Apply the Morales-Ramis decision to a GIVEN normal variational equation a₂Y″+a₁Y′+a₀Y=0 (coeffs=[a0,a1,a2]).
+    PROVEN NON-INTEGRABLE iff the NVE has NO Liouvillian solution (Kovacic case 4 ⇒ Galois group SL₂(ℂ), identity
+    component non-abelian); else UNDECIDED (necessary condition gives no conclusion — never 'integrable')."""
+    x = x or sp.Symbol("x")
+    from mathmode import decision_integration as DI
+    kov = DI.kovacic_liouvillian(coeffs, x)                    # ★ REUSE the existing certified Kovacic decision
+    if kov.status == KV.EXACT:
+        return KV.decline("morales_ramis: UNDECIDED — the NVE is Liouvillian (Kovacic case 1–3); the Morales-Ramis "
+                          "necessary condition gives NO conclusion (G⁰ may be abelian). Integrability neither proven "
+                          "nor refuted (higher-order variational equations would be needed). No overclaim.", "lagrangian")
+    if "NO Liouvillian solution" in (kov.reason or ""):        # the *proven* case-4 decline (not a dsolve failure)
+        return KV.decline("morales_ramis: ★PROVEN NON-INTEGRABLE — the normal variational equation has NO Liouvillian "
+                          "solution (Kovacic case 4 ⇒ differential Galois group SL₂(ℂ), identity component non-abelian); "
+                          "by Morales-Ramis the Hamiltonian has NO complete set of meromorphic first integrals in "
+                          "involution ⇒ Liouville-NON-INTEGRABLE (theorem-backed PROVEN DECLINE, not a timeout).", "lagrangian")
+    return KV.decline(f"morales_ramis: UNDECIDED — could not classify the NVE's Liouvillian solvability "
+                      f"({(kov.reason or '')[:70]}) ⇒ no conclusion (no overclaim).", "lagrangian")
+
+
+def morales_ramis_nonintegrable(V, x: sp.Symbol = None, y: sp.Symbol = None, h=0) -> KV.Verdict:
+    """DECIDE non-integrability of H=½(pₓ²+p_y²)+V(x,y) via the Morales-Ramis test along the invariant line y=0.
+    PROVEN NON-INTEGRABLE / UNDECIDED / OUT_OF_SCOPE (y=0 not invariant). fold-rate impact: 0 (capability ledger)."""
+    x = x or sp.Symbol("x")
+    y = y or sp.Symbol("y")
+    V = sp.sympify(V, locals={"x": x, "y": y})
+    h = sp.sympify(h, locals={"x": x})
+    coeffs, reason = _nve_coeffs_along_axis(V, x, y, h)
+    if coeffs is None:
+        return KV.decline(f"morales_ramis: OUT_OF_SCOPE — {reason}", "lagrangian")
+    return morales_ramis_from_nve(coeffs, x)
+
+
 def solve(problem: dict) -> KV.Verdict:
-    """ops: 'euler_lagrange'/'energy' (L string in q(t),q'(t)); 'poisson' (canonical); 'lie' (f,xi,eta)."""
+    """ops: 'euler_lagrange'/'energy' (L string in q(t),q'(t)); 'poisson' (canonical); 'lie' (f,xi,eta);
+    'morales_ramis' (V in x,y; optional h) — PROVE non-integrability via the NVE (CAP-1)."""
     op = problem.get("op")
     t = sp.Symbol("t")
     q = sp.Function("q")
+    if op == "morales_ramis":
+        return morales_ramis_nonintegrable(problem["V"], h=problem.get("h", 0))
     if op in ("euler_lagrange", "energy"):
         L = sp.sympify(problem["L"], locals={"q": q, "t": t})
         return euler_lagrange(L, q, t) if op == "euler_lagrange" else energy_conservation(L, q, t)

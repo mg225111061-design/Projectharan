@@ -84,11 +84,45 @@ def kovacic_liouvillian(coeffs: List, x: sp.Symbol = None) -> KV.Verdict:
     return KV.exact(rhs, "decision_integration.kovacic", "DECISION (Liouvillian ODE solution)", cert)
 
 
+def darboux_first_integral(P, Q, x: sp.Symbol = None, y: sp.Symbol = None, d: int = 3) -> KV.Verdict:
+    """CAP-2 (§AZ): DECIDE a POLYNOMIAL first integral of the planar ODE dy/dx = P/Q (vector field X = Q·∂_x + P·∂_y,
+    P,Q ∈ ℚ[x,y]) up to degree d — i.e. a NON-constant H with X(H)=Q·H_x+P·H_y ≡ 0 (a Darboux polynomial of cofactor 0,
+    the Prelle-Singer/Darboux core). EXACT (H found, X(H)≡0 verified symbolically) or ★PROVEN DECLINE (bounded): no
+    non-constant polynomial first integral of degree ≤ d. Capability ledger — fold-rate impact 0. Orthogonal to Risch
+    (#16, integration) and Kovacic (2nd-order ODEs)."""
+    x = x or _x
+    y = y or sp.Symbol("y")
+    P = sp.sympify(P, locals={"x": x, "y": y})
+    Q = sp.sympify(Q, locals={"x": x, "y": y})
+    monoms = [(i, j) for total in range(d + 1) for i in range(total + 1) for j in [total - i]]
+    coeffs = sp.symbols(f"c0:{len(monoms)}")
+    H = sum(coeffs[k] * x ** i * y ** j for k, (i, j) in enumerate(monoms))
+    XH = sp.expand(Q * sp.diff(H, x) + P * sp.diff(H, y))       # X(H); a polynomial in x,y, linear in the c's
+    poly = sp.Poly(XH, x, y)
+    rows = [[eq.coeff(c) for c in coeffs] for eq in poly.coeffs()]  # each monomial-coefficient ≡ 0 ⇒ linear system
+    M = sp.Matrix(rows) if rows else sp.zeros(1, len(coeffs))
+    ns = M.nullspace()                                         # SEARCH; the symbolic X(H)≡0 below CERTIFIES
+    const_idx = monoms.index((0, 0))
+    for vec in ns:
+        if any(vec[k] != 0 for k in range(len(monoms)) if k != const_idx):    # a NON-constant first integral
+            Hsol = sp.expand(sum(vec[k] * x ** i * y ** j for k, (i, j) in enumerate(monoms)))
+            if sp.expand(Q * sp.diff(Hsol, x) + P * sp.diff(Hsol, y)) != 0:    # ★ certificate: X(H) ≡ 0 (exact)
+                continue
+            cert = KV.Cert(KV.EXACT, "first_integral_invariance", passed=True, check_cost="Q·H_x+P·H_y ≡ 0 (exact)",
+                           detail=f"polynomial first integral H = {sp.sstr(Hsol)} of dy/dx=P/Q; X(H)=0 verified")
+            return KV.exact(Hsol, "decision_integration.darboux", "DECISION (polynomial first integral)", cert)
+    return KV.decline(f"darboux: NO non-constant polynomial first integral of degree ≤{d} for X=Q∂_x+P∂_y ⇒ ★PROVEN "
+                      f"DECLINE (bounded; Prelle-Singer/Darboux — raise d to extend; a rational/elementary first "
+                      f"integral may still exist at higher Darboux degree).", "decision_integration")
+
+
 def solve(problem: dict) -> KV.Verdict:
-    """ops: 'risch' (f), 'kovacic' (coeffs=[a0,a1,a2]). DECLINE otherwise."""
+    """ops: 'risch' (f), 'kovacic' (coeffs=[a0,a1,a2]), 'darboux' (P,Q[,d]) — CAP-2. DECLINE otherwise."""
     op = problem.get("op")
     if op == "risch":
         return risch_elementary(problem["f"])
     if op == "kovacic":
         return kovacic_liouvillian(problem["coeffs"])
+    if op == "darboux":
+        return darboux_first_integral(problem["P"], problem["Q"], d=problem.get("d", 3))
     return KV.decline(f"decision_integration: unknown op {op!r} ⇒ DECLINE", "decision_integration")

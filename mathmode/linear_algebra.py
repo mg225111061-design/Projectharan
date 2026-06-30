@@ -179,8 +179,205 @@ def eigen_grade(A) -> KV.Verdict:
     return KV.exact(pairs, "linear_algebra.eigen", "exact eigenpairs (sympy + verified)", cert)
 
 
+# ══ §AZ CAPABILITY LEDGER (fold-rate impact: 0) — new decision branches; exact ℚ, self-impl, repo-first ══════════
+def _charpoly(A: Mat) -> List[Fraction]:
+    """Characteristic polynomial of A as monic descending coeffs [1, c₁, …, cₙ] (det(sI−A)=sⁿ+c₁sⁿ⁻¹+⋯+cₙ), via
+    Faddeev–LeVerrier — exact over ℚ, reuses _matmul/_ident (self-impl, no z3, no sympy)."""
+    n = len(A)
+    M = [[Fraction(0)] * n for _ in range(n)]
+    coeffs = [Fraction(1)]
+    for k in range(1, n + 1):
+        Mk = [[M[i][j] + (coeffs[-1] if i == j else Fraction(0)) for j in range(n)] for i in range(n)]
+        M = _matmul(A, Mk)
+        tr = sum((M[i][i] for i in range(n)), Fraction(0))
+        coeffs.append(-tr / k)
+    return coeffs
+
+
+def _resultant(p: List[Fraction], q: List[Fraction]) -> Fraction:
+    """Resultant Res(p,q) = det of the Sylvester matrix (p,q monic-or-not descending coeffs) — fraction-free Bareiss
+    (self-impl). Res ≠ 0 ⟺ p,q share NO common root (no common factor over an algebraically closed field)."""
+    n, m = len(p) - 1, len(q) - 1
+    if n < 0 or m < 0:
+        return Fraction(0)
+    size = n + m
+    if size == 0:
+        return Fraction(1)
+    S = [[Fraction(0)] * size for _ in range(size)]
+    for i in range(m):                                         # m shifted rows of p
+        for j, c in enumerate(p):
+            S[i][i + j] = c
+    for i in range(n):                                         # n shifted rows of q
+        for j, c in enumerate(q):
+            S[m + i][i + j] = c
+    return _bareiss_det(S)
+
+
+def _rank(M: Mat) -> int:
+    """Exact rank over ℚ by Gaussian elimination (pivot count)."""
+    A = [row[:] for row in M]
+    rows, cols = len(A), len(A[0]) if A else 0
+    r = 0
+    for c in range(cols):
+        piv = next((i for i in range(r, rows) if A[i][c] != 0), None)
+        if piv is None:
+            continue
+        A[r], A[piv] = A[piv], A[r]
+        pv = A[r][c]
+        A[r] = [v / pv for v in A[r]]
+        for i in range(rows):
+            if i != r and A[i][c] != 0:
+                f = A[i][c]
+                A[i] = [a - f * b for a, b in zip(A[i], A[r])]
+        r += 1
+        if r == rows:
+            break
+    return r
+
+
+# ── CAP-4: Sylvester AX+XB=C unique solvability (spectral separation) ────────────────────────────────────────
+def sylvester_solvable(A, B, C=None) -> KV.Verdict:
+    """DECIDE unique solvability of AX+XB=C: unique ⟺ spec(A)∩spec(−B)=∅ ⟺ Res(χ_A, χ_{−B})≠0 (eigenvalues NEVER
+    computed). EXACT (Res≠0: solve via Kronecker (I⊗A+Bᵀ⊗I)vec(X)=vec(C), re-substitute AX+XB=C) or ★PROVEN DECLINE
+    (Res=0: spectra share a value ⇒ NO unique solution). fold-rate impact: 0 (capability ledger)."""
+    if not _is_square(A) or not _is_square(B):
+        return KV.decline("sylvester: A,B must be square ⇒ DECLINE", "linear_algebra.sylvester")
+    Af, Bf = _F(A), _F(B)
+    nB = len(Bf)
+    negB = [[-Bf[i][j] for j in range(nB)] for i in range(nB)]
+    res = _resultant(_charpoly(Af), _charpoly(negB))
+    if res == 0:
+        return KV.decline("sylvester: ★PROVEN no unique solution — Res(χ_A,χ_{−B})=0 ⇒ A and −B share an eigenvalue "
+                          "(spectra overlap, Sylvester/Roth); AX+XB=C is NOT uniquely solvable (existence is "
+                          "special-RHS dependent).", "linear_algebra.sylvester")
+    n, m = len(Af), nB
+    if C is None:                                              # decision-only (no RHS): unique solvability established
+        cert = KV.Cert(KV.EXACT, "sylvester_resultant_nonzero", passed=True, check_cost="Res(χ_A,χ_{−B})≠0 (Bareiss)",
+                       detail=f"Res(χ_A,χ_{{−B}}) = {res} ≠ 0 ⇒ spec(A)∩spec(−B)=∅ ⇒ unique solution for every C")
+        return KV.exact({"unique": True, "resultant": str(res)}, "linear_algebra.sylvester",
+                        "DECISION (Sylvester unique solvability)", cert)
+    Cf = _F(C)
+    # Kronecker: column-stacked vec(X); M[j*n+i][l*n+k] = δ_{jl}A[i][k] + B[l][j]δ_{ik}
+    N = n * m
+    Mk = [[Fraction(0)] * N for _ in range(N)]
+    for j in range(m):
+        for i in range(n):
+            for l in range(m):
+                for k in range(n):
+                    val = (Af[i][k] if j == l else Fraction(0)) + (Bf[l][j] if i == k else Fraction(0))
+                    if val != 0:
+                        Mk[j * n + i][l * n + k] = val
+    vecC = [[Cf[i][j]] for j in range(m) for i in range(n)]
+    sol = _rref_solve(Mk, vecC)
+    if sol is None:
+        return KV.decline("sylvester: Kronecker system singular despite Res≠0 (unexpected) ⇒ DECLINE", "linear_algebra.sylvester")
+    X = [[sol[j * n + i][0] for j in range(m)] for i in range(n)]
+    AX = _matmul(Af, X)
+    XB = _matmul(X, Bf)
+    if [[AX[i][j] + XB[i][j] for j in range(m)] for i in range(n)] != Cf:   # ★ re-substitution certificate
+        return KV.decline("sylvester: AX+XB ≠ C ⇒ DECLINE (rejected)", "linear_algebra.sylvester")
+    cert = KV.Cert(KV.EXACT, "sylvester_resubstitution", passed=True, check_cost="AX+XB−C ≡ 0 (exact)",
+                   detail=f"Res≠0 ⇒ unique; X recovered by Kronecker solve and AX+XB=C verified exactly over ℚ")
+    return KV.exact(X, "linear_algebra.sylvester", "DECISION (Sylvester unique solve)", cert)
+
+
+# ── CAP-5: Frobenius rational canonical form — ℚ-similarity (bypasses the degree≥5 eigenvalue wall) ──────────────
+def _invariant_factors_xI_minus(A) -> List:
+    """Invariant factors of xI−A as monic sympy polynomials in x, via determinantal divisors d_k = gcd of all k×k
+    minors (i_k = d_k/d_{k−1}). A complete ℚ-similarity invariant (structure theorem) — stays in ℚ[x], so it never
+    needs the eigenvalues (the degree≥5 bypass)."""
+    import sympy as sp
+    x = sp.Symbol("x")
+    n = len(A)
+    M = sp.Matrix(n, n, lambda i, j: (x if i == j else 0) - sp.Rational(Fraction(A[i][j])))
+    from itertools import combinations
+    dprev = sp.Integer(1)
+    inv = []
+    for k in range(1, n + 1):
+        g = sp.Integer(0)
+        for rows in combinations(range(n), k):
+            for cols in combinations(range(n), k):
+                minor = M.extract(list(rows), list(cols)).det()
+                g = sp.gcd(g, sp.expand(minor))
+        dk = sp.simplify(g)
+        if dk == 0:
+            return None                                        # should not happen for xI−A (det ≠ 0)
+        ik = sp.simplify(sp.cancel(dk / dprev))
+        inv.append(sp.Poly(ik, x).monic().as_expr())
+        dprev = dk
+    return [f for f in inv if sp.Poly(f, x).degree() > 0]       # drop the trivial 1's
+
+
+def similar_decide(A, B) -> KV.Verdict:
+    """DECIDE A∼B over ℚ via Frobenius invariant factors of xI−A, xI−B (same factors ⟺ similar). EXACT decision;
+    ★PROVEN A≁B (negative inference) when the invariant factors differ. Works for degree≥5 spectra (stays in ℚ[x]).
+    fold-rate impact: 0 (capability ledger)."""
+    if not _is_square(A) or not _is_square(B) or len(A) != len(B):
+        return KV.decline("similar: A,B must be square and same size ⇒ DECLINE", "linear_algebra.similar")
+    import sympy as sp
+    x = sp.Symbol("x")
+    try:
+        fa = _invariant_factors_xI_minus(A)
+        fb = _invariant_factors_xI_minus(B)
+    except Exception as e:  # noqa: BLE001
+        return KV.decline(f"similar: invariant-factor computation failed ({type(e).__name__}) ⇒ DECLINE", "linear_algebra.similar")
+    same = len(fa) == len(fb) and all(sp.expand(p - q) == 0 for p, q in zip(fa, fb))
+    fa_s = [sp.sstr(p) for p in fa]
+    if same:
+        cert = KV.Cert(KV.EXACT, "frobenius_invariant_factors", passed=True, check_cost="ℚ[x] determinantal divisors",
+                       detail=f"xI−A and xI−B share invariant factors {fa_s} ⇒ A∼B over ℚ (Frobenius; complete invariant)")
+        return KV.exact({"similar": True, "invariant_factors": fa_s}, "linear_algebra.similar",
+                        "DECISION (ℚ-similarity, Frobenius)", cert)
+    return KV.decline(f"similar: ★PROVEN A≁B over ℚ — invariant factors differ ({fa_s} vs {[sp.sstr(q) for q in fb]}); "
+                      "by Frobenius (a complete similarity invariant) the matrices are NOT similar.", "linear_algebra.similar")
+
+
+# ── CAP-6: exact Jordan/Weyr block structure at the ℚ-rational eigenvalues (nullity sequence) ────────────────────
+def jordan_structure(A) -> KV.Verdict:
+    """Exact Jordan block sizes per ℚ-RATIONAL eigenvalue from the nullity sequence of (A−λI)^k (#blocks of size ≥k
+    = rank(A−λI)^{k−1} − rank(A−λI)^k). EXACT over ℚ. Non-ℚ-rational eigenvalues are reported as 'extension needed'
+    (honest partial). fold-rate impact: 0 (capability ledger)."""
+    if not _is_square(A):
+        return KV.decline("jordan: A must be square ⇒ DECLINE", "linear_algebra.jordan")
+    import sympy as sp
+    x = sp.Symbol("x")
+    Af = _F(A)
+    n = len(Af)
+    cp = sum(c * x ** (n - i) for i, c in enumerate(_charpoly(Af)))
+    roots = sp.roots(sp.Poly(cp, x))                            # {root: algebraic multiplicity}
+    rational = {r: m for r, m in roots.items() if r.is_rational}
+    non_rational_mult = sum(m for r, m in roots.items() if not r.is_rational)
+    structure = {}
+    for lam, alg_mult in rational.items():
+        lamF = Fraction(int(sp.numer(lam)), int(sp.denom(lam)))
+        AmL = [[Af[i][j] - (lamF if i == j else Fraction(0)) for j in range(n)] for i in range(n)]
+        nul = [0]                                              # nullity of (A−λI)^0 = 0
+        P = _ident(n)
+        for k in range(1, alg_mult + 1):
+            P = _matmul(AmL, P)
+            nul.append(n - _rank(P))
+        blocks_ge = [nul[k] - nul[k - 1] for k in range(1, len(nul))]    # #blocks of size ≥ k
+        sizes = []
+        for k in range(1, len(blocks_ge)):
+            cnt = blocks_ge[k - 1] - blocks_ge[k]
+            sizes += [k] * cnt
+        sizes += [len(blocks_ge)] * blocks_ge[-1] if blocks_ge else []
+        if sum(sizes) != alg_mult:                             # consistency: Σ block sizes = algebraic multiplicity
+            return KV.decline(f"jordan: block sizes {sizes} ≠ algebraic multiplicity {alg_mult} for λ={lam} ⇒ DECLINE",
+                              "linear_algebra.jordan")
+        structure[sp.sstr(lam)] = sorted(sizes, reverse=True)
+    if non_rational_mult > 0 and not structure:
+        return KV.decline(f"jordan: all eigenvalues are non-ℚ-rational (irreducible factors, degree≥2) ⇒ field "
+                          f"extension needed ⇒ DECLINE (honest; ℚ-rational part empty)", "linear_algebra.jordan")
+    cert = KV.Cert(KV.EXACT, "jordan_nullity_sequence", passed=True, check_cost="exact ℚ rank of (A−λI)^k",
+                   detail=f"per-λ block sizes from nullity jumps; Σ sizes = alg. mult. (exact). {structure}"
+                          + (f" [non-ℚ-rational multiplicity {non_rational_mult} needs extension]" if non_rational_mult else ""))
+    return KV.exact({"jordan_blocks": structure, "non_rational_multiplicity": non_rational_mult},
+                    "linear_algebra.jordan", "DECISION (exact Jordan/Weyr at ℚ-eigenvalues)", cert)
+
+
 def solve(problem: dict) -> KV.Verdict:
-    """problem = {"op": "solve"|"inverse"|"det"|"eigen", ...}. Unknown op ⇒ honest DECLINE."""
+    """problem = {"op": "solve"|"inverse"|"det"|"eigen"|"sylvester"|"similar"|"jordan", ...}. Unknown op ⇒ DECLINE."""
     op = problem.get("op")
     if op == "solve":
         return solve_grade(problem["A"], problem["b"])
@@ -190,4 +387,10 @@ def solve(problem: dict) -> KV.Verdict:
         return det_grade(problem["A"])
     if op == "eigen":
         return eigen_grade(problem["A"])
+    if op == "sylvester":
+        return sylvester_solvable(problem["A"], problem["B"], problem.get("C"))
+    if op == "similar":
+        return similar_decide(problem["A"], problem["B"])
+    if op == "jordan":
+        return jordan_structure(problem["A"])
     return KV.decline(f"linear_algebra: unknown op {op!r} ⇒ DECLINE", "linear_algebra")

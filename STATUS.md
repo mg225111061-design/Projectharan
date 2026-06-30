@@ -32,6 +32,13 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 ## MATH mode (`mathmode/`, 22 modules)
 - Center: **`fold`** — recognize structure → closed form + co-generated certificate, or honest DECLINE.
 - **`broth`** — O(1) lookup over 3,772 proven entries (Gosper-grown hypergeometric family; ~0.09µs lookup).
+- **§AZ CAPABILITY LEDGER** (decision/proof power; ★fold-rate impact 0 — capability ≠ fold-rate; new decision branches
+  in EXISTING modules, 14/22 mechanism count UNCHANGED, 0 new files, zero-dep): **CAP-1** Morales-Ramis (PROVE
+  Hamiltonian non-integrability via the NVE + reused Kovacic) · **CAP-2** Darboux/Prelle-Singer polynomial first integral ·
+  **CAP-4** Sylvester AX+XB=C unique solvability (self-impl resultant) · **CAP-5** Frobenius ℚ-similarity (degree≥5
+  eigenvalue-wall bypass) · **CAP-6** exact Jordan/Weyr · **CAP-7** algebraic-GF/transcendence. Highest value = the
+  HONEST_DEFER completion — UNKNOWN/timeout DECLINEs become *theorem-backed PROVEN DECLINEs* (precision 1.0 preserved).
+  CAP-3 (order≥3 differential-Galois) and CAP-8 (multivariate Chyzak) DEFERRED — soundness-critical, not overclaimed.
 - Arsenal families: number_theory (egcd/modinv/CRT/modexp/Diophantine/primality/factorize/φ/discrete-log/√/Pell) ·
   combinatorics (Gosper, binomial, Catalan) · linear_algebra (solve/inverse/det/eigen) ·
   algebra (factor/gcd/roots/interpolate/partial-fractions/systems) · geometry · certified_numeric (Sturm/IVT/√/Monte-Carlo) ·

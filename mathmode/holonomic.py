@@ -243,9 +243,58 @@ def dfinite_diff(L_coeffs: dict, fn: sp.Expr, name: str = "") -> Dfinite:
     return Dfinite(alg, alg.op(L_coeffs), fn=fn, name=name)
 
 
+def algebraic_generating_function(terms, dz: int = 2, dy: int = 2) -> KV.Verdict:
+    """CAP-7 (§AZ): DECIDE whether the OGF F(z)=Σ aₖzᵏ of a rational sequence is ALGEBRAIC (∃ P∈ℚ[z,y]: P(z,F)=0) of
+    bounded bidegree (dz in z, dy in F), else a bounded TRANSCENDENCE certificate. Capability ledger — fold-rate impact
+    0; orthogonal to D-finite (algebraic ⊊ D-finite). EXACT iff a candidate P, fit on a window, ANNIHILATES F on a
+    STRICTLY LONGER held-out window (exact ℚ truncated-series ≡ 0) — the held-out replay is the certificate (sympy
+    nullspace is only the SEARCH). ★ PROVEN-DECLINE (bounded): no such P up to (dz,dy)."""
+    from fractions import Fraction as Fr
+    try:
+        a = [Fr(t) for t in terms]
+    except (ValueError, TypeError):
+        return KV.decline("algebraic_gf: non-rational series terms ⇒ DECLINE", "holonomic.algebraic_gf")
+    N = len(a)
+    U = (dz + 1) * (dy + 1)
+    fit = U + 2
+    if N < fit + 4:
+        return KV.decline(f"algebraic_gf: need ≥{fit + 4} terms for bidegree ({dz},{dy}); got {N} ⇒ DECLINE "
+                          "(insufficient evidence — never a fast EXACT)", "holonomic.algebraic_gf")
+    Fpow = [[Fr(1)] + [Fr(0)] * (N - 1)]                       # F^0 = 1
+    for _ in range(1, dy + 1):                                 # truncated convolution F^j = F^{j-1}·F
+        prev = Fpow[-1]
+        Fpow.append([sum((prev[t] * a[m - t] for t in range(m + 1)), Fr(0)) for m in range(N)])
+    cols, labels = [], []
+    for j in range(dy + 1):
+        for i in range(dz + 1):                                # column for monomial z^i·F^j: F^j shifted right by i
+            col = [Fr(0)] * N
+            for m in range(i, N):
+                col[m] = Fpow[j][m - i]
+            cols.append(col)
+            labels.append((i, j))
+    Mfit = sp.Matrix([[col[m] for col in cols] for m in range(fit)])
+    for vec in Mfit.nullspace():                               # SEARCH (sympy); the held-out replay below CERTIFIES
+        coeffs = [Fr(int(sp.numer(v)), int(sp.denom(v))) for v in vec]
+        if all(c == 0 for c in coeffs):
+            continue
+        if all(sum((coeffs[c] * cols[c][m] for c in range(len(cols))), Fr(0)) == 0 for m in range(fit, N)):
+            rel = " + ".join(f"({coeffs[c]})·z^{labels[c][0]}·F^{labels[c][1]}"
+                             for c in range(len(cols)) if coeffs[c] != 0)
+            cert = KV.Cert(KV.EXACT, "algebraic_gf_heldout", passed=True,
+                           check_cost=f"P(z,F) series ≡0 through z^{N - 1} (fit {fit}, held-out {N - fit})",
+                           detail=f"F is ALGEBRAIC: {rel} = 0 (held-out replay beyond the fit window)")
+            return KV.exact({"bidegree": [dz, dy], "relation": rel, "labels": labels},
+                            "holonomic.algebraic_gf", "DECISION (algebraic generating function)", cert)
+    return KV.decline(f"algebraic_gf: NO algebraic relation of bidegree ≤({dz},{dy}) annihilates F on {N} terms ⇒ "
+                      f"bounded TRANSCENDENCE certificate (not algebraic of this degree; may still be D-finite — defer "
+                      f"to the holonomic decision). Honest bounded DECLINE.", "holonomic.algebraic_gf")
+
+
 def solve(problem: dict) -> KV.Verdict:
     """ops: 'sum'/'product' on two differential witnesses (each {'L':coeffs,'fn':expr}); 'rehome' on a c-finite
-    or hypergeometric descriptor. Unknown ⇒ DECLINE."""
+    or hypergeometric descriptor; 'algebraic_gf' (terms, optional dz/dy) — CAP-7. Unknown ⇒ DECLINE."""
+    if problem.get("op") == "algebraic_gf":
+        return algebraic_generating_function(problem["terms"], problem.get("dz", 2), problem.get("dy", 2))
     op = problem.get("op")
     if op in ("sum", "product"):
         F = dfinite_diff(problem["F"]["L"], sp.sympify(problem["F"]["fn"]))
