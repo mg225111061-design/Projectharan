@@ -6655,6 +6655,58 @@ def test_bl_full_repo_gap_zero():
           "RF-1: REACH not a coverage multiplier, ~6.8% ceiling structural/unchanged, 0 new mechanism)")
 
 
+def test_bm_newengine_certificate_or_decline():
+    """§BM — 10-field new ENGINE branches (certificate-or-DECLINE; NO 15th mechanism). Each EXACT rides an
+    INDEPENDENTLY re-checked certificate, so a construction bug ⇒ failed cert ⇒ DECLINE (false-EXACT 0).
+    ★ Farkas (relax-dualize m04, Axis B) / Petri place-invariant (conservation m05) / Schreier-Sims BSGS
+    (complete-invariant m09) / Markov exact (m10) / Maxwell-Legendre (m05+m04) / Kalman rank (m09) / Burnside+
+    Hilbert (m10) / resultant (m09) / Kasteleyn Pfaffian (m05, ★→free-fermion) / Riccati residual (m03). Each
+    battery has a NEGATIVE control that DECLINEs. Decidable-only (Petri general reachability / submodular-max
+    excluded), preconditions verified first (Kasteleyn planarity, Riccati exact-ℚ). 0 new mechanism/disposer."""
+    from pathlib import Path
+    root = Path(__file__).parent
+
+    import newengine as NE
+    b = NE.adversarial_battery()
+    assert b["all_ok"], b["failed"]
+    assert b["engines"] == 10                                              # all 10 branches green
+
+    # ★ spot-check the certificate-or-DECLINE discipline per engine (EXACT carries cert; negative control DECLINEs)
+    from newengine import farkas, petri_invariant, schreier_sims, kasteleyn, riccati, resultant, kalman
+    assert farkas.verify_farkas_infeasible([[1], [-1]], [-1, -1], [1, 1]).status == "EXACT"
+    assert farkas.verify_farkas_infeasible([[1], [-1]], [-1, -1], [1, 0]).status == "DECLINE"   # bad y
+    assert petri_invariant.unreachable_cert([[-1], [1]], [1, 0], [1, 1]).status == "EXACT"      # token-sum invariant
+    assert petri_invariant.unreachable_cert([[-1], [1]], [1, 0], [0, 1]).status == "DECLINE"    # reachable ⇒ no false claim
+    assert schreier_sims.group_order([(1, 0, 2, 3), (1, 2, 3, 0)], 4).result["order"] == 24     # |S₄|
+    assert kalman.controllable([[0, 1], [0, 0]], [[0], [1]]).result["controllable"] is True
+    assert kasteleyn.pfaffian_partition([[0, 1], [-1, 0]]).status == "EXACT"                    # Pf²=det
+    assert kasteleyn.pfaffian_partition([[0, 1], [-1, 0]], planar=False).status == "DECLINE"    # ★ planarity precondition
+    assert riccati.verify_care([[0]], [[1]], [[1]], [[1]], [[1]]).status == "EXACT"             # residual 0
+    assert riccati.verify_care([[0]], [[1]], [[1]], [[1]], [[2]]).status == "DECLINE"           # ★ numeric-alone forbidden
+    assert resultant.resultant([2, -3, 1], [6, -5, 1]).result["share_common_factor"] is True
+
+    # ★ every EXACT verdict carries a passed certificate (the false-EXACT-0 spine)
+    import kernel_verdict as KV
+    for v in (farkas.verify_farkas_infeasible([[1], [-1]], [-1, -1], [1, 1]),
+              schreier_sims.group_order([(1, 2, 3, 0)], 4),
+              kasteleyn.pfaffian_partition([[0, 1], [-1, 0]])):
+        assert v.status == KV.EXACT and v.certificate is not None and v.certificate.passed
+
+    # ★ reachable from production (NEW-16) + 0 new mechanism / banned bigrams absent
+    from webapi import engine_dispatch as ED
+    assert ED.newengine_reach()["all_ok"]
+    idx = (root / "NEWENGINE_INDEX.md").read_text(encoding="utf-8")
+    assert "0 new mechanism" in idx and "certificate-or-DECLINE" in idx
+    for fn in ("newengine/farkas.py", "newengine/kasteleyn.py", "NEWENGINE_INDEX.md", "NEWENGINE_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bm_newengine_certificate_or_decline (§BM: 10 new ENGINE branches certificate-or-DECLINE — "
+          "Farkas/Petri/Schreier-Sims/Markov/thermo/Kalman/Burnside/resultant/Kasteleyn/Riccati, each EXACT rides a "
+          "re-checked cert [bad y/reachable/non-planar/wrong-P ⇒ DECLINE], <1ms certs, Axis A∥B; reuses exact-LP/"
+          "free-fermion/Gröbner/C-finite; NEW-16 reachable from production; 0 new mechanism/disposer, false-EXACT 0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

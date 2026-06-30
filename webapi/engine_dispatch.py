@@ -115,6 +115,18 @@ def pipeline_caches() -> dict:
     return {"caches": out, "all_live": all(out.values()), "live_count": sum(1 for v in out.values() if v)}
 
 
+def newengine_reach() -> dict:
+    """§BM NEW-16 — reach the 10 new certificate-or-DECLINE engine branches (Farkas/Petri/Schreier-Sims/Markov/
+    thermo/Kalman/Burnside/resultant/Kasteleyn/Riccati). Each is a recognition branch of an existing mechanism
+    (NO 15th) and every EXACT carries a re-checked certificate. Output rides the verdict ADT / recall-core grade."""
+    try:
+        import newengine as NE
+        b = NE.adversarial_battery()
+        return {"engines": b["engines"], "all_ok": b["all_ok"], "failed": b["failed"]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""
