@@ -295,6 +295,92 @@ def _dispatch_recurrence(src: str, lang: str) -> DispatchResult:
                           result=f"companion_nth(c={c},init={init},20)={val20}; lossless on n∈{list(checked)}", note=note)
 
 
+def _extract_geometric(src: str):
+    """Conservative AST template for a geometric product — a C-finite ORDER-1 recurrence in disguise:
+
+        def f(n):
+            acc = A0                  # int literal
+            for _ in range(n):        # range over the SINGLE parameter
+                acc *= C              # (or acc = acc*C / acc = C*acc) ; C an INT LITERAL
+            return acc
+
+    ⇒ a_n = A0·Cⁿ, i.e. cfinite c=[C], init=[A0]. Returns (C, A0) or None. A LOOP-VARIABLE multiplier
+    (acc *= i) is a factorial — NOT geometric, no elementary closed form — and returns None (caller DECLINEs)."""
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError):
+        return None
+    if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
+        return None
+    fn = tree.body[0]
+    a = fn.args
+    if (fn.decorator_list or a.vararg or a.kwarg or a.kwonlyargs or a.defaults
+            or a.kw_defaults or getattr(a, "posonlyargs", []) or len(a.args) != 1):
+        return None
+    param = a.args[0].arg
+    body = list(fn.body)
+    if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant) \
+            and isinstance(body[0].value.value, str):
+        body = body[1:]
+    if len(body) != 3:
+        return None
+    init_stmt, for_stmt, ret_stmt = body
+    if not (isinstance(init_stmt, ast.Assign) and len(init_stmt.targets) == 1
+            and isinstance(init_stmt.targets[0], ast.Name)):
+        return None
+    acc = init_stmt.targets[0].id
+    a0 = _int_const(init_stmt.value)
+    if a0 is None:
+        return None
+    if not (isinstance(for_stmt, ast.For) and isinstance(for_stmt.iter, ast.Call)
+            and isinstance(for_stmt.iter.func, ast.Name) and for_stmt.iter.func.id == "range"
+            and len(for_stmt.iter.args) == 1 and not for_stmt.iter.keywords
+            and isinstance(for_stmt.iter.args[0], ast.Name) and for_stmt.iter.args[0].id == param
+            and not for_stmt.orelse and len(for_stmt.body) == 1):
+        return None
+    st = for_stmt.body[0]
+    c = None
+    if isinstance(st, ast.AugAssign) and isinstance(st.op, ast.Mult) \
+            and isinstance(st.target, ast.Name) and st.target.id == acc:
+        c = _int_const(st.value)                                   # acc *= C
+    elif isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name) \
+            and st.targets[0].id == acc and isinstance(st.value, ast.BinOp) and isinstance(st.value.op, ast.Mult):
+        lhs, rhs = st.value.left, st.value.right                   # acc = acc*C  |  acc = C*acc
+        if isinstance(lhs, ast.Name) and lhs.id == acc:
+            c = _int_const(rhs)
+        elif isinstance(rhs, ast.Name) and rhs.id == acc:
+            c = _int_const(lhs)
+    if c is None:                                                  # multiplier not an int literal (loop var ⇒ factorial)
+        return None
+    if not (isinstance(ret_stmt, ast.Return) and isinstance(ret_stmt.value, ast.Name) and ret_stmt.value.id == acc):
+        return None
+    return (c, a0)
+
+
+def _dispatch_geometric(geo, lang: str) -> DispatchResult:
+    """geometric product acc*=C ⇒ a_n = A0·Cⁿ, solved as a C-finite ORDER-1 recurrence (companion_nth([C],[A0],·),
+    O(log n) power-by-squaring), verified lossless. Graded under the language integer model (none→EXACT,
+    wrap→EXACT mod 2^w, trap/ub/checked/f64→DECLINE since Cⁿ grows). REUSES cfinite — 0 new mechanism."""
+    import cfinite as CF
+    c, a0 = geo
+    C, init = [c], [a0]
+    ok, checked = CF.verify_cfinite(C, init, ns=(8, 16, 24))        # order-1: companion power ≡ naïve (A0·Cⁿ)
+    if not ok:
+        return DispatchResult("product_loop", ROUTE["product_loop"], True, "DECLINE", False, True,
+                              note="cfinite self-check failed (companion≢naïve)")
+    val20 = CF.companion_nth(C, init, 20)
+    m = LANG.model_for(lang)
+    if m.overflow == "none":
+        grade, sound, note = "EXACT", True, f"geometric: a_n = {a0}·{c}^n (C-finite order 1) ⇒ EXACT over ℤ"
+    elif m.overflow == "wrap":
+        wrapped = CF.companion_nth_mod(C, init, 20, 1 << m.width)
+        grade, sound, note = "EXACT", True, f"geometric mod 2^{m.width} (wrap-aware) ⇒ EXACT; sample≡{wrapped}"
+    else:                                                          # ub / trap / error / checked / f64
+        grade, sound, note = "DECLINE", False, f"{m.overflow}: {c}^n overflows fast ⇒ not a total fixed-width closed form ⇒ DECLINE"
+    return DispatchResult("product_loop", "C-finite order-1 (geometric Cⁿ)", True, grade, sound, gated=True,
+                          result=f"companion_nth([{c}],[{a0}],20)={val20} = {a0}·{c}^20; lossless on n∈{list(checked)}", note=note)
+
+
 def _dispatch_extract(kind: str, src: str) -> DispatchResult:
     """checksum/horner → the extract catalog (z3-reverified folds — the engine carries its own certificate)."""
     try:
@@ -318,9 +404,12 @@ def dispatch(src: str, lang: str = "python", n_bound: int = 10 ** 9) -> Dispatch
     cert); a `raw` (unrecognized) structure is an honest DECLINE, never a guess."""
     match = STRUCT.recognize(src, lang)
     if match.kind in ("sum_loop", "poly_sum", "product_loop"):
-        if match.kind == "product_loop":                            # product isn't a Σ closed form; route + honest defer
+        if match.kind == "product_loop":                            # ★ §BP-13: a CONSTANT multiplier ⇒ geometric Cⁿ (C-finite order-1)
+            geo = _extract_geometric(src)
+            if geo is not None:
+                return _dispatch_geometric(geo, lang)
             return DispatchResult("product_loop", ROUTE["product_loop"], True, "DECLINE", False, True,
-                                  note="product routed to fold engine; Σ-closed-form does not apply (factorial) ⇒ DECLINE")
+                                  note="product with non-constant (loop-variable) multiplier = factorial; no Σ-closed-form ⇒ DECLINE")
         return _dispatch_sum(match.kind, lang, n_bound, src)
     if match.kind == "linear_recurrence":
         return _dispatch_recurrence(src, lang)
@@ -365,6 +454,12 @@ def adversarial_battery() -> dict:
     pado = "def f(n):\n a, b, c = 1, 1, 1\n for _ in range(n): a, b, c = b, c, a + b\n return a"        # Padovan
     badshift = "def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = c, b, a + b + c\n return a"  # NOT a left-shift
     d_trib, d_pado, d_badshift = dispatch(trib, "python"), dispatch(pado, "python"), dispatch(badshift, "python")
+    # ★ §BP-13: geometric product acc*=C (constant) ⇒ C-finite order-1 (A0·Cⁿ); loop-variable multiplier (n!) stays DECLINE
+    geo2 = "def f(n):\n acc = 1\n for _ in range(n): acc *= 2\n return acc"          # 2ⁿ
+    geo3 = "def f(n):\n acc = 5\n for _ in range(n): acc = 3 * acc\n return acc"      # 5·3ⁿ (non-augmented)
+    fact = "def f(n):\n acc = 1\n for i in range(1, n+1): acc *= i\n return acc"      # n! ⇒ DECLINE
+    d_geo2, d_geo3, d_fact, d_geo2c = (dispatch(geo2, "python"), dispatch(geo3, "python"),
+                                       dispatch(fact, "python"), dispatch(geo2, "c"))
     # ★ §BP-10: the sum dispatcher now reports the closed form of the ACTUAL summand (extracted), not a hardcoded
     # linear form — Σi² and Σi³ get DEGREE-correct forms. Ground-truth each against the fold engine's own closed_form.
     import loop_decision as _LD
@@ -402,6 +497,11 @@ def adversarial_battery() -> dict:
         "tribonacci_exact_correct": d_trib.grade == "EXACT" and f"={_CF.naive_nth([1, 1, 1], [0, 0, 1], 20)}" in d_trib.result,
         "padovan_exact_correct": d_pado.grade == "EXACT" and f"={_CF.naive_nth([0, 1, 1], [1, 1, 1], 20)}" in d_pado.result,
         "non_leftshift_declines": d_badshift.grade == "DECLINE",        # ★ a rotation that isn't a left-shift ⇒ DECLINE
+        # ── §BP-13: geometric product folds to C-finite order-1; factorial (loop-var multiplier) stays DECLINE ──
+        "geometric_pow2_exact": d_geo2.grade == "EXACT" and f"={_CF.naive_nth([2], [1], 20)}" in d_geo2.result,
+        "geometric_nonaug_exact": d_geo3.grade == "EXACT" and f"={_CF.naive_nth([3], [5], 20)}" in d_geo3.result,
+        "factorial_declines": d_fact.grade == "DECLINE",                # ★ loop-variable multiplier = n! ⇒ no closed form
+        "geometric_c_declines": d_geo2c.grade == "DECLINE",             # ★ 2ⁿ overflows fixed width ⇒ DECLINE (lang gate)
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

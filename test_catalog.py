@@ -6546,6 +6546,10 @@ def test_bj_structures_dispatch_languages():
     trib = DISP.dispatch("def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = b, c, a + b + c\n return a", "python")
     assert trib.grade == "EXACT" and f"={_CF.naive_nth([1, 1, 1], [0, 0, 1], 20)}" in trib.result   # ★ Tribonacci(20), correct
     assert DISP.dispatch("def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = c, b, a + b + c\n return a", "python").grade == "DECLINE"  # ★ non-left-shift ⇒ DECLINE
+    # ★ §BP-13: geometric product acc*=C ⇒ C-finite order-1 (A0·Cⁿ); loop-variable multiplier (n!) stays DECLINE
+    geo = DISP.dispatch("def f(n):\n acc = 1\n for _ in range(n): acc *= 2\n return acc", "python")
+    assert geo.grade == "EXACT" and f"={_CF.naive_nth([2], [1], 20)}" in geo.result   # ★ 2²⁰, verified order-1
+    assert DISP.dispatch("def f(n):\n acc = 1\n for i in range(1, n+1): acc *= i\n return acc", "python").grade == "DECLINE"  # ★ n! ⇒ DECLINE
     sum_py = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "python")
     sum_c = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "c", n_bound=10 ** 9)
     assert "fold" in sum_py.engine and sum_py.grade == "EXACT" and sum_c.grade == "DECLINE"  # ★ same struct, lang gate

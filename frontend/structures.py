@@ -45,6 +45,9 @@ _SUM_ASSIGN = re.compile(r"(\w+)\s*=\s*\1\s*\+\s*\w+")                          
 _POLY_ASSIGN_R = re.compile(r"(\w+)\s*=\s*(\w+\s*\*\s*\w+|\w+\s*\*\*\s*\d+)\s*\+\s*\1")  # acc = i*i + acc
 _SUM_ASSIGN_R = re.compile(r"(\w+)\s*=\s*\w+\s*\+\s*\1(?!\w)")                     # acc = i + acc  (var reused at the END)
 _PRODUCT = re.compile(r"\w+\s*\*=\s*\w+")                                          # acc *= i
+# ★ §BP-13: non-augmented product accumulation — geometric when the multiplier is constant (acc=acc*C), factorial when it is the index
+_PRODUCT_ASSIGN = re.compile(r"(\w+)\s*=\s*\1\s*\*\s*\w+")                         # acc = acc * C
+_PRODUCT_ASSIGN_R = re.compile(r"(\w+)\s*=\s*\w+\s*\*\s*\1(?!\w)")                 # acc = C * acc
 _RECURRENCE = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*(\w+)\s*,\s*(\w+)\s*\+\s*(\w+)")  # a, b = b, a+b
 # ★ §BP-8: coefficient-bearing 2-term linear recurrence as a tuple-swap — a, b = b, <expr containing a> (Pell/Lucas/…)
 _RECURRENCE2 = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*\2\s*,\s*[^=\n;]*\b\1\b")        # x, y = y, p*y+q*x
@@ -117,6 +120,8 @@ def recognize(src: str, lang: str = "generic") -> StructMatch:
             return StructMatch("poly_sum", True, lang, note="Σ k^d polynomial sum")
         if _PRODUCT.search(src):
             return StructMatch("product_loop", True, lang, note="acc *= i product")
+        if _PRODUCT_ASSIGN.search(src) or _PRODUCT_ASSIGN_R.search(src):  # ★ §BP-13: acc = acc*C | C*acc (non-augmented)
+            return StructMatch("product_loop", True, lang, note="acc = acc*C product (non-augmented, either order)")
         if _SUM_LOOP.search(src):
             return StructMatch("sum_loop", True, lang, note="acc += i summation")
         if _POLY_ASSIGN.search(src) or _POLY_ASSIGN_R.search(src):        # ★ §BP-5/-6: acc = acc + i*i | i*i + acc
@@ -201,6 +206,8 @@ def adversarial_battery() -> dict:
         "swap_no_reuse_not_recurrence": recognize("a, b = b, c + d").kind != "linear_recurrence",  # ★ no reuse of a ⇒ not a recurrence
         # ★ §BP-11: 3-term left-shift rotation (Tribonacci a,b,c=b,c,a+b+c) recognized → reaches the order-3 C-finite tier
         "tribonacci_recognized": recognize("a, b, c = b, c, a + b + c").kind == "linear_recurrence",
+        # ★ §BP-13: non-augmented product acc = acc*C recognized as product_loop → geometric Cⁿ fold (constant) or factorial DECLINE
+        "geometric_product_recognized": recognize("def f(n):\n acc=1\n for _ in range(n): acc = acc*2\n return acc").kind == "product_loop",
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 
