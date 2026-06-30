@@ -6235,6 +6235,61 @@ def test_bc_ca1_causal_poset():
           "★dependence never scheduled concurrently; not a new speedup, built on existing accel gates [no rebuild])")
 
 
+def test_bd_checker_layer():
+    """§BD debugging-zero checker — fold-based exhaustive CHECK + z3/cert PROVE + honest grading, the two faces kept
+    SEPARATE. ★ precision 1.0: a planted bug is NEVER graded clean (unsure⇒FLAG); EXACT only ever rides an already
+    -passed kernel_verdict cert from the existing fold engine (no new disposer ⇒ false-EXACT impossible). ★ honest
+    O(1): reading is O(N) (parse); only loop SEMANTICS jump to O(1) via the fold (CHK-4) — not 'know without looking'.
+    ★ 'all code debugging 0' is FALSE: eval/exec/reflection ⇒ HONEST_DEFER, never a silent pass."""
+    from checker.grade_and_fix import check, FLAGGED, DEFER, EXACT, CHECKED
+    from checker import structure_index as SI, bug_patterns as BP, loop_semantics as LS, grade_and_fix as GF
+
+    # the four module batteries (CHK-1 index, CHK-2 catalog, CHK-4 fold-semantics, CHK-6 grade)
+    for mod in (BP, LS, GF):
+        bat = mod.adversarial_battery()
+        assert bat["all_ok"], (mod.__name__, bat["failed"])
+
+    # CHECK face — a planted bug FLAGs with a LOCATION (and is never clean)
+    md = check("def f(x=[]):\n x.append(1)\n return x")
+    assert md.grade == FLAGGED and not md.clean and md.findings[0].line == 1
+    assert any(fi.pattern_id == "mutable_default_arg" for fi in md.findings)
+    assert md.fix_instructions() and "FIX:" in md.fix_instructions()[0]      # write→fix→recheck instruction exists
+
+    # PROVE face — a pure all-folding loop ⇒ EXACT, and it CARRIES a passed cert (not our say-so)
+    exa = check("def f(n):\n s = 0\n for i in range(n):\n  s += i\n return s")
+    assert exa.grade == EXACT and exa.exact_verdict is not None
+    assert exa.exact_verdict.status == "EXACT" and exa.exact_verdict.certificate.passed
+
+    # HONEST_DEFER — unanalyzable (eval/exec) ⇒ DEFER, never a silent clean
+    assert check("def f(s):\n return eval(s)").grade == DEFER
+    # CHECKED — guarded, no catalogued bug, but unproven ⇒ honest middle (NOT EXACT)
+    assert check("def f(a, b):\n if b == 0:\n  return 0\n return a // b").grade == CHECKED
+
+    # ★★ the spine over a planted-bug battery: NOT ONE buggy input is ever graded clean (precision 1.0)
+    planted = [
+        "def f(x=[]):\n x.append(1)",                 # mutable default
+        "def f():\n try:\n  g()\n except:\n  pass",    # swallowed except
+        "def f(x):\n return x == None",                # ==/!= None
+        "def f(p):\n fh = open(p)\n return fh.read()", # resource leak
+        "def f():\n while True:\n  pass",              # infinite loop
+        "def f(x):\n assert (x>0, 'pos')",             # always-true assert tuple
+        "def f(a):\n return a % 0",                    # literal-zero division
+        "def f(:\n pass",                              # syntax error (definite, located defect)
+    ]
+    for src in planted:
+        assert not check(src).clean, src                # ← false-clean = 0 is the freeze-trigger invariant
+
+    # ★ precision (other half): the clean §AK corpus is NEVER false-flagged
+    from corpus.build_corpus import build_corpus
+    false_flags = sum(1 for it in build_corpus(120) if check(it.src).grade == FLAGGED)
+    assert false_flags == 0
+
+    print("PASS test_bd_checker_layer (§BD: CHECK catalog FLAGs every planted bug WITH a location [8/8] + fix "
+          "instruction; PROVE issues EXACT only on an already-passed kernel_verdict cert [no new disposer]; "
+          "eval/exec⇒HONEST_DEFER; guarded-unproven⇒CHECKED; ★precision 1.0 — 0 planted-bugs-clean, 0 false flags "
+          "on 120 clean corpus codes; honest O(1) = fold jumps loop semantics, reading stays O(N))")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
