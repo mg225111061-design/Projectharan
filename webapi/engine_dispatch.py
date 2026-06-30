@@ -140,6 +140,18 @@ def newengine5_reach() -> dict:
         return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
 
 
+def newengine3_reach() -> dict:
+    """§BO — reach the 3 new decidable-boundary-guarded engine branches (prob_loop_moment [★reuses the C-finite
+    solver for prob-solvable loop moments], decidable_logic [EPR/BSR + Skolem≥5⇒DECLINE], csp_dichotomy [Schaefer;
+    ★PCSP⇒DECLINE]). Each EXACT carries a re-checked certificate (NO 15th mechanism). Output rides the verdict ADT."""
+    try:
+        import newengine3 as NE3
+        b = NE3.adversarial_battery()
+        return {"engines": b["engines"], "all_ok": b["all_ok"], "failed": b["failed"]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""

@@ -6778,6 +6778,68 @@ def test_bn_newengine5_decidable_fragment_guards():
           "gap stays 0; 0 new mechanism/disposer, false-EXACT 0)")
 
 
+def test_bo_newengine3_decidable_boundary_guards():
+    """§BO — 3-domain new ENGINE branches (certificate-or-DECLINE; decidable-boundary guards; NO 15th mechanism).
+    ★ prob_loop_moment (closed-form m10 + the C-finite fold): moments of a prob-solvable affine loop are C-finite
+    recurrences ⇒ REUSES cfinite.companion_nth; certified by exact n=1,2 branch enumeration. ★ decidable_logic
+    (m03/m10): EPR finite-model decision + Skolem witness — order≥5 ⇒ DECLINE (open). ★ csp_dichotomy (m09):
+    Schaefer polymorphism classification — PCSP FORBIDDEN ⇒ DECLINE. Every EXACT rides a re-checked certificate;
+    a construction bug ⇒ failed cert ⇒ DECLINE (false-EXACT 0)."""
+    from pathlib import Path
+    from fractions import Fraction as Q
+    root = Path(__file__).parent
+
+    import newengine3 as NE3
+    b = NE3.adversarial_battery()
+    assert b["all_ok"], b["failed"]
+    assert b["engines"] == 3
+
+    from newengine3 import prob_loop_moment as pm, decidable_logic as dl, csp_dichotomy as cd
+    # ★ the flagship: x←x/2 | x←x/2+½ (each w.p. ½), x₀=0 ⇒ E[x₆]=63/128 (exact), via the Tⁿ fold + cfinite cross-check
+    loop = [(Q(1, 2), Q(1, 2), Q(0)), (Q(1, 2), Q(1, 2), Q(1, 2))]
+    m = pm.moment(loop, 0, k=1, n=6)
+    assert m.status == "EXACT" and m.result["moment"] == "63/128"
+    assert "cfinite.companion_nth" in m.certificate.detail                # the C-finite reuse is concrete
+    assert pm.moment([(Q(1, 3), Q(1), Q(0)), (Q(1, 3), Q(1), Q(1))], 0, 1, 5).status == "DECLINE"   # Σp≠1
+    assert pm.verify_moment(loop, 0, 1, 6, Q(999)).status == "DECLINE"    # a wrong claim fails the gate
+    # ★ decidable_logic: EPR sat/unsat + the Skolem≥5 hard guard
+    assert dl.epr_decide({"constants": ["a"], "predicates": {"P": 1, "Q": 1}, "forall": ["x"],
+                          "clauses": [[["P", ["x"], True], ["Q", ["x"], True]]]}).result["satisfiable"] is True
+    assert dl.epr_decide({"constants": ["a"], "predicates": {"P": 1}, "forall": ["x"],
+                          "clauses": [[["P", ["a"], True]], [["P", ["x"], False]]]}).result["satisfiable"] is False
+    assert dl.epr_decide({"constants": ["a"], "predicates": {"P": 1}, "functions": {"f": 1}, "forall": ["x"],
+                          "clauses": [[["P", ["x"], True]]]}).status == "DECLINE"     # function ⇒ leaves EPR
+    assert dl.skolem_decide([1, 0, 0, 0, 1], [1, 1, 1, 1, 1]).status == "DECLINE"     # ★ order 5 ⇒ open ⇒ DECLINE
+    # ★ csp_dichotomy: Schaefer P vs NPC + the PCSP hard guard
+    assert cd.classify([[(0, 0), (0, 1), (1, 1)]]).result["in_P"] is True             # 2-SAT tractable
+    assert cd.classify([[(1, 0, 0), (0, 1, 0), (0, 0, 1)]]).result["np_complete"] is True   # 1-in-3 NPC
+    assert cd.csp_grade({"pcsp": True, "relations": [[(0, 0)]]}).status == "DECLINE"  # ★ PCSP forbidden
+    assert cd.classify([[(0, 2), (1, 0)]]).status == "DECLINE"                        # non-Boolean ⇒ DECLINE
+
+    # ★ every EXACT verdict carries a passed certificate (the false-EXACT-0 spine)
+    import kernel_verdict as KV
+    for v in (m, dl.skolem_decide([0, -1], [1, 0]), cd.classify([[(0, 1), (1, 0)]])):
+        assert v.status == KV.EXACT and v.certificate is not None and v.certificate.passed
+
+    # ★ reachable from production (newengine3_reach) + full-repo gap stays 0 + 0 new mechanism / banned bigrams absent
+    from webapi import engine_dispatch as ED
+    assert ED.newengine3_reach()["all_ok"]
+    import engine_inventory as EI
+    assert EI.summary(".")["gap_count"] == 0
+    idx = (root / "NEWENGINE3_INDEX.md").read_text(encoding="utf-8")
+    assert "0 new mechanism" in idx and "certificate-or-DECLINE" in idx and "PCSP" in idx
+    for fn in ("newengine3/prob_loop_moment.py", "newengine3/decidable_logic.py", "newengine3/csp_dichotomy.py",
+               "NEWENGINE3_INDEX.md", "NEWENGINE3_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bo_newengine3_decidable_boundary_guards (§BO: 3 new ENGINE branches across 3 domains — "
+          "prob_loop_moment[★moments are C-finite ⇒ reuses cfinite.companion_nth; E[x₆]=63/128; Σp≠1/wrong-claim⇒"
+          "DECLINE] / decidable_logic[EPR sat/unsat + ★Skolem≥5⇒DECLINE] / csp_dichotomy[Schaefer P-vs-NPC + ★PCSP"
+          "⇒DECLINE]; each EXACT rides a re-checked cert; reachable from production, gap stays 0; 0 new "
+          "mechanism/disposer, false-EXACT 0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
