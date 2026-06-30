@@ -6542,6 +6542,10 @@ def test_bj_structures_dispatch_languages():
     assert f"={_CF.naive_nth([1, 1], [7, 3], 20)}" in badinit.result              # ★ also closes the pre-existing non-(0,1)-init hole
     assert DISP.dispatch("def f(n):\n a, b = 0, 1\n for _ in range(n): a, b = b, a*b\n return a", "python").grade == "DECLINE"  # ★ nonlinear ⇒ DECLINE
     assert DISP.dispatch("def f(n):\n a, b = 0, 1\n for _ in range(n): a, b = b, a + c\n return a", "python").grade == "DECLINE"  # ★ foreign var ⇒ DECLINE
+    # ★ §BP-11: order-3 recurrences (left-shift tuple-rotation) reach C-finite — Tribonacci solved (ground-truthed)
+    trib = DISP.dispatch("def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = b, c, a + b + c\n return a", "python")
+    assert trib.grade == "EXACT" and f"={_CF.naive_nth([1, 1, 1], [0, 0, 1], 20)}" in trib.result   # ★ Tribonacci(20), correct
+    assert DISP.dispatch("def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = c, b, a + b + c\n return a", "python").grade == "DECLINE"  # ★ non-left-shift ⇒ DECLINE
     sum_py = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "python")
     sum_c = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "c", n_bound=10 ** 9)
     assert "fold" in sum_py.engine and sum_py.grade == "EXACT" and sum_c.grade == "DECLINE"  # ★ same struct, lang gate

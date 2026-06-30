@@ -150,58 +150,58 @@ def _int_const(node: ast.AST):
     return None
 
 
-def _lin_coeffs(node: ast.AST, v1: str, v2: str):
-    """Integer-linear form of `node` in EXACTLY the variables {v1, v2}: returns (coeff_v1, coeff_v2, const), or None
-    on ANY construct that is not integer-linear in those two names (a third variable, var*var, /, **, %, a call, an
-    attribute, a float, …). The None-by-default discipline is the soundness gate: anything we cannot read exactly is
-    refused, so the dispatcher DECLINEs rather than mis-extracting coefficients."""
+def _lin_form(node: ast.AST, varset):
+    """Integer-linear form of `node` in ONLY the names in `varset`: returns (coeffs:dict{name→int}, const:int), or
+    None on ANY construct that is not integer-linear in those names (a foreign variable, var*var, /, **, %, a call,
+    an attribute, a float, …). The None-by-default discipline is the soundness gate: a form we cannot read exactly
+    is refused, so the dispatcher DECLINEs rather than mis-extracting coefficients."""
     if isinstance(node, ast.Name):
-        if node.id == v1:
-            return (1, 0, 0)
-        if node.id == v2:
-            return (0, 1, 0)
-        return None                                                # a third variable ⇒ not in {v1, v2}
+        return ({node.id: 1}, 0) if node.id in varset else None    # a foreign variable ⇒ refuse
     ic = _int_const(node)
     if ic is not None:
-        return (0, 0, ic)
+        return ({}, ic)
     if isinstance(node, ast.BinOp):
         if isinstance(node.op, (ast.Add, ast.Sub)):
-            l = _lin_coeffs(node.left, v1, v2)
-            r = _lin_coeffs(node.right, v1, v2)
+            l = _lin_form(node.left, varset)
+            r = _lin_form(node.right, varset)
             if l is None or r is None:
                 return None
             s = 1 if isinstance(node.op, ast.Add) else -1
-            return (l[0] + s * r[0], l[1] + s * r[1], l[2] + s * r[2])
+            coeffs = dict(l[0])
+            for name, v in r[0].items():
+                coeffs[name] = coeffs.get(name, 0) + s * v
+            return (coeffs, l[1] + s * r[1])
         if isinstance(node.op, ast.Mult):                          # linear ⇒ exactly one factor is an int constant
             lc, rc = _int_const(node.left), _int_const(node.right)
             if lc is not None:
-                r = _lin_coeffs(node.right, v1, v2)
-                return None if r is None else (lc * r[0], lc * r[1], lc * r[2])
+                r = _lin_form(node.right, varset)
+                return None if r is None else ({m: lc * v for m, v in r[0].items()}, lc * r[1])
             if rc is not None:
-                l = _lin_coeffs(node.left, v1, v2)
-                return None if l is None else (l[0] * rc, l[1] * rc, l[2] * rc)
+                l = _lin_form(node.left, varset)
+                return None if l is None else ({m: v * rc for m, v in l[0].items()}, l[1] * rc)
             return None                                            # var*var ⇒ nonlinear
         return None                                                # Pow / Div / Mod / BitOp / … ⇒ refuse
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
-        inner = _lin_coeffs(node.operand, v1, v2)
-        return None if inner is None else (-inner[0], -inner[1], -inner[2])
+        inner = _lin_form(node.operand, varset)
+        return None if inner is None else ({m: -v for m, v in inner[0].items()}, -inner[1])
     return None
 
 
 def _extract_recurrence(src: str):
-    """Conservative AST template match for a 2-term linear-recurrence function — extract the ACTUAL coefficients so
-    the engine solves the recurrence in the source, never a hardcoded one:
+    """Conservative AST template match for a k-term (k≥2) linear-recurrence function — extract the ACTUAL coefficients
+    so the engine solves the recurrence in the source, never a hardcoded one:
 
         def f(n):
-            v1, v2 = C0, C1                 # int literals
+            v1, …, vk = C0, …, C_{k-1}      # int literals
             for _ in range(n):              # range over the SINGLE parameter ⇒ f returns the n-th term
-                v1, v2 = v2, <int-linear in v1,v2, zero constant term>
+                v1, …, vk = v2, …, vk, <int-linear in v1..vk, zero constant>   # left-shift + new term
             return v1
 
-    Maps to cfinite: a_{k+2} = p·a_{k+1} + q·a_k with a0=C0,a1=C1 ⇒ c=[p,q], init=[C0,C1], and
-    companion_nth(c,init,n) == f(n) by the companion-matrix theorem. Returns (c, init) or None (⇒ honest DECLINE).
-    Soundness rests on this being a TOTAL template: any deviation (extra statement, foreign var, nonlinear RHS,
-    non-literal init, range not over the parameter, returns v2, …) returns None — we never guess."""
+    The sequence a_n (= v1 after n steps) then satisfies a_m = Σ_j coeff(v_{j+1})·a_{m-k+j} ⇒ cfinite
+    c = [coeff(vk), coeff(v_{k-1}), …, coeff(v1)], init = [C0, …, C_{k-1}], so companion_nth(c,init,n) == f(n) by the
+    companion-matrix theorem (k=2 → Fibonacci/Pell/Lucas; k=3 → Tribonacci/Padovan/Perrin; …). Returns (c, init) or
+    None (⇒ honest DECLINE) — a TOTAL template: any deviation (extra statement, foreign var, nonlinear/constant RHS,
+    non-shift, non-literal init, range not over the parameter, returns ≠ v1) returns None. We never guess."""
     try:
         tree = ast.parse(src)
     except (SyntaxError, ValueError):
@@ -223,17 +223,19 @@ def _extract_recurrence(src: str):
     if len(body) != 3:
         return None
     init_stmt, for_stmt, ret_stmt = body
-    # (1) init:  v1, v2 = C0, C1   (two distinct names ← two int literals)
+    # (1) init:  v1, …, vk = C0, …, C_{k-1}   (k≥2 distinct names ← k int literals)
     if not (isinstance(init_stmt, ast.Assign) and len(init_stmt.targets) == 1
-            and isinstance(init_stmt.targets[0], ast.Tuple) and len(init_stmt.targets[0].elts) == 2
+            and isinstance(init_stmt.targets[0], ast.Tuple) and len(init_stmt.targets[0].elts) >= 2
             and all(isinstance(e, ast.Name) for e in init_stmt.targets[0].elts)
-            and isinstance(init_stmt.value, ast.Tuple) and len(init_stmt.value.elts) == 2):
+            and isinstance(init_stmt.value, ast.Tuple)
+            and len(init_stmt.value.elts) == len(init_stmt.targets[0].elts)):
         return None
-    v1, v2 = init_stmt.targets[0].elts[0].id, init_stmt.targets[0].elts[1].id
-    c0, c1 = _int_const(init_stmt.value.elts[0]), _int_const(init_stmt.value.elts[1])
-    if v1 == v2 or c0 is None or c1 is None:
+    vs = [e.id for e in init_stmt.targets[0].elts]
+    k = len(vs)
+    inits = [_int_const(e) for e in init_stmt.value.elts]
+    if len(set(vs)) != k or any(c is None for c in inits):         # names distinct; inits int literals
         return None
-    # (2) for _ in range(param):  v1, v2 = v2, <linear>
+    # (2) for _ in range(param):  v1, …, vk = v2, …, vk, <linear>
     if not (isinstance(for_stmt, ast.For) and isinstance(for_stmt.iter, ast.Call)
             and isinstance(for_stmt.iter.func, ast.Name) and for_stmt.iter.func.id == "range"
             and len(for_stmt.iter.args) == 1 and not for_stmt.iter.keywords
@@ -242,23 +244,26 @@ def _extract_recurrence(src: str):
         return None
     swap = for_stmt.body[0]
     if not (isinstance(swap, ast.Assign) and len(swap.targets) == 1
-            and isinstance(swap.targets[0], ast.Tuple) and len(swap.targets[0].elts) == 2
-            and all(isinstance(e, ast.Name) for e in swap.targets[0].elts)
-            and swap.targets[0].elts[0].id == v1 and swap.targets[0].elts[1].id == v2
-            and isinstance(swap.value, ast.Tuple) and len(swap.value.elts) == 2
-            and isinstance(swap.value.elts[0], ast.Name) and swap.value.elts[0].id == v2):
-        return None                                                # first RHS must be exactly `v2` (v1' = v2)
-    lin = _lin_coeffs(swap.value.elts[1], v1, v2)                  # second RHS: p·v2 + q·v1, integer-linear
-    if lin is None:
+            and isinstance(swap.targets[0], ast.Tuple)
+            and [e.id if isinstance(e, ast.Name) else None for e in swap.targets[0].elts] == vs
+            and isinstance(swap.value, ast.Tuple) and len(swap.value.elts) == k):
         return None
-    q, p, k = lin
-    if k != 0:                                                     # homogeneous only (a constant term is not C-finite here)
+    for i in range(k - 1):                                         # left-shift: first k-1 RHS elements are v2, …, vk
+        e = swap.value.elts[i]
+        if not (isinstance(e, ast.Name) and e.id == vs[i + 1]):
+            return None
+    lf = _lin_form(swap.value.elts[k - 1], set(vs))                # last RHS: Σ coeff·v, integer-linear
+    if lf is None:
+        return None
+    coeffs, const = lf
+    if const != 0:                                                 # homogeneous only (a constant term is not C-finite here)
         return None
     # (3) return v1  (the n-th term of the sequence we modelled)
     if not (isinstance(ret_stmt, ast.Return) and isinstance(ret_stmt.value, ast.Name)
-            and ret_stmt.value.id == v1):
+            and ret_stmt.value.id == vs[0]):
         return None
-    return ([p, q], [c0, c1])
+    c = [coeffs.get(vs[k - 1 - j], 0) for j in range(k)]           # c = [coeff(vk), coeff(v_{k-1}), …, coeff(v1)]
+    return (c, inits)
 
 
 def _dispatch_recurrence(src: str, lang: str) -> DispatchResult:
@@ -355,6 +360,11 @@ def adversarial_battery() -> dict:
     d_pell, d_lucas, d_badinit = dispatch(pell, "python"), dispatch(lucas, "python"), dispatch(badinit, "python")
     d_nonlin, d_foreign, d_pell_c = dispatch(nonlin, "python"), dispatch(foreign, "python"), dispatch(pell, "c")
     d_decorated, d_shadowed = dispatch(decorated, "python"), dispatch(shadowed, "python")
+    # ★ §BP-11: k-term (k≥3) recurrences via left-shift tuple-rotation — Tribonacci/Padovan reach C-finite at order 3
+    trib = "def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = b, c, a + b + c\n return a"   # Tribonacci
+    pado = "def f(n):\n a, b, c = 1, 1, 1\n for _ in range(n): a, b, c = b, c, a + b\n return a"        # Padovan
+    badshift = "def f(n):\n a, b, c = 0, 0, 1\n for _ in range(n): a, b, c = c, b, a + b + c\n return a"  # NOT a left-shift
+    d_trib, d_pado, d_badshift = dispatch(trib, "python"), dispatch(pado, "python"), dispatch(badshift, "python")
     # ★ §BP-10: the sum dispatcher now reports the closed form of the ACTUAL summand (extracted), not a hardcoded
     # linear form — Σi² and Σi³ get DEGREE-correct forms. Ground-truth each against the fold engine's own closed_form.
     import loop_decision as _LD
@@ -388,6 +398,10 @@ def adversarial_battery() -> dict:
         "polysum_cubic_form": bool(cf3) and cf3 in d_cube.result,       # ★ Σi³ ⇒ n²(n+1)²/4, NOT the linear form
         "polysum_not_linear": cf1 not in d_cube.result,                 # ★ the old hardcoded linear form is gone for cubes
         "sum_linear_form_ok": cf1 in d_sum_py.result,                   # ★ Σi STILL reports the linear form (correct here)
+        # ── §BP-11: order-3 recurrences solved (left-shift tuple-rotation), ground-truthed vs naive_nth ──
+        "tribonacci_exact_correct": d_trib.grade == "EXACT" and f"={_CF.naive_nth([1, 1, 1], [0, 0, 1], 20)}" in d_trib.result,
+        "padovan_exact_correct": d_pado.grade == "EXACT" and f"={_CF.naive_nth([0, 1, 1], [1, 1, 1], 20)}" in d_pado.result,
+        "non_leftshift_declines": d_badshift.grade == "DECLINE",        # ★ a rotation that isn't a left-shift ⇒ DECLINE
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

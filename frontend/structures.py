@@ -48,6 +48,8 @@ _PRODUCT = re.compile(r"\w+\s*\*=\s*\w+")                                       
 _RECURRENCE = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*(\w+)\s*,\s*(\w+)\s*\+\s*(\w+)")  # a, b = b, a+b
 # ★ §BP-8: coefficient-bearing 2-term linear recurrence as a tuple-swap — a, b = b, <expr containing a> (Pell/Lucas/…)
 _RECURRENCE2 = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*\2\s*,\s*[^=\n;]*\b\1\b")        # x, y = y, p*y+q*x
+# ★ §BP-11: 3-term linear recurrence as a left-shift tuple-rotation — a, b, c = b, c, <expr> (Tribonacci/Padovan/Perrin)
+_RECURRENCE3 = re.compile(r"(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*=\s*\2\s*,\s*\3\s*,\s*[^=\n;]+")  # a,b,c = b,c, p*c+q*b+r*a
 _CONV = re.compile(r"\w+\[\s*\w+\s*\+\s*\w+\s*\]\s*\+=\s*\w+\[[^\]]+\]\s*\*\s*\w+\[[^\]]+\]")  # c[i+j]+=a[i]*b[j]
 _HORNER = re.compile(r"(\w+)\s*=\s*\1\s*\*\s*\w+\s*\+\s*\w+")                      # acc = acc*base + d (var-first)
 _HORNER2 = re.compile(r"(\w+)\s*=\s*\w+\s*\*\s*\1\s*\+\s*\w+")                     # acc = base*acc + d (const-first, e.g. 10*acc+d)
@@ -96,6 +98,10 @@ def recognize(src: str, lang: str = "generic") -> StructMatch:
     if m and m.group(1) == m.group(4):                                   # a,b = b,a+b  ⇒ b reused as next a
         return StructMatch("linear_recurrence", True, lang,
                            {"vars": [m.group(1), m.group(2)]}, note="Fibonacci-style linear recurrence")
+    m3 = _RECURRENCE3.search(src)                                        # ★ §BP-11: 3-term left-shift rotation (Tribonacci/…)
+    if m3:
+        return StructMatch("linear_recurrence", True, lang,
+                           {"vars": [m3.group(1), m3.group(2), m3.group(3)]}, note="3-term linear recurrence (left-shift tuple-rotation)")
     m2 = _RECURRENCE2.search(src)                                        # ★ §BP-8: coefficient-bearing tuple-swap (Pell/Lucas)
     if m2:
         return StructMatch("linear_recurrence", True, lang,
@@ -193,6 +199,8 @@ def adversarial_battery() -> dict:
         "pell_recurrence_recognized": recognize("a, b = b, 2*b + a").kind == "linear_recurrence",
         "lucas_recurrence_recognized": recognize("x, y = y, y + x").kind == "linear_recurrence",
         "swap_no_reuse_not_recurrence": recognize("a, b = b, c + d").kind != "linear_recurrence",  # ★ no reuse of a ⇒ not a recurrence
+        # ★ §BP-11: 3-term left-shift rotation (Tribonacci a,b,c=b,c,a+b+c) recognized → reaches the order-3 C-finite tier
+        "tribonacci_recognized": recognize("a, b, c = b, c, a + b + c").kind == "linear_recurrence",
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 
