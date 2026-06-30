@@ -6554,6 +6554,10 @@ def test_bj_structures_dispatch_languages():
     aff = DISP.dispatch("def f(n):\n x = 0\n for _ in range(n): x = x*2 + 1\n return x", "python")
     assert aff.grade == "EXACT" and f"={_CF.naive_nth([3, -2], [0, 1], 20)}" in aff.result   # ★ 2ⁿ−1, verified order-2
     assert DISP.dispatch("def ev(ds, x):\n acc = 0\n for d in ds: acc = acc*x + d\n return acc", "python").grade != "EXACT"  # ★ Horner-eval ⇒ not affine
+    # ★ §BP-16: general integer-linear/polynomial summand (Σ(2k+3)), not just k^d — extractor reads the whole expr
+    import loop_decision as _LD
+    asum = DISP.dispatch("sum(2*i + 3 for i in range(1, n+1))", "python")
+    assert asum.grade == "EXACT" and str(_LD.decide_sum_collapse("2*k + 3", var="k", lo=1).closed_form) in asum.result
     sum_py = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "python")
     sum_c = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "c", n_bound=10 ** 9)
     assert "fold" in sum_py.engine and sum_py.grade == "EXACT" and sum_c.grade == "DECLINE"  # ★ same struct, lang gate

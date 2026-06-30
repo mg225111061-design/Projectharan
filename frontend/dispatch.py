@@ -563,6 +563,10 @@ def adversarial_battery() -> dict:
     cf2 = str(getattr(_LD.decide_sum_collapse("k*k", var="k", lo=1), "closed_form", ""))
     cf3 = str(getattr(_LD.decide_sum_collapse("k**3", var="k", lo=1), "closed_form", ""))
     cf1 = str(getattr(_LD.decide_sum_collapse("k", var="k", lo=1), "closed_form", ""))
+    # ★ §BP-16: general integer-linear/polynomial summands (not just k^d) — Σ(2k+3), the extractor reads the whole expr
+    affsum_src = "sum(2*i + 3 for i in range(1, n+1))"
+    d_affsum = dispatch(affsum_src, "python")
+    cf_aff = str(getattr(_LD.decide_sum_collapse("2*k + 3", var="k", lo=1), "closed_form", ""))
     cases = {
         "fibonacci_reaches_cfinite": d_fib.structure == "linear_recurrence" and "C-finite" in d_fib.engine and d_fib.reached,
         "fibonacci_exact_python": d_fib.grade == "EXACT" and f"={_CF.naive_nth([1, 1], [0, 1], 20)}" in d_fib.result,
@@ -600,6 +604,7 @@ def adversarial_battery() -> dict:
         "affine_2x1_exact": d_aff1.grade == "EXACT" and f"={_CF.naive_nth([3, -2], [0, 1], 20)}" in d_aff1.result,
         "affine_3x2_exact": d_aff2.grade == "EXACT" and f"={_CF.naive_nth([4, -3], [1, 5], 20)}" in d_aff2.result,
         "horner_eval_not_affine": d_hev.grade != "EXACT",               # ★ Horner-eval over a list (non-literal coeffs) ⇒ not folded as affine
+        "affine_summand_exact": d_affsum.grade == "EXACT" and bool(cf_aff) and cf_aff in d_affsum.result,  # ★ §BP-16: Σ(2k+3) folds, full-expr summand
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 
