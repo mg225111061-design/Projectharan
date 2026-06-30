@@ -46,6 +46,8 @@ _POLY_ASSIGN_R = re.compile(r"(\w+)\s*=\s*(\w+\s*\*\s*\w+|\w+\s*\*\*\s*\d+)\s*\+
 _SUM_ASSIGN_R = re.compile(r"(\w+)\s*=\s*\w+\s*\+\s*\1(?!\w)")                     # acc = i + acc  (var reused at the END)
 _PRODUCT = re.compile(r"\w+\s*\*=\s*\w+")                                          # acc *= i
 _RECURRENCE = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*(\w+)\s*,\s*(\w+)\s*\+\s*(\w+)")  # a, b = b, a+b
+# ★ §BP-8: coefficient-bearing 2-term linear recurrence as a tuple-swap — a, b = b, <expr containing a> (Pell/Lucas/…)
+_RECURRENCE2 = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*\2\s*,\s*[^=\n;]*\b\1\b")        # x, y = y, p*y+q*x
 _CONV = re.compile(r"\w+\[\s*\w+\s*\+\s*\w+\s*\]\s*\+=\s*\w+\[[^\]]+\]\s*\*\s*\w+\[[^\]]+\]")  # c[i+j]+=a[i]*b[j]
 _HORNER = re.compile(r"(\w+)\s*=\s*\1\s*\*\s*\w+\s*\+\s*\w+")                      # acc = acc*base + d (var-first)
 _HORNER2 = re.compile(r"(\w+)\s*=\s*\w+\s*\*\s*\1\s*\+\s*\w+")                     # acc = base*acc + d (const-first, e.g. 10*acc+d)
@@ -94,6 +96,10 @@ def recognize(src: str, lang: str = "generic") -> StructMatch:
     if m and m.group(1) == m.group(4):                                   # a,b = b,a+b  ⇒ b reused as next a
         return StructMatch("linear_recurrence", True, lang,
                            {"vars": [m.group(1), m.group(2)]}, note="Fibonacci-style linear recurrence")
+    m2 = _RECURRENCE2.search(src)                                        # ★ §BP-8: coefficient-bearing tuple-swap (Pell/Lucas)
+    if m2:
+        return StructMatch("linear_recurrence", True, lang,
+                           {"vars": [m2.group(1), m2.group(2)]}, note="2-term linear recurrence (coefficient-bearing tuple-swap)")
     if _HORNER.search(src) or _HORNER2.search(src):                      # ★ §BP-3: either operand order (acc*b+d | b*acc+d)
         return StructMatch("horner", True, lang, note="acc = acc*base + d (Horner; either operand order)")
     fk = _functional_sum_kind(src)                                       # sum()/reduce over a range (no acc+=i)
@@ -183,6 +189,10 @@ def adversarial_battery() -> dict:
         # ★ §BP-6: operand-REVERSED non-augmented accumulation (acc = i + acc / i*i + acc) — addition commutes
         "sum_assign_reversed": recognize("def f(n):\n s=0\n for i in range(1,n+1): s = i + s\n return s").kind == "sum_loop",
         "poly_assign_reversed": recognize("def f(n):\n s=0\n for i in range(1,n+1): s = i*i + s\n return s").kind == "poly_sum",
+        # ★ §BP-8: coefficient-bearing 2-term linear recurrence (Pell a,b=b,2*b+a) recognized (was raw); not a false-match on a plain assign
+        "pell_recurrence_recognized": recognize("a, b = b, 2*b + a").kind == "linear_recurrence",
+        "lucas_recurrence_recognized": recognize("x, y = y, y + x").kind == "linear_recurrence",
+        "swap_no_reuse_not_recurrence": recognize("a, b = b, c + d").kind != "linear_recurrence",  # ★ no reuse of a ⇒ not a recurrence
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

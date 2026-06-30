@@ -6523,6 +6523,9 @@ def test_bj_structures_dispatch_languages():
     assert STRUCT.recognize("for i in r: z = x + y").kind == "raw"                # ★ no var-reuse ⇒ not a false accumulation
     assert STRUCT.recognize("for i in r: s = i + s").kind == "sum_loop"           # ★ §BP-6: operand-reversed Σ (s=i+s)
     assert STRUCT.recognize("for i in r: s = i*i + s").kind == "poly_sum"         # ★ §BP-6: operand-reversed Σk^d
+    assert STRUCT.recognize("a, b = b, 2*b + a").kind == "linear_recurrence"      # ★ §BP-8: coefficient-bearing tuple-swap (Pell), was raw
+    assert STRUCT.recognize("x, y = y, y + x").kind == "linear_recurrence"        # ★ §BP-8: Lucas-style coefficient-bearing recurrence
+    assert STRUCT.recognize("a, b = b, c + d").kind != "linear_recurrence"        # ★ no reuse of a ⇒ not a false recurrence match
 
     # ── (B) the dispatcher REACHES the engines, every disposition gated ──
     da = DISP.adversarial_battery()
