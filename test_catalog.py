@@ -6430,6 +6430,74 @@ def test_bh_two_axes_one_weapon():
           "DECLINEs/non-terminating, all bridge-consistent; reuse only, banned bigrams absent)")
 
 
+def test_bi_search_and_file_upgrade():
+    """§BI — search engine + file-attachment upgrade, on TWO honesty corrections. ★ Correction 1: decompression
+    is NOT fold (fold = loop-collapse); the fold-spirit gem is compute-on-compressed (query without unpacking).
+    ★ Correction 2: 100% EXTRACTION is verifiable/EXACT, understanding is best-effort and NEVER certified
+    (false-EXACT 0). WORKSTREAM A (search/, pure orchestration; live exec author-validated on Render):
+    multi-query distinctness + breadth dial, deep-fetch source-priority, content-hash cache, comprehend
+    (structure + conflict surfacing + copyright <15w). WORKSTREAM B (fileattach/): 300+ format honest-depth
+    registry, compute-on-compressed (zip central-dir + gzip ISIZE + FM-index == naive), completeness EXACT-vs-
+    uncertified-understanding. REUSE: FL-2 bomb guard (mathmode/archive) + FL-5 fold route (mathmode/ingest)."""
+    from pathlib import Path
+    root = Path(__file__).parent
+    import kernel_verdict as KV
+
+    # ── WORKSTREAM A: the whole search path green (SR-1/2/3/4) ──
+    import search as SEARCH
+    a = SEARCH.adversarial_battery()
+    assert a["all_ok"], a["failed"]
+    import search.multi_query as MQ, search.comprehend as CMP
+    assert len(MQ.decompose("vector databases", 16)) == 16                  # SR-1 distinct fan-out, no padding
+    assert MQ.breadth_for("simple") == 1 and MQ.breadth_for("deep") == 16    # SR-5 dial
+    pack = CMP.copyright_pack({"https://a.com": ["w " * 30]})                # SR-4 copyright: quote <15 words
+    assert pack[0]["words"] <= 14
+    ctx = CMP.comprehend([{"url": "https://x", "text": "# T\nThe value is 5."}])
+    assert ctx.guarantee == "best-effort" and ctx.understanding_certified is False   # ★ never certifies understanding
+
+    # ── WORKSTREAM B: registry + compute-on-compressed + completeness + reuse ──
+    import fileattach as FA
+    b = FA.adversarial_battery()
+    assert b["all_ok"], b["failed"]
+    assert b["reuse"]["FL2_bomb_guard"] and b["reuse"]["FL5_fold_route"]      # ★ re-build 0 (FL-2/FL-5 reused)
+    import fileattach.registry as REG, fileattach.compute_on_compressed as CC, fileattach.completeness as COMP
+    assert REG.format_count() >= 300                                          # ★ honest "300+" is a measured count
+    assert REG.classify("secret.gpg")["depth"] == REG.ENCRYPTED_BLOCKED       # ★ encrypted ⇒ BLOCKED, not fabricated
+    assert REG.classify("scan.png")["depth"] == REG.OCR_LIMITED               # ★ honest per-format depth label
+    fm = CC.FMIndex.build("abracadabra")                                      # ★ FL-3: query the BWT, no reconstruct
+    assert fm.count("abra") == CC._naive_count("abracadabra", "abra") == 2    # verified == naive (no silent wrong)
+
+    # ★ Correction 2 structural: extraction EXACT vs understanding NEVER certified
+    full = COMP.check_completeness({"pages": 8}, {"pages": 8})
+    gap = COMP.check_completeness({"pages": 8}, {"pages": 5})
+    assert full.verdict.status == KV.EXACT and gap.verdict.status == KV.DECLINE
+    refused = False
+    try:
+        COMP.certify_understanding("doc", "means X")
+    except COMP.UnderstandingCertificationError:
+        refused = True
+    assert refused and COMP.UNDERSTANDING_CERTIFIABLE is False                 # ★ false-EXACT 0 on comprehension
+
+    # ★ Correction 1 stated in code: decompression is NOT fold (the honest framing is present, not just absent)
+    cc_src = (root / "fileattach" / "compute_on_compressed.py").read_text(encoding="utf-8").lower()
+    assert "not fold" in cc_src and "compute" in cc_src                       # decompression≠fold; gem named
+
+    # ★ banned CLAIM-bigrams absent from every §BI artifact (matches §BG/§BH precedent)
+    for fn in ("search/multi_query.py", "search/comprehend.py", "fileattach/registry.py",
+               "fileattach/compute_on_compressed.py", "fileattach/completeness.py",
+               "SEARCH_FILE_INDEX.md", "SEARCH_FILE_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bi_search_and_file_upgrade (§BI: A search/ — multi-query 16 distinct + dial + deep-fetch "
+          "ranking + cache + comprehend [quote<15w, conflict both-sides, ★never certifies understanding]; B "
+          "fileattach/ — 457 formats honest-depth [gpg=BLOCKED, png=OCR_LIMITED], ★compute-on-compressed [zip "
+          "central-dir + gzip ISIZE + FM-index==naive, query the BWT not the text], completeness EXACT vs "
+          "understanding NEVER certified [certify_understanding raises]; ★Correction-1 decompression≠fold stated "
+          "in code, ★Correction-2 extraction-EXACT/understanding-uncertified structural; FL-2/FL-5 reused, "
+          "re-build 0; banned bigrams absent)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
