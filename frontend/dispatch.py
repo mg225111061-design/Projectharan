@@ -381,6 +381,90 @@ def _dispatch_geometric(geo, lang: str) -> DispatchResult:
                           result=f"companion_nth([{c}],[{a0}],20)={val20} = {a0}·{c}^20; lossless on n∈{list(checked)}", note=note)
 
 
+def _extract_affine(src: str):
+    """Conservative AST template for an AFFINE iteration — a C-finite ORDER-2 recurrence in disguise:
+
+        def f(n):
+            acc = A0                  # int literal
+            for _ in range(n):        # range over the SINGLE parameter
+                acc = C1*acc + C0     # (or acc*C1 + C0) ; C1, C0 INT LITERALS
+            return acc
+
+    ⇒ acc_n = C1·acc_{n-1} + C0, whose homogenisation is acc_n = (C1+1)·acc_{n-1} − C1·acc_{n-2}
+    (cfinite c=[C1+1, −C1], init=[A0, C1·A0+C0]). Returns (C1, C0, A0) or None. A Horner polynomial
+    EVALUATION (acc = acc*x + d over a digit LIST, with x/d NON-literal) yields None ⇒ the caller falls
+    through to extract.parse_arith — affine vs Horner-eval is decided by 'are the coefficients literals'."""
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError):
+        return None
+    if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
+        return None
+    fn = tree.body[0]
+    a = fn.args
+    if (fn.decorator_list or a.vararg or a.kwarg or a.kwonlyargs or a.defaults
+            or a.kw_defaults or getattr(a, "posonlyargs", []) or len(a.args) != 1):
+        return None
+    param = a.args[0].arg
+    body = list(fn.body)
+    if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant) \
+            and isinstance(body[0].value.value, str):
+        body = body[1:]
+    if len(body) != 3:
+        return None
+    init_stmt, for_stmt, ret_stmt = body
+    if not (isinstance(init_stmt, ast.Assign) and len(init_stmt.targets) == 1
+            and isinstance(init_stmt.targets[0], ast.Name)):
+        return None
+    acc = init_stmt.targets[0].id
+    a0 = _int_const(init_stmt.value)
+    if a0 is None:
+        return None
+    if not (isinstance(for_stmt, ast.For) and isinstance(for_stmt.iter, ast.Call)
+            and isinstance(for_stmt.iter.func, ast.Name) and for_stmt.iter.func.id == "range"
+            and len(for_stmt.iter.args) == 1 and not for_stmt.iter.keywords
+            and isinstance(for_stmt.iter.args[0], ast.Name) and for_stmt.iter.args[0].id == param
+            and not for_stmt.orelse and len(for_stmt.body) == 1):
+        return None
+    st = for_stmt.body[0]
+    if not (isinstance(st, ast.Assign) and len(st.targets) == 1 and isinstance(st.targets[0], ast.Name)
+            and st.targets[0].id == acc):
+        return None
+    lf = _lin_form(st.value, {acc})                                # acc = C1·acc + C0, integer-linear in acc only
+    if lf is None:
+        return None
+    coeffs, c0 = lf
+    if acc not in coeffs:                                          # acc must appear (else not an affine recurrence in acc)
+        return None
+    c1 = coeffs[acc]
+    if not (isinstance(ret_stmt, ast.Return) and isinstance(ret_stmt.value, ast.Name) and ret_stmt.value.id == acc):
+        return None
+    return (c1, c0, a0)
+
+
+def _dispatch_affine(aff, lang: str) -> DispatchResult:
+    """affine acc→C1·acc+C0 ⇒ solved as a C-finite ORDER-2 recurrence (companion_nth([C1+1,−C1], [A0, C1·A0+C0], ·)),
+    O(log n), verified lossless. Graded under the language model. REUSES cfinite — 0 new mechanism."""
+    import cfinite as CF
+    c1, c0, a0 = aff
+    C, init = [c1 + 1, -c1], [a0, c1 * a0 + c0]
+    ok, checked = CF.verify_cfinite(C, init, ns=(8, 16, 24))        # order-2 homogenisation ≡ naïve affine iterate
+    if not ok:
+        return DispatchResult("horner", "C-finite order-2 (affine)", True, "DECLINE", False, True,
+                              note="cfinite self-check failed (companion≢naïve)")
+    val20 = CF.companion_nth(C, init, 20)
+    m = LANG.model_for(lang)
+    if m.overflow == "none":
+        grade, sound, note = "EXACT", True, f"affine x→{c1}·x+{c0}: closed form (C-finite order 2) ⇒ EXACT over ℤ"
+    elif m.overflow == "wrap":
+        wrapped = CF.companion_nth_mod(C, init, 20, 1 << m.width)
+        grade, sound, note = "EXACT", True, f"affine mod 2^{m.width} (wrap-aware, ring identity holds) ⇒ EXACT; sample≡{wrapped}"
+    else:                                                          # ub / trap / error / checked / f64
+        grade, sound, note = "DECLINE", False, f"{m.overflow}: affine iterate may grow past the width ⇒ DECLINE"
+    return DispatchResult("horner", "C-finite order-2 (affine x→a·x+b)", True, grade, sound, gated=True,
+                          result=f"companion_nth({C},{init},20)={val20}; affine {c1}·x+{c0}; lossless on n∈{list(checked)}", note=note)
+
+
 def _dispatch_extract(kind: str, src: str) -> DispatchResult:
     """checksum/horner → the extract catalog (z3-reverified folds — the engine carries its own certificate)."""
     try:
@@ -413,8 +497,13 @@ def dispatch(src: str, lang: str = "python", n_bound: int = 10 ** 9) -> Dispatch
         return _dispatch_sum(match.kind, lang, n_bound, src)
     if match.kind == "linear_recurrence":
         return _dispatch_recurrence(src, lang)
-    if match.kind in ("checksum", "horner"):
-        return _dispatch_extract(match.kind, src)
+    if match.kind == "horner":                                       # ★ §BP-14: affine x→C1·x+C0 (constant coeffs) folds via cfinite order-2
+        aff = _extract_affine(src)
+        if aff is not None:
+            return _dispatch_affine(aff, lang)
+        return _dispatch_extract("horner", src)                      # genuine Horner-eval (non-literal coeffs) ⇒ parse_arith
+    if match.kind == "checksum":
+        return _dispatch_extract("checksum", src)
     if match.kind == "convolution":
         return DispatchResult("convolution", ROUTE["convolution"], False, "CHECKED", None, True,
                               note="routed to NTT (exact convolution); live full invocation author-validated on Render")
@@ -460,6 +549,11 @@ def adversarial_battery() -> dict:
     fact = "def f(n):\n acc = 1\n for i in range(1, n+1): acc *= i\n return acc"      # n! ⇒ DECLINE
     d_geo2, d_geo3, d_fact, d_geo2c = (dispatch(geo2, "python"), dispatch(geo3, "python"),
                                        dispatch(fact, "python"), dispatch(geo2, "c"))
+    # ★ §BP-14: affine iteration x→C1·x+C0 (constant coeffs) ⇒ C-finite order-2; genuine Horner-eval (list) stays CHECKED
+    aff1 = "def f(n):\n x = 0\n for _ in range(n): x = x*2 + 1\n return x"            # 2ⁿ-1
+    aff2 = "def f(n):\n x = 1\n for _ in range(n): x = 3*x + 2\n return x"            # affine, const-first
+    hev = "def ev(ds, x):\n acc = 0\n for d in ds: acc = acc*x + d\n return acc"      # genuine Horner-eval ⇒ NOT affine
+    d_aff1, d_aff2, d_hev = dispatch(aff1, "python"), dispatch(aff2, "python"), dispatch(hev, "python")
     # ★ §BP-10: the sum dispatcher now reports the closed form of the ACTUAL summand (extracted), not a hardcoded
     # linear form — Σi² and Σi³ get DEGREE-correct forms. Ground-truth each against the fold engine's own closed_form.
     import loop_decision as _LD
@@ -502,6 +596,10 @@ def adversarial_battery() -> dict:
         "geometric_nonaug_exact": d_geo3.grade == "EXACT" and f"={_CF.naive_nth([3], [5], 20)}" in d_geo3.result,
         "factorial_declines": d_fact.grade == "DECLINE",                # ★ loop-variable multiplier = n! ⇒ no closed form
         "geometric_c_declines": d_geo2c.grade == "DECLINE",             # ★ 2ⁿ overflows fixed width ⇒ DECLINE (lang gate)
+        # ── §BP-14: affine iteration folds via C-finite order-2; genuine Horner-eval is NOT mis-folded ──
+        "affine_2x1_exact": d_aff1.grade == "EXACT" and f"={_CF.naive_nth([3, -2], [0, 1], 20)}" in d_aff1.result,
+        "affine_3x2_exact": d_aff2.grade == "EXACT" and f"={_CF.naive_nth([4, -3], [1, 5], 20)}" in d_aff2.result,
+        "horner_eval_not_affine": d_hev.grade != "EXACT",               # ★ Horner-eval over a list (non-literal coeffs) ⇒ not folded as affine
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

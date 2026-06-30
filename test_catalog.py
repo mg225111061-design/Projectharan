@@ -6550,6 +6550,10 @@ def test_bj_structures_dispatch_languages():
     geo = DISP.dispatch("def f(n):\n acc = 1\n for _ in range(n): acc *= 2\n return acc", "python")
     assert geo.grade == "EXACT" and f"={_CF.naive_nth([2], [1], 20)}" in geo.result   # ★ 2²⁰, verified order-1
     assert DISP.dispatch("def f(n):\n acc = 1\n for i in range(1, n+1): acc *= i\n return acc", "python").grade == "DECLINE"  # ★ n! ⇒ DECLINE
+    # ★ §BP-14: affine iteration x→C1·x+C0 (const coeffs) folds via C-finite order-2; genuine Horner-eval NOT mis-folded
+    aff = DISP.dispatch("def f(n):\n x = 0\n for _ in range(n): x = x*2 + 1\n return x", "python")
+    assert aff.grade == "EXACT" and f"={_CF.naive_nth([3, -2], [0, 1], 20)}" in aff.result   # ★ 2ⁿ−1, verified order-2
+    assert DISP.dispatch("def ev(ds, x):\n acc = 0\n for d in ds: acc = acc*x + d\n return acc", "python").grade != "EXACT"  # ★ Horner-eval ⇒ not affine
     sum_py = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "python")
     sum_c = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "c", n_bound=10 ** 9)
     assert "fold" in sum_py.engine and sum_py.grade == "EXACT" and sum_c.grade == "DECLINE"  # ★ same struct, lang gate
