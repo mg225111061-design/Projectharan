@@ -6608,6 +6608,53 @@ def test_bk_production_wiring_and_pipeline_fold():
           "★3-clock honesty: A(LLM) immutable, never summed; wiring preserves verification, 0 new mechanism/disposer)")
 
 
+def test_bl_full_repo_gap_zero():
+    """§BL — the full-repo "전수 조사": engine_inventory.py scans ALL 668 non-test .py and classifies production
+    reachability. ★ gap == 0: every real ENGINE is reachable (136 wired_entry + 362 transitive-via-wired-package +
+    23 pipeline_infra = 521); the rest are honestly classified by ROLE (app_layer/dev_tooling/observability/
+    package_init) — the directive's intentional non-targets, named not hidden (you don't wire the request handler
+    to itself). ★ PIPE-1: all 5 sound caches reach-probed (foldcache/proof_cache/semantic_cache/lemma_broth/
+    enginespeed). RF-1: this is REACH, not a fold-rate multiplier (~6.8% ceiling unchanged). 0 new mechanism."""
+    from pathlib import Path
+    root = Path(__file__).parent
+
+    # ── the full inventory: gap == 0 over the wireable engine set ──
+    import engine_inventory as EI
+    bi = EI.adversarial_battery()
+    assert bi["all_ok"], bi["failed"]
+    s = EI.summary(".")
+    assert s["gap_count"] == 0 and s["gap_list"] == []                         # ★ every engine reachable
+    assert s["total"] >= 600                                                   # the real 651+ scan
+    assert s["engines_reachable"] >= 500                                       # wired + transitive + infra
+    # ★ the non-engine files are classified (not hidden gaps) — honest role buckets
+    assert s["counts"].get("app_layer", 0) >= 10 and s["counts"].get("observability", 0) >= 30
+
+    # ── PIPE-1: all the sound caches reach from production (whole-pipeline fold) ──
+    from webapi import engine_dispatch as ED
+    pc = ED.pipeline_caches()
+    assert pc["all_live"] and pc["live_count"] == 5                            # ★ foldcache/proof/semantic/lemma/enginespeed
+    fi = ED.full_inventory()
+    assert fi["gap"] == 0 and fi["engines_reachable"] >= 500                    # the dispatcher's own reach meter
+
+    # ── regression: the §BK production wiring + grade discipline still hold ──
+    assert ED.adversarial_battery()["all_ok"]                                  # §BK battery green (freivalds PROB, gap=0)
+    cl = ED.clocks()
+    assert "IMMUTABLE" in cl["A_llm"] and "NEVER claimed" in cl["felt"]        # 3-clock honesty unchanged
+
+    # ── ★ banned bigrams absent + RF-1 stated (ceiling unchanged, not a coverage multiplier) ──
+    inv = (root / "ENGINE_INVENTORY.md").read_text(encoding="utf-8")
+    assert "structural" in inv and "6.8%" in inv and "NOT" in inv             # RF-1 ceiling-unchanged stated
+    for fn in ("engine_inventory.py", "ENGINE_INVENTORY.md", "PRODUCTION_AUDIT.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bl_full_repo_gap_zero (§BL: engine_inventory scans 668 non-test .py → gap==0 [136 wired_entry "
+          "+ 362 transitive + 23 pipeline_infra = 521 engines reachable; app_layer/dev_tooling/observability "
+          "classified by role, not hidden gaps]; ★PIPE-1 all 5 sound caches reach [foldcache/proof_cache/"
+          "semantic_cache/lemma_broth/enginespeed]; §BK wiring + 3-clock honesty + grade discipline intact; "
+          "RF-1: REACH not a coverage multiplier, ~6.8% ceiling structural/unchanged, 0 new mechanism)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

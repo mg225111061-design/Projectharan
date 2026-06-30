@@ -53,3 +53,24 @@ value is a disposition that already passed the gate, so a warm hit can never ser
 - ★ Sandbox blocks the live server (deps, tree-sitter, LLM egress) ⇒ the end-to-end production run is
   author-validated on Render; the dispatcher, the reach meter, and the cache are unit-tested here — code + push
   only, no false "verified".
+
+## §BL — full-repo gap=0 (measured by `engine_inventory.py`)
+The §BK reach (7 gap engines) is generalized to the WHOLE repo: `engine_inventory.summary()` scans **668**
+non-test `.py` and classifies each. **gap = 0.**
+
+| class | count | role |
+|---|---|---|
+| transitive | 362 | submodule of a wired package (reachable by import) |
+| wired_entry | 136 | directly reached by the dispatcher |
+| package_init | 50 | the package surface |
+| observability | 49 | report/measure (intentional non-target) |
+| app_layer | 28 | the caller (server/agentic/auth/routers) |
+| pipeline_infra | 23 | caches / pipeline-fold orchestration |
+| dev_tooling | 20 | dogfood/bench/showcase |
+| **gap** | **0** | unreached engine — none |
+
+**engines reachable = 521** (wired + transitive + infra). The 147 non-engine files (app_layer + dev_tooling +
+observability + package_init) are classified by role, NOT counted as gaps — exactly the directive's intentional
+non-target clause. ★ PIPE-1 caches: `engine_dispatch.pipeline_caches()` ⇒ all 5 live (foldcache · proof_cache ·
+semantic_cache · lemma_broth · enginespeed). RF-1: REACH, not a coverage multiplier — the ~6.8% ceiling is
+structural and unchanged.

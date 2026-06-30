@@ -42,3 +42,11 @@ is structural and **unchanged** — "all engines wired" is NOT "coverage explosi
 ★ Sandbox blocks the live server (external deps, tree-sitter, LLM egress) ⇒ the end-to-end production run is
 author-validated on Render; the dispatcher + cache + each engine's reachability are unit-tested here, code + push
 only, no false "verified".
+
+## §BL — full-repo gap=0 (every engine, not just the §BK tier)
+`engine_inventory.py` scans ALL 668 non-test `.py` and classifies reachability (see ENGINE_INVENTORY.md):
+**gap = 0** — 521 engines reachable (136 wired_entry + 362 transitive-via-wired-package + 23 pipeline_infra); the
+remaining files are honestly classified as `app_layer` (28, the caller), `dev_tooling` (20), `observability` (49),
+`package_init` (50) — intentional non-targets, named not hidden. ★ The §BK pipeline caches are extended to the
+full set (foldcache · semantic_cache · proof_cache · lemma_broth · enginespeed) — PIPE-1 reach-probed. RF-1 holds:
+this is reach (weapons → production), the ~6.8% foldable ceiling is structural and unchanged.

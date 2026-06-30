@@ -88,6 +88,45 @@ _GAP_ENGINES: Dict[str, Callable[[], dict]] = {
 _ALREADY_WIRED = ("structure_recognizer", "loop_recurrence/cfinite", "pillar3.engine/canonical/corpus")
 
 
+def pipeline_caches() -> dict:
+    """§BL PIPE-1 — reach-probe ALL the sound caches the pipeline folds over (foldcache + semantic_cache +
+    proof_cache + lemma_broth + enginespeed). Each is content-addressed/sound (a wrong hit is impossible)."""
+    out = {}
+    try:
+        from foldrate.foldcache import FoldCache; FoldCache(); out["foldcache"] = True
+    except Exception:  # noqa: BLE001
+        out["foldcache"] = False
+    try:
+        import proof_cache as PC; PC.reset(); out["proof_cache"] = isinstance(PC.canonical_key("x", {"x": "Int"}), tuple)
+    except Exception:  # noqa: BLE001
+        out["proof_cache"] = False
+    try:
+        from accel.semantic_cache import SemanticCache; SemanticCache({"x": "Int"}); out["semantic_cache"] = True
+    except Exception:  # noqa: BLE001
+        out["semantic_cache"] = False
+    try:
+        import lemma_broth as LB; out["lemma_broth"] = hasattr(LB, "cheap_recheck")
+    except Exception:  # noqa: BLE001
+        out["lemma_broth"] = False
+    try:
+        from enginespeed import cache as EC; out["enginespeed"] = isinstance(EC.content_key("a", 1), str)
+    except Exception:  # noqa: BLE001
+        out["enginespeed"] = False
+    return {"caches": out, "all_live": all(out.values()), "live_count": sum(1 for v in out.values() if v)}
+
+
+def full_inventory() -> dict:
+    """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
+    app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""
+    try:
+        import engine_inventory as EI
+        s = EI.summary(".")
+        return {"total": s["total"], "engines_reachable": s["engines_reachable"], "gap": s["gap_count"],
+                "gap_list": s["gap_list"][:20], "counts": s["counts"]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "gap": None}
+
+
 def production_reach() -> dict:
     """★ The '100%' meter: invoke each gap engine; `gap_remaining` is how many are still unreachable (target 0).
     A reach failure is reported honestly (never hidden) so the audit cannot drift."""
