@@ -6,6 +6,8 @@
 <meta name="color-scheme" content="light dark" />
 <title>MR.JEFFREY — 안전하게 · 빠르게 · 정확하게</title>
 <meta name="description" content="대화로 시작하세요. 일반 질문이면 답하고, 코드를 만들거나 고쳐 달라면 만들고 검증해 돌려드립니다. LLM은 제안만 하고, 무엇을 돌려줄지는 검증기가 정합니다." />
+<!-- §BE: browser execution guard (Pyodide-in-Worker isolation). Loads the worker on demand; keys never reach it. -->
+<script defer src="/static/sandbox_guard.js"></script>
 <style>
 /* MR.JEFFREY — single-file app. Extreme minimalism × extreme dimensionality. White volume, one ink, three
    PILLAR accents (SECURED·FAST·ACCURATE); the few objects are deeply dimensional floating slabs. The entry is a
@@ -129,6 +131,11 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 28px;per
 .codeblock{margin:10px 0 0}
 .codeblock .cb-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .codeblock pre{white-space:pre;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:0;max-height:460px;tab-size:4}
+/* §BE browser-run output + fold-check grade badge */
+.run-out{margin-top:8px;font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--ink-2);background:var(--page);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;max-height:300px;overflow:auto}
+.run-grade{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;margin-bottom:6px}
+.g-EXACT{color:#075537;background:#e7f6ee} .g-CHECKED{color:#3b51d9;background:#eaedfc}
+.g-FLAGGED{color:#8a2d06;background:#fdeee6} .g-DEFER{color:#414856;background:#eef0f3}
 .reslabel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-family:var(--mono);padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
 .tag.ok{color:var(--free);border-color:color-mix(in srgb,var(--free) 45%,var(--line))}
@@ -242,6 +249,40 @@ function attachTilt(el, max){
 }
 function setScreen(s){ S.screen=s; render(); if(s==="chat") setTimeout(()=>{const t=document.getElementById("composer-input"); t&&t.focus();},30); }
 function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTimeout(()=>{S.toast=null;render();},3000); }
+
+// ── §BE: run generated code in the browser (Pyodide-in-Worker, isolated). The server only ran the fold CHECK
+//    (grade); EXECUTION happens here on the user's CPU — Render's weak free tier is bypassed. ★ All output is
+//    UNTRUSTED: rendered via textContent only (never innerHTML) — no XSS. ★ The payload is code-only — no key.
+function _sandbox(){ if(!window.__sandbox && window.SandboxRunner){ window.__sandbox=new window.SandboxRunner(); window.__sandbox.warm&&window.__sandbox.warm(); } return window.__sandbox; }
+async function runInBrowser(code, cb, btn){
+  if(!code) return;
+  if(!window.SandboxRunner){ showToast("브라우저 실행기를 불러오지 못했습니다"); return; }
+  let out=cb.querySelector(".run-out");
+  if(!out){ out=$("div",{class:"run-out"}); cb.appendChild(out); }
+  out.textContent=""; if(btn){ btn.disabled=true; }
+  // 1) server fold CHECK → grade (O(1) loop semantics; cached). Browser run proceeds regardless, but the grade is shown first.
+  try{
+    const cr=await fetch("/api/check",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code})});
+    const cj=await cr.json();
+    if(cj&&cj.ok){
+      const badge=$("div",{class:"run-grade g-"+cj.grade}, "점검: "+cj.grade+(cj.cached?" (캐시)":""));
+      out.appendChild(badge);
+      if(cj.findings&&cj.findings.length){ const f=cj.findings[0]; out.appendChild($("div",{class:"v-sub"}, "⚠ L"+f.line+": "+f.message)); }
+    }
+  }catch(e){ /* honest: if the check endpoint is down, still run — the run result stands on its own */ }
+  // 2) browser execution (isolated worker; main thread terminates it on timeout)
+  const line=$("div",{}); line.textContent="실행 중… (최초 1회는 Pyodide 로딩으로 몇 초)"; out.appendChild(line);
+  let r; try{ r=await _sandbox().runUserCode(code,{timeoutMs:5000}); }catch(e){ r={ok:false,error:String(e&&e.message||e)}; }
+  line.remove();
+  const res=$("div",{});                                  // textContent throughout ⇒ untrusted output can't inject HTML
+  if(r.killed){ res.textContent="⏱ "+r.error; res.style.color="#c0392b"; }
+  else if(!r.ok){ res.textContent="✗ 오류: "+(r.error||"unknown"); res.style.color="#c0392b"; }
+  else{
+    const parts=[]; if(r.stdout) parts.push(r.stdout); if(r.value) parts.push("⟶ "+r.value);
+    res.textContent=(parts.join("\n")||"(출력 없음)")+(r.ms!=null?("   ["+r.ms+"ms · 브라우저에서 실행]"):"");
+  }
+  out.appendChild(res); if(btn){ btn.disabled=false; }
+}
 
 const ERR = {
   network:"네트워크 오류 — 연결에 실패했습니다. 잠시 후 다시 시도하세요.",
@@ -405,7 +446,10 @@ function renderAssistant(a){
   if(a.kind==="code" && (a.code||a.busy)){
     const cb=$("div",{class:"codeblock"},[
       $("div",{class:"cb-head"},[ $("span",{class:"v-sub"}, a.busy?"코드 생성 중…":"돌려받은 코드"),
-        a.code?$("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",onclick:()=>{navigator.clipboard&&navigator.clipboard.writeText(a.code);showToast("복사했습니다");}},"복사"):null ]),
+        a.code?$("span",{style:"display:inline-flex;gap:6px"},[
+          $("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",title:"브라우저에서 격리 실행 — Render CPU 미사용, 무한루프는 타임아웃에 죽음, 네트워크 차단",onclick:(ev)=>runInBrowser(a.code, cb, ev.currentTarget)},"▶ 실행"),
+          $("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",onclick:()=>{navigator.clipboard&&navigator.clipboard.writeText(a.code);showToast("복사했습니다");}},"복사"),
+        ]):null ]),
       $("pre",{},a.code||"…"),
     ]);
     body.appendChild(cb);

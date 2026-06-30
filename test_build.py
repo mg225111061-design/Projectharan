@@ -10692,6 +10692,70 @@ def test_mrj_provider_wiring():
           "404=MODEL-not-key·429=quota, health/mask never leak the key)")
 
 
+def test_be_browser_offload_isolation():
+    """§BE — push heavy EXECUTION to the user's browser (Pyodide-in-Worker, isolated); keep the CHECK on the server
+    (fold, O(1)). This is offload + isolation + fold — NOT "quantum"/"ultra-speed" (banned: a classical CPU runs a
+    quantum sim slower). The browser path can't be live-verified here (the Pyodide CDN is egress-blocked) ⇒ this is a
+    STRUCTURAL regression: every isolation layer must be present in the shipped files, and no key may reach the browser.
+    ★ Asserts: (1) server fold-CHECK grades + caches + warmup; (2) the run payload is code-ONLY (key never leaves the
+    server); (3) the worker severs the network AFTER load; (4) timeout→terminate (infinite-loop killer); (5) untrusted
+    output is capped + rendered as text; (6) banned bigrams absent; (7) static .js servable; (8) os-import-0 holds."""
+    import re
+    from pathlib import Path
+    import server as SRV
+    root = Path(__file__).parent
+    worker = (root / "static" / "runner.worker.js").read_text(encoding="utf-8")
+    guard = (root / "static" / "sandbox_guard.js").read_text(encoding="utf-8")
+    html = (root / "mrjeffrey.html").read_text(encoding="utf-8")
+
+    # (1) server-side fold CHECK (TE-3) — grade + recompute-0 cache + warmup (TE-4)
+    assert SRV.run_fold_check("def f(x=[]):\n x.append(1)")["grade"] == "FLAGGED"
+    assert SRV.run_fold_check("def f(n):\n s=0\n for i in range(n):\n  s+=i\n return s")["grade"] == "EXACT"
+    assert SRV.run_fold_check("def f(s):\n return eval(s)")["grade"] == "DEFER"
+    assert SRV.run_fold_check("def f(n):\n s=0\n for i in range(n):\n  s+=i\n return s")["cached"] is True
+    assert SRV.run_fold_check("")["ok"] is False
+    assert SRV.warmup_engines()["ok"] is True
+    assert SRV._STATIC_TYPES[".js"] == "application/javascript"     # (7) the new worker/guard are servable as-is
+
+    # (2) ★ key-0 to the browser: the worker run payload is code-only; the guard refuses to post any secret.
+    assert 'type: "run", code }' in guard and "assertNoSecrets(payload)" in guard
+    assert all(s in guard for s in ("key", "token", "session", "secret", "authorization", "password"))  # the deny-list
+    # the UI's run path posts ONLY {code} to /api/check and carries no key/session token into the worker
+    m = re.search(r"async function runInBrowser\(.*?\n}", html, re.S)
+    assert m, "runInBrowser not found"
+    runbody = m.group(0)
+    assert "JSON.stringify({code})" in runbody
+    for leak in ("S.key", "apiKey", "api_key", "session", "Authorization", "password"):
+        assert leak not in runbody, f"run path may leak a secret to the browser: {leak}"
+
+    # (3) ★ network severed INSIDE the worker, AFTER Pyodide loads (user code that follows cannot phone home)
+    assert "severNetwork" in worker
+    for n in ("fetch", "XMLHttpRequest", "WebSocket", "importScripts"):
+        assert n in worker, f"worker does not sever {n}"
+    assert worker.index("await loadPyodide") < worker.index("severNetwork();"), "must sever network AFTER load"
+
+    # (4) ★ the infinite-loop killer: timeout → worker.terminate() (a worker can't kill its own loop)
+    assert "terminate()" in guard and "setTimeout" in guard and "killed: true" in guard
+
+    # (5) ★ untrusted output: size-capped in the guard, and rendered as TEXT (textContent) in the UI — no XSS via innerHTML
+    assert "OUTPUT_CAP" in guard and "sanitizeOutput" in guard
+    assert ".textContent=" in runbody and "innerHTML" not in runbody
+
+    # (6) ★ banned bigrams must be absent from every §BE artifact (constitution)
+    for txt in (worker, guard, runbody, (root / "TESTENV_INDEX.md").read_text(encoding="utf-8")):
+        low = txt.lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    # (8) ★ key-isolation regression: claude_agent stays os-import-0 (the LEVEL-1 key boundary, unchanged by §BE)
+    ca = (root / "claude_agent.py").read_text(encoding="utf-8")
+    assert not re.search(r"^\s*import os\b", ca, re.M) and not re.search(r"^\s*from os\b", ca, re.M)
+
+    print("PASS test_be_browser_offload_isolation (§BE: execution→browser [Pyodide-in-Worker], check→server [fold "
+          "O(1)]; ★key-0 to browser [run payload code-only, guard deny-list], ★network severed post-load, "
+          "★timeout→terminate kills infinite loops, ★untrusted output capped+textContent; banned bigrams absent; "
+          ".js servable; claude_agent os-import-0 — offload+isolation+fold, NOT 'ultra-speed')")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

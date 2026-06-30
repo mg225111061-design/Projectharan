@@ -8,7 +8,7 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **274 passed / 274** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` (+1 §MRJ provider-wiring); `test_catalog.py` **237** (+4 §BA caps · +1 §SEC search-gate · +1 §BB R-1 slice-split · +1 §BC CA-1 causal-poset · +1 §BD checker-layer) |
+| Tests | **275 passed / 275** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` (+1 §MRJ provider-wiring · +1 §BE browser-offload/isolation); `test_catalog.py` **237** (+4 §BA caps · +1 §SEC search-gate · +1 §BB R-1 slice-split · +1 §BC CA-1 causal-poset · +1 §BD checker-layer) |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |

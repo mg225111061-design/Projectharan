@@ -17,6 +17,7 @@ wires the routes — so this module imports fine in any environment (mirrors cla
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -287,6 +288,69 @@ def reverify_incremental(prev_src: str, new_src: str) -> dict:
             "speedup_unchanged": round(m.speedup_unchanged, 1)}
 
 
+# ── §BE TE-3/4/5: server-side fold CHECK (O(1) loop semantics) + keep-alive warmup + recompute-0 cache ──────────
+# Role split (§BE): EXECUTION is the browser's job (Pyodide/WASM, isolated — see static/runner.worker.js); the
+# server only ORCHESTRATES + runs the cheap fold CHECK. These are plain functions (testable without FastAPI), and
+# they REUSE the §BD checker layer — no new mechanism, no new disposer, no new math.
+_CHECK_CACHE: dict = {}          # sha256(code) → result dict; the fastest check is the one we don't recompute
+_CHECK_CACHE_MAX = 256
+
+
+def run_fold_check(code: str) -> dict:
+    """Run the §BD checker layer over LLM-generated code → an honest grade (EXACT/CHECKED/FLAGGED/DEFER) + located
+    fix instructions. O(N) read + O(1) loop semantics (fold). Content-hash cached (recompute 0 on a repeat)."""
+    if not isinstance(code, str) or not code.strip():
+        return {"ok": False, "error": "no code to check"}
+    key = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    if key in _CHECK_CACHE:
+        out = dict(_CHECK_CACHE[key]); out["cached"] = True
+        return out
+    try:
+        from checker.grade_and_fix import check as _check    # noqa: PLC0415 — lazy/guarded (mirrors _ENGINE)
+        r = _check(code)
+        out = {
+            "ok": True,
+            "grade": r.grade,                                 # EXACT | CHECKED | FLAGGED | DEFER
+            "summary": r.summary,
+            "effect": r.effect,
+            "n_lines": r.n_lines,
+            "findings": [{"line": f.line, "severity": f.severity, "pattern": f.pattern_id,
+                          "message": f.message, "hint": f.hint} for f in r.findings],
+            "fix_instructions": r.fix_instructions(),
+            "cached": False,
+        }
+    except Exception as e:                                    # noqa: BLE001 — checker must never crash the server
+        return {"ok": False, "error": f"checker unavailable: {type(e).__name__}"}
+    if len(_CHECK_CACHE) >= _CHECK_CACHE_MAX:
+        _CHECK_CACHE.pop(next(iter(_CHECK_CACHE)))            # simple bounded FIFO
+    _CHECK_CACHE[key] = out
+    return out
+
+
+def warmup_engines() -> dict:
+    """TE-4: preload the heavy modules ONCE (z3/numpy/fold/checker) so the first real request after a cold start is
+    instant. Render free-tier sleeps after ~15min; an external keep-alive ping to /health prevents the sleep, and
+    /warmup pays the import/JIT cost ahead of the user. Best-effort — a missing optional module is skipped, not fatal."""
+    warmed, skipped = [], []
+    for name, thunk in (
+        ("numpy", lambda: __import__("numpy")),
+        ("z3", lambda: __import__("z3")),
+        ("loop_decision", lambda: __import__("loop_decision")),
+        ("checker", lambda: __import__("checker.grade_and_fix", fromlist=["check"])),
+    ):
+        try:
+            thunk(); warmed.append(name)
+        except Exception:                                     # noqa: BLE001 — optional; never fatal
+            skipped.append(name)
+    # touch the fold path once so its first real use is JIT-warm (tiny, deterministic)
+    try:
+        run_fold_check("def f(n):\n s=0\n for i in range(n):\n  s+=i\n return s")
+        warmed.append("fold_check")
+    except Exception:                                         # noqa: BLE001
+        skipped.append("fold_check")
+    return {"ok": True, "warmed": warmed, "skipped": skipped}
+
+
 def _fastapi_available() -> bool:
     return importlib.util.find_spec("fastapi") is not None
 
@@ -342,9 +406,13 @@ def create_app():
     async def profile_page():                                  # noqa: ANN202
         return _page("profile")
 
-    @app.get("/health")                                        # deploy health check (Cloud Run/Render)
+    @app.get("/health")                                        # deploy health check (Cloud Run/Render) + keep-alive ping
     async def health():                                        # noqa: ANN202
         return {"ok": True, "service": "mrjeffrey"}
+
+    @app.get("/warmup")                                        # §BE TE-4: preload z3/numpy/fold/checker (kill cold-start)
+    async def warmup():                                        # noqa: ANN202
+        return JSONResponse(warmup_engines())
 
     # ---- auth API (no LLM key involved anywhere here) ----
     @app.post("/api/auth/signup")
@@ -404,6 +472,12 @@ def create_app():
     @app.get("/api/modes")
     async def api_modes():                                     # noqa: ANN202
         return JSONResponse({"modes": _ENGINE.modes()} if _ENGINE else {"modes": []})
+
+    @app.post("/api/check")                                    # §BE TE-3: server-side fold CHECK → honest grade
+    async def api_check(req: Request):                         # noqa: ANN202
+        # ★ code-only: never a key/session (keys live server-side; the browser run payload is code-only too).
+        p = await req.json()
+        return JSONResponse(run_fold_check(p.get("code", "")))
 
     @app.get("/api/providers")
     async def api_providers():                                 # noqa: ANN202
