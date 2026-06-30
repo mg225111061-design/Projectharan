@@ -10720,11 +10720,13 @@ def test_be_browser_offload_isolation():
     # (2) ★ key-0 to the browser: the worker run payload is code-only; the guard refuses to post any secret.
     assert 'type: "run", code }' in guard and "assertNoSecrets(payload)" in guard
     assert all(s in guard for s in ("key", "token", "session", "secret", "authorization", "password"))  # the deny-list
-    # the UI's run path posts ONLY {code} to /api/check and carries no key/session token into the worker
-    m = re.search(r"async function runInBrowser\(.*?\n}", html, re.S)
-    assert m, "runInBrowser not found"
-    runbody = m.group(0)
-    assert "JSON.stringify({code})" in runbody
+    # the UI's check/run path posts ONLY {code} to /api/check and carries no key/session token into the worker.
+    # (§BG refactor: the /api/check fetch now lives in checkGrade(), which runInBrowser() and checkOnly() call —
+    #  so the key-0 / textContent invariants are asserted over all three functions, not just runInBrowser.)
+    fns = re.findall(r"async function (?:checkGrade|checkOnly|runInBrowser)\b.*?\n}", html, re.S)
+    assert len(fns) == 3, f"expected checkGrade/checkOnly/runInBrowser, found {len(fns)}"
+    runbody = "\n".join(fns)
+    assert "async function runInBrowser" in runbody and "JSON.stringify({code})" in runbody  # only {code} crosses to the server
     for leak in ("S.key", "apiKey", "api_key", "session", "Authorization", "password"):
         assert leak not in runbody, f"run path may leak a secret to the browser: {leak}"
 
