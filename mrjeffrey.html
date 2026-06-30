@@ -136,6 +136,8 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 28px;per
 .run-grade{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;margin-bottom:6px}
 .g-EXACT{color:#075537;background:#e7f6ee} .g-CHECKED{color:#3b51d9;background:#eaedfc}
 .g-FLAGGED{color:#8a2d06;background:#fdeee6} .g-DEFER{color:#414856;background:#eef0f3}
+/* §BG PROD-3: DEFER-only highlight — the one place the user must inspect (EXACT/CHECKED stay calm) */
+.defer-box{margin-top:6px;padding:8px 11px;border-radius:var(--r);font-size:12px;line-height:1.5;color:var(--ink);background:#fff7ed;border:1px solid #f0a35e;border-left:3px solid #c2410c}
 .reslabel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-family:var(--mono);padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
 .tag.ok{color:var(--free);border-color:color-mix(in srgb,var(--free) 45%,var(--line))}
@@ -254,24 +256,44 @@ function showToast(m){ S.toast=m; render(); clearTimeout(TOAST_T); TOAST_T=setTi
 //    (grade); EXECUTION happens here on the user's CPU — Render's weak free tier is bypassed. ★ All output is
 //    UNTRUSTED: rendered via textContent only (never innerHTML) — no XSS. ★ The payload is code-only — no key.
 function _sandbox(){ if(!window.__sandbox && window.SandboxRunner){ window.__sandbox=new window.SandboxRunner(); window.__sandbox.warm&&window.__sandbox.warm(); } return window.__sandbox; }
+
+// ── §BG PROD-1/3: render the server fold-CHECK grade into `out`. ★ DEFER-only highlight — EXACT/CHECKED render as a
+//    calm badge ("trust it, don't inspect"); HONEST_DEFER renders a PROMINENT box with the §BF *why* ("여기만 확인
+//    하세요"). Debugging-0 convergence: the user inspects ONLY the parts the verifier could not prove.
+const GRADE_LABEL={EXACT:"🛡 EXACT — 증명됨 (디버깅 0)", CHECKED:"🔎 CHECKED — 흔한 버그 없음 (보장 아님)",
+                   FLAGGED:"⚠ FLAGGED — 수정 필요", DEFER:"🤚 HONEST_DEFER — 검증 못 함 · 직접 확인"};
+async function checkGrade(out, code){
+  let cj=null;
+  try{ const r=await fetch("/api/check",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code})}); cj=await r.json(); }
+  catch(e){ return null; }                                  // honest: endpoint down → caller decides
+  if(!cj||!cj.ok) return cj;
+  out.appendChild($("div",{class:"run-grade g-"+cj.grade}, (GRADE_LABEL[cj.grade]||("점검: "+cj.grade))+(cj.cached?" · 캐시":"")));
+  if(cj.findings&&cj.findings.length){ const f=cj.findings[0]; out.appendChild($("div",{class:"v-sub"}, "⚠ L"+f.line+": "+f.message+(f.hint?" → "+f.hint:""))); }
+  if(cj.grade==="DEFER"){                                   // ★ PROD-3: the ONE place to look
+    const why=(cj.diagnosis&&cj.diagnosis.hint)||cj.summary||"이 부분은 정적으로 검증할 수 없습니다 — 직접 확인하세요.";
+    out.appendChild($("div",{class:"defer-box"},[$("b",{},"여기만 확인하세요 — "), why]));
+  } else if(cj.grade==="EXACT"){ out.appendChild($("div",{class:"v-sub"}, "이 부분은 증명되었습니다 — 의심할 필요 없음.")); }
+  else if(cj.grade==="CHECKED"){ out.appendChild($("div",{class:"v-sub"}, "흔한 버그 패턴 전수 통과 — 강한 신뢰(보장은 아님).")); }
+  return cj;
+}
+// §BG PROD-2: write→CHECK (server fold, O(1)) without running — the grade-first half of the flow.
+async function checkOnly(code, cb, btn){
+  if(!code) return;
+  let out=cb.querySelector(".run-out"); if(!out){ out=$("div",{class:"run-out"}); cb.appendChild(out); }
+  out.textContent=""; if(btn) btn.disabled=true;
+  const head=$("div",{class:"v-sub"}); head.textContent="서버 fold 점검 중… (O(1))"; out.appendChild(head);
+  const cj=await checkGrade(out, code); head.remove();
+  if(!cj) out.appendChild($("div",{class:"v-sub"},"점검 엔드포인트에 연결하지 못했습니다 (서버 대기 중일 수 있음)."));
+  if(btn) btn.disabled=false;
+}
 async function runInBrowser(code, cb, btn){
   if(!code) return;
   if(!window.SandboxRunner){ showToast("브라우저 실행기를 불러오지 못했습니다"); return; }
   let out=cb.querySelector(".run-out");
   if(!out){ out=$("div",{class:"run-out"}); cb.appendChild(out); }
   out.textContent=""; if(btn){ btn.disabled=true; }
-  // 1) server fold CHECK → grade (O(1) loop semantics; cached). Browser run proceeds regardless, but the grade is shown first.
-  try{
-    const cr=await fetch("/api/check",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code})});
-    const cj=await cr.json();
-    if(cj&&cj.ok){
-      const badge=$("div",{class:"run-grade g-"+cj.grade}, "점검: "+cj.grade+(cj.cached?" (캐시)":""));
-      out.appendChild(badge);
-      if(cj.findings&&cj.findings.length){ const f=cj.findings[0]; out.appendChild($("div",{class:"v-sub"}, "⚠ L"+f.line+": "+f.message)); }
-      // §BF FIX-7: DEFER is feedback, not a wall — show WHY it couldn't be verified + an actionable hint
-      if(cj.diagnosis && cj.diagnosis.hint){ out.appendChild($("div",{class:"v-sub"}, "왜: "+(cj.diagnosis.hint))); }
-    }
-  }catch(e){ /* honest: if the check endpoint is down, still run — the run result stands on its own */ }
+  // §BG PROD-2 write→check→RUN: the grade (EXACT/CHECKED/FLAGGED/DEFER) is shown FIRST; the browser run proceeds regardless.
+  await checkGrade(out, code);
   // 2) browser execution (isolated worker; main thread terminates it on timeout)
   const line=$("div",{}); line.textContent="실행 중… (최초 1회는 Pyodide 로딩으로 몇 초)"; out.appendChild(line);
   let r; try{ r=await _sandbox().runUserCode(code,{timeoutMs:5000}); }catch(e){ r={ok:false,error:String(e&&e.message||e)}; }
@@ -449,6 +471,7 @@ function renderAssistant(a){
     const cb=$("div",{class:"codeblock"},[
       $("div",{class:"cb-head"},[ $("span",{class:"v-sub"}, a.busy?"코드 생성 중…":"돌려받은 코드"),
         a.code?$("span",{style:"display:inline-flex;gap:6px"},[
+          $("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",title:"서버 fold 점검(O(1)) — 등급(EXACT/CHECKED/FLAGGED/DEFER)만, 실행 없이. DEFER 부분만 직접 확인하면 됩니다.",onclick:(ev)=>checkOnly(a.code, cb, ev.currentTarget)},"🔎 점검"),
           $("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",title:"브라우저에서 격리 실행 — Render CPU 미사용, 무한루프는 타임아웃에 죽음, 네트워크 차단",onclick:(ev)=>runInBrowser(a.code, cb, ev.currentTarget)},"▶ 실행"),
           $("button",{class:"ghost",style:"padding:3px 9px;font-size:12px",onclick:()=>{navigator.clipboard&&navigator.clipboard.writeText(a.code);showToast("복사했습니다");}},"복사"),
         ]):null ]),

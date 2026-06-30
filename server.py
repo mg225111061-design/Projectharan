@@ -599,6 +599,15 @@ def create_app():
             return Response(status_code=404)
         return Response(content=p.read_text(encoding="utf-8"), media_type=_STATIC_TYPES[p.suffix])
 
+    @app.get("/static/runtimes/{name}")                         # §BG LANG-1: WASM runtime registry + module cache
+    async def static_runtime(name: str):                       # noqa: ANN202
+        # same allow-list, one fixed sub-dir only (name-only ⇒ no traversal; suffix in the whitelist).
+        rt = (STATIC / "runtimes").resolve()
+        p = (rt / name).resolve()
+        if p.parent != rt or not p.is_file() or p.suffix not in _STATIC_TYPES:
+            return Response(status_code=404)
+        return Response(content=p.read_text(encoding="utf-8"), media_type=_STATIC_TYPES[p.suffix])
+
     @app.get("/stats.json")                                     # STAGE 0 measurement artifact (no hardcoding)
     async def stats():                                          # noqa: ANN202
         if not STATS_JSON.is_file():

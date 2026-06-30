@@ -6325,6 +6325,55 @@ def test_bf_decline_diagnostics():
           "grade never changed, precision 1.0 intact)")
 
 
+def test_bg_pastnative_and_runtimes():
+    """§BG — (B) fold = *past-native* (remove the computation, not magic) + (A) multi-language WASM scaffolding.
+    ★ The honest frame: native still loops O(n); we jump to a closed form O(1), so WASM's 1.5–2× penalty is
+    irrelevant — there's no loop left. Reuses the existing engine (loop_decision/freivalds); net-new = recognition +
+    measured demonstration + the k≥60 false-EXACT-0 lane. ★ 'quantum/relativistic/ultra-speed' are banned bigrams."""
+    from pathlib import Path
+    root = Path(__file__).parent
+
+    # gem-1: closed-form sum — the fold engine collapses Σk to O(1) with an EXACT certificate (reuse, no rebuild)
+    import loop_decision as LD
+    dec = LD.decide_sum_collapse("k", var="k", lo=1)
+    assert dec.status == "CLOSED_FORM" and dec.verdict.status == "EXACT" and dec.complexity == "O(1)"
+
+    # gem-4: Freivalds proposer-verifier at k≥60 ⇒ δ≤2⁻⁶⁰ (false-EXACT 0), graded PROBABILISTIC (never EXACT)
+    import numpy as np, freivalds as FV
+    rng = np.random.default_rng(0)
+    A = rng.integers(-9, 9, (40, 40)).astype(float); B = rng.integers(-9, 9, (40, 40)).astype(float); C = A @ B
+    v = FV.verify_matmul((A, B, C), k=64)
+    assert v.status == "PROBABILISTIC" and v.certificate.delta <= 2.0 ** -60   # tiny δ ⇒ false-EXACT 0
+    Cw = C.copy(); Cw[0, 0] += 1
+    assert FV.verify_matmul((A, B, Cw), k=64).status == "DECLINE"              # wrong ⇒ DECLINE (one-sided)
+    fa = FV.adversarial_false_accept(trials=20_000, N=6, k=20, seed=7)
+    assert fa["false_reject"] == 0 and fa["false_accept"] == 0                  # one-sided + δ tiny ⇒ 0/0 measured
+
+    # Workstream A: the net-new browser runtime layer exists, is servable, honest-labeled, traversal-safe
+    reg = (root / "static" / "runtimes" / "registry.js").read_text(encoding="utf-8")
+    cache = (root / "static" / "runtimes" / "wasm_cache.js").read_text(encoding="utf-8")
+    assert "HaranRuntimes" in reg and "HaranWasmCache" in cache
+    assert "native-class" in reg and "works-bulky" in reg and "immature" in reg   # honest per-language tiers
+    assert "cachedCompile" in cache and "indexeddb" in cache.lower()              # IndexedDB module cache (ACCEL-3)
+    import server as SRV
+    rt = (SRV.STATIC / "runtimes").resolve()
+    def servable(n):
+        p = (rt / n).resolve()
+        return p.parent == rt and p.is_file() and p.suffix in SRV._STATIC_TYPES
+    assert servable("registry.js") and servable("wasm_cache.js")
+    assert not servable("../server.py")                                          # ★ no path traversal
+
+    # ★ banned bigrams absent from every §BG artifact (the constitution + the research's own grounds)
+    for fn in ("IMPL_INDEX.md", "IMPL_MEASURE.md", "static/runtimes/registry.js", "static/runtimes/wasm_cache.js"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bg_pastnative_and_runtimes (§BG: fold = past-native — Σk collapses O(n)→O(1) EXACT [reuse], "
+          "Freivalds k=64 verifies a matmul PROBABILISTIC δ≤2⁻⁶⁰ [false-EXACT 0, wrong⇒DECLINE, 0/0 adversarial]; "
+          "Workstream A runtime registry + IndexedDB WASM cache exist, honest-labeled, servable & traversal-safe; "
+          "banned bigrams absent — removing computation, not magic)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
