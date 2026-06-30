@@ -44,6 +44,25 @@ _CONV = re.compile(r"\w+\[\s*\w+\s*\+\s*\w+\s*\]\s*\+=\s*\w+\[[^\]]+\]\s*\*\s*\w
 _HORNER = re.compile(r"(\w+)\s*=\s*\1\s*\*\s*\w+\s*\+\s*\w+")                      # acc = acc*base + d
 _HAS_LOOP = re.compile(r"\b(for|while)\b")
 
+# ── functional / builtin summation (the loop IS the comprehension; no explicit `acc += i`) ─────────────
+#   sum(i*i for i in range(...)) | sum(i**2 ...)  → poly_sum   (Σ k^d)
+_POLY_SUM_FUNC = re.compile(r"sum\s*\(\s*[^)]*?(\w+\s*\*\s*\w+|\w+\s*\*\*\s*\d+)[^)]*?\bfor\b[^)]*?\brange\b", re.S)
+#   sum(range(...)) | sum(i for i in range(...))  → sum_loop   (Σ k)  — REQUIRE range ⇒ a Faulhaber series,
+#   never a bare sum(arbitrary_list) (that stays raw ⇒ the dispatcher DECLINEs — conservative, no false match)
+_SUM_FUNC = re.compile(r"sum\s*\(\s*(?:range\s*\(|[^)]*?\bfor\b[^)]*?\brange\b)", re.S)
+#   reduce(lambda a,b: a+b, range(...)) / functools.reduce additive over a range → sum_loop
+_REDUCE_SUM = re.compile(r"reduce\s*\(\s*lambda\s+\w+\s*,\s*\w+\s*:\s*\w+\s*\+\s*\w+[^)]*?\brange\b", re.S)
+
+
+def _functional_sum_kind(src: str) -> Optional[str]:
+    """Recognize a Σ written as a builtin/functional comprehension over a range (sum()/reduce) — poly before
+    plain. Conservative: REQUIRES `range`, so sum(arbitrary_list) does NOT fire (stays raw ⇒ honest DECLINE)."""
+    if _POLY_SUM_FUNC.search(src):
+        return "poly_sum"
+    if _SUM_FUNC.search(src) or _REDUCE_SUM.search(src):
+        return "sum_loop"
+    return None
+
 
 def _checksum_kind(src: str) -> Optional[str]:
     """Delegate checksum recognition to the extract catalog's own recognizer (CRC/Adler/Luhn/…)."""
@@ -70,6 +89,10 @@ def recognize(src: str, lang: str = "generic") -> StructMatch:
                            {"vars": [m.group(1), m.group(2)]}, note="Fibonacci-style linear recurrence")
     if _HORNER.search(src):
         return StructMatch("horner", True, lang, note="acc = acc*base + d (Horner)")
+    fk = _functional_sum_kind(src)                                       # sum()/reduce over a range (no acc+=i)
+    if fk:
+        return StructMatch(fk, True, lang, recognizer="regex-fallback",
+                           note=f"{'Σk^d' if fk == 'poly_sum' else 'Σk'} via builtin sum()/reduce over range")
     if _HAS_LOOP.search(src):
         if _POLY_SUM.search(src):
             return StructMatch("poly_sum", True, lang, note="Σ k^d polynomial sum")
@@ -92,13 +115,30 @@ _CORPUS = {
 }
 
 
+# ★ §BP-1: the SAME Σ written functionally (builtin sum()/reduce/generator) — previously `raw`, now recognized.
+#   These map to the EXISTING sum_loop/poly_sum kinds (the fold engine + language z3 gate decide soundness).
+_FUNCTIONAL_CORPUS = {
+    "sum_range":      ("sum_loop", "def f(n):\n return sum(range(1, n+1))"),
+    "sum_gen":        ("sum_loop", "def f(n):\n return sum(i for i in range(1, n+1))"),
+    "poly_gen":       ("poly_sum", "def f(n):\n return sum(i*i for i in range(1, n+1))"),
+    "poly_pow_gen":   ("poly_sum", "def f(n):\n return sum(i**2 for i in range(1, n+1))"),
+    "reduce_sum":     ("sum_loop", "from functools import reduce\ndef f(n):\n return reduce(lambda a,b: a+b, range(1, n+1))"),
+}
+
+
 def measure_recognition() -> dict:
-    """★ MEASURE the widened door: how many distinct structure families are now recognized (was 1 — sum only)."""
+    """★ MEASURE the widened door: how many distinct structure families are now recognized (was 1 — sum only),
+    PLUS (§BP-1) the functional-summation intake (sum()/reduce over a range, previously `raw`)."""
     rows = {struct: recognize(src).kind for struct, src in _CORPUS.items()}
     correct = sum(1 for struct, kind in rows.items() if kind == struct)
+    func_rows = {name: recognize(src).kind for name, (exp, src) in _FUNCTIONAL_CORPUS.items()}
+    func_ok = sum(1 for name, (exp, _src) in _FUNCTIONAL_CORPUS.items() if func_rows[name] == exp)
     return {"rows": rows, "families_recognized": correct, "families_total": len(_CORPUS),
-            "was_before": 1, "note": "intake widened from 1 structure (sum) to the engine-backed families (RF-1: "
-                                     "more recognition = engines reach more code, NOT a fold-rate multiplier)"}
+            "functional_rows": func_rows, "functional_recognized": func_ok,
+            "functional_total": len(_FUNCTIONAL_CORPUS),
+            "was_before": 1, "note": "intake widened from 1 structure (sum) to the engine-backed families + the "
+                                     "functional Σ idioms (sum()/reduce/generator over range) (RF-1: more "
+                                     "recognition = engines reach more code, NOT a fold-rate multiplier)"}
 
 
 def adversarial_battery() -> dict:
@@ -106,6 +146,7 @@ def adversarial_battery() -> dict:
     mis-read as sum_loop; ★ a structureless blob ⇒ raw (no false positive — the dispatcher then DECLINEs)."""
     m = measure_recognition()
     blob = recognize("def f(x):\n    return x.strip().upper() + str(hash(x)))")
+    sum_arbitrary = recognize("def f(xs):\n return sum(xs)")              # ★ no range ⇒ must NOT fire (stays raw)
     cases = {
         "sum_recognized": m["rows"]["sum_loop"] == "sum_loop",
         "poly_distinct_from_sum": m["rows"]["poly_sum"] == "poly_sum",
@@ -117,6 +158,9 @@ def adversarial_battery() -> dict:
         "all_families_recognized": m["families_recognized"] == m["families_total"],
         "structureless_is_raw": not blob.matched and blob.kind == "raw",       # ★ no false positive
         "door_widened": m["families_total"] > m["was_before"],
+        # ★ §BP-1: the functional Σ idioms (sum()/reduce/generator over range) are now recognized
+        "functional_sum_recognized": m["functional_recognized"] == m["functional_total"],
+        "sum_arbitrary_is_raw": sum_arbitrary.kind == "raw",                   # ★ sum(xs) w/o range ⇒ no false match
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

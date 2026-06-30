@@ -6840,6 +6840,44 @@ def test_bo_newengine3_decidable_boundary_guards():
           "mechanism/disposer, false-EXACT 0)")
 
 
+def test_bp_functional_summation_intake():
+    """§BP-1 (fold-rate/recognition loop) — widen intake to the FUNCTIONAL Σ idioms that were previously `raw`:
+    sum(range(…)), sum(i for i in range(…)), sum(i*i for …), sum(i**2 for …), reduce(lambda a,b:a+b, range(…)).
+    These map to the EXISTING sum_loop/poly_sum kinds, so they route through the fold engine + per-language z3 gate
+    (no new mechanism/disposer). ★ RF-1: this is INTAKE — engines reach more real-world code — NOT a fold-rate
+    multiplier; the ~6.8% structural ceiling is unchanged. ★ CONSERVATIVE: sum(arbitrary_list) without a range does
+    NOT fire (stays raw ⇒ honest DECLINE) — recognition never asserts a false structure."""
+    from frontend import structures as STRUCT, dispatch as DISP
+
+    # the functional Σ idioms are now recognized as their engine-backed kind
+    m = STRUCT.measure_recognition()
+    assert m["functional_recognized"] == m["functional_total"] == 5
+    assert STRUCT.recognize("def f(n):\n return sum(range(1,n+1))").kind == "sum_loop"      # was raw
+    assert STRUCT.recognize("def f(n):\n return sum(i*i for i in range(1,n+1))").kind == "poly_sum"
+    assert STRUCT.recognize("from functools import reduce\ndef f(n):\n return reduce(lambda a,b:a+b, range(1,n+1))").kind == "sum_loop"
+
+    # ★ they ROUTE to the fold engine, gated, EXACT under Python (same engine + language gate as acc+=i)
+    r_sum = DISP.dispatch("def f(n):\n return sum(range(1,n+1))", "python")
+    r_poly = DISP.dispatch("def f(n):\n return sum(i*i for i in range(1,n+1))", "python")
+    assert "fold" in r_sum.engine and r_sum.reached and r_sum.grade == "EXACT" and r_sum.gated
+    assert "fold" in r_poly.engine and r_poly.reached and r_poly.grade == "EXACT" and r_poly.gated
+    # ★ same structure under C (unsigned-overflow UB) ⇒ language gate DECLINEs — soundness unchanged by the wider door
+    assert DISP.dispatch("def f(n):\n return sum(range(1,n+1))", "c", n_bound=10 ** 9).grade == "DECLINE"
+
+    # ★ CONSERVATIVE: no range ⇒ no false match (sum over an arbitrary list is NOT a Faulhaber series)
+    assert STRUCT.recognize("def f(xs):\n return sum(xs)").kind == "raw"
+    assert DISP.dispatch("def f(xs):\n return sum(xs)", "python").grade == "DECLINE"
+
+    # ★ RF-1 honesty stated, the 7 canonical families are unchanged (additive widening only)
+    assert m["families_recognized"] == 7
+    assert "NOT a fold-rate multiplier" in m["note"]
+
+    print("PASS test_bp_functional_summation_intake (§BP-1: intake widened to the functional Σ idioms "
+          "[sum(range)/sum(generator)/sum(i*i …)/reduce(+,range)] — previously `raw`, now routed to the fold engine "
+          "+ per-language z3 gate, EXACT on Python / C-UB DECLINE; ★ sum(arbitrary) w/o range stays raw [no false "
+          "match]; RF-1 intake gain, NOT a fold-rate multiplier; 0 new mechanism/disposer)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
