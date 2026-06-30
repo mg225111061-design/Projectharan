@@ -6374,6 +6374,62 @@ def test_bg_pastnative_and_runtimes():
           "banned bigrams absent — removing computation, not magic)")
 
 
+def test_bh_two_axes_one_weapon():
+    """§BH — the two axes are ONE weapon. ★ STAGE 0: a universal cheap-verifier lane (Freivalds k=128 ⇒ δ=2⁻¹²⁸,
+    GVFA ⇒ δ=0, Schwartz–Zippel poly-identity), all PROBABILISTIC, never EXACT (false-EXACT 0 — the ADT forbids
+    EXACT+δ). ★ THE SPINE (bridge.py): the loop axis-1 *folds* to a closed form is exactly the loop axis-2 *proves*
+    terminating — the SAME companion matrix, the SAME expression Δ(x)=(a−1)x+b (the fold's per-step increment IS the
+    ranking function's decrease). Increasing-affine ⇒ folds EXACT + z3 PROVES termination; degenerate a=1,b=0 ⇒
+    folds to a CONSTANT + z3 DECLINEs (genuinely non-terminating); both bridge-consistent. Rice-bounded: PROVE /
+    CHECK / HONEST_DEFER. Reuses cfinite + pillar3.termination + freivalds + kernel_verdict (re-build 0)."""
+    from pathlib import Path
+    root = Path(__file__).parent
+    import kernel_verdict as KV
+    import numpy as np
+
+    # ── STAGE 0: the universal cheap-verifier battery (proposer-verifier; compute anyhow, verify cheaply) ──
+    import verify_universal as VU
+    b0 = VU.adversarial_battery()
+    assert b0["all_ok"], b0["failed"]
+    rng = np.random.default_rng(2)
+    A = rng.integers(-9, 9, (24, 24)).astype(float); B = rng.integers(-9, 9, (24, 24)).astype(float); C = A @ B
+    fv = VU.freivalds_verify(A, B, C, k=128)
+    assert fv.status == KV.PROBABILISTIC and fv.status != KV.EXACT          # ★ never EXACT (honest, inherently rand.)
+    assert fv.certificate.delta <= 2.0 ** -128                             # δ=2⁻¹²⁸ ≈ 3e-39, far below any tolerance
+    assert VU.freivalds_gvfa(A, B, C).certificate.delta == 0.0             # GVFA: measure-zero false-positive set
+    assert VU.schwartz_zippel_identity([1, 2, 1], [1, 2, 1]).status == KV.PROBABILISTIC   # (x+1)² ≡ x²+2x+1
+    assert VU.schwartz_zippel_identity([1, 2, 1], [1, 2, 2]).status == KV.DECLINE         # ≢ ⇒ witness/refute
+
+    # ── THE SPINE: fold ⟺ prove on the SAME object (bridge.py) ──
+    import bridge as BR
+    bb = BR.bridge_battery()
+    assert bb["all_ok"], bb["failed"]
+    # increasing affine `while x<100: x+=7`: axis-1 folds EXACT (O(log n)) AND axis-2 z3-PROVES termination
+    r = BR.bridge(a=1, b=7, N=100, x0=0)
+    assert r.fold.status == KV.EXACT and r.fold.complexity == "O(log n)"
+    assert r.terminates.verdict.status == KV.EXACT and r.bridge_consistent
+    assert r.companion == [[2, -1], [1, 0]]                                # the SHARED companion matrix (eig {1,1})
+    # ★ the shared expression: the fold's first difference IS x_{k+1}−x_k (= −1× the ranking change)
+    assert BR.step_difference(1, 7, 13) == (1 * 13 + 7) - 13
+    assert BR.step_difference(2, 1, 5) == (2 * 5 + 1) - 5
+    # degenerate `while x<100: x=x`: folds to a CONSTANT, z3 DECLINEs (non-terminating), still bridge-consistent (Δ=0)
+    g = BR.bridge(a=1, b=0, N=100, x0=0)
+    assert g.fold.status == KV.EXACT and g.fold.result == 0                 # constant fold (x_n ≡ x0 = 0)
+    assert g.terminates.verdict.status == KV.DECLINE and g.progress_at_x0 == 0 and g.bridge_consistent
+
+    # ★ banned CLAIM-bigrams absent from every §BH artifact (matches §BG: forbid the overclaim phrases, which never
+    #   occur in honest prose; a doc may still NAME the ban — "quantum/relativistic/ultra-speed banned" — to state it)
+    for fn in ("verify_universal.py", "bridge.py", "IMPL_FULL_INDEX.md", "IMPL_FULL_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bh_two_axes_one_weapon (§BH: STAGE-0 universal verifier — Freivalds k=128 δ=2⁻¹²⁸ + GVFA δ=0 + "
+          "Schwartz–Zippel, all PROBABILISTIC never EXACT [false-EXACT 0]; ★THE SPINE bridge.py — the loop that "
+          "*folds* to a closed form is the loop that *proves* terminating, SAME companion C=[[1+a,−a],[1,0]], SAME "
+          "expression Δ=(a−1)x+b: increasing-affine folds EXACT + z3-PROVES, degenerate a=1,b=0 folds-to-constant + "
+          "DECLINEs/non-terminating, all bridge-consistent; reuse only, banned bigrams absent)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
