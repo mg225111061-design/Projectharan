@@ -6518,6 +6518,9 @@ def test_bj_structures_dispatch_languages():
     assert STRUCT.recognize("a, b = b, a+b").kind == "linear_recurrence"          # Fibonacci recognized (was raw)
     assert STRUCT.recognize("acc = 10*acc + d").kind == "horner"                  # ★ §BP-3: Horner const-first (10*acc+d), was raw
     assert STRUCT.recognize("return a*b + c").kind != "horner"                    # ★ no var-reuse ⇒ not a false Horner match
+    assert STRUCT.recognize("for i in r: s = s + i").kind == "sum_loop"           # ★ §BP-5: non-augmented Σ (s=s+i), was raw
+    assert STRUCT.recognize("for i in r: s = s + i*i").kind == "poly_sum"         # ★ §BP-5: non-augmented Σk^d (s=s+i*i)
+    assert STRUCT.recognize("for i in r: z = x + y").kind == "raw"                # ★ no var-reuse ⇒ not a false accumulation
 
     # ── (B) the dispatcher REACHES the engines, every disposition gated ──
     da = DISP.adversarial_battery()

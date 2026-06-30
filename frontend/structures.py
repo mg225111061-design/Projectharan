@@ -38,6 +38,9 @@ class StructMatch:
 # ── language-agnostic shape patterns (C-family + Python surface) ───────────────────────────────────────
 _POLY_SUM = re.compile(r"\w+\s*\+=\s*(\w+\s*\*\s*\w+|\w+\s*\*\*\s*\d+)")          # acc += i*i | i**2
 _SUM_LOOP = re.compile(r"\w+\s*\+=\s*\w+\s*[\n;}]")                                # acc += i  (a bare variable)
+# ★ §BP-5: the NON-augmented accumulation `acc = acc + …` (explicit form; common where += is absent / for beginners)
+_POLY_ASSIGN = re.compile(r"(\w+)\s*=\s*\1\s*\+\s*(\w+\s*\*\s*\w+|\w+\s*\*\*\s*\d+)")  # acc = acc + i*i  (var reused ⇒ accumulation)
+_SUM_ASSIGN = re.compile(r"(\w+)\s*=\s*\1\s*\+\s*\w+")                             # acc = acc + i   (var reused; NOT x=y+z)
 _PRODUCT = re.compile(r"\w+\s*\*=\s*\w+")                                          # acc *= i
 _RECURRENCE = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*(\w+)\s*,\s*(\w+)\s*\+\s*(\w+)")  # a, b = b, a+b
 _CONV = re.compile(r"\w+\[\s*\w+\s*\+\s*\w+\s*\]\s*\+=\s*\w+\[[^\]]+\]\s*\*\s*\w+\[[^\]]+\]")  # c[i+j]+=a[i]*b[j]
@@ -101,6 +104,10 @@ def recognize(src: str, lang: str = "generic") -> StructMatch:
             return StructMatch("product_loop", True, lang, note="acc *= i product")
         if _SUM_LOOP.search(src):
             return StructMatch("sum_loop", True, lang, note="acc += i summation")
+        if _POLY_ASSIGN.search(src):                                      # ★ §BP-5: acc = acc + i*i (non-augmented poly)
+            return StructMatch("poly_sum", True, lang, note="Σ k^d via acc = acc + i*i (non-augmented)")
+        if _SUM_ASSIGN.search(src):                                       # ★ §BP-5: acc = acc + i (non-augmented sum)
+            return StructMatch("sum_loop", True, lang, note="Σ k via acc = acc + i (non-augmented)")
     return StructMatch("raw", False, lang, note="no known structure recognized ⇒ raw (dispatcher will DECLINE)")
 
 
@@ -166,6 +173,10 @@ def adversarial_battery() -> dict:
         "horner_const_first": recognize("def p(ds):\n acc=0\n for d in ds: acc = 10*acc + d\n return acc").kind == "horner",
         "horner_var_first_still": recognize("def p(ds,b):\n acc=0\n for d in ds: acc = acc*b + d\n return acc").kind == "horner",
         "non_horner_is_not_horner": recognize("def f(a,b,c):\n return a*b + c").kind != "horner",   # ★ x=a*b+c (no var reuse) ⇒ no false match
+        # ★ §BP-5: non-augmented accumulation `acc = acc + …` recognized (was raw); x=y+z (no var reuse) is NOT
+        "sum_assign_recognized": recognize("def f(n):\n s=0\n for i in range(1,n+1): s = s + i\n return s").kind == "sum_loop",
+        "poly_assign_recognized": recognize("def f(n):\n s=0\n for i in range(1,n+1): s = s + i*i\n return s").kind == "poly_sum",
+        "non_accumulation_is_raw": recognize("def f(n):\n z=0\n for i in range(n): z = x + y\n return z").kind == "raw",  # ★ no var reuse ⇒ no false match
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 
