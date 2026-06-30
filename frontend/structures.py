@@ -41,7 +41,8 @@ _SUM_LOOP = re.compile(r"\w+\s*\+=\s*\w+\s*[\n;}]")                             
 _PRODUCT = re.compile(r"\w+\s*\*=\s*\w+")                                          # acc *= i
 _RECURRENCE = re.compile(r"(\w+)\s*,\s*(\w+)\s*=\s*(\w+)\s*,\s*(\w+)\s*\+\s*(\w+)")  # a, b = b, a+b
 _CONV = re.compile(r"\w+\[\s*\w+\s*\+\s*\w+\s*\]\s*\+=\s*\w+\[[^\]]+\]\s*\*\s*\w+\[[^\]]+\]")  # c[i+j]+=a[i]*b[j]
-_HORNER = re.compile(r"(\w+)\s*=\s*\1\s*\*\s*\w+\s*\+\s*\w+")                      # acc = acc*base + d
+_HORNER = re.compile(r"(\w+)\s*=\s*\1\s*\*\s*\w+\s*\+\s*\w+")                      # acc = acc*base + d (var-first)
+_HORNER2 = re.compile(r"(\w+)\s*=\s*\w+\s*\*\s*\1\s*\+\s*\w+")                     # acc = base*acc + d (const-first, e.g. 10*acc+d)
 _HAS_LOOP = re.compile(r"\b(for|while)\b")
 
 # ── functional / builtin summation (the loop IS the comprehension; no explicit `acc += i`) ─────────────
@@ -87,8 +88,8 @@ def recognize(src: str, lang: str = "generic") -> StructMatch:
     if m and m.group(1) == m.group(4):                                   # a,b = b,a+b  ⇒ b reused as next a
         return StructMatch("linear_recurrence", True, lang,
                            {"vars": [m.group(1), m.group(2)]}, note="Fibonacci-style linear recurrence")
-    if _HORNER.search(src):
-        return StructMatch("horner", True, lang, note="acc = acc*base + d (Horner)")
+    if _HORNER.search(src) or _HORNER2.search(src):                      # ★ §BP-3: either operand order (acc*b+d | b*acc+d)
+        return StructMatch("horner", True, lang, note="acc = acc*base + d (Horner; either operand order)")
     fk = _functional_sum_kind(src)                                       # sum()/reduce over a range (no acc+=i)
     if fk:
         return StructMatch(fk, True, lang, recognizer="regex-fallback",
@@ -161,6 +162,10 @@ def adversarial_battery() -> dict:
         # ★ §BP-1: the functional Σ idioms (sum()/reduce/generator over range) are now recognized
         "functional_sum_recognized": m["functional_recognized"] == m["functional_total"],
         "sum_arbitrary_is_raw": sum_arbitrary.kind == "raw",                   # ★ sum(xs) w/o range ⇒ no false match
+        # ★ §BP-3: Horner recognized in EITHER operand order (acc*base+d AND base*acc+d, e.g. 10*acc+d)
+        "horner_const_first": recognize("def p(ds):\n acc=0\n for d in ds: acc = 10*acc + d\n return acc").kind == "horner",
+        "horner_var_first_still": recognize("def p(ds,b):\n acc=0\n for d in ds: acc = acc*b + d\n return acc").kind == "horner",
+        "non_horner_is_not_horner": recognize("def f(a,b,c):\n return a*b + c").kind != "horner",   # ★ x=a*b+c (no var reuse) ⇒ no false match
     }
     return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 

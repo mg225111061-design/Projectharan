@@ -6516,6 +6516,8 @@ def test_bj_structures_dispatch_languages():
     rec = STRUCT.measure_recognition()
     assert rec["families_recognized"] == 7 and rec["was_before"] == 1           # ★ the door widened
     assert STRUCT.recognize("a, b = b, a+b").kind == "linear_recurrence"          # Fibonacci recognized (was raw)
+    assert STRUCT.recognize("acc = 10*acc + d").kind == "horner"                  # ★ §BP-3: Horner const-first (10*acc+d), was raw
+    assert STRUCT.recognize("return a*b + c").kind != "horner"                    # ★ no var-reuse ⇒ not a false Horner match
 
     # ── (B) the dispatcher REACHES the engines, every disposition gated ──
     da = DISP.adversarial_battery()
