@@ -6707,6 +6707,77 @@ def test_bm_newengine_certificate_or_decline():
           "free-fermion/Gröbner/C-finite; NEW-16 reachable from production; 0 new mechanism/disposer, false-EXACT 0)")
 
 
+def test_bn_newengine5_decidable_fragment_guards():
+    """§BN — 5-domain new ENGINE branches (certificate-or-DECLINE; DECIDABLE-FRAGMENT GUARDS FIRST; NO 15th
+    mechanism). Each engine checks it is inside its decidable fragment before answering and DECLINEs the
+    undecidable / not-known-poly residual; every EXACT rides an INDEPENDENTLY re-checked certificate.
+    ★ tree_automata (m10; disequality-constrained ⇒ UNDECIDABLE ⇒ DECLINE) / wl_refine (m09; general GI not
+    decided — WL-equal w/o explicit π ⇒ DECLINE, iso only with re-checked permutation) / smith_homology (m09/m10;
+    ∂∂=0 + unimodular Smith + ℚ-rank cross-check, reuses native_lattice) / morse_inequalities (m05/m09; verifier) /
+    alexander_poly (m09; Δ(1)=±1 enforced, amplifies mech_knot) / hasse_minkowski (m03/m04; Legendre, real+p-adic
+    obstruction) / parikh_image (m10; ε ⇒ DECLINE). false-EXACT 0; 0 new mechanism/disposer."""
+    from pathlib import Path
+    root = Path(__file__).parent
+
+    import newengine5 as NE5
+    b = NE5.adversarial_battery()
+    assert b["all_ok"], b["failed"]
+    assert b["engines"] == 7                                              # all 7 branches green
+
+    # ★ the decidable-fragment guards (the directive's spine): each undecidable/not-poly residual DECLINEs
+    from newengine5 import (tree_automata as ta, wl_refine as wl, smith_homology as sh, morse_inequalities as mi,
+                            alexander_poly as ap, hasse_minkowski as hm, parikh_image as pk)
+    # tree automata: disequality-constrained emptiness is UNDECIDABLE ⇒ DECLINE
+    assert ta.emptiness({"alphabet": {"a": 0}, "states": ["q"], "final": ["q"],
+                         "transitions": [["a", [], "q"]], "diseq": [["x", "y"]]}).status == "DECLINE"
+    # WL: the classic blind pair C6 vs 2·C3 ⇒ DECLINE (never a false 'isomorphic'); a relabeling ⇒ EXACT iso
+    c6 = (6, [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)])
+    two_c3 = (6, [(0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 3)])
+    assert wl.decide(c6, two_c3).status == "DECLINE"
+    assert wl.decide((3, [(0, 1), (1, 2), (0, 2)]), (3, [(1, 2), (0, 2), (0, 1)])).result["isomorphic"] is True
+    # smith homology: ℝP² torsion ℤ/2 EXACT; a non-complex (∂∂≠0) ⇒ DECLINE
+    rp2 = sh.homology([[[0]], [[2]]])
+    assert rp2.status == "EXACT" and rp2.result["betti"] == [1, 0, 0] and rp2.result["torsion"]["1"] == [2]
+    assert sh.homology([[[1]], [[1]]]).status == "DECLINE"               # ∂∂≠0 ⇒ not a chain complex
+    # morse: weak inequality violation ⇒ DECLINE
+    assert mi.verify([1, 0, 1], [1, 0, 1]).result["perfect"] is True
+    assert mi.verify([1, 0, 0], [1, 0, 1]).status == "DECLINE"
+    # alexander: trefoil Δ=t²−t+1 (det 3); the identity matrix (Δ(1)=0) is not a knot Seifert matrix ⇒ DECLINE
+    assert ap.alexander([[-1, 1], [0, -1]]).result["coeffs"] == [1, -1, 1]
+    assert ap.alexander([[1, 0], [0, 1]]).status == "DECLINE"
+    # hasse-minkowski: x²+y²+z²=0 unsolvable (real obstruction); x²+y²−z²=0 solvable (explicit zero)
+    assert hm.solve(1, 1, 1).result["solvable"] is False
+    assert hm.solve(1, 1, -1).result["solvable"] is True
+    # parikh: ε-transition ⇒ DECLINE (breaks length-bounded finiteness)
+    assert pk.decide({"states": ["q"], "start": "q", "final": ["q"], "transitions": [["q", "", "q"]]},
+                     {"a": 1}).status == "DECLINE"
+
+    # ★ every EXACT verdict carries a passed certificate (the false-EXACT-0 spine)
+    import kernel_verdict as KV
+    for v in (rp2, ap.alexander([[1, 1], [0, -1]]), hm.solve(1, 1, -1),
+              ta.emptiness({"alphabet": {"a": 0, "g": 1}, "states": ["q"], "final": ["q"],
+                            "transitions": [["a", [], "q"], ["g", ["q"], "q"]]})):
+        assert v.status == KV.EXACT and v.certificate is not None and v.certificate.passed
+
+    # ★ reachable from production (newengine5_reach) + full-repo gap stays 0 + 0 new mechanism / banned bigrams absent
+    from webapi import engine_dispatch as ED
+    assert ED.newengine5_reach()["all_ok"]
+    import engine_inventory as EI
+    assert EI.summary(".")["gap_count"] == 0                             # ★ adding newengine5 keeps gap=0
+    idx = (root / "NEWENGINE5_INDEX.md").read_text(encoding="utf-8")
+    assert "0 new mechanism" in idx and "certificate-or-DECLINE" in idx and "decidable" in idx.lower()
+    for fn in ("newengine5/tree_automata.py", "newengine5/hasse_minkowski.py", "newengine5/wl_refine.py",
+               "NEWENGINE5_INDEX.md", "NEWENGINE5_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bn_newengine5_decidable_fragment_guards (§BN: 7 new ENGINE branches across 5 domains, "
+          "decidable-fragment guards FIRST — tree_automata[diseq⇒DECLINE]/wl_refine[GI-blind⇒DECLINE]/smith_homology"
+          "[∂∂=0+unimodular+ℚ-rank]/morse/alexander[Δ(1)=±1]/hasse_minkowski[real+Legendre]/parikh[ε⇒DECLINE]; each "
+          "EXACT rides a re-checked cert, reuses native_lattice/mech_knot/presburger; reachable from production, "
+          "gap stays 0; 0 new mechanism/disposer, false-EXACT 0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

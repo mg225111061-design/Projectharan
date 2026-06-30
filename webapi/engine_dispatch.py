@@ -127,6 +127,19 @@ def newengine_reach() -> dict:
         return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
 
 
+def newengine5_reach() -> dict:
+    """§BN — reach the 7 new decidable-fragment-guarded engine branches across 5 domains (tree_automata/wl_refine/
+    smith_homology/morse_inequalities/alexander_poly/hasse_minkowski/parikh_image). Each checks its decidable
+    fragment FIRST and DECLINEs the undecidable/not-known-poly residual; every EXACT carries a re-checked
+    certificate (NO 15th mechanism). Output rides the verdict ADT / recall-core grade."""
+    try:
+        import newengine5 as NE5
+        b = NE5.adversarial_battery()
+        return {"engines": b["engines"], "all_ok": b["all_ok"], "failed": b["failed"]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""
