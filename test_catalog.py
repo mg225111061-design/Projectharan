@@ -6177,6 +6177,34 @@ def test_sec_search_gate():
           "ON ⇒ web_search exposed but 'only when needed' [LLM-judged]; ★★ ambiguous flag fail-safes to OFF)")
 
 
+def test_bb_r1_slice_split():
+    """§BB R-1 — backward-slice split of INTERLEAVED accumulators (the one B-4 gap with non-zero corpus
+    possibility). NEW branch in recall/compose/atomize (NO new mechanism / NO new disposer) — the split feeds the
+    EXISTING fold gate (recall/core: z3 ∀-proof + held-out=200). ★ Split exactness: combine(slices) ≡ the original
+    interleaved loop on a FAR held-out scale (n=200), so a wrong split DECLINEs. ★ Atoms are independent. ★★ The
+    single disposer holds end-to-end: a clean polynomial atom FOLDS EXACT, while a pseudo-random (hash) atom does
+    NOT fold — recovery never fabricates a fold (precision 1.0 is structural, not re-proved here)."""
+    from recall.compose import atomize as AT
+    from recall import core as RC
+    temp = lambda i: i + 1
+    accs = [(0, lambda a, t, i: a + t),                                  # acc1 = Σ(i+1) = n(n+1)/2 (polynomial)
+            (0, lambda a, t, i: a + (t if i % 2 == 0 else -t))]          # acc2 = alternating partial sum
+    A = AT.backward_slice_split(temp, accs, "add")
+    assert A.ok and len(A.atoms) == 2
+    orig = AT._interleaved_oracle(temp, accs, "add")
+    assert AT.reconstruct(A, 200) == orig(200), "split must be EXACT on a far held-out scale"   # soundness core
+    assert A.atoms[0](10) == 55                                         # the independent acc1 slice
+    assert AT.backward_slice_split(temp, [(0, lambda a, t, i: a + t)], "add").ok is False   # <2 ⇒ not an interleave
+    # ★★ end-to-end through the SINGLE disposer: clean atom folds EXACT, hash atom does NOT fold (still DECLINE)
+    clean = RC.fold_via_ai(lambda n: n * (n + 1) // 2, "interleaved-slice")
+    assert clean.folded and clean.verdict is not None and clean.verdict.status == "EXACT"
+    hashy = RC.fold_via_ai(lambda n: (n * 2654435761) & 0xFFFFFFFF, "interleaved-slice")
+    assert not hashy.folded, "a pseudo-random atom must NOT fold — recovery cannot fabricate a fold"
+    print("PASS test_bb_r1_slice_split (§BB R-1: interleaved accumulators split by backward slicing — split ≡ "
+          "original on held-out n=200, atoms independent; ★★ clean poly atom folds EXACT, hash atom DECLINEs via "
+          "the single recall/core disposer [no new mechanism/disposer, precision 1.0 structural])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
