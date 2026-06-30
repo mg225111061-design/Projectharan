@@ -6555,7 +6555,8 @@ def test_bj_structures_dispatch_languages():
           "recognized [sum/poly/product/recurrence/convolution/horner/checksum]; ★the DISPATCHER reaches the "
           "already-built engines — Fibonacci→C-finite O(log n) EXACT, checksum→extract, sum→fold — every "
           "disposition gated by the per-language z3 QF_BV [same struct: Python EXACT, C UB-DECLINE], 0 verify "
-          "bypass; 88 languages, 32 INT_MODELS [Julia silent-wrap·OCaml 63-bit·Clojure promote·Swift trap·Lua f64], "
+          "bypass; 98 languages, 34 INT_MODELS [Julia silent-wrap·OCaml 63-bit·Clojure promote·Swift trap·Lua f64·"
+          "Solidity 256-checked·Move abort], "
           "RF-1: intake improvement NOT a coverage multiplier, 0 new mechanism/disposer)")
 
 
@@ -6838,6 +6839,38 @@ def test_bo_newengine3_decidable_boundary_guards():
           "DECLINE] / decidable_logic[EPR sat/unsat + ★Skolem≥5⇒DECLINE] / csp_dichotomy[Schaefer P-vs-NPC + ★PCSP"
           "⇒DECLINE]; each EXACT rides a re-checked cert; reachable from production, gap stays 0; 0 new "
           "mechanism/disposer, false-EXACT 0)")
+
+
+def test_bp2_smart_contract_languages():
+    """§BP-2 (language-coverage loop) — add ACCURATELY-MODELED languages, led by the smart-contract family. ★ The
+    soundness key is the integer model (a wrong model is a false-EXACT): Solidity/Vyper are 256-bit and CHECKED by
+    default (≥0.8 reverts on overflow) — no existing 32/64-bit model captures this (a 64-bit model would FALSELY
+    DECLINE a sum that is exact in 256-bit EVM); Move/Ballerina ABORT the transaction on 64-bit overflow. Also
+    GDScript/Chapel/Futhark/Q#/Haxe/Apex. ★ Cairo deliberately DEFERRED (felt252 is field-mod-prime, not 2^k — an
+    inaccurate wrap model would risk a false-EXACT). RF-1: language coverage is intake/soundness, NOT a fold-rate
+    multiplier (~6.8% structural ceiling unchanged). 0 new mechanism/disposer — same z3 gate."""
+    from frontend import languages as LANG, semantics as SEM
+
+    assert LANG.count() >= 96                                                  # ★ widened past 88
+    assert all(ls.sem_key in SEM.INT_MODELS for ls in LANG.LANGS.values())     # every new lang maps to a real model
+    # ★ Solidity 256-bit CHECKED: Σi within 2^255 ⇒ EXACT (a 64-bit model would have wrongly DECLINEd); huge ⇒ revert
+    assert LANG.model_for("solidity").width == 256 and LANG.model_for("solidity").overflow == "error"
+    assert LANG.disposition_for("solidity", 10 ** 9).grade == "EXACT"          # no revert at this magnitude
+    assert LANG.disposition_for("solidity", 10 ** 40).grade == "DECLINE"       # exceeds 2^255 ⇒ reverts ⇒ DECLINE
+    assert LANG.disposition_for("vyper", 10 ** 9).grade == "EXACT"
+    # ★ Move/Ballerina 64-bit ABORT: EXACT in-range, DECLINE over-range (the abort is sound, never a wrong value)
+    assert LANG.disposition_for("move", 10 ** 9).grade == "EXACT"
+    assert LANG.disposition_for("move", 5 * 10 ** 9).grade == "DECLINE"        # Σ > 2^63 ⇒ aborts ⇒ DECLINE
+    assert LANG.disposition_for("ballerina", 5 * 10 ** 9).grade == "DECLINE"
+    # ★ Cairo is NOT registered (deferred — field arithmetic, not 2^k wrap): a KeyError, never a silent wrong model
+    assert "cairo" not in LANG.LANGS
+    # the existing language + model batteries still pass (additive only)
+    assert LANG.adversarial_battery()["all_ok"] and SEM.extended_models_battery()["all_ok"]
+
+    print("PASS test_bp2_smart_contract_languages (§BP-2: +10 accurately-modeled languages → 98; ★ Solidity/Vyper "
+          "256-bit CHECKED [Σ<2^255 EXACT, else revert-DECLINE — a 64-bit model would have false-DECLINEd]; "
+          "Move/Ballerina 64-bit abort [in-range EXACT, over-range DECLINE]; Cairo DEFERRED [felt252 field-mod-p ≠ "
+          "2^k, no inaccurate model]; RF-1 coverage/soundness NOT a multiplier; 0 new mechanism, same z3 gate)")
 
 
 def test_bp_functional_summation_intake():

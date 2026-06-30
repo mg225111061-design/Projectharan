@@ -66,6 +66,9 @@ INT_MODELS: Dict[str, IntModel] = {
     "lua_number":    IntModel("lua_number", 53, "f64", "Lua number = IEEE-754 double; integers EXACT only while ≤ 2^53"),
     "js_f64":        IntModel("js_f64", 53, "f64", "JS Number = IEEE-754 double; integers EXACT only while ≤ 2^53 (BigInt is separate)"),
     "r_double":      IntModel("r_double", 53, "f64", "R numeric / MATLAB / Octave = double; integers EXACT only while ≤ 2^53"),
+    # ── §BP-2: accurately-modeled additions (a wrong model is a false-EXACT) ──
+    "sol_int256":    IntModel("sol_int256", 256, "error", "Solidity/Vyper EVM int — ≥0.8 CHECKED by default (REVERTS on over/underflow); 256-bit ⇒ folds within 2^255 are EXACT (an `unchecked{}` block / pre-0.8 wraps mod 2^256)"),
+    "abort_int64":   IntModel("abort_int64", 64, "error", "Move / Ballerina 64-bit int — overflow ABORTS the transaction / panics (no UB, no silent wrap) ⇒ EXACT in-range, DECLINE over-range"),
 }
 
 

@@ -91,6 +91,17 @@ _REGISTRY: List[LangSpec] = [LangSpec(*t) for t in [
     ("mojo", "go_int64", "shell_legacy", "fixed-width wrap"), ("vale", "rust_checked", "shell_legacy", "checked"),
     ("roc", "go_int64", "shell_legacy", "I64 wrap"), ("grain", "wat_i32", "shell_legacy", "WASM-target i32"),
     ("koka", "c_signed", "shell_legacy", "C-backed"), ("unison", "arbitrary", "shell_legacy", "arbitrary precision"),
+    # ── §BP-2 Wave 11: smart-contract + niche languages (accurately modeled; Cairo deferred — felt252 is field-mod-p, not 2^k) ──
+    ("solidity", "sol_int256", "contracts", "EVM ≥0.8 CHECKED (reverts on overflow); unchecked{} wraps mod 2^256"),
+    ("vyper", "sol_int256", "contracts", "EVM bounds-checked (reverts on overflow)"),
+    ("move", "abort_int64", "contracts", "u64/u128 overflow ABORTS the transaction"),
+    ("ballerina", "abort_int64", "web", "int = 64-bit; overflow panics (runtime error)"),
+    ("gdscript", "go_int64", "scripting", "Godot int = 64-bit two's-complement"),
+    ("chapel", "go_int64", "scientific", "int(64) fixed-width wrap"),
+    ("futhark", "java_int", "scientific", "i32 wraps (sizes explicit)"),
+    ("qsharp", "go_int64", "scientific", "Q# Int = 64-bit"),
+    ("haxe", "java_int", "web", "Int = 32-bit on static targets (target-dependent)"),
+    ("apex", "java_int", "jvm", "Salesforce Apex Integer = 32-bit"),
 ]]
 
 LANGS: Dict[str, LangSpec] = {ls.name: ls for ls in _REGISTRY}
