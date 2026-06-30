@@ -114,6 +114,11 @@ _REGISTRY: List[LangSpec] = [LangSpec(*t) for t in [
     ("logtalk", "arbitrary", "functional", "Prolog-hosted ⇒ GMP bignums (arbitrary precision)"),
     ("picat", "arbitrary", "functional", "Picat (B-Prolog lineage) uses bignums (arbitrary precision)"),
     ("mercury", "go_int64", "functional", "Mercury int = machine word (64-bit), two's-complement wrap"),
+    # ── §BP-12: math-CAS languages — all GMP-backed arbitrary-precision integers (the recurrence/sum home turf) ──
+    ("sage", "arbitrary", "scientific", "SageMath Integer is GMP arbitrary-precision"),
+    ("maxima", "arbitrary", "scientific", "Maxima (Lisp CAS) integers are bignums — arbitrary precision"),
+    ("pari", "arbitrary", "scientific", "PARI/GP t_INT is arbitrary-precision"),
+    ("gap", "arbitrary", "scientific", "GAP (computational algebra) integers are GMP arbitrary-precision"),
 ]]
 
 LANGS: Dict[str, LangSpec] = {ls.name: ls for ls in _REGISTRY}
