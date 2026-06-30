@@ -22,6 +22,13 @@ DECLINE = "DECLINE"
 _GRADES = {EXACT, PROBABILISTIC, DECLINE}
 
 
+class GradeViolation(AssertionError):
+    """A SOUNDNESS-gate violation — the construction would permit a false-EXACT (rubber-stamp / grade-cert
+    mismatch / δ-masquerade). ★ §BF FIX-1: subclasses AssertionError so every existing handler still catches it,
+    but the gates `raise` it EXPLICITLY (never via `assert`), so `python -O` — which strips `assert` statements —
+    CANNOT remove the false-EXACT guard. The false-EXACT-0 spine is structural, not flag-dependent."""
+
+
 @dataclass
 class Cert:
     """A machine-rechecked certificate. `passed` must be the result of the actual fast verifier, not a wish."""
@@ -47,18 +54,21 @@ class Verdict:
     amdahl_p: Optional[float] = None    # measured runtime-dominance fraction (small p ⇒ collapse barely helps)
 
     def __post_init__(self):
-        assert self.status in _GRADES, f"bad grade {self.status!r}"
+        # ★ §BF FIX-1: these are SOUNDNESS gates (each one's removal would permit a false-EXACT), so they `raise`
+        #   explicitly — NEVER `assert`, which `python -O` strips. Do not "simplify" these back to assert.
+        if self.status not in _GRADES:
+            raise GradeViolation(f"bad grade {self.status!r}")                      # soundness gate
         if self.status != DECLINE:
-            assert self.certificate is not None and self.certificate.passed, \
-                f"{self.status} requires a passed certificate (no rubber stamp)"
-            assert self.certificate.grade == self.status, \
-                f"grade/cert mismatch: {self.status} vs {self.certificate.grade}"
-            if self.status == PROBABILISTIC:
-                assert self.certificate.delta is not None, "PROBABILISTIC must state δ (a number)"
-            if self.status == EXACT:
+            if not (self.certificate is not None and self.certificate.passed):
+                raise GradeViolation(f"{self.status} requires a passed certificate (no rubber stamp)")  # soundness gate
+            if self.certificate.grade != self.status:
+                raise GradeViolation(f"grade/cert mismatch: {self.status} vs {self.certificate.grade}")  # soundness gate
+            if self.status == PROBABILISTIC and self.certificate.delta is None:
+                raise GradeViolation("PROBABILISTIC must state δ (a number)")        # soundness gate
+            if self.status == EXACT and self.certificate.delta is not None:
                 # EXACT forbids a probabilistic δ masquerading as exact (an exact interval uses epsilon/bound)
-                assert self.certificate.delta is None, \
-                    "EXACT cannot carry a probabilistic δ — use PROBABILISTIC, or an exact interval (epsilon)"
+                raise GradeViolation("EXACT cannot carry a probabilistic δ — use PROBABILISTIC, or an exact "
+                                     "interval (epsilon)")                            # soundness gate
 
 
 # ── constructors ────────────────────────────────────────────────────────────────────────────────────

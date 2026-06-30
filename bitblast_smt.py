@@ -280,6 +280,12 @@ def _solve(nvars: int, clauses: List[List[int]]) -> Optional[Dict[int, bool]]:
     return dict(assign) if dpll() else None
 
 
+class GradeViolation(AssertionError):
+    """A SOUNDNESS-gate violation: an unverified SAT model would otherwise pass. ★ §BF FIX-1: raised EXPLICITLY
+    (subclass of AssertionError so existing handlers still catch it) — NEVER via `assert`, so `python -O` cannot
+    strip the independent model re-check that is this solver's whole TCB."""
+
+
 def _check_model(clauses: List[List[int]], model: Dict[int, bool]) -> bool:
     """Independent certificate checker: the model satisfies EVERY clause (TCB = this tiny function)."""
     for cl in clauses:
@@ -322,7 +328,8 @@ def prove_bv_identity(build, width: int) -> BVResult:
         return BVResult("VALID", width,
                         certificate=f"¬(lhs==rhs) UNSAT over all {width}-bit inputs ⇒ identity holds (decision "
                                     f"procedure, bound=2^{width}); EXACT within width {width}")
-    assert _check_model(bb.cnf.clauses, model), "SAT model failed the independent checker"   # certificate
+    if not _check_model(bb.cnf.clauses, model):              # ★ §BF FIX-1 soundness gate — must survive -O
+        raise GradeViolation("SAT model failed the independent checker (would be an unverified result)")
     cex = _decode(bb, model)
     return BVResult("INVALID", width, model=cex,
                     certificate=f"counterexample {cex} (mod 2^{width}) falsifies lhs==rhs — model checked vs CNF")
@@ -337,7 +344,8 @@ def solve_bv(build_constraint, width: int) -> BVResult:
     model = _solve(bb.cnf.nvars, bb.cnf.clauses)
     if model is None:
         return BVResult("UNSAT", width, certificate=f"no {width}-bit assignment satisfies the constraint (proof)")
-    assert _check_model(bb.cnf.clauses, model), "SAT model failed the independent checker"
+    if not _check_model(bb.cnf.clauses, model):              # ★ §BF FIX-1 soundness gate — must survive -O
+        raise GradeViolation("SAT model failed the independent checker (would be an unverified result)")
     return BVResult("SAT", width, model=_decode(bb, model),
                     certificate=f"model {_decode(bb, model)} satisfies the constraint — checked vs CNF")
 

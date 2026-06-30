@@ -268,6 +268,8 @@ async function runInBrowser(code, cb, btn){
       const badge=$("div",{class:"run-grade g-"+cj.grade}, "점검: "+cj.grade+(cj.cached?" (캐시)":""));
       out.appendChild(badge);
       if(cj.findings&&cj.findings.length){ const f=cj.findings[0]; out.appendChild($("div",{class:"v-sub"}, "⚠ L"+f.line+": "+f.message)); }
+      // §BF FIX-7: DEFER is feedback, not a wall — show WHY it couldn't be verified + an actionable hint
+      if(cj.diagnosis && cj.diagnosis.hint){ out.appendChild($("div",{class:"v-sub"}, "왜: "+(cj.diagnosis.hint))); }
     }
   }catch(e){ /* honest: if the check endpoint is down, still run — the run result stands on its own */ }
   // 2) browser execution (isolated worker; main thread terminates it on timeout)

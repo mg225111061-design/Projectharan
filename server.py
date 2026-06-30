@@ -319,6 +319,14 @@ def run_fold_check(code: str) -> dict:
             "fix_instructions": r.fix_instructions(),
             "cached": False,
         }
+        # §BF FIX-7: a DEFER/declined grade is FEEDBACK, not a wall — attach WHY + an actionable hint (the
+        # checker already computed the reason; we surface + categorize it). Never changes the grade.
+        if r.grade == "DEFER":
+            try:
+                from diagnostics import categorize_decline   # noqa: PLC0415
+                out["diagnosis"] = categorize_decline(r.summary)
+            except Exception:                                 # noqa: BLE001 — diagnostics is best-effort feedback
+                pass
     except Exception as e:                                    # noqa: BLE001 — checker must never crash the server
         return {"ok": False, "error": f"checker unavailable: {type(e).__name__}"}
     if len(_CHECK_CACHE) >= _CHECK_CACHE_MAX:

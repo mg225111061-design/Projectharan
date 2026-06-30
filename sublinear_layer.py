@@ -25,6 +25,12 @@ PROBABILISTIC = "PROBABILISTIC"
 DECLINE = "DECLINE"
 
 
+class GradeViolation(AssertionError):
+    """A SOUNDNESS-gate violation (would permit a fake pass). ★ §BF FIX-1: subclasses AssertionError (existing
+    handlers still catch it) but is `raise`d EXPLICITLY — never via `assert` — so `python -O` cannot strip the
+    invariant. Defined locally so this base module stays import-independent."""
+
+
 @dataclass
 class Certificate:
     grade: str                  # EXACT | PROBABILISTIC
@@ -48,12 +54,15 @@ class SublinearVerdict:
 
     def __post_init__(self):
         # ★ enforce the soundness invariant: a non-DECLINE MUST carry a passed certificate ★
+        # ★ §BF FIX-1: SOUNDNESS gates `raise` (not `assert`) so `python -O` cannot strip the fake-pass guard.
         if self.status != DECLINE:
-            assert self.certificate is not None and self.certificate.passed, \
-                "INVARIANT VIOLATION: non-DECLINE result without a passed certificate (would be a fake pass)"
-            assert self.certificate.grade == self.status, "grade/status mismatch (label leak)"
-            if self.status == PROBABILISTIC:
-                assert self.certificate.delta is not None, "PROBABILISTIC must state δ (never hide it as EXACT)"
+            if not (self.certificate is not None and self.certificate.passed):
+                raise GradeViolation(
+                    "INVARIANT VIOLATION: non-DECLINE result without a passed certificate (would be a fake pass)")
+            if self.certificate.grade != self.status:
+                raise GradeViolation("grade/status mismatch (label leak)")
+            if self.status == PROBABILISTIC and self.certificate.delta is None:
+                raise GradeViolation("PROBABILISTIC must state δ (never hide it as EXACT)")
 
     @property
     def accepted(self) -> bool:

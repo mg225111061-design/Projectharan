@@ -8,7 +8,7 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 | | |
 |---|---|
 | Repo / branch | `mg225111061-design/Projectharan` · **`claude/charming-brahmagupta-q4wwgh`** |
-| Tests | **275 passed / 275** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` (+1 §MRJ provider-wiring · +1 §BE browser-offload/isolation); `test_catalog.py` **237** (+4 §BA caps · +1 §SEC search-gate · +1 §BB R-1 slice-split · +1 §BC CA-1 causal-poset · +1 §BD checker-layer) |
+| Tests | **276 passed / 276** — `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 test_build.py` (+1 §MRJ provider-wiring · +1 §BE browser-offload/isolation · +1 §BF `-O` soundness-gate regression); `test_catalog.py` **238** (+4 §BA caps · +1 §SEC search-gate · +1 §BB R-1 slice-split · +1 §BC CA-1 causal-poset · +1 §BD checker-layer · +1 §BF DECLINE diagnostics) |
 | Top-level modes | **CODE** (verified whole-program optimizer, OMEGA) + **MATH** (MATH-Ascent) — UI toggle, `data-top` |
 | MATH arsenal | **17 families** + central `fold` + O(1) `broth` (3,772 entries) |
 | Served app | Docker → `server:app` serves `mrjeffrey.html` at `/`; `/api/optimize`, `/api/math/solve`, `/api/math/ingest` |
@@ -109,6 +109,11 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   multiply, right-shift, ite-mux, UNSIGNED+SIGNED division (udiv/sdiv — incl. div→shift `x//2^k ≡ x>>k` and the
   signed div→shift WITH round-toward-zero BIAS), and VARIABLE-amount shift (barrel shifter — incl. mul-by-power-of-
   two `x·2^k ≡ x<<k`) ARE in-house. Small TCB, zero deps — that's the point.
+  **★ Scope (§BF FIX-2 — honest framing):** this is a *small-width, from-scratch DPLL demonstrator* that
+  independently validates bitvector identities — its SAT core is naive (lowest-index / positive-first; no
+  CDCL/watched-literals/VSIDS), so it is **not** a z3 replacement at scale. **z3-solver≥4.12 remains a hard
+  dependency** (`requirements.txt`) on the MAIN verification path; "zero-dependency SMT" means *this checker* needs
+  no external solver, NOT that the system dropped z3.
 - **§1 ✅** dependency-0 Rust core (`rust_core/` std-only cdylib via ctypes — no PyO3/maturin/cffi/flint/faer;
   `rust_core.py` bridge). Delivers the v34-deferred pieces: flat **arena AST** (one deterministic pass);
   **deterministic fixed-precision multimodular CRT ring** — Garner-combines residues over a fixed 4-prime basis
@@ -121,6 +126,10 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   overhead vs C-fast CPython int) ⇒ speed **UNVERIFIED**, correctness is the deliverable (mirrors the v40-phase7 RNS
   honesty). Native rewrite changes RUNTIME not GRADES; `target/` is environment-built (gitignored), Python ring is
   the verified fallback — never faked.
+  **★ Scope (§BF FIX-3 — honest framing):** this is *future-native scaffolding*, NOT a working accelerator.
+  At the current granularity the ctypes boundary overhead exceeds CPython's C-fast bignum, so it is a **performance
+  no-op today** (speed UNVERIFIED) — **correctness is the deliverable**. Calling it "native acceleration" describes
+  the *path being built*, not a measured speedup.
 - **§4 ✅** multi-LLM routing abstraction + high-fidelity OFFLINE mock (`llm_router.py` over `provider.py` /
   `claude_agent.py`). One router selects the wire transport (Anthropic Messages / OpenAI chat.completions / Gemini
   generateContent), shapes the request EXACTLY as the live path, runs a mock returning PROVIDER-SHAPED raw

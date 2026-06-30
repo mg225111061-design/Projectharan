@@ -10756,6 +10756,73 @@ def test_be_browser_offload_isolation():
           ".js servable; claude_agent os-import-0 — offload+isolation+fold, NOT 'ultra-speed')")
 
 
+def test_bf_soundness_gates_survive_dash_O():
+    """§BF FIX-1 — the identity fix. The false-EXACT-0 spine was enforced by `assert`, which `python -O` STRIPS:
+    doc-17 reproduced a rubber-stamp Verdict('EXACT', cert.passed=False) being ACCEPTED under `python -O`. The
+    soundness gates in kernel_verdict + sublinear_layer now `raise GradeViolation` (a subclass of AssertionError,
+    so existing handlers still catch it) — NEVER `assert`. ★ This regression spawns a real `python -O` subprocess
+    that (a) PROVES bare asserts are stripped in that process, then (b) confirms every false-EXACT gate STILL
+    rejects there. If someone reverts a gate to `assert`, this test fails. precision 1.0 becomes structural."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).parent
+    # GradeViolation must be an AssertionError subclass (backward-compat) AND raised, not asserted
+    import kernel_verdict as KV
+    assert issubclass(KV.GradeViolation, AssertionError)
+    # in-process (normal mode) the rubber stamp is already rejected
+    try:
+        KV.Verdict("EXACT", 1, "k", "O(1)", KV.Cert("EXACT", "fake", passed=False)); _normal = False
+    except AssertionError:
+        _normal = True
+    assert _normal, "rubber-stamp EXACT must be rejected even in normal mode"
+
+    # ★ the real test: a subprocess under -O, where `assert` is provably a no-op
+    probe = (
+        "import sys\n"
+        "assert sys.flags.optimize >= 1\n"                       # we are under -O
+        "stripped=True\n"
+        "try:\n"
+        "    assert False\n"                                     # under -O this does NOT raise…
+        "except AssertionError:\n"
+        "    stripped=False\n"
+        "import kernel_verdict as KV, sublinear_layer as SL, bitblast_smt as BB\n"
+        "def rej(f):\n"
+        "    try:\n"
+        "        f(); return False\n"
+        "    except AssertionError:\n"
+        "        return True\n"
+        "BB._check_model = lambda *a, **k: False\n"                # force the SAT-model independent recheck to 'fail'
+        "def bb_gate():\n"                                          # 1==2 is INVALID ⇒ SAT model ⇒ recheck ⇒ must raise
+        "    try:\n"
+        "        BB.prove_bv_identity(lambda bb: (bb.const(1), bb.const(2)), 4); return False\n"
+        "    except AssertionError:\n"
+        "        return True\n"
+        "gates = all([\n"
+        "  rej(lambda: KV.Verdict('EXACT',1,'k','O(1)',KV.Cert('EXACT','f',passed=False))),\n"      # rubber stamp
+        "  rej(lambda: KV.Verdict('EXACT',1,'k','O(1)',KV.Cert('EXACT','x',passed=True,delta=1e-9))),\n"  # δ-masquerade
+        "  rej(lambda: KV.Verdict('EXACT',1,'k','O(1)',KV.Cert('PROBABILISTIC','x',passed=True))),\n"      # mismatch
+        "  rej(lambda: SL.SublinearVerdict('EXACT',1,'k','O(1)',certificate=None)),\n"                     # sublinear rubber
+        "  bb_gate(),\n"                                                                                   # bitblast model recheck
+        "])\n"
+        "try:\n"
+        "    KV.Verdict('EXACT',1,'k','O(1)',KV.Cert('EXACT','real',passed=True)); valid=True\n"            # valid still OK
+        "except Exception:\n"
+        "    valid=False\n"
+        "sys.exit(0 if (stripped and gates and valid) else 1)\n"
+    )
+    r = subprocess.run([sys.executable, "-O", "-c", probe], cwd=str(root),
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, (
+        f"under `python -O` a soundness gate FAILED (asserts stripped, gate did not hold): "
+        f"rc={r.returncode} stderr={r.stderr[-400:]}")
+    print("PASS test_bf_soundness_gates_survive_dash_O (§BF FIX-1: under `python -O` — where bare asserts are "
+          "PROVABLY stripped — every false-EXACT gate STILL rejects [rubber-stamp / δ-masquerade / grade-cert "
+          "mismatch / sublinear rubber / ★bitblast SAT-model recheck], and a valid EXACT still constructs; "
+          "GradeViolation⊂AssertionError so existing handlers hold. precision 1.0 / false-EXACT 0 is now "
+          "STRUCTURAL across kernel_verdict + sublinear_layer + bitblast_smt, not flag-dependent)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

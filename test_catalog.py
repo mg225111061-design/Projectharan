@@ -6290,6 +6290,41 @@ def test_bd_checker_layer():
           "on 120 clean corpus codes; honest O(1) = fold jumps loop semantics, reading stays O(N))")
 
 
+def test_bf_decline_diagnostics():
+    """§BF FIX-7 — a DECLINE/DEFER is FEEDBACK, not a wall: the verifier already computes WHY (no closed form /
+    under-determined / structureless / opaque-effect), and `diagnostics.categorize_decline` surfaces + classifies
+    it with an actionable hint (adds NO analysis, never changes a grade). ★ Confirms the live fold-check path
+    (server.run_fold_check) attaches the diagnosis to a DEFER so the UI can show 'why'."""
+    import diagnostics as D
+    bat = D.adversarial_battery()
+    assert bat["all_ok"], bat["failed"]
+    # the real engine reason strings map to the right ACTIONABLE category (not 'unknown'), each with a hint
+    assert D.categorize_decline("Σ 1/k has NO hypergeometric closed form — keep the loop")["category"] == "no_closed_form"
+    assert D.categorize_decline("not a hypergeometric term — outside the Gosper decision scope")["category"] == "non_hypergeometric"
+    assert D.categorize_decline("order > probe ⇒ under-determined")["category"] == "under_determined"
+    assert D.categorize_decline("precheck skipped (pseudo-random/high entropy) ⇒ DECLINE")["category"] == "structureless"
+    assert D.categorize_decline("calls eval ⇒ opaque")["category"] == "effectful"
+    assert D.categorize_decline("")["category"] == "unknown"               # graceful on empty
+    assert all(D.categorize_decline(r)["hint"] for r in ["", "x", "harmonic series", "random hash"])  # always a hint
+    # explain_verdict reads an existing Verdict's reason (DECLINE only), never recomputes
+    import kernel_verdict as KV
+    dv = KV.decline("summand is not a hypergeometric term (f(k+1)/f(k) not rational) — honest scope", "loop_decision")
+    diag = D.explain_verdict(dv)
+    assert diag and diag["category"] == "non_hypergeometric" and diag["hint"]
+    assert D.explain_verdict(KV.exact(1, "k", "O(1)", KV.Cert(KV.EXACT, "x", passed=True))) is None  # not a DECLINE
+
+    # ★ the live path: an eval()-using snippet ⇒ DEFER, and run_fold_check ATTACHES the why+hint for the UI
+    import server as S
+    out = S.run_fold_check("def f(s):\n return eval(s)")
+    assert out["grade"] == "DEFER" and out.get("diagnosis") and out["diagnosis"]["category"] == "effectful"
+    assert out["diagnosis"]["hint"]
+    print("PASS test_bf_decline_diagnostics (§BF FIX-7: DECLINE→feedback — categorize_decline maps every real engine "
+          "reason to an actionable category+hint [no_closed_form / non_hypergeometric / under_determined / "
+          "structureless / effectful], explain_verdict surfaces an existing Verdict's reason [never recomputes, "
+          "DECLINE-only], and server.run_fold_check attaches the diagnosis to a DEFER so the UI shows 'why'; "
+          "grade never changed, precision 1.0 intact)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
