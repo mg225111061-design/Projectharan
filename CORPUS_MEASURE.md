@@ -43,3 +43,50 @@ machinery, not a corpus yield.
   invariant (R-1 lives in `recall/compose`, not imported by the corpus-count engine — additive by construction).
 - R-2…R-5 honestly **deferred** (prior measured-0 ⇒ recognizer-only would be coverage with no measurable yield;
   documented rather than silently built).
+
+---
+
+# §BC — Axis Y (runtime ACCELERATION), measurement-first. ★ A DIFFERENT AXIS from the fold-recovery above.
+
+★ This is **Axis Y (runtime acceleration), NOT fold (Axis X)** — *never summed* with the fold-rate above or the
+Clocks. A (unstructured, the vast majority) has no structure to close ⇒ fold 0 is the right answer; here we make
+*execution* faster, gated for **bit-identical** results.
+
+## §0 confirmed: the acceleration machine + correctness gates are ALREADY built (skip — no rebuild)
+| concern | already-built | used by §BC |
+|---|---|---|
+| correctness = bit-identical | `pillar3/equiv.py` (Z3 ∀-input output-identity moat) | the legality oracle |
+| purity | `pillar3/purity.py` / `effects.py` (`prove_pure`) | independence input |
+| independence | `sep_alias.py`, `verified_parallel._conflicts` (read/write conflict) | ★ the poset edges |
+| **IO-1 async overlap** | **`accel/verified_parallel.verified_async_overlap`** | ALREADY BUILT ⇒ skip |
+| **IO-2 batching / IO-3 dedup** | **`accel/verified_io.verified_batch` / `verified_dedup`**, `accel/maximal_batch`, `accel/proven_dedup` | ALREADY BUILT ⇒ skip |
+| PAR-1 assoc reduction / PAR-2 data-parallel | `verified_parallel.prove_assoc_comm` / `verified_data_parallel` | ALREADY BUILT ⇒ skip |
+| RC-2 memoize / native | `accel/verified_io.verified_cache`, `backend_llvm.py` (bit-exact + `[BLOCKED: llvmlite]`) | ALREADY BUILT ⇒ skip |
+
+## Per-round honest expectation (the directive's own map; measured baseline ≈0)
+| round | methods | §AK expectation | this round |
+|---|---|---|---|
+| 1 recompute | LICM / content-dedup / incremental | ≈0 (memoize+CSE already built) | not built (narrow) |
+| 2 execute | numpy vectorize / AST clean / monomorphize / native | ≈0 | not built (narrow) |
+| 3 parallel | assoc reduction / data-parallel map | ≈0 (A-2/A-1 dominate) | already built (skip) |
+| **4 I/O** | async overlap / batch / coalesce / prefetch | the real value in GENERAL code, but **already built**; the **numeric §AK corpus has ~0 network/DB I/O loops** ⇒ measured ≈0 here | already built (skip); honest ≈0 in §AK |
+| **5 causal** | **CA-1 poset + Dilworth** | "no new speedup — exact-Amdahl strengthening" | ★ **BUILT** (`accel/causal_poset.py`) |
+
+## What was built (CA-1 only — the genuine net-new, a tighter BOUND not a new speedup)
+`accel/causal_poset.py` lifts the pairwise independence the existing gates prove into a **partial order**, then:
+- **Dilworth max-antichain (width)** = provably-MAXIMUM concurrency (no schedule runs more at once).
+- **Longest chain** = the **EXACT Amdahl critical path** (the serial floor — a theorem, replacing the estimate).
+Reuses `verified_parallel._conflicts` (the independence oracle) + `accel.pipeline` proved/rejected; pure stdlib
+(Kuhn matching for Dilworth, DAG longest path). ★ A proven dependence is ALWAYS comparable ⇒ kept sequential
+(never overlapped). Verified: sequential chain ⇒ width 1 / 1× (no speedup, honest); independent ⇒ width n;
+two parallel chains ⇒ width 2 / ceiling 2×. test `test_bc_ca1_causal_poset`.
+
+## Invariants (§5 gates)
+- ★ **Axis Y ≠ fold-rate ≠ Clock — never summed.** CA-1 reports concurrency width + Amdahl critical path only.
+- ★ **IEEE754 sacred** — CA-1 doesn't reassociate FP; the existing reduction gates (`prove_assoc_comm`) already
+  reject non-associative float reductions. CA-1 only reorders *independent* ops (no value change).
+- correctness is the existing `pillar3/equiv` bit-identical moat — CA-1 adds no new correctness logic.
+- "relativistic acceleration" / light-cone-race / geodesic-scheduler / Lorentz **not present** (banned; CA-1 is
+  Dilworth/Lamport-happens-before combinatorics — a bound, not a faster clock).
+- zero-dep (stdlib); `test_build` 274/0; `test_catalog` + `test_bc_ca1_causal_poset`; fold-rate / false-EXACT
+  invariant untouched (CA-1 in `accel/`, not imported by the corpus-count or fold engines).

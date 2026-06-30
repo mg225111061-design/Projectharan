@@ -6205,6 +6205,36 @@ def test_bb_r1_slice_split():
           "the single recall/core disposer [no new mechanism/disposer, precision 1.0 structural])")
 
 
+def test_bc_ca1_causal_poset():
+    """§BC ACCEL Round-5 CA-1 — causal poset + Dilworth: the EXACT parallelism bound (★Axis Y, NOT fold; never
+    summed with fold-rate or the Clocks). NOT a new speedup — it lifts the pairwise independence the existing
+    gates prove (`verified_parallel._conflicts`) into a partial order, then reads off Dilworth max-antichain
+    (provably-max concurrency) + longest chain (EXACT Amdahl critical path). ★ A real dependence (write→read) is
+    NEVER scheduled concurrently (comparable ⇒ width 1). Built on the existing accel infra (IO-1/2/3, PAR-1/2,
+    RC-2 already shipped — not rebuilt)."""
+    import accel.causal_poset as CP
+    # sequential chain ⇒ width 1 (no concurrency), critical path = n (honest: 1× ceiling, no speedup)
+    chain = [{"name": f"a{k}", "reads": (["x"] if k else []), "writes": ["x"]} for k in range(4)]
+    sc = CP.build_poset(chain)
+    assert CP.dilworth_width(sc) == 1 and CP.longest_chain(sc) == 4
+    # independent ops ⇒ width n, critical path 1 (embarrassingly parallel)
+    indep = [{"name": f"b{k}", "reads": [f"r{k}"], "writes": [f"w{k}"]} for k in range(4)]
+    si = CP.build_poset(indep)
+    assert CP.dilworth_width(si) == 4 and CP.longest_chain(si) == 1
+    # two parallel chains ⇒ width 2, critical path 2, EXACT Amdahl ceiling = 4/2 = 2×
+    two = [{"name": "a0", "writes": ["x"]}, {"name": "a1", "reads": ["x"], "writes": ["x"]},
+           {"name": "b0", "writes": ["y"]}, {"name": "b1", "reads": ["y"], "writes": ["y"]}]
+    sched = CP.causal_schedule(two)
+    assert sched.proved and "ceiling = n/crit = 2.0×" in sched.certificate and "not a new speedup" in sched.certificate
+    # ★ a write→read dependence is comparable ⇒ width 1 ⇒ kept sequential (never lost)
+    assert CP.dilworth_width(CP.build_poset([{"writes": ["x"]}, {"reads": ["x"]}])) == 1
+    bat = CP.adversarial_battery()
+    assert all(bat.values()), bat
+    print("PASS test_bc_ca1_causal_poset (§BC CA-1 Axis-Y: Dilworth max-antichain = provably-max concurrency, "
+          "longest chain = EXACT Amdahl critical path; sequential⇒width1/1×, independent⇒width n, two chains⇒2×; "
+          "★dependence never scheduled concurrently; not a new speedup, built on existing accel gates [no rebuild])")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
