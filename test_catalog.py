@@ -6557,8 +6557,8 @@ def test_bj_structures_dispatch_languages():
           "recognized [sum/poly/product/recurrence/convolution/horner/checksum]; ★the DISPATCHER reaches the "
           "already-built engines — Fibonacci→C-finite O(log n) EXACT, checksum→extract, sum→fold — every "
           "disposition gated by the per-language z3 QF_BV [same struct: Python EXACT, C UB-DECLINE], 0 verify "
-          "bypass; 98 languages, 34 INT_MODELS [Julia silent-wrap·OCaml 63-bit·Clojure promote·Swift trap·Lua f64·"
-          "Solidity 256-checked·Move abort], "
+          "bypass; 102 languages, 34 INT_MODELS [Julia silent-wrap·OCaml 63-bit·Clojure promote·Swift trap·Lua f64·"
+          "Solidity 256-checked·Move abort·ABAP raise], "
           "RF-1: intake improvement NOT a coverage multiplier, 0 new mechanism/disposer)")
 
 
@@ -6853,8 +6853,12 @@ def test_bp2_smart_contract_languages():
     multiplier (~6.8% structural ceiling unchanged). 0 new mechanism/disposer — same z3 gate."""
     from frontend import languages as LANG, semantics as SEM
 
-    assert LANG.count() >= 96                                                  # ★ widened past 88
+    assert LANG.count() >= 100                                                 # ★ widened past 88 → 102
     assert all(ls.sem_key in SEM.INT_MODELS for ls in LANG.LANGS.values())     # every new lang maps to a real model
+    # ★ §BP-4 enterprise/classic additions, each textbook-accurate:
+    assert LANG.disposition_for("prolog").grade == "EXACT"                     # GMP bignum ⇒ arbitrary ⇒ EXACT
+    assert LANG.disposition_for("smalltalk").grade == "EXACT"                  # LargeInteger auto-promote ⇒ EXACT
+    assert LANG.model_for("abap").overflow == "error" and LANG.disposition_for("abap", 10 ** 9).grade == "DECLINE"  # 32-bit raises
     # ★ Solidity 256-bit CHECKED: Σi within 2^255 ⇒ EXACT (a 64-bit model would have wrongly DECLINEd); huge ⇒ revert
     assert LANG.model_for("solidity").width == 256 and LANG.model_for("solidity").overflow == "error"
     assert LANG.disposition_for("solidity", 10 ** 9).grade == "EXACT"          # no revert at this magnitude
@@ -6869,7 +6873,8 @@ def test_bp2_smart_contract_languages():
     # the existing language + model batteries still pass (additive only)
     assert LANG.adversarial_battery()["all_ok"] and SEM.extended_models_battery()["all_ok"]
 
-    print("PASS test_bp2_smart_contract_languages (§BP-2: +10 accurately-modeled languages → 98; ★ Solidity/Vyper "
+    print("PASS test_bp2_smart_contract_languages (§BP-2/-4: +14 accurately-modeled languages → 102 [smart-contract "
+          "+ ABAP/Smalltalk/Prolog/kdb]; ★ Solidity/Vyper "
           "256-bit CHECKED [Σ<2^255 EXACT, else revert-DECLINE — a 64-bit model would have false-DECLINEd]; "
           "Move/Ballerina 64-bit abort [in-range EXACT, over-range DECLINE]; Cairo DEFERRED [felt252 field-mod-p ≠ "
           "2^k, no inaccurate model]; RF-1 coverage/soundness NOT a multiplier; 0 new mechanism, same z3 gate)")

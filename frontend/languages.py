@@ -102,6 +102,11 @@ _REGISTRY: List[LangSpec] = [LangSpec(*t) for t in [
     ("qsharp", "go_int64", "scientific", "Q# Int = 64-bit"),
     ("haxe", "java_int", "web", "Int = 32-bit on static targets (target-dependent)"),
     ("apex", "java_int", "jvm", "Salesforce Apex Integer = 32-bit"),
+    # ── §BP-4: enterprise / classic languages (textbook-accurate integer models only) ──
+    ("abap", "csharp_checked", "data", "SAP ABAP TYPE i = 32-bit; overflow raises CX_SY_ARITHMETIC_OVERFLOW"),
+    ("smalltalk", "arbitrary", "functional", "SmallInteger auto-promotes to LargePositiveInteger (arbitrary precision)"),
+    ("prolog", "arbitrary", "functional", "modern Prolog (SWI/GNU) uses GMP bignums — arbitrary precision"),
+    ("kdb", "go_int64", "data", "kdb+/q long = 64-bit, no promotion ⇒ two's-complement wrap"),
 ]]
 
 LANGS: Dict[str, LangSpec] = {ls.name: ls for ls in _REGISTRY}
