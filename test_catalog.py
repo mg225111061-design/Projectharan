@@ -6498,6 +6498,67 @@ def test_bi_search_and_file_upgrade():
           "re-build 0; banned bigrams absent)")
 
 
+def test_bj_structures_dispatch_languages():
+    """§BJ — 80+ languages + all-structure recognition + ACTIVELY WIRE every engine we built. The bottleneck was
+    not missing engines — intake recognized ONE structure (acc+=i), so the fold/C-finite/NTT/extract/checker
+    engines sat unreachable. (A) widen recognition (structures.py: sum/poly/product/recurrence/convolution/horner/
+    checksum); (B) DISPATCH each to its engine (dispatch.py: Fibonacci→C-finite, checksum→extract, sum→fold) with
+    output STILL gated by the per-language z3 QF_BV gate + verified certs (never bypassed); (C) 88 languages with
+    accurate integer models (Julia silent wrap · OCaml 63-bit · Clojure promote · Swift trap · Lua/JS f64 · C UB).
+    ★ RF-1: intake improvement (engines reach more code), NOT a coverage/fold-rate multiplier. 0 new mechanism."""
+    from pathlib import Path
+    root = Path(__file__).parent
+    from frontend import semantics as SEM, languages as LANG, structures as STRUCT, dispatch as DISP
+
+    # ── (A) recognition widened from 1 structure to the engine-backed families ──
+    sa = STRUCT.adversarial_battery()
+    assert sa["all_ok"], sa["failed"]
+    rec = STRUCT.measure_recognition()
+    assert rec["families_recognized"] == 7 and rec["was_before"] == 1           # ★ the door widened
+    assert STRUCT.recognize("a, b = b, a+b").kind == "linear_recurrence"          # Fibonacci recognized (was raw)
+
+    # ── (B) the dispatcher REACHES the engines, every disposition gated ──
+    da = DISP.adversarial_battery()
+    assert da["all_ok"], da["failed"]
+    fib = DISP.dispatch("def fib(n):\n a,b=0,1\n for _ in range(n): a,b=b,a+b\n return a", "python")
+    assert "C-finite" in fib.engine and fib.reached and fib.grade == "EXACT"      # ★ Fibonacci NOW reaches C-finite
+    sum_py = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "python")
+    sum_c = DISP.dispatch("def f(n):\n s=0\n for i in range(1,n+1): s+=i\n return s", "c", n_bound=10 ** 9)
+    assert "fold" in sum_py.engine and sum_py.grade == "EXACT" and sum_c.grade == "DECLINE"  # ★ same struct, lang gate
+    assert sum_py.gated and sum_c.gated and fib.gated                            # ★ dispatching never bypasses verify
+
+    # ── (C) 80+ languages, each disposing correctly under its OWN integer model ──
+    la = LANG.adversarial_battery()
+    assert la["all_ok"], la["failed"]
+    assert LANG.count() >= 80
+    em = SEM.extended_models_battery()
+    assert em["all_ok"], em["failed"]
+    BIG = 5 * 10 ** 9
+    assert LANG.disposition_for("clojure").grade == "EXACT"                       # auto-promote ⇒ arbitrary
+    assert "WRAP-AWARE" in LANG.disposition_for("julia", BIG).reason              # ★ silent wrap, naive is wrong
+    assert LANG.disposition_for("swift", BIG).grade == "DECLINE"                  # ★ trap over-range
+    assert LANG.disposition_for("lua", 10 ** 9).grade == "DECLINE"                # ★ f64 precision loss (not wrap)
+    assert LANG.model_for("ocaml").width == 63                                    # ★ OCaml 63-bit (accurate)
+
+    # ── regression: the existing §AH semantics gate is untouched (additive only) ──
+    assert SEM.adversarial_battery()["all_ok"]                                    # 10-model battery still green
+
+    # ── ★ RF-1 honesty stated (not a coverage multiplier), banned bigrams absent ──
+    assert "NOT a fold-rate multiplier" in rec["note"]                            # ★ structures.py states RF-1
+    assert "NOT a coverage multiplier" in LANG.__doc__ or "not a fold-rate multiplier" in LANG.__doc__.lower()
+    for fn in ("frontend/structures.py", "frontend/dispatch.py", "frontend/languages.py",
+               "ENGINE_INVENTORY.md", "LANG_INDEX.md", "STRUCT_LANG_MEASURE.md"):
+        low = (root / fn).read_text(encoding="utf-8").lower()
+        assert "quantum speedup" not in low and "relativistic acceleration" not in low
+
+    print("PASS test_bj_structures_dispatch_languages (§BJ: the door was acc+=i ALONE — now 7 structure families "
+          "recognized [sum/poly/product/recurrence/convolution/horner/checksum]; ★the DISPATCHER reaches the "
+          "already-built engines — Fibonacci→C-finite O(log n) EXACT, checksum→extract, sum→fold — every "
+          "disposition gated by the per-language z3 QF_BV [same struct: Python EXACT, C UB-DECLINE], 0 verify "
+          "bypass; 88 languages, 32 INT_MODELS [Julia silent-wrap·OCaml 63-bit·Clojure promote·Swift trap·Lua f64], "
+          "RF-1: intake improvement NOT a coverage multiplier, 0 new mechanism/disposer)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

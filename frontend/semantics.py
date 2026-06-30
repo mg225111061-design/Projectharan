@@ -43,6 +43,29 @@ INT_MODELS: Dict[str, IntModel] = {
     "rust_wrapping": IntModel("rust_wrapping", 32, "wrap", "Rust wrapping_add ⇒ mod 2^n (explicit)"),
     "rust_checked":  IntModel("rust_checked", 32, "checked", "Rust checked_add ⇒ Option (no UB; None on overflow)"),
     "rust_saturating": IntModel("rust_saturating", 32, "saturating", "Rust saturating_add ⇒ clamp at bounds"),
+    # ── §BJ: the 80+-language models (accurate per-language integer semantics — a wrong model is a false-EXACT) ──
+    "julia_int64":   IntModel("julia_int64", 64, "wrap", "Julia Int64 = SILENT two's-complement wrap (★ no error, no promotion — the trap for the unwary)"),
+    "ocaml_int":     IntModel("ocaml_int", 63, "wrap", "OCaml native int = 63-bit on 64-bit platforms (one bit for the tag), wraps mod 2^63"),
+    "clojure_promote": IntModel("clojure_promote", None, "none", "Clojure +'/*' AUTO-PROMOTE long→BigInt (arbitrary precision) ⇒ no overflow (★ assumes the promoting ops; plain + THROWS)"),
+    "swift_int":     IntModel("swift_int", 64, "trap", "Swift Int overflow TRAPS at runtime (no UB — the program aborts; &+ is the explicit wrapping op)"),
+    "crystal_int":   IntModel("crystal_int", 32, "error", "Crystal Int overflow RAISES OverflowError (no UB, no silent wrap)"),
+    "ada_int":       IntModel("ada_int", 32, "error", "Ada raises Constraint_Error on integer overflow"),
+    "csharp_checked": IntModel("csharp_checked", 32, "error", "C# `checked` context raises OverflowException (vs unchecked = wrap)"),
+    "nim_int":       IntModel("nim_int", 64, "error", "Nim int overflow raises OverflowDefect (debug) — model the checked default; release --d:danger wraps"),
+    "ruby_int":      IntModel("ruby_int", None, "none", "Ruby Integer auto-promotes Fixnum→Bignum (arbitrary precision)"),
+    "arbitrary":     IntModel("arbitrary", None, "none", "numeric-tower / bignum-by-default (Scheme/Racket/CommonLisp/Erlang/Elixir/Raku/Tcl/Smalltalk/Python) — arbitrary precision"),
+    "haskell_int":   IntModel("haskell_int", 64, "wrap", "Haskell Int = machine word (64-bit); overflow wraps (impl-defined, typically mod 2^64)"),
+    "haskell_integer": IntModel("haskell_integer", None, "none", "Haskell Integer = arbitrary precision (distinct type from Int)"),
+    "kotlin_int":    IntModel("kotlin_int", 32, "wrap", "Kotlin Int = 32-bit JVM two's-complement wrap"),
+    "scala_int":     IntModel("scala_int", 32, "wrap", "Scala Int = 32-bit JVM two's-complement wrap"),
+    "dart_int":      IntModel("dart_int", 64, "wrap", "Dart native int = 64-bit wrap (★ web/JS target = double ⇒ f64 model there)"),
+    "zig_wrapping":  IntModel("zig_wrapping", 64, "wrap", "Zig +% = EXPLICIT wrapping; plain + on overflow is illegal behavior (safe builds trap)"),
+    "wat_i32":       IntModel("wat_i32", 32, "wrap", "WebAssembly i32 = mod 2^32 wrap"),
+    "wat_i64":       IntModel("wat_i64", 64, "wrap", "WebAssembly i64 = mod 2^64 wrap"),
+    "fortran_int":   IntModel("fortran_int", 32, "ub", "Fortran integer overflow = processor-dependent / effectively undefined"),
+    "lua_number":    IntModel("lua_number", 53, "f64", "Lua number = IEEE-754 double; integers EXACT only while ≤ 2^53"),
+    "js_f64":        IntModel("js_f64", 53, "f64", "JS Number = IEEE-754 double; integers EXACT only while ≤ 2^53 (BigInt is separate)"),
+    "r_double":      IntModel("r_double", 53, "f64", "R numeric / MATLAB / Octave = double; integers EXACT only while ≤ 2^53"),
 }
 
 
@@ -119,6 +142,28 @@ def sum_fold_under_language(lang: str, n_bound: int = 10 ** 9) -> SemVerdict:
                               f"{m.note}: saturating clamps at the bound for large n ⇒ NOT n(n+1)/2 ⇒ DECLINE")
         return SemVerdict(True, "EXACT", "n*(n+1)/2", "Z (no-saturation proven)",
                           f"{m.note}: no saturation in range ⇒ EXACT")
+    if m.overflow in ("trap", "error"):                        # §BJ: Swift trap / Crystal·Ada·C#-checked·Nim raise
+        # No UB and no silent wrap — but the closed form would SKIP the runtime trap/exception the loop would hit,
+        # changing observable behavior. So: overflow possible in range ⇒ DECLINE (the program signals it, we must
+        # not paper over it); no overflow provable ⇒ equals the ℤ closed form ⇒ EXACT.
+        kind = "traps" if m.overflow == "trap" else "raises"
+        if _sum_overflows_in_range(m.width, n_bound):
+            return SemVerdict(False, "DECLINE", "", "-",
+                              f"{m.note}: Σi overflows in range n≤{n_bound} ⇒ the program {kind} at runtime ⇒ DECLINE "
+                              f"(a closed form must not silently replace a trap/exception)")
+        return SemVerdict(True, "EXACT", "n*(n+1)/2", "Z (no-overflow proven)",
+                          f"{m.note}: no overflow in range n≤{n_bound} ⇒ no {kind}; equals the ℤ closed form ⇒ EXACT")
+    if m.overflow == "f64":                                    # §BJ: Lua/JS/R/MATLAB — double-backed integers
+        # Exact only while every intermediate stays ≤ 2^53. The NAIVE form computes n*(n+1) first, so that product
+        # is the binding constraint. Beyond 2^53 precision is silently LOST (rounding, NOT wrap) ⇒ no wrap-aware
+        # rescue exists ⇒ DECLINE. (★ This is why Lua/JS differ from fixed-width wrap languages.)
+        prod = n_bound * (n_bound + 1)
+        if prod > (1 << 53):
+            return SemVerdict(False, "DECLINE", "", "-",
+                              f"{m.note}: n*(n+1)={prod} exceeds 2^53 for n≤{n_bound} ⇒ silent precision loss "
+                              f"(rounding, not wrap — no wrap-aware form) ⇒ DECLINE")
+        return SemVerdict(True, "EXACT", "n*(n+1)/2", "Z (≤2^53 exact-double proven)",
+                          f"{m.note}: n*(n+1)≤2^53 in range ⇒ every double intermediate is exact ⇒ EXACT")
     return SemVerdict(False, "DECLINE", "", "-", "unmodelled overflow semantics ⇒ DECLINE")
 
 
@@ -135,6 +180,42 @@ def eval_order_note() -> str:
     side-effecting subexpressions must preserve the language's order (or DECLINE). Stated honestly."""
     return ("side-effecting subexpressions are NOT reordered across a fold unless the language pins the order "
             "(C/C++ argument order unspecified ⇒ DECLINE a reorder; JS/Python left-to-right ⇒ order preserved).")
+
+
+def extended_models_battery() -> dict:
+    """§BJ — the 80+-language integer models, each disposing the SAME Σi fold correctly under its own semantics.
+    ★ The whole point: an ACCURATE model per language, so a fold sound in one is DECLINED in another — never a
+    false-EXACT. Clojure-promote/Ruby/numeric-tower ⇒ EXACT (arbitrary); Julia/OCaml ⇒ wrap-aware (silent wrap);
+    Swift ⇒ trap-DECLINE over-range; Crystal ⇒ raise-DECLINE; Lua/JS ⇒ f64 EXACT ≤2^53 else precision-loss DECLINE."""
+    BIG = 5 * 10 ** 9      # Σ exceeds int64 (forces the 64-bit trap/wrap cases to bite)
+    clj = sum_fold_under_language("clojure_promote")
+    ruby = sum_fold_under_language("ruby_int")
+    arb = sum_fold_under_language("arbitrary")
+    julia = sum_fold_under_language("julia_int64", n_bound=BIG)
+    ocaml = sum_fold_under_language("ocaml_int", n_bound=BIG)
+    swift_big = sum_fold_under_language("swift_int", n_bound=BIG)
+    swift_small = sum_fold_under_language("swift_int", n_bound=1000)
+    crystal = sum_fold_under_language("crystal_int", n_bound=10 ** 9)
+    hs_int = sum_fold_under_language("haskell_int", n_bound=BIG)
+    hs_integer = sum_fold_under_language("haskell_integer")
+    lua_big = sum_fold_under_language("lua_number", n_bound=10 ** 9)
+    lua_small = sum_fold_under_language("lua_number", n_bound=1000)
+    js_big = sum_fold_under_language("js_f64", n_bound=10 ** 9)
+    cases = {
+        "clojure_promote_exact": clj.accept and clj.grade == "EXACT" and clj.proved_by == "Z (arbitrary)",
+        "ruby_arbitrary_exact": ruby.accept and ruby.grade == "EXACT",
+        "numeric_tower_exact": arb.accept and arb.grade == "EXACT",
+        "julia_silent_wrap_wrapaware": julia.accept and "WRAP-AWARE" in julia.reason and julia.proved_by == "QF_BV",
+        "ocaml_63bit_wrapaware": ocaml.accept and "WRAP-AWARE" in ocaml.reason,           # 63-bit wrap, not 64
+        "swift_trap_declines_overrange": (not swift_big.accept) and "traps" in swift_big.reason,
+        "swift_no_overflow_exact": swift_small.accept and swift_small.grade == "EXACT",
+        "crystal_raises_declines": (not crystal.accept) and "raises" in crystal.reason,
+        "haskell_int_wraps_integer_exact": ("WRAP-AWARE" in hs_int.reason) and hs_integer.grade == "EXACT",
+        "lua_f64_overrange_declines": (not lua_big.accept) and "2^53" in lua_big.reason,   # precision loss, not wrap
+        "lua_f64_small_exact": lua_small.accept and lua_small.grade == "EXACT",
+        "js_f64_overrange_declines": (not js_big.accept) and "2^53" in js_big.reason,
+    }
+    return {"cases": cases, "all_ok": all(cases.values()), "failed": [k for k, v in cases.items() if not v]}
 
 
 def adversarial_battery() -> dict:
