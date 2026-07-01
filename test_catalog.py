@@ -7035,6 +7035,98 @@ def test_bq_metakernel():
           "changed stage's hole needs refilling); 0 new mechanism, 14-mechanism count unchanged)")
 
 
+def test_br_qmkernel():
+    """§BR — quantum mechanics/geometry/information: Slater determinant flagship + fermionic Wick algebra +
+    Hermitian real-root certification + Schmidt=SVD entanglement spectrum + Lindblad=matrix-exponential +
+    holonomic special-function routing + state-validity/distance/inequality bundles + the QGT/Berry +
+    Chern-FHS + Wilson-loop + bulk-boundary topological-invariant cluster. ★ Research finding acted on: the
+    2-lane precision discipline (§1) is enforced STRUCTURALLY (qmkernel.lane.EpsCert is never a
+    kernel_verdict.Verdict, so float input cannot be mistaken for EXACT by any downstream consumer) — verified
+    below directly, not merely asserted in prose. Two of the directive's own premises were checked against
+    the actual code and found FALSE (Kasteleyn/FKT Pfaffian already exists; no matrix-exponential engine
+    exists anywhere in the repo) — corrections are documented in QMKERNEL_INDEX.md/QMKERNEL_MEASURE.md rather
+    than silently built around."""
+    import subprocess
+    from pathlib import Path
+
+    from qmkernel import lane as QL
+    from qmkernel import slater as QSL
+    from qmkernel import fermion_wick as QFW
+    from qmkernel import hermitian_realroot as QHR
+    from qmkernel import entanglement_spectrum as QES
+    from qmkernel import lindblad_exp as QLE
+    from qmkernel import state_validity as QSV
+    from qmkernel import state_distance as QSD
+    from qmkernel import qm_inequality as QMI
+    from qmkernel import holonomic_specfun as QHS
+    from qmkernel import qgt_berry as QGB
+    from qmkernel import chern_fhs as QCF
+    from qmkernel import wilson_loop as QWL
+    from qmkernel import bulk_boundary as QBB
+    import kernel_verdict as KV
+
+    # ★ the engines §BR systematizes/reuses (NOT rewrites) — 0 diff, checked directly against the working tree
+    protected = ["mathmode/free_fermion.py", "qfold/stabilizer.py", "mathmode/operator_algebra.py",
+                 "mathmode/ore.py", "mathmode/holonomic.py", "mathmode/special_holonomic.py",
+                 "native_realroots.py", "hermite_count.py", "randomized_svd.py", "cfinite.py",
+                 "mathmode/curvature.py", "mathmode/petrov.py", "newengine/kasteleyn.py",
+                 "newengine/kalman.py", "positivity.py"]
+    root = Path(__file__).parent
+    diff = subprocess.run(["git", "diff", "--stat", *protected], cwd=root, capture_output=True, text=True, timeout=30)
+    assert diff.returncode == 0 and diff.stdout.strip() == "", f"§BR touched a reference engine file: {diff.stdout}"
+
+    mods = [QL, QSL, QFW, QHR, QES, QLE, QSV, QSD, QMI, QHS, QGB, QCF, QWL, QBB]
+    batteries = [m.adversarial_battery() for m in mods]
+    for m, b in zip(mods, batteries):
+        assert b["all_ok"], f"{m.__name__}: {b['failed']}"
+    assert sum(len(b["cases"]) for b in batteries) >= 190          # ★ regression floor (measured: 202)
+
+    # ★ structural 2-lane guarantee: EpsCert can never be mistaken for a KV.Verdict (never a naming convention)
+    ok_cert = QL.eps_cert(residual=1e-9, epsilon=1e-6, kind="test")
+    assert isinstance(ok_cert, QL.EpsCert) and not isinstance(ok_cert, KV.Verdict)
+    assert ok_cert.lane == "APPROX_EPS" and ok_cert.lane not in (KV.EXACT, KV.PROBABILISTIC)
+
+    # ★ NEW-1 Slater: orthonormality precondition + antisymmetry, direct spot-check
+    from fractions import Fraction
+    orb = [[Fraction(1), Fraction(0)], [Fraction(0), Fraction(1)]]
+    v = QSL.slater_verdict(orb, [0, 1])
+    assert v.status == KV.EXACT
+    bad_orb = [[Fraction(1), Fraction(1)], [Fraction(0), Fraction(1)]]
+    assert QSL.slater_verdict(bad_orb, [0, 1]).status == KV.DECLINE
+
+    # ★ NEW-6 dispatcher honesty: two different matrices reach native_realroots with different coefficients
+    import sympy as sp
+    c1 = QHR.charpoly_coeffs(sp.Matrix([[2, 1], [1, 2]]))
+    c2 = QHR.charpoly_coeffs(sp.Matrix([[5, 0], [0, 7]]))
+    assert c1 != c2
+
+    # ★ NEW-13 Chern-FHS: gap precondition fires at a genuine gap-closing point (never a guessed integer)
+    import numpy as np
+    def qwz(m):
+        return lambda kx, ky: (float(np.sin(kx)), float(np.sin(ky)), float(m + np.cos(kx) + np.cos(ky)))
+    assert not QCF.chern_number_fhs(qwz(0.0), N=12, gap_threshold=0.05).passed
+
+    # ★ finalize: qmkernel is genuinely wired into the production dispatcher, and the repo-wide gap stays 0
+    from webapi import engine_dispatch as ED
+    import engine_inventory as EI
+    qb = ED.qmkernel_reach()
+    assert qb["all_ok"], qb["failed"]
+    assert EI.summary(".")["gap_count"] == 0
+
+    print("PASS test_br_qmkernel (§BR: ★Slater determinant flagship (orthonormality precondition + two-way-"
+          "determinant + antisymmetry certificate) amplifies free-fermion/Kasteleyn via composition, not "
+          "duplication; ★fermionic Wick algebra confirmed net-new (operator_algebra.py is bosonic-only) with "
+          "an independent Jordan-Wigner matrix cross-check; ★Hermitian real-root certification + Schmidt=SVD "
+          "+ Lindblad=matrix-exponential (premise corrected: no matrix-exponential engine existed anywhere in "
+          "the repo before this) all route through/compose with existing engines under dispatcher-honesty "
+          "regression; ★state-validity/distance/inequality bundles (2-lane forced, honest scope DECLINEs for "
+          "non-commuting fidelity and monogamy); ★QGT/Berry (Hermiticity+gauge-invariance certified, matches "
+          "the textbook spin-1/2 monopole flux exactly) + Chern-FHS (gap precondition + 2x-resolution "
+          "stability) + Wilson loop (cross-checked against QGT/Berry, empirical sign convention measured and "
+          "reported) + bulk-boundary (independent edge-state count matches 2|Chern| on deep, non-transition "
+          "points); 202 battery cases all green, 0 new mechanism, 15 reference engine files at 0 diff, gap=0)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

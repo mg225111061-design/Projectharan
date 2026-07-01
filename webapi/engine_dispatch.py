@@ -170,6 +170,42 @@ def metakernel_reach() -> dict:
         return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
 
 
+def qmkernel_reach() -> dict:
+    """§BR — reach the quantum-mechanics/geometry/information kernel: Slater determinant flagship, fermionic
+    Wick algebra, Hermitian real-root certification, Schmidt=SVD entanglement spectrum, Lindblad=matrix-
+    exponential, holonomic special-function routing, state-validity/distance/inequality bundles, and the
+    QGT/Berry + Chern-FHS + Wilson-loop + bulk-boundary topological-invariant cluster. None of these
+    re-implement mathmode/free_fermion, qfold/stabilizer, mathmode/operator_algebra, mathmode/{ore,holonomic,
+    special_holonomic}, native_realroots, randomized_svd, cfinite, mathmode/{curvature,petrov}, or
+    newengine/kasteleyn — every one of those stays at 0 diff (QMKERNEL_INDEX.md). Aggregates all 14
+    sub-batteries into one verdict."""
+    try:
+        import qmkernel.lane as QL
+        import qmkernel.slater as QSL
+        import qmkernel.fermion_wick as QFW
+        import qmkernel.hermitian_realroot as QHR
+        import qmkernel.entanglement_spectrum as QES
+        import qmkernel.lindblad_exp as QLE
+        import qmkernel.state_validity as QSV
+        import qmkernel.state_distance as QSD
+        import qmkernel.qm_inequality as QMI
+        import qmkernel.holonomic_specfun as QHS
+        import qmkernel.qgt_berry as QGB
+        import qmkernel.chern_fhs as QCF
+        import qmkernel.wilson_loop as QWL
+        import qmkernel.bulk_boundary as QBB
+        mods = {"lane": QL, "slater": QSL, "fermion_wick": QFW, "hermitian_realroot": QHR,
+                "entanglement_spectrum": QES, "lindblad_exp": QLE, "state_validity": QSV,
+                "state_distance": QSD, "qm_inequality": QMI, "holonomic_specfun": QHS,
+                "qgt_berry": QGB, "chern_fhs": QCF, "wilson_loop": QWL, "bulk_boundary": QBB}
+        results = {name: mod.adversarial_battery() for name, mod in mods.items()}
+        all_ok = all(r["all_ok"] for r in results.values())
+        failed = [f"{name}.{f}" for name, r in results.items() for f in r["failed"]]
+        return {"modules": {k: v["all_ok"] for k, v in results.items()}, "all_ok": all_ok, "failed": failed}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""

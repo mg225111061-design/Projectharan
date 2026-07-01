@@ -33,6 +33,7 @@ _WIRED_PACKAGES = {
     "newengine5",                                                      # §BN: 7 decidable-fragment-guarded branches (wired via engine_dispatch.newengine5_reach)
     "newengine3",                                                      # §BO: 3 decidable-boundary branches (prob-loop moment/EPR/CSP; wired via engine_dispatch.newengine3_reach)
     "metakernel",                                                      # §BQ: unified trusted-kernel witness contract + CHC TCB-reduction bridge + holed certificates (wired via engine_dispatch.metakernel_reach)
+    "qmkernel",                                                        # §BR: quantum mechanics/geometry/information kernel — Slater/fermion-Wick/Hermitian-realroot/Schmidt-SVD/Lindblad-expm/holonomic-specfun/state-validity/state-distance/qm-inequality/QGT-Berry/Chern-FHS/Wilson-loop/bulk-boundary (wired via engine_dispatch.qmkernel_reach)
 }
 # root-level engine files the dispatcher reaches directly (the §BK + §BL wired entries)
 _WIRED_ENTRIES = {
