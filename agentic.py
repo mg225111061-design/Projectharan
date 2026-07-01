@@ -31,6 +31,12 @@ import mode_policy as MP
 import prove_exact as PE
 from haran_parser import parse
 
+# 10H directive Task 1 — OPT-IN tool-calling (default off everywhere ⇒ zero behavior change for any
+# existing caller). agenttools is pure-stdlib (zero-dep) so a module-level import costs nothing.
+import agenttools.capability as AT_CAP
+import agenttools.router as AT_ROUTER
+import agenttools.toolcall as AT_TOOLCALL
+
 
 @dataclass
 class WriteVerifyResult:
@@ -82,18 +88,46 @@ class WVFResult:
     trace: List[ai_loop.LoopStep] = field(default_factory=list)
 
 
+def _tools_for_call(prompt: str, provider: Optional[str], model: str, base_url: Optional[str]) -> List:
+    """Which tools (if any) `enable_tools=True` exposes for ONE call (10H directive Task 1, Prime
+    Directive 4). `ollama_local` gets tools ONLY after a LIVE `/api/show` capability confirmation — an
+    unconfirmed/unsupported local model gets an empty list, which `toolcall.run_with_tools` treats
+    exactly like tools-disabled (a silent, graceful fallback to the plain write→verify→fix path; NEVER a
+    crash, NEVER a fabricated tool-use claim). Every other provider (first-party Anthropic/OpenAI/etc.
+    APIs — well-documented, stable tool support) skips the live check and gets the router's normal
+    task-matched subset (Prime Directive 1: never the whole catalog)."""
+    if provider == "ollama_local":
+        host = CA.normalize_base_url(CA._resolve_base_url(provider, base_url)) or AT_CAP.DEFAULT_HOST
+        if host.endswith("/v1"):
+            host = host[: -len("/v1")]
+        if not AT_CAP.ollama_supports_tools(model, host):
+            return []
+    return AT_ROUTER.select_tools(prompt)
+
+
 def _claude_model_fn(api_key: Optional[str], model: str,
                      mock_sequence: Optional[List[str]],
-                     provider: Optional[str] = None, base_url: Optional[str] = None) -> Callable[[str], str]:
+                     provider: Optional[str] = None, base_url: Optional[str] = None,
+                     enable_tools: bool = False) -> Callable[[str], str]:
     """A `prompt -> code` callable backed by Claude. Live: each call is a real Claude turn (so the fix
     prompt, which carries the counterexample, actually drives a fix). Mock: a deterministic scripted
     sequence (wrong → fixed) advancing one step per call — an honest SIMULATION of the model's turns.
-    `provider`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults)."""
+    `provider`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults).
+
+    `enable_tools` (10H directive, default False ⇒ byte-identical behavior for every existing caller):
+    when True AND live, routes the call through `agenttools.toolcall.run_with_tools` instead of a bare
+    `claude_generate`, exposing a small task-matched tool subset (see `_tools_for_call`). Mock mode is
+    UNCHANGED by this flag — deciding whether to call a tool is a live-model judgment this loop cannot
+    honestly simulate, so mock stays the same scripted text sequence either way."""
     state = {"i": 0}
     seq = mock_sequence or [CA._MOCK_HARAN]
 
     def model_fn(prompt: str) -> str:
         if api_key:
+            if enable_tools:
+                tools = _tools_for_call(prompt, provider, model, base_url)
+                return AT_TOOLCALL.run_with_tools(prompt, api_key, tools=tools, model=model,
+                                                  provider=provider, base_url=base_url).text
             return CA.claude_generate(prompt, api_key, model=model,
                                       provider=provider, base_url=base_url).text
         out = seq[min(state["i"], len(seq) - 1)]
@@ -106,13 +140,16 @@ def _claude_model_fn(api_key: Optional[str], model: str,
 def write_verify_fix(request: str, api_key: Optional[str] = None, *,
                      model: str = CA.DEFAULT_MODEL, mock_sequence: Optional[List[str]] = None,
                      max_iters: int = 3, verbose: bool = False,
-                     provider: Optional[str] = None, base_url: Optional[str] = None) -> WVFResult:
+                     provider: Optional[str] = None, base_url: Optional[str] = None,
+                     enable_tools: bool = False) -> WVFResult:
     """S3: drive Claude→HARAN→fix until the code is PROVEN against its spec (or budget exhausted).
 
     Returns convergence + the full trace (each iteration's code, verdict, and the counterexample that
     was fed back). With no key, `mock_sequence` scripts the model's turns (e.g. [WRONG, GOOD]); the
-    loop and counterexamples are real regardless. `provider`/`base_url` (v26 S0) pick the gateway."""
-    fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url)
+    loop and counterexamples are real regardless. `provider`/`base_url` (v26 S0) pick the gateway.
+    `enable_tools` (10H directive, default False) opts each live model turn into the tool-calling
+    execution-feedback loop (agenttools) — see `_claude_model_fn`."""
+    fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url, enable_tools)
     loop = ai_loop.write_verify_fix(request, fn, fn, max_iters=max_iters, verbose=verbose)
     last = loop.trace[-1] if loop.trace else None
     return WVFResult(
@@ -331,17 +368,20 @@ def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = No
                  history: Optional[List[HistoryTurn]] = None,
                  model: str = CA.DEFAULT_MODEL,
                  mock_sequence: Optional[List[str]] = None,
-                 provider: Optional[str] = None, base_url: Optional[str] = None) -> AgenticResult:
+                 provider: Optional[str] = None, base_url: Optional[str] = None,
+                 enable_tools: bool = False) -> AgenticResult:
     """THE entry point. Claude/GLM writes code for `request` (+ conversation `history`); HARAN verifies &
     fixes under `mode`'s budget; if PROVEN, HARAN optimizes (closed form) and reports the Type A proof
     tier. Returns everything + a real measured wall-clock. `api_key` is level-1 (per-call, unstored).
-    `provider`/`model`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults)."""
+    `provider`/`model`/`base_url` (v26 S0) select the gateway at runtime (None → env defaults).
+    `enable_tools` (10H directive, default False) opts into the agenttools tool-calling loop — identical
+    kernel_verdict path regardless of provider (Prime Directive 5)."""
     t0 = time.perf_counter()
     task = _with_history(request, history)
     plan = MP.plan(mode)                      # S10: which mathematics, how far (both modes zero-wrong-answer)
     budget = plan.loop_budget
     wvf = write_verify_fix(task, api_key, model=model, mock_sequence=mock_sequence, max_iters=budget,
-                           provider=provider, base_url=base_url)
+                           provider=provider, base_url=base_url, enable_tools=enable_tools)
 
     if wvf.converged:
         status = "VERIFIED"
@@ -376,14 +416,16 @@ def agentic_code(request: str, mode: str = "normal", api_key: Optional[str] = No
 def agentic_stream(request: str, mode: str = "normal", api_key: Optional[str] = None, *,
                    history: Optional[List[HistoryTurn]] = None, model: str = CA.DEFAULT_MODEL,
                    mock_sequence: Optional[List[str]] = None,
-                   provider: Optional[str] = None, base_url: Optional[str] = None):
+                   provider: Optional[str] = None, base_url: Optional[str] = None,
+                   enable_tools: bool = False):
     """Yields stage dicts: {'stage': 'generate'|'fix'|'code_done'|'verify'|'refuted'|'optimize'|'done'}.
     The final {'stage':'done','result': AgenticResult} carries the full result (serialize as usual).
-    `provider`/`base_url` (v26 S0) select the gateway at runtime."""
+    `provider`/`base_url` (v26 S0) select the gateway at runtime. `enable_tools` (10H directive, default
+    False) opts into the agenttools tool-calling loop, same as `write_verify_fix`/`agentic_code`."""
     t0 = time.perf_counter()
     task = _with_history(request, history)
     budget = MODE_BUDGET.get(mode, 2)
-    fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url)
+    fn = _claude_model_fn(api_key, model, mock_sequence, provider, base_url, enable_tools)
     prompt, trace = task, []
     converged, final_code, final_status = False, "", "NONE"
     clock_a_ms = clock_b_ms = 0.0   # ★ three clocks, never mixed: A = LLM call, B = verification ★

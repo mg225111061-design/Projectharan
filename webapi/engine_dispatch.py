@@ -206,6 +206,21 @@ def qmkernel_reach() -> dict:
         return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
 
 
+def agenttools_reach() -> dict:
+    """10H directive Task 1 — reach the agent tool-calling framework (registry/router/executor/capability/
+    toolcall). Registry tier validation (RF-5: every tool gets exactly one of FOLD-ELIGIBLE/ACCEL-ELIGIBLE/
+    PLAIN), router exposure cap (Prime Directive 1: never the whole catalog in one request), provider wire-
+    shape split (mirrors claude_agent.claude_generate's own anthropic-vs-everything-else split), executor
+    never-crash, and the Ollama capability gate's fail-safe default (Prime Directive 4) are each proven LIVE
+    here via agenttools.adversarial_battery(), not just importable."""
+    try:
+        import agenttools as AT
+        b = AT.adversarial_battery()
+        return {"cases": b["cases"], "all_ok": b["all_ok"], "failed": b["failed"]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""

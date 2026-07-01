@@ -14,7 +14,8 @@
 |---|---|
 | 레포 | `mg225111061-design/Projectharan` |
 | 개발 브랜치 | **`claude/charming-brahmagupta-q4wwgh`** (이전 `funny-maxwell`의 상위집합 — 여기서 계속) |
-| 테스트 | **280 통과 / 280** (`test_build.py`, 결정론 실행; 아래 명령) — §MRJ provider-wiring +1 · §BE 브라우저-떠넘김/격리 +1 · §BS-1 emission-boundary gate +1 · MR.JEFFREY v2.2 Task-1 `ollama_local` preset +1 · per-provider base_url 해석 수정 +1 · 온보딩 UI 구조 +1 (`test_catalog.py` **253** — local-provider kernel_verdict-ADT parity +1 · local_models.py failure-honesty +1) |
+| 테스트 | **280 통과 / 280** (`test_build.py`, 결정론 실행; 아래 명령) — §MRJ provider-wiring +1 · §BE 브라우저-떠넘김/격리 +1 · §BS-1 emission-boundary gate +1 · MR.JEFFREY v2.2 Task-1 `ollama_local` preset +1 · per-provider base_url 해석 수정 +1 · 온보딩 UI 구조 +1 (`test_catalog.py` **263** — local-provider kernel_verdict-ADT parity +1 · local_models.py failure-honesty +1 · 10H Task-1 agenttools 프레임워크 +9 · agenttools production-wiring(gap=0 유지) +1) |
+| 10H Task 1 | **✅ 완료.** 새 `agenttools/` 패키지(registry+router+executor+capability+toolcall) — 카탈로그는 커도(300+) 매 요청 노출은 항상 소수(≤6, router 구조적 보장); Ollama는 `/api/show`의 실제 `capabilities` 배열을 라이브 체크해야만 tool 노출(미확인 시 조용히 no-tools 폴백); provider 분기는 `claude_agent.claude_generate`와 동일; `agentic.py`에 `enable_tools=False` 옵트인으로만 연결(기존 동작 100% 불변). 부작용 하나 발견+수정: 새 패키지가 `engine_inventory.py`의 gap=0 감사를 깨뜨려서(`test_bl/bn/bo/bq/br`), 다른 패키지들과 동일한 방식(`engine_dispatch.agenttools_reach` + `_WIRED_PACKAGES`)으로 배선. 상세는 STATUS.md. |
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |

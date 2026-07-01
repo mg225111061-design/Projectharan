@@ -7188,6 +7188,233 @@ def test_v22_local_models_client():
           "never fabricate ok=True — when no local Ollama server is reachable)")
 
 
+def test_10h_tool_registry_tiers():
+    """10H directive Task 1, RF-5: every Tool carries EXACTLY one of the 3 tags (FOLD-ELIGIBLE /
+    ACCEL-ELIGIBLE / PLAIN); an unknown tier is rejected at construction (never silently coerced), and
+    FOLD/ACCEL tiers must name the real engine they delegate to (the RF-5 honesty trail — no bare
+    fold/accel claim). counts_by_tier() is a pure histogram, testable against an explicit fixture list
+    without touching the live global registry (so this test is independent of whatever Task 2's
+    catalog_*.py modules have registered by the time it runs)."""
+    from agenttools import registry as REG
+    plain = REG.Tool("t_plain", "d", {"type": "object", "properties": {}}, lambda: 1, REG.PLAIN)
+    fold = REG.Tool("t_fold", "d", {"type": "object", "properties": {}}, lambda: 1, REG.FOLD_ELIGIBLE,
+                    delegate="structure_recognizer.classify")
+    accel = REG.Tool("t_accel", "d", {"type": "object", "properties": {}}, lambda: 1, REG.ACCEL_ELIGIBLE,
+                     delegate="accel.verified_parallel.data_parallel")
+    counts = REG.counts_by_tier([plain, fold, accel])
+    assert counts == {REG.FOLD_ELIGIBLE: 1, REG.ACCEL_ELIGIBLE: 1, REG.PLAIN: 1}, counts
+    try:
+        REG.Tool("bad", "d", {"type": "object"}, lambda: 1, "EXACT")            # not a valid tier
+        assert False, "should have rejected an unknown tier"
+    except ValueError as e:
+        assert "tier" in str(e)
+    try:
+        REG.Tool("bad2", "d", {"type": "object"}, lambda: 1, REG.FOLD_ELIGIBLE)  # no delegate named
+        assert False, "should have rejected FOLD-ELIGIBLE with no delegate"
+    except ValueError as e:
+        assert "delegate" in str(e)
+    print("PASS test_10h_tool_registry_tiers (RF-5: exactly 3 tiers, unknown tier rejected, FOLD/ACCEL "
+          "require a named delegate engine — never a bare fold/accel claim)")
+
+
+def test_10h_registry_register_and_get():
+    """register()/get()/all_tools() mechanics against the live global registry, using a uniquely-named
+    fixture tool so this test is safe to run regardless of how many real catalog tools (Task 2) are
+    already registered in this process."""
+    from agenttools import registry as REG
+    name = "test_10h_fixture_tool_zzz"
+    t = REG.Tool(name, "a fixture tool for the registry mechanics test",
+                {"type": "object", "properties": {}}, lambda: "ok", REG.PLAIN)
+    returned = REG.register(t)
+    assert returned is t
+    assert REG.get(name) is t
+    assert t in REG.all_tools()
+    assert REG.get("test_10h_definitely_not_registered_xyz") is None
+    print("PASS test_10h_registry_register_and_get (register/get/all_tools mechanics; unknown name → None, "
+          "never a fabricated Tool)")
+
+
+def test_10h_router_exposes_small_subset():
+    """10H directive Prime Directive 1: '300 tools' is catalog SIZE, not exposed-per-request count — the
+    router structurally caps exposure regardless of catalog size (never dump the whole catalog at the
+    model). Also checks the ranking is keyword-sensitive (matching tools rank first), mirroring
+    intent.py::_keyword_intent's local Stage-1 pattern (no network)."""
+    from agenttools import registry as REG
+    from agenttools import router as RT
+    big_catalog = [REG.Tool(f"tool_{i}", f"filler tool {i}", {"type": "object", "properties": {}},
+                            lambda: None, REG.PLAIN, keywords=())
+                  for i in range(50)]
+    grep_tool = REG.Tool("grep_search", "search file contents", {"type": "object", "properties": {}},
+                        lambda: None, REG.PLAIN, keywords=("search", "grep", "find"))
+    git_tool = REG.Tool("git_log", "show git history", {"type": "object", "properties": {}},
+                       lambda: None, REG.PLAIN, keywords=("git", "commit", "history"))
+    catalog = big_catalog + [grep_tool, git_tool]
+    # ★ structural guarantee ★: even with a 52-tool catalog, at most max_tools=6 are ever exposed
+    chosen = RT.select_tools("please search the codebase for a function", max_tools=6, catalog=catalog)
+    assert len(chosen) == 6, len(chosen)
+    assert grep_tool in chosen                       # the keyword-matching tool must win a slot
+    assert git_tool not in chosen                     # an unrelated tool should not, given only 6 slots
+    # a request matching nothing still respects the cap (never falls back to "expose everything")
+    assert len(RT.select_tools("xyzzy plugh", max_tools=6, catalog=catalog)) == 6
+    assert len(RT.select_tools("xyzzy plugh", max_tools=3, catalog=catalog)) == 3
+    print("PASS test_10h_router_exposes_small_subset (52-tool catalog → ≤6 exposed always; keyword-matching "
+          "tool wins a slot over 50 filler tools; cap holds even on a zero-match query)")
+
+
+def test_10h_wire_shape_provider_split():
+    """to_wire_shape() must split EXACTLY like claude_agent.claude_generate's own provider check
+    (`provider in ("anthropic","anthropic_compat")` → Anthropic-native passthrough; every other
+    registered provider → OpenAI-compatible {"type":"function",...} wrapper) — no new vocabulary, no
+    third shape invented."""
+    from agenttools import registry as REG
+    from agenttools import router as RT
+    t = REG.Tool("read_file", "read a text file", {"type": "object", "properties": {"path": {"type": "string"}},
+                "required": ["path"]}, lambda path: "", REG.PLAIN)
+    native = RT.to_wire_shape([t], "anthropic")
+    assert native == [{"name": "read_file", "description": "read a text file", "input_schema": t.input_schema}]
+    native2 = RT.to_wire_shape([t], "anthropic_compat")
+    assert native2 == native
+    for other in ("openai", "groq", "ollama_local", "openai_compat", "mistral", "deepseek"):
+        wrapped = RT.to_wire_shape([t], other)
+        assert wrapped == [{"type": "function",
+                           "function": {"name": "read_file", "description": "read a text file",
+                                      "parameters": t.input_schema}}], (other, wrapped)
+    print("PASS test_10h_wire_shape_provider_split (anthropic/anthropic_compat → native passthrough; every "
+          "other provider → OpenAI function-call wrapper, matching claude_agent's own provider split)")
+
+
+def test_10h_executor_never_crashes():
+    """The executor is fed model-supplied (untrusted-shape) arguments — an unknown tool name, a bug
+    inside a tool's fn, or a missing required kwarg must all degrade to ToolResult(ok=False, error=...),
+    matching swebench/fix_loop.py's 'a failure is feedback, not a crash' shape."""
+    from agenttools import registry as REG
+    from agenttools import executor as EX
+
+    def _boom():
+        raise RuntimeError("simulated tool bug")
+
+    def _needs_arg(path):
+        return f"read {path}"
+
+    REG.register(REG.Tool("test_10h_boom_tool", "always raises", {"type": "object", "properties": {}},
+                          _boom, REG.PLAIN))
+    REG.register(REG.Tool("test_10h_needs_arg_tool", "needs a path", {"type": "object",
+                          "properties": {"path": {"type": "string"}}, "required": ["path"]},
+                          _needs_arg, REG.PLAIN))
+    r1 = EX.execute("test_10h_no_such_tool_xyz", {})
+    assert r1.ok is False and "unknown tool" in r1.error
+    r2 = EX.execute("test_10h_boom_tool", {})
+    assert r2.ok is False and "RuntimeError" in r2.error and "simulated tool bug" in r2.error
+    r3 = EX.execute("test_10h_needs_arg_tool", {})                 # missing required 'path'
+    assert r3.ok is False and "bad arguments" in r3.error
+    r4 = EX.execute("test_10h_needs_arg_tool", {"path": "/tmp/x"})
+    assert r4.ok is True and r4.output == "read /tmp/x"
+    print("PASS test_10h_executor_never_crashes (unknown tool / raising tool / missing-argument tool all "
+          "degrade to ToolResult(ok=False), never propagate an exception)")
+
+
+def test_10h_capability_gate_failsafe():
+    """Prime Directive 4: local tool-calling reliability is model-dependent, so we LIVE-check Ollama's
+    own /api/show capabilities array rather than assume. Fail-safe: any network failure (this sandbox has
+    no Ollama running) → False, never a fabricated True. Separately, the pure decision logic (does
+    'tools' appear in a given capabilities array) is checked directly via monkeypatching the network call
+    — proving the gate reads the RIGHT field, not just that it fails safe when unreachable."""
+    from agenttools import capability as CAP
+    # unreachable host (nothing listens on this port in the sandbox) → honest False, never raises
+    assert CAP.ollama_supports_tools("llama3.1", host="http://localhost:1") is False
+    assert CAP.ollama_supports_tools("", host="http://localhost:11434") is False    # empty model name
+    # pure decision-logic check: monkeypatch the network call to return a KNOWN capabilities array
+    orig = CAP._post_show
+    try:
+        CAP._post_show = lambda model, host: {"capabilities": ["completion", "vision", "tools", "thinking"]}
+        assert CAP.ollama_supports_tools("qwen3", host="http://localhost:11434") is True
+        CAP._post_show = lambda model, host: {"capabilities": ["completion", "vision"]}    # no "tools"
+        assert CAP.ollama_supports_tools("llava", host="http://localhost:11434") is False
+        CAP._post_show = lambda model, host: {"capabilities": "not-a-list"}                # malformed shape
+        assert CAP.ollama_supports_tools("weird", host="http://localhost:11434") is False
+    finally:
+        CAP._post_show = orig
+    print("PASS test_10h_capability_gate_failsafe (unreachable host / empty model → False; live 'tools' "
+          "membership in the real /api/show capabilities array is the actual decision — never a guess)")
+
+
+def test_10h_toolcall_graceful_fallback():
+    """toolcall.run_with_tools with an empty tools list (no capability confirmed, or router found
+    nothing) must fall through to the EXACT plain claude_agent.claude_generate path — same source label,
+    same text — so tool-calling is provably additive, never a silently-different code path when it
+    doesn't apply. No api_key (mock mode) never fabricates a tool call either way."""
+    import claude_agent as CA
+    from agenttools import toolcall as TC
+    plain = CA.claude_generate("sum 1..n", None, mock_response="hello-plain")
+    via_empty_tools = TC.run_with_tools("sum 1..n", None, tools=[], mock_response="hello-plain")
+    assert via_empty_tools.text == plain.text == "hello-plain"
+    assert via_empty_tools.source == plain.source == "mock-sim"
+    from agenttools import registry as REG
+    some_tool = REG.Tool("test_10h_unused_tool", "d", {"type": "object", "properties": {}}, lambda: 1, REG.PLAIN)
+    via_nonempty_no_key = TC.run_with_tools("sum 1..n", None, tools=[some_tool], mock_response="hello-plain")
+    assert via_nonempty_no_key.source == "mock-sim" and via_nonempty_no_key.text == "hello-plain"
+    print("PASS test_10h_toolcall_graceful_fallback (empty tools → identical plain claude_generate path; "
+          "no api_key never fabricates a tool call regardless of whether tools were offered)")
+
+
+def test_10h_agentic_enable_tools_mock_unchanged():
+    """enable_tools=True must NOT change mock-mode behavior (deciding whether to call a tool is a live-
+    model judgment the loop cannot honestly simulate) — this is the regression that locks in
+    'enable_tools defaults False and mock mode ignores it either way', so every one of the ~280 existing
+    agentic/ai_loop tests stays valid unchanged."""
+    import agentic as AG
+    import claude_agent as CA
+    seq = [CA._MOCK_HARAN]
+    r_off = AG.agentic_code("sum 1..n", "normal", mock_sequence=seq, enable_tools=False)
+    r_on = AG.agentic_code("sum 1..n", "normal", mock_sequence=seq, enable_tools=True)
+    for field in ("converged", "iters", "status", "final_code", "proof_tier", "source"):
+        assert getattr(r_off, field) == getattr(r_on, field), (field, getattr(r_off, field), getattr(r_on, field))
+    print("PASS test_10h_agentic_enable_tools_mock_unchanged (enable_tools=True is a no-op in mock mode — "
+          "identical result to enable_tools=False; the opt-in only ever affects LIVE calls)")
+
+
+def test_10h_tools_for_call_ollama_gate():
+    """agentic._tools_for_call: ollama_local ONLY gets tools after a live capability confirmation; every
+    other provider skips that live check (Prime Directive 4's concern is specifically local/arbitrary-
+    model reliability, not first-party hosted APIs). In this sandbox no Ollama is running, so the gate
+    must honestly return [] for ollama_local while still consulting the router (non-empty catalog) for
+    every other provider."""
+    from agenttools import registry as REG
+    import agentic as AG
+    fixture = REG.Tool("test_10h_gate_fixture_tool", "d", {"type": "object", "properties": {}},
+                       lambda: 1, REG.PLAIN, keywords=("gate",))
+    REG.register(fixture)
+    ollama_tools = AG._tools_for_call("please use the gate tool", "ollama_local", "some-model", None)
+    assert ollama_tools == [], ollama_tools              # no live Ollama in this sandbox ⇒ honest empty
+    anthropic_tools = AG._tools_for_call("please use the gate tool", "anthropic", "claude-opus-4-8", None)
+    assert fixture in anthropic_tools                     # non-ollama providers skip the live check
+    print("PASS test_10h_tools_for_call_ollama_gate (ollama_local honestly gates on live capability; every "
+          "other provider gets the router's normal task-matched subset)")
+
+
+def test_10h_agenttools_production_wiring():
+    """10H directive Task 1 — engine_inventory.py's repo-wide gap=0 audit (test_bl/bn/bo/bq/br) scans EVERY
+    top-level package; a brand-new `agenttools/` package with no entry in `_WIRED_PACKAGES` would show up as
+    an unreached gap the moment it exists, breaking that invariant for every OTHER already-wired package too
+    (the same shared scan). Fixed the same way every prior package (newengine/newengine5/newengine3/
+    metakernel/qmkernel) was wired: a `webapi.engine_dispatch.agenttools_reach()` probe calling the package's
+    own `adversarial_battery()`, plus the `_WIRED_PACKAGES` allowlist entry. This is the regression that
+    proves BOTH halves of that fix, not just one."""
+    from webapi import engine_dispatch as ED
+    r = ED.agenttools_reach()
+    assert r["all_ok"], r["failed"]
+    import agenttools as AT
+    b = AT.adversarial_battery()
+    assert b["all_ok"], b["failed"]
+    import engine_inventory as EI
+    s = EI.summary(".")
+    assert s["gap_count"] == 0, s["gap_list"]                    # ★ adding agenttools keeps gap=0
+    assert "agenttools" not in " ".join(s["gap_list"])
+    print("PASS test_10h_agenttools_production_wiring (webapi.engine_dispatch.agenttools_reach() live + "
+          "agenttools.adversarial_battery() all_ok + engine_inventory gap_count stays 0 — the new tool-"
+          "calling package is production-reachable, not a hidden gap)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
