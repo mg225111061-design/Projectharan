@@ -30,3 +30,27 @@ gate strictness) are NEVER decided solo — flagged below and that item is skipp
   — re-ran test_catalog.py with a longer cap to get a genuine complete result): test_build.py 280/280,
   test_catalog.py 263/263 (+10: 9 framework tests + the production-wiring regression). Committing now. Next:
   Task 2 (tool catalog expansion, 3-tier tags, honest measured count — no force-fit toward 300).
+
+- **2026-07-01 14:30 UTC** — Task 2 (tool catalog) DONE. **Honest result: 21 tools, not 300+** — 15 PLAIN
+  (`catalog_plain.py`: file I/O ×7, git ×7, one bounded `run_python_file` subprocess) + 4 FOLD-ELIGIBLE
+  (`catalog_fold.py`: `frontend.dispatch`/`closure_classifier`/`extract.checksum`/`extract.parse_arith`, each a
+  thin wrapper returning the real engine's verdict verbatim) + 2 ACCEL-ELIGIBLE (`catalog_accel.py`:
+  `accel.verified_parallel`'s async-overlap/data-parallel safety checks). **Tier-A call made+logged**: did NOT
+  force-fit toward 300 by mechanically wrapping the repo's other ~110 engines (94 catalog transforms + 14
+  mechanisms) — each has its own distinct calling convention with no shared adapter, so honestly wrapping more
+  is real future work, not this task's scope; inventing near-duplicate filler tools instead would itself be an
+  RF-5 violation (Prime Directive 8's own bar: "whatever number comes out, even disappointing, is the honest
+  number"). File tools sandboxed to a workspace root (path escape → ValueError → honest tool failure, never a
+  silent clamp); git tools reject `-`-prefixed path/ref args (argument-injection closed). Every tool exercised
+  end-to-end through the real executor on real input (Fibonacci→C-finite EXACT, Luhn recognized, independent-
+  vs-conflicting task pairs correctly proved/declined) — FOLD/ACCEL tags are backed by working delegate calls.
+  **Regression found+fixed (own item)**: `adversarial_battery()`'s self-test permanently leaked a probe tool
+  into the shared global registry (all tests share one process), silently drifting the "measured count" exact-
+  match assertion by +1 whenever it ran first — added `registry.unregister()`, bracketed the self-test's
+  registration in try/finally. Also hardened one Task-1 test (`test_10h_tools_for_call_ollama_gate`) that used
+  the common word "gate" as its fixture keyword — with real catalog content now present, a common keyword risks
+  a router-ranking tie; switched to a near-unique keyword. **Both gates confirmed green on a full isolated run**:
+  test_build.py 280/280 (unaffected — doesn't touch engine_inventory/agenttools), test_catalog.py 267/267
+  (+4: measured-count/no-fold-mislabel/sandboxing/functional-reality). Committing now. Next: Task 3 (swebench/
+  production wiring + real dataset — sandbox egress-blocks the actual SWE-bench corpus/repos, so this will be
+  an honest BLOCKED-labeled real-loader build, not a live benchmark run).

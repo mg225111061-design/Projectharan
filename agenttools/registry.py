@@ -52,6 +52,13 @@ def register(tool: Tool) -> Tool:
     return tool
 
 
+def unregister(name: str) -> None:
+    """Remove a tool from the process-wide catalog, if present (no error if absent). For TEMPORARY
+    registrations only (e.g. a self-test's own probe tool that must be executable-via-the-real-executor
+    for the duration of the check, but must not permanently inflate the live catalog's measured count)."""
+    _REGISTRY.pop(name, None)
+
+
 def all_tools() -> List[Tool]:
     return list(_REGISTRY.values())
 

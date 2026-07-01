@@ -59,11 +59,23 @@ def adversarial_battery() -> dict:
     wrapped = RT.to_wire_shape([probe], "ollama_local")
     cases["wire_shape_split_correct"] = ("input_schema" in native[0]) and ("function" in wrapped[0])
 
+    # register()/unregister() bracket the executor check — TEMPORARY, so this self-test never permanently
+    # inflates the live catalog's measured count (that count is asserted exactly elsewhere; a leaked probe
+    # tool would silently drift it every time this battery runs).
     REG.register(probe)
-    cases["executor_unknown_tool_safe"] = EX.execute("_adv_tool_does_not_exist", {}).ok is False
-    cases["executor_executes_valid_tool"] = EX.execute("_adv_probe_tool", {}).output == "ok"
+    try:
+        cases["executor_unknown_tool_safe"] = EX.execute("_adv_tool_does_not_exist", {}).ok is False
+        cases["executor_executes_valid_tool"] = EX.execute("_adv_probe_tool", {}).output == "ok"
+    finally:
+        REG.unregister("_adv_probe_tool")
 
     cases["capability_failsafe_unreachable"] = CAP.ollama_supports_tools("x", host="http://localhost:1") is False
 
     failed = [k for k, v in cases.items() if not v]
     return {"cases": cases, "all_ok": not failed, "failed": failed}
+
+
+# Populate the catalog (Task 2) on any `agenttools` import — a router with an empty catalog can't route
+# anything. Each import is a module-level side effect (register() calls), matching catalog/__init__.py's
+# own "importing the pass modules registers their transforms" convention elsewhere in this repo.
+from agenttools import catalog_accel, catalog_fold, catalog_plain  # noqa: F401,E402
