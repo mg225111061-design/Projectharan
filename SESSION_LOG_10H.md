@@ -115,3 +115,29 @@ gate strictness) are NEVER decided solo — flagged below and that item is skipp
   `PRODUCTION_LEDGER.md`), so skipped a full 30-minute gate re-run as disproportionate; `test_docs_not_stale`
   re-confirmed clean regardless. Committing now. Next: continue with `AUDIT_LEDGER.md`'s pre-existing
   unreviewed-files backlog (Batch 1 remainder + Batches 2–6) for the remainder of Task 5's scope.
+
+- **2026-07-01 17:10 UTC** — Task 5 part 2 (`AUDIT_LEDGER.md` Batch 1 completion) DONE. Precisely re-grepped the
+  "beyond the 7 named" backlog (`grep -lE "def [A-Za-z_]*_grade[A-Za-z_]*\("`, excluding tests/the stale bundle)
+  instead of trusting the directive's rough ~115 estimate — found 93 remaining files (94 total minus the 1
+  already covered by row 16's `algo50.py`). **Tier-A call made+logged**: dispatched 6 parallel READ-ONLY research
+  agents (one per directory group: mathmode/, pillar3/×2, catalog/×2, root+gpu+native+misc) to locate every
+  `_grade` function and report its verification evidence with line numbers — never asked to render the final
+  verdict themselves, since grade-honesty judgment is exactly the Tier-B-adjacent call that must stay with the
+  auditor. **Trust-but-verify applied for real**: before writing a single ledger row, personally re-read 5 files
+  spanning all 6 agent groups (`mathmode/number_theory.py`, `pillar3/termination.py`,
+  `catalog/mech_kregular.py`, `native_modelcount.py`, `gpu/ptx_codegen.py`) and confirmed every cited line number
+  and verification claim against the actual source — all 5 matched exactly, giving genuine (not assumed)
+  confidence in the other 88 reports. **Result: all 93 files CLEAN** — every disposer performs real in-function
+  verification (z3 proof, differential/cross-check, exact re-substitution, exhaustive bound, or ADT construction)
+  before EXACT/PROBABILISTIC, with a genuine DECLINE fallback; zero instances of the row-7 name-set-membership
+  shortcut or an ungated raw literal. **No FIXED-class changes** — nothing required a code fix, so per-file
+  evidence went straight into `AUDIT_LEDGER.md` (rows 17–109, organized by directory group, matching the
+  existing table format) without touching any source file. Post-write integrity check (own discipline, not
+  agent-reported): verified row numbers are contiguous 1–109 with no gaps/duplicates and every new row has the
+  correct 8-column pipe structure (Python-script-checked, not eyeballed). **Batch 1 is now COMPLETE** (109/109
+  files with a named root disposer or `*_grade` function — 16 from the original session + 93 this pass) — only
+  row 7 (`recall_integrate.py`) remains FLAGGED, unchanged, pending owner direction, exactly as before. Since
+  this is pure documentation with zero code/test coupling (grep-confirmed no test file references
+  `AUDIT_LEDGER.md`), skipped the full gate re-run as disproportionate; `test_docs_not_stale` is unaffected
+  (doesn't read this file). Committing now. Next: Batches 2–6's NON-`*_grade` remainder (reports/registries/
+  routers/UI not yet individually walked) if time remains this session — otherwise an honest exhaustion note.
