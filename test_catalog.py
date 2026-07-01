@@ -7142,7 +7142,16 @@ def test_v22_local_provider_parity():
     agentic_code() once with provider="anthropic" and once with provider="ollama_local" (both mocked, so
     this is deterministic and needs no network/key) and assert both runs produce the SAME grade via the
     SAME kernel_verdict Verdict/certificate path — proving the local-Ollama path can never quietly skip or
-    weaken verification relative to the API path for a code-generation task."""
+    weaken verification relative to the API path for a code-generation task.
+
+    ★ 10H directive Task 4 extension (Prime Directive 5) ★: the SAME parity invariant must hold for tool
+    availability/execution, not just code-verification — `router.select_tools`/`executor.execute` are
+    structurally provider-BLIND (neither even accepts a `provider` parameter, so neither could discriminate
+    by it if it tried); the ONLY provider-dependent step anywhere in the tool path is Ollama's live
+    capability gate (Prime Directive 4 — a deliberate, directive-mandated exception for local/arbitrary-
+    model reliability, never a hidden "fewer tools for local models" policy). When that gate is satisfied,
+    both providers get the IDENTICAL tool set; only the WIRE ENCODING legitimately differs (native vs
+    OpenAI-wrapped), never which tools are considered."""
     import agentic as AG
     import claude_agent as CA
     from foldrate import foldcache as FC
@@ -7165,9 +7174,49 @@ def test_v22_local_provider_parity():
     # FoldCache keys on CODE TEXT alone (content-hash / canonical-AST) — never on provider identity, so the
     # identical final code from either provider hits the identical cache entry (provider-blind by construction)
     assert FC._key(ra.final_code) == FC._key(ro.final_code)
+
+    # ── 10H Task 4: tool availability/execution parity ──────────────────────────────────────────────
+    import inspect
+
+    from agenttools import capability as AT_CAP
+    from agenttools import executor as AT_EXECUTOR
+    from agenttools import router as AT_ROUTER
+
+    # structural guarantee: the router and executor don't even ACCEPT a provider argument
+    assert "provider" not in inspect.signature(AT_ROUTER.select_tools).parameters
+    assert "provider" not in inspect.signature(AT_EXECUTOR.execute).parameters
+    # both live-transport branches in toolcall.py funnel through the SAME shared executor (one module, never
+    # a duplicated per-provider copy) — source-level check that both call sites import/use it identically
+    toolcall_src = inspect.getsource(__import__("agenttools.toolcall", fromlist=["_run_anthropic"]))
+    assert toolcall_src.count("_execute(name, args)") == 2, "expected exactly the anthropic + openai call sites"
+
+    # when Ollama's live capability gate is satisfied, both providers get the IDENTICAL tool set — the gate
+    # is the ONLY provider-dependent step, never a hidden "fewer tools for local models" policy
+    orig = AT_CAP.ollama_supports_tools
+    try:
+        AT_CAP.ollama_supports_tools = lambda model, host=AT_CAP.DEFAULT_HOST: True
+        tools_anthropic = AG._tools_for_call(request, "anthropic", CA.DEFAULT_MODEL, None)
+        tools_ollama = AG._tools_for_call(request, "ollama_local", "llama3.1", None)
+    finally:
+        AT_CAP.ollama_supports_tools = orig
+    assert {t.name for t in tools_anthropic} == {t.name for t in tools_ollama}
+    assert len(tools_anthropic) > 0                              # sanity: the catalog isn't empty
+    # the wire ENCODING legitimately differs (native vs OpenAI-wrapped) — but over the IDENTICAL tool set
+    wire_a = AT_ROUTER.to_wire_shape(tools_anthropic, "anthropic")
+    wire_o = AT_ROUTER.to_wire_shape(tools_ollama, "ollama_local")
+    assert {w["name"] for w in wire_a} == {w["function"]["name"] for w in wire_o}
+    # and when the gate is NOT satisfied (this sandbox's real, honest state — no live Ollama), ollama_local
+    # gets an honest EMPTY list while anthropic is unaffected — never a crash, never a fabricated tool-use
+    tools_ollama_unconfirmed = AG._tools_for_call(request, "ollama_local", "llama3.1", None)
+    assert tools_ollama_unconfirmed == []
+    assert len(AG._tools_for_call(request, "anthropic", CA.DEFAULT_MODEL, None)) > 0
+
     print("PASS test_v22_local_provider_parity (provider=anthropic vs provider=ollama_local: identical "
-          "kernel_verdict-ADT trace/grade/optimization/FoldCache-key for the same code-generation task — "
-          "provider selects ONLY the proposer, never the verification strength)")
+          "kernel_verdict-ADT trace/grade/optimization/FoldCache-key for the same code-generation task; "
+          "10H Task 4 — router/executor structurally provider-blind, identical tool set when Ollama's "
+          "capability gate is satisfied, honest empty-list when it isn't — provider selects ONLY the "
+          "proposer and (for Ollama alone) gates on live capability, never the verification strength or "
+          "which tools are considered)")
 
 
 def test_v22_local_models_client():

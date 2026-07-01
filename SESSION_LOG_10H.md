@@ -74,3 +74,21 @@ gate strictness) are NEVER decided solo — flagged below and that item is skipp
   on a full isolated run**: test_build.py 280/280 (unaffected), test_catalog.py 271/271 (+4: reach-probe,
   real-schema parsing, live-fetch-honest, mini_bench-unchanged lock-in). Committing now. Next: Task 4
   (extend the v2.1 provider-parity regression to also cover tool availability/execution).
+
+- **2026-07-01 16:05 UTC** — Task 4 (provider-agnostic tool parity) DONE. Directly extended the pre-existing
+  `test_v22_local_provider_parity()` in test_catalog.py (did NOT invent a second parity mechanism, per Prime
+  Directive 5) — kept all original v2.2 assertions unchanged, appended a tool-parity block proving: (1)
+  structural blindness — `inspect.signature` confirms neither `router.select_tools` nor `executor.execute`
+  accepts a `provider` parameter; (2) single code path — `toolcall.py` calls `_execute(name, args)` at exactly
+  2 sites (anthropic + openai), never a duplicated per-provider copy; (3) when Ollama's live capability gate is
+  satisfied (monkeypatched True for the test), both providers get the IDENTICAL tool-name set, only the WIRE
+  ENCODING legitimately differs (native vs OpenAI-wrapped); (4) when the gate is unconfirmed (this sandbox's
+  real, honest state), `ollama_local` gets an honest empty list while `anthropic` is unaffected — never a crash,
+  never a fabricated tool-use. **No regression found this task** — the change touches only test_catalog.py
+  (extends an existing function, adds no new one), and no runtime file (`agenttools/`, `agentic.py`,
+  `webapi/engine_dispatch.py`) changed since Task 3's checkpoint, so `test_build.py`'s last-confirmed 280/280
+  is provably still valid; re-ran it anyway for the record. **Both gates confirmed green on a full isolated
+  run**: test_build.py 280/280, test_catalog.py 271/271 (count UNCHANGED from Task 3 — an extension, not a new
+  test function, exactly as the directive instructed). Committing now. Next: Task 5 (production re-sweep —
+  create PRODUCTION_LEDGER.md, register all 10H Task 1-4 files, no orphans; continue AUDIT_LEDGER.md's backlog
+  if time remains).
