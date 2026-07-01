@@ -3,9 +3,10 @@
 ================================================================================================================
 During a task the user sees what the engine/AI is actually doing — generating candidates, verifying, checking
 security, folding, running tests, repairing — the real stages of the real pipeline, updating at the actual
-transitions. FAST shows a short quick sequence; EXTEND shows the deeper stages it works through (coordinates with the
-tier budgets 10s/30s/180s). The stages are the genuine pipeline steps (the §U layered gate, the §R security check,
-the fold engine, the fix loop) — not a decorative spinner.
+transitions. NORMAL shows a shorter sequence; EXTEND shows the deeper stages it works through (2-tier — a
+former third mode, `fast`, retired; coordinates with the tier budgets 30s/180s). The stages are the genuine
+pipeline steps (the §U layered gate, the §R security check, the fold engine, the fix loop) — not a decorative
+spinner.
 """
 from __future__ import annotations
 
@@ -34,16 +35,15 @@ _ALL = {
     "done":      ("완료", "안전하게 · 빠르게 · 정확하게 점검 완료"),
 }
 
-# mode-aware stage sequences — FAST short, NORMAL more, EXTEND the full deep sequence
+# mode-aware stage sequences (2-tier — a former third mode, fast, retired) — NORMAL shorter, EXTEND the full deep sequence
 _SEQ = {
-    "fast":   ["generate", "build", "tests", "security", "verify", "done"],
     "normal": ["generate", "build", "tests", "regression", "security", "fold", "verify", "done"],
     "extend": ["generate", "build", "tests", "regression", "security", "fold", "formal", "repair", "verify", "done"],
 }
 
 
 def stages_for_mode(mode: str) -> List[Stage]:
-    """The ordered, REAL stages a given mode works through. EXTEND is the deepest (formal + repair); FAST is short."""
+    """The ordered, REAL stages a given mode works through. EXTEND is the deepest (formal + repair); NORMAL is shorter."""
     seq = _SEQ.get(mode, _SEQ["normal"])
     return [Stage(k, _ALL[k][0], _ALL[k][1]) for k in seq]
 

@@ -22,9 +22,10 @@ never a claim.
     factorization is subexponential; the sieve is O(n log log n) ENUMERATION (not a collapse).
   • BROTH (`broth=True`) makes RECURRING instantiations instant by O(1) lookup of a PRE-PROVEN result — it does
     NOT make the algorithm's EXECUTION O(1). A miss runs at the true complexity above, or honestly declines.
-  • tier ∈ {fast, normal, extend}: fast (~1s, broth O(1) + cheap closed forms, NEVER the heavy solver), normal
-    (~30s, most algorithms + verification), extend (~8min BOUNDED, the heavy decision procedures / search).
-    A broth HIT can return EXACT even in fast; a broth MISS on a heavy algorithm tiers up.
+  • tier ∈ {normal, extend} (2-tier — a former third tier, `fast`, retired; algorithms it used to host are
+    tagged `normal`, the new floor): normal (~30s, broth O(1) + cheap closed forms + most algorithms +
+    verification, NEVER the heavy solver), extend (~8min BOUNDED, the heavy decision procedures / search).
+    A broth HIT can return EXACT even in normal; a broth MISS on a heavy algorithm tiers up.
   • Quantum/relativity (46–50) is the exact ALGEBRAIC layer ONLY — generic spectra / numerical relativity /
     turbulence are certified-numeric or DECLINE, NEVER EXACT.
 """
@@ -37,7 +38,7 @@ from typing import Dict, List, Tuple
 import kernel_verdict as KV
 
 CONFIRMED, PARTIAL, GAP = "CONFIRMED", "PARTIAL", "GAP"
-FAST, NORMAL, EXTEND = "fast", "normal", "extend"
+NORMAL, EXTEND = "normal", "extend"
 
 
 @dataclass(frozen=True)
@@ -83,12 +84,12 @@ _A: List[Algo] = [
          "non-commutative normal-form equality + operational replay + GCRD cofactor", "decision; normal form",
          True, NORMAL, False),
     Algo(9, "Faulhaber / Bernoulli power sums", "A", "pillar3.polysum", "polysum_grade", KV.EXACT,
-         "k-induction S(n)−S(n−1) ≡ P(n) (Z3 base+step ∀n)", "O(n)→O(1) closed form", False, FAST, True),
+         "k-induction S(n)−S(n−1) ≡ P(n) (Z3 base+step ∀n)", "O(n)→O(1) closed form", False, NORMAL, True),
     Algo(10, "C-finite + fast-doubling", "A", "cfinite", "companion_nth", KV.EXACT,
          "companion-matrix-nth ≡ naive-nth on held-out values", "O(n)→O(log n)", False, NORMAL, True),
     Algo(11, "Matrix power (binary exp + Cayley–Hamilton)", "A", "cfinite", "companion_nth_mod", KV.EXACT,
          "A^n by power-by-squaring; companion matrix IS the recurrence map", "O(log n); A^n mod m bounded", False,
-         FAST, True),
+         NORMAL, True),
     Algo(12, "NTT / FFT convolution", "A", "pillar3.convolution", "conv_ntt", KV.EXACT,
          "proven magnitude bound |c[k]|<P/2 + pointwise spot-check vs naive", "O(n²)→O(n log n)", False, NORMAL,
          False),
@@ -144,7 +145,7 @@ _B: List[Algo] = [
          False, NORMAL, False, note="random-matrix universality used (not invented); detection is PROBABILISTIC"),
     Algo(27, "Streaming sketches (Count-Min / AMS / HLL)", "B", "sketching", "heavy_hitters", KV.PROBABILISTIC,
          "one-sided concentration (CM est≥true, overest≤ε‖a‖₁; HLL ≈1.04/√m)", "sublinear space; PROBABILISTIC",
-         False, FAST, False, note="PROBABILISTIC(ε,δ) BY CONSTRUCTION — never EXACT even at tiny δ"),
+         False, NORMAL, False, note="PROBABILISTIC(ε,δ) BY CONSTRUCTION — never EXACT even at tiny δ"),
     Algo(28, "Automatic differentiation (exact dual)", "B", "autodiff", "autodiff_grade", KV.EXACT,
          "forward-mode dual-number gradient ≡ independent symbolic ∂/∂x (sympy), exact over ℚ",
          "O(nodes·vars) forward", False, NORMAL, False),
@@ -160,19 +161,19 @@ _B: List[Algo] = [
 # ── GROUP C — NUMBER THEORY (15): the crypto / number-theoretic engines ──────────────────────────────────
 _C: List[Algo] = [
     Algo(31, "Fast modular exponentiation", "C", "mathmode.number_theory", "modexp_grade", KV.EXACT,
-         "homomorphism a^(b₁+b₂) ≡ a^b₁·a^b₂ at random splits + small-exp ground truth", "O(log b)", False, FAST,
+         "homomorphism a^(b₁+b₂) ≡ a^b₁·a^b₂ at random splits + small-exp ground truth", "O(log b)", False, NORMAL,
          True),
     Algo(32, "Power towers via Carmichael-λ", "C", "mathmode.number_theory", "power_tower_grade", KV.EXACT,
          "generalized Euler a^E≡a^(E mod λ + λ); λ(m) unit-validated; cross-checked vs direct when E is formable",
-         "O(log) modexp + λ(m) factorization", False, FAST, True),
+         "O(log) modexp + λ(m) factorization", False, NORMAL, True),
     Algo(33, "Fast-doubling Fibonacci / Lucas mod m", "C", "mathmode.fastkernels", "fib_mod", KV.EXACT,
-         "naive-recurrence cross-check + Cassini F(n−1)F(n+1)−F(n)² = (−1)^n", "O(log n)", False, FAST, True),
+         "naive-recurrence cross-check + Cassini F(n−1)F(n+1)−F(n)² = (−1)^n", "O(log n)", False, NORMAL, True),
     Algo(34, "Lucas' theorem + Granville lifting", "C", "mathmode.number_theory", "binom_mod_pe_grade", KV.EXACT,
          "C(n,k) mod p^e ≡ direct (small n) ∧ mod-p projection ≡ Lucas digit-product (any n)",
-         "O(log_p n · p^e) for astronomical n", False, FAST, True),
+         "O(log_p n · p^e) for astronomical n", False, NORMAL, True),
     Algo(35, "Extended Euclid / Bézout + CRT (Garner)", "C", "mathmode.number_theory", "crt_grade", KV.EXACT,
          "Bézout a·x+b·y=g verified; CRT residue x ≡ rᵢ (mod mᵢ) verified", "egcd O(log min); CRT O(k²)", False,
-         FAST, False),
+         NORMAL, False),
     Algo(36, "Miller–Rabin (deterministic, bounded) + BPSW", "C", "mathmode.number_theory", "bpsw_grade",
          KV.EXACT, "deterministic MR < 3.317e24; above: BPSW = MR-2 ∧ strong-Lucas (no known counterexample); a "
          "failed test is a proven-composite witness", "EXACT < 3.317e24, PROBABILISTIC above", True, NORMAL, True,
@@ -198,7 +199,7 @@ _C: List[Algo] = [
          False, NORMAL, False),
     Algo(42, "Stern–Brocot / rational reconstruction", "C", "mathmode.number_theory", "stern_brocot_grade",
          KV.EXACT, "SB path reconstructs p/q exactly; best-approx ≤ brute-force over all q≤bound (+ modular reconstruction)",
-         "O(log m)", False, FAST, False,
+         "O(log m)", False, NORMAL, False,
          note="Stern–Brocot tree (exact path + best rational approximation) AND modular reconstruction present"),
     Algo(43, "Sieve of Eratosthenes (segmented + wheel)", "C", "mathmode.number_theory", "sieve_primes_grade",
          KV.EXACT, "soundness (each prime independently MR-verified) + completeness (trial-division cross-check / "
@@ -210,7 +211,7 @@ _C: List[Algo] = [
          note="Euler φ AND Möbius μ present; an arbitrary-multiplicative-function framework not yet abstracted"),
     Algo(45, "Quadratic reciprocity / Jacobi symbol", "C", "mathmode.number_theory", "jacobi_grade", KV.EXACT,
          "reciprocity-law value ≡ ∏ Legendre (Euler criterion) over factorization — two algorithms agree",
-         "O(log a · log n)", True, FAST, True),
+         "O(log a · log n)", True, NORMAL, True),
 ]
 
 # ── GROUP D — QUANTUM / RELATIVITY (5): the exact ALGEBRAIC layer only (never generic spectra/PDE) ────────
@@ -261,7 +262,7 @@ def counts() -> Dict[str, int]:
         "present": len(with_status(CONFIRMED)) + len(with_status(PARTIAL)),
         "exact": sum(1 for a in ALGOS if a.grade == KV.EXACT),
         "probabilistic": sum(1 for a in ALGOS if a.grade == KV.PROBABILISTIC),
-        "fast": len(by_tier(FAST)), "normal": len(by_tier(NORMAL)), "extend": len(by_tier(EXTEND)),
+        "normal": len(by_tier(NORMAL)), "extend": len(by_tier(EXTEND)),
         "broth": len(broth_eligible()), "decision": sum(1 for a in ALGOS if a.decision),
     }
 
@@ -305,5 +306,5 @@ def summary() -> str:
     c = counts()
     return (f"50 named layer-1 algorithms — {c['confirmed']} CONFIRMED + {c['partial']} PARTIAL + {c['gap']} GAP "
             f"(A={c['A']} B={c['B']} C={c['C']} D={c['D']}); grades {c['exact']} EXACT / {c['probabilistic']} "
-            f"PROBABILISTIC; tiers fast={c['fast']} normal={c['normal']} extend={c['extend']}; broth-eligible "
+            f"PROBABILISTIC; tiers normal={c['normal']} extend={c['extend']}; broth-eligible "
             f"{c['broth']}; decision procedures {c['decision']}")

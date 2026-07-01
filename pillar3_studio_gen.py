@@ -1,10 +1,11 @@
 """
 PHASE U — MR.JEFFREY Studio data generator (REAL engine output; mode contracts + providers + a live run).
 ==========================================================================================================
-Serialises everything the studio UI binds to, all from the real engine: the three mode CONTRACTS (straight
-from ModePolicy), the five PROVIDERS (from provider.py), a real canonical run through each mode (shipped /
-declined / ratio / z3_calls / latency), and the verification-panel rows from the real corpus. No hand-edited
-numbers. The API key is never part of this data — it is a session-only field in the browser.
+Serialises everything the studio UI binds to, all from the real engine: the two mode CONTRACTS (straight
+from ModePolicy, 2-tier — a former third tier, `fast`, retired), the five PROVIDERS (from provider.py), a real
+canonical run through each mode (shipped / declined / ratio / z3_calls / latency), and the verification-panel
+rows from the real corpus. No hand-edited numbers. The API key is never part of this data — it is a
+session-only field in the browser.
 """
 from __future__ import annotations
 
@@ -78,10 +79,10 @@ def build() -> dict:
     return {
         "engine": "MR.JEFFREY — the Whole-Program Verified Speedup Engine",
         "generated_by": "pillar3_studio_gen.py — real engine runs; no hand-edited numbers",
-        "modes": [_mode_contract(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND)],
+        "modes": [_mode_contract(m) for m in (Mode.NORMAL, Mode.EXTEND)],
         "providers": [{"id": p, "label": _PROVIDER_LABELS.get(p, p), "transport": PRV.transport_kind(p)}
                       for p in PRV.VALID_PROVIDERS],
-        "runs": [_run(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND)],
+        "runs": [_run(m) for m in (Mode.NORMAL, Mode.EXTEND)],
         "panel_rows": _panel_rows(),
         "key_policy": "API key is session-only: held in the browser for the request, never logged, never stored, "
                       "never committed, never phoned home.",

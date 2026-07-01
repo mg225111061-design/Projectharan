@@ -1,5 +1,6 @@
 """
-§V PHASES 5–6 + REPORT — accelerate FAST/NORMAL/EXTEND with the warm engine; measure cold vs warm honestly.
+§V PHASES 5–6 + REPORT — accelerate NORMAL/EXTEND (2-tier — a former third tier, fast, retired) with the warm
+engine; measure cold vs warm honestly.
 ================================================================================================================
 The caches make every mode faster as they fill; we measure each COLD (first run, no speedup) and WARM (repeated/
 similar work) SEPARATELY — the warm numbers are the dramatic ones, the cold numbers are the honest baseline. We never
@@ -48,8 +49,8 @@ def cold_vs_warm_parse(k: int = 5) -> dict:
             "warm_speedup": round(cold / warm, 1) if warm > 0 else None}
 
 
-# ── per-mode cold vs warm (FAST / NORMAL / EXTEND) ───────────────────────────────────────────────────────────
-_MODE_DEPTH = {"fast": 8, "normal": 40, "extend": 160}      # ops attempted within each mode's budget (deeper = more)
+# ── per-mode cold vs warm (NORMAL / EXTEND) ──────────────────────────────────────────────────────────────────
+_MODE_DEPTH = {"normal": 40, "extend": 160}      # ops attempted within each mode's budget (deeper = more)
 
 
 def mode_cold_vs_warm(mode: str, k: int = 3) -> dict:
@@ -131,7 +132,7 @@ def report() -> dict:
     from enginespeed.profile import profile_engine
     prof = profile_engine()
     ops = [cold_vs_warm_verify(), cold_vs_warm_parse()]
-    modes = [mode_cold_vs_warm(m) for m in ("fast", "normal", "extend")]
+    modes = [mode_cold_vs_warm(m) for m in ("normal", "extend")]
     llm = llm_call_reduction()
     prec = precision_through_caching()
     fd = DA.final_dependency_set()["forbidden_present"]

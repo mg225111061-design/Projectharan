@@ -120,12 +120,12 @@ def verify_errors() -> dict:
 
 def verify_progress() -> dict:
     import frontend.progress as PR
-    fast, extend = PR.depth("fast"), PR.depth("extend")
+    normal, extend = PR.depth("normal"), PR.depth("extend")
     extend_stages = [s.key for s in PR.stages_for_mode("extend")]
-    return {"fast_depth": fast, "extend_depth": extend, "extend_deeper": extend > fast,
+    return {"normal_depth": normal, "extend_depth": extend, "extend_deeper": extend > normal,
             "extend_has_formal_and_repair": "formal" in extend_stages and "repair" in extend_stages,
             "real_stages": all(k in extend_stages for k in ("generate", "tests", "security", "verify")),
-            "ok": extend > fast}
+            "ok": extend > normal}
 
 
 def verify_security_paths() -> dict:

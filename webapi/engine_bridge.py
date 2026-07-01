@@ -164,9 +164,10 @@ def run_optimize(code: str, mode: str, provider: Optional[str] = None, model: Op
                      "안전하게 출하할 게 없습니다. (탐지는 당신 소스에 대한 진짜 AST 분석입니다.)"),
             "policy": _mode_contract(m),
         }
-    # ★ §1: run the REAL engine UNDER the mode's ENFORCED wall-clock budget (fast ~1s / normal ~30s / extend
-    # ~8min BOUNDED). The hard watchdog (mode_budget → latency_budget.run_with_budget, daemon thread) means the
-    # call never hangs past budget; on overrun we return the best CERTIFIED result reached, never a faked one. ★
+    # ★ §1: run the REAL engine UNDER the mode's ENFORCED wall-clock budget (normal ~30s, with a certified-only
+    # instant early-exit on a cheap-detector hit / extend ~8min BOUNDED). The hard watchdog (mode_budget →
+    # latency_budget.run_with_budget, daemon thread) means the call never hangs past budget; on overrun we return
+    # the best CERTIFIED result reached, never a faked one. ★
     def _work(budget, partial):
         rep = E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
         partial.offer(rep, "shipped")          # the engine closed; each shipped row is individually certified
@@ -344,7 +345,7 @@ def engines_reached() -> Dict:
 
 
 def modes() -> List[Dict]:
-    return [_mode_contract(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND)]
+    return [_mode_contract(m) for m in (Mode.NORMAL, Mode.EXTEND)]
 
 
 _PROVIDER_LABELS = {"anthropic": "Claude (official)", "anthropic_compat": "Claude-compatible gateway",

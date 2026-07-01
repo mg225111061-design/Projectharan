@@ -18,7 +18,7 @@
 | 최상위 모드 | **CODE**(OMEGA 검증 최적화기) + **MATH**(MATH-Ascent) — UI 토글로 전환 |
 | MATH 아스널 | **17 패밀리**(아래) + 중심 도구 `fold` + O(1) `broth`(3,772 항목) |
 | 배포 | Docker, `server:app`가 `mrjeffrey.html`(단일파일 한국어 UI)를 `/`에서 서빙 |
-| HARAN-50 | **✅ COMPLETE — 50 NAMED layer-1 알고리즘 전부 CONFIRMED** (`algo50.py`; A20·B10·C15·D5, 0 PARTIAL·0 GAP). 8 gaps 건설 + 9 partials 폐쇄(전부 1-커밋-1-항목, 증명서 동반·적대적 테스트). §2 broth 확장(`haran_broth.py`, 13개 알고리즘 1,367항목 @ ~0.07µs O(1), 전부 재실행으로 재검증) · §3 측정 커버리지(`algo50_coverage.py`, MATH 53건/25알고리즘 + CODE 코드형태 39붕괴[6타깃×5형태 + 4중첩 + 4필터 + 1지수], 적대적 6/6 DECLINE) · §4 tier 라우팅(`algo50_router.py`, broth-hit 즉시·fast는 heavy solver 금지). §X 정직 캡션 test-enforced(CAD 이중지수·Lucas–Lehmer O(p)·CP/Tucker·ECM NP-hard→DECLINE). 상세는 STATUS.md / CODE_UPGRADE_REPORT.md §5. |
+| HARAN-50 | **✅ COMPLETE — 50 NAMED layer-1 알고리즘 전부 CONFIRMED** (`algo50.py`; A20·B10·C15·D5, 0 PARTIAL·0 GAP). 8 gaps 건설 + 9 partials 폐쇄(전부 1-커밋-1-항목, 증명서 동반·적대적 테스트). §2 broth 확장(`haran_broth.py`, 13개 알고리즘 1,367항목 @ ~0.07µs O(1), 전부 재실행으로 재검증) · §3 측정 커버리지(`algo50_coverage.py`, MATH 53건/25알고리즘 + CODE 코드형태 39붕괴[6타깃×5형태 + 4중첩 + 4필터 + 1지수], 적대적 6/6 DECLINE) · §4 tier 라우팅(`algo50_router.py`, broth-hit 즉시·normal은 heavy solver 금지). §X 정직 캡션 test-enforced(CAD 이중지수·Lucas–Lehmer O(p)·CP/Tucker·ECM NP-hard→DECLINE). 상세는 STATUS.md / CODE_UPGRADE_REPORT.md §5. |
 | 빌드 히스토리 | 캠페인별 상세 온보딩 행(§FRONT-END·§AZ·§AU·…·§AE 등 43개, 각 1–3천 자)은 `BUILD_LOG_catalog.md`의 §HANDOFF-ARCHIVE로 **이전**했습니다 (§BF FIX-4 — HANDOFF는 한 페이지 현재상태만). 현재 상태 = 위 표 + 단일 진실원천 `STATUS.md`. |
 | NATIVE ARSENAL | **무의존(zero-dep) 인-레포 구현 — 14/14 메커니즘 실제 가동 + 연구도구 네이티브화.** 외부 의존 0(소스 전체에서 z3+stdlib+numpy+기존sympy만; 의존성 감사 `forbidden_present==[]`). 측정(`catalog/arsenal_report.py`): **14/14 메커니즘 가동, 19 네이티브 코어 LIVE, 8 거대엔진 fallback+defer**. PHASE 0(14 완성): `renormalize.py`(M6 정확 Markov lumping+멀티그리드 잔차) · `guaranteed_structure.py`(M10 Erdős–Szekeres/비둘기집/Ramsey 구성적 추출). PHASE 1: `native_lattice.py`(LLL 유니모듈러 검증·정수관계 full-precision 재검·Smith Diophantine) · `native_sequence.py`(**Berlekamp–Massey = 가짜난수↔진짜난수 게이트** L≪n/2 fold·L≈n/2 DECLINE; Re-Pair 무손실 SLP) · `native_realroots.py`(Sturm 실근격리). PHASE 2: `native_rewrite.py`(Knuth–Bendix 단어문제) · `native_modelcount.py`(정확 #SAT, 2-순서+brute 교차검증) · `native_unify.py`(MGU). PHASE 3: `native_telescope.py`(Gosper 초기하 합; 인증서 보호 — 틀린 부정합 절대 통과 못함). PHASE 4(WALL 2): `native_prng.py`(LCG/LFSR 복구, replay 인증; **보안 CSPRNG/SHA-256 → 전경로 DECLINE — 불가능 코어 불변**). PHASE 5(거대엔진): Gröbner/CAD/CAPD/Walnut/QCMod 호출부+인-레포 fallback+정직 defer. 모든 fold per-instance 인증서 재검·lossless 게이트 경유·위양성 0. `test_catalog.py` **38/38**, test_build 273 영향 없음. 상세: `BUILD_LOG_catalog.md` §D. ──────── (이전 캡스톤) |
 
@@ -43,8 +43,12 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MKL_NUM_THREADS=1 p
 - **등급 ADT:** EXACT(기계검증 증명서 / 결정절차 / 유계-전수, 경계 명시) · PROBABILISTIC(ε,δ — δ≤10⁻¹⁸라도 EXACT 아님) · DECLINE(닫힌형 없음/미결정 — 정직, 위엄). 등급은 절대 섞지 않는다.
 - **LLM은 제안만, 검증기가 결정한다.** 틀린 "증명됨"은 정정대상 correctness 버그. 가짜 통과보다 정직한 UNVERIFIED.
 - **No Lean/Coq/Isabelle 런타임 의존(=0).** Z3는 허용(+자체 bit-blaster 구축 중, §2). phone-home=0(제공자 API 제외). 키는 세션 전용.
-- **fast/normal/extend** 분리를 CODE와 MATH 둘 다 안에서 보존(커밋마다 불변식). 디자인 승인됨 — 확장만, 재설계 금지.
-  세 티어는 **강제되는 벽시계 예산**의 별개 역할: fast ≈ 1초(무거운 솔버 호출 금지) · normal ≈ 30초 · **extend ≈ 8분 BOUNDED(무제한 아님)**.
+- **normal/extend** 분리(2-tier — 과거 세 번째 티어 `fast`는 §BT-0 아키텍처-전환 지시서로 **은퇴**했다; 그 즉시-반환
+  동작은 normal 자신의 내부 certified-only early-exit로 흡수됨 — PROBABILISTIC-for-speed 허용도 함께 은퇴, early-exit는
+  EXACT만 반환)를 CODE와 MATH 둘 다 안에서 보존(커밋마다 불변식). **이 2-tier 골격 자체의 재설계는 여전히 금지** — §BT-0은
+  fast 흡수 하나만 승인된 전환이었고, 그 밖은 확장만 허용.
+  두 티어는 **강제되는 벽시계 예산**의 별개 역할: normal ≈ 30초(첫 수로 certified-only early-exit 시도, 없으면 전체
+  compounding loop로 낙하) · **extend ≈ 8분 BOUNDED(무제한 아님)**.
   extend는 예산 소진 시 도달한 최선의 **증명된** 결과(또는 정직한 부분결과)를 반환 — 예산 초과 실행 금지, 시간 채우려 결과 위조 금지, 빨리 가려고 등급 약화 금지.
   계약=`pillar3/mode.py`, 런타임=`mode_budget.run_under_mode_budget`, 하드 워치독=`latency_budget.run_with_budget`(데몬 스레드 — 어떤 티어도 멈춰 매달리지 않음). `test_mode_budget_roles`.
 

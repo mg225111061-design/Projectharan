@@ -69,11 +69,11 @@ soundness story, and the honesty constitution. Every number below is pulled LIVE
 | Named algorithms | **{counts['total']}** — A={counts['A']} · B={counts['B']} · C={counts['C']} · D={counts['D']} |
 | Status | **{counts['confirmed']} CONFIRMED · {counts['partial']} PARTIAL · {counts['gap']} GAP** (all {counts['present']} entry points import + resolve) |
 | Grades | **{counts['exact']} EXACT · {counts['probabilistic']} PROBABILISTIC** |
-| Tiers | fast={counts['fast']} · normal={counts['normal']} · extend={counts['extend']} |
+| Tiers | normal={counts['normal']} · extend={counts['extend']} |
 | Broth | **{broth['entries']:,} pre-proven instantiations** across **{len(broth['by_algo'])} of the 50**; O(1) lookup ≈ **{broth['lookup_us']:.3f} µs** (all-hit, size-independent) |
 | Measured coverage (MATH) | **{cov['covered_cases']} cases / {cov['n_algorithms_covered']} algorithms** certified; **{cov['adversarial_declined']}/{cov['adversarial_total']}** adversarial DECLINE |
 | Measured coverage (CODE) | **{cs['total_code_collapses']} execution-verified collapses** ({cs['single_fold_collapses']} single-fold + {cs['nested_collapses']} nested + {cs['filtered_collapses']} filtered + {cs['strided_collapses']} strided); **{cs['adversarial_rejected']}/{cs['adversarial_total']}** adversarial REJECT |
-| Tier-routing invariant | fast hosts **0** heavy solvers ({rm['fast_tier_up_count']}/50 TIER_UP in fast); extend runs all 50 |
+| Tier-routing invariant | normal hosts **0** heavy solvers ({rm['normal_tier_up_count']}/50 TIER_UP in normal); extend runs all 50 |
 | Tests | **{NTEST} passed / {NTEST}** — deterministic runner (command below) |
 
 ```bash
@@ -174,13 +174,16 @@ The 50 are GENERAL (one covers many cases); this MEASURES that breadth on a cura
 
 ## 4 · Tier routing (`algo50_router.py`)
 
-Operational glue tying §1 (each algorithm's tier) + §2 (broth) + the `pillar3/mode.py` fast/normal/extend contract:
+Operational glue tying §1 (each algorithm's tier) + §2 (broth) + the `pillar3/mode.py` normal/extend contract
+(2-tier — the former `fast` tier is retired; its instant-return behaviour is now normal's own internal,
+certified-only early-exit):
 
-- A **BROTH HIT short-circuits in ANY mode** — instant O(1) EXACT even in fast, regardless of how heavy the
-  underlying algorithm is (e.g. #38 factorization is extend-tier, yet a broth hit returns instantly in fast).
-- On a MISS, the algorithm runs ONLY if its tier ≤ the requested mode. **fast (~1 s) NEVER hosts an extend-tier
-  heavy solver** ({rm['fast_tier_up_count']}/50 TIER_UP in fast, 0 heavy hosted) → it returns TIER_UP.
-- normal (~30 s) runs fast+normal; **extend (~8 min, BOUNDED) runs all 50** = `{rm['extend_runs_all']}`.
+- A **BROTH HIT short-circuits in ANY mode** — instant O(1) EXACT even in normal, regardless of how heavy the
+  underlying algorithm is (e.g. #38 factorization is extend-tier, yet a broth hit returns instantly in normal).
+- On a MISS, the algorithm runs ONLY if its tier ≤ the requested mode. **normal (~30 s) NEVER hosts an extend-tier
+  heavy solver** ({rm['normal_tier_up_count']}/50 TIER_UP in normal, 0 heavy hosted) → it returns TIER_UP.
+- normal (~30 s) runs the normal tier (first trying a certified-only instant early-exit on cheap-detector hits);
+  **extend (~8 min, BOUNDED) runs all 50** = `{rm['extend_runs_all']}`.
 
 ---
 
@@ -225,7 +228,7 @@ no hang). The **gate, not any cache, is the soundness authority** — a forced-w
 | `haran_broth.py` | §2 cross-algorithm broth: offline brew + O(1) lookup + `reverify` (re-runs the real algorithm). |
 | `structure_recognizer.py` | §3 code-shape recognizer + dispatcher: for/while/comprehension/recursion/reduce/nested/filtered/strided → gated O(1) collapse; `_FOLD_BROTH` memo. |
 | `algo50_coverage.py` | §3 MEASURED coverage: `measure()` (MATH, the 50) + `measure_code_shapes()` (CODE reach) + adversarial DECLINE blocks. |
-| `algo50_router.py` | §4 tier routing: `route` / `routing_matrix` (broth short-circuit, fast-never-heavy invariant). |
+| `algo50_router.py` | §4 tier routing: `route` / `routing_matrix` (broth short-circuit, normal-never-heavy invariant). |
 | `webapi/engine_bridge.py` | Live engine: `_loop_collapse` surfaces every code-shape at optimal complexity (Gosper for-loops · nested · dispatch folds · recurrence state-updates). |
 | `code_stream.py` | §3 live UI trace (ANALYZE→RECOGNIZE→APPLY→CERTIFY→VERIFY→RESULT), stream ≡ result. |
 | number-theory & series | `mathmode/number_theory.py`, `newton_series.py`, `autodiff.py`, `groebner.py`, `hermite.py`, `cp_decompose.py`, `cfinite.py` — the algorithm implementations. |

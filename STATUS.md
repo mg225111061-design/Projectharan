@@ -22,11 +22,13 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
 
 ## CODE mode (pillar3 / webapi / server)
 - OMEGA Rounds 1–3 fully dispositioned (90/90). EXACT-share ≈ **68%** of graded capabilities (`exact_share.py`).
-- Recognizers + verified lifting + e-graph + superopt + sound static analyses; fast/normal/extend mode separation
-  with **ENFORCED wall-clock budgets** (~1 s / ~30 s / ~8 min) — `pillar3/mode.py` is the contract,
+- Recognizers + verified lifting + e-graph + superopt + sound static analyses; normal/extend mode separation
+  (2-tier — a former third tier, `fast`, retired per the §BT-0 architecture-transition directive: its instant-win
+  behaviour is now normal's own internal, certified-only early-exit, EXACT-only — never the old PROBABILISTIC-for-
+  speed allowance) with **ENFORCED wall-clock budgets** (~30 s / ~8 min) — `pillar3/mode.py` is the contract,
   `mode_budget.run_under_mode_budget` is the runtime. **extend is BOUNDED at ~8 min, NOT unlimited**: at the
   deadline it returns the best CERTIFIED result reached (or an honest partial), never runs past budget, never
-  fakes to fill time, never weakens a grade to go faster; fast (MICRO tier) NEVER calls the heavy solver; the hard
+  fakes to fill time, never weakens a grade to go faster; normal's early-exit NEVER calls the heavy solver; the hard
   watchdog (`latency_budget.run_with_budget`, daemon thread) means no tier ever hangs. `test_mode_budget_roles`.
 
 ## MATH mode (`mathmode/`, 22 modules)
@@ -53,7 +55,7 @@ new top-level report. Historical campaign reports live in `reports/archive/`. Ev
   fast kernels (modexp/fib O(log) · Lucas–Lehmer with honest infeasibility ceiling). Demo: `reports/archive/MATH_SHOWCASE.md`.
 
 ## §B UI (served single-file `mrjeffrey.html`)
-- CODE ⇄ MATH toggle (re-themes + re-routes); fast/normal/extend preserved inside each.
+- CODE ⇄ MATH toggle (re-themes + re-routes); normal/extend (2-tier — fast retired) preserved inside each.
 - Universal file attachment (drag-drop + picker) → `/api/math/ingest`; fold-accelerated analysis.
 - Safe archive extraction (`archive.py`): zip/tar/gz, in-memory, zip-slip + decompression-bomb defenses.
 
@@ -87,7 +89,7 @@ Conclusion: no risky merge performed (the suite stays green); the real e-graph u
   re-execution); §3 measured coverage (`algo50_coverage.py`: MATH 53 cases / 25 algorithms certified + CODE-side
   code-shape reach 39 execution-verified collapses [6 Σ-targets × 5 shapes + 4 nested + 4 filtered + 1 strided],
   6/6 adversarial DECLINE, domain-conditional); §4 tier routing (`algo50_router.py`: broth-hit short-circuits any
-  mode, fast never hosts the heavy
+  mode, normal never hosts the heavy
   solver). §X honest caveats RECORDED + test-enforced: CAD doubly-exp, Lucas–Lehmer O(p)-iter, general CP/Tucker
   & ECM NP-hard ⇒ DECLINE; PROBABILISTIC never EXACT; 50 NAMED GENERAL algorithms ≈15 fundamental + specializations,
   NOT 50 distinct structures; broth = precomputed-lookup-fast, NOT execution-O(1).

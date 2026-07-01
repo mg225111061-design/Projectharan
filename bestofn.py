@@ -8,7 +8,8 @@ latency), not the sum.
 
   • candidates launched concurrently (asyncio) — never sequential.
   • a SOUND, deterministic verifier accepts the FIRST passing candidate → early-exit, losers cancelled.
-  • mode → N:  Fast N=1 · Normal N=3 · Extend N=6  (more shots = higher success prob, same wall-clock).
+  • mode → N: sized from `mode_policy.BEST_OF_N` (the SINGLE canonical N-table, §BU-0 — this module keeps no
+    N-table of its own) — more shots = higher success prob, same wall-clock.
 
 ★ HONEST (rule 2) ★: hosted APIs (z.ai/Claude) do NOT allow speculative decoding — we never claim it. The
 real LLM per-call latency needs a key + egress → [BLOCKED] here. What is genuinely MEASURED is the
@@ -23,8 +24,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, List, Optional
 
-# mode → number of concurrent candidates (rule 1.3)
-MODE_N = {"fast": 1, "normal": 3, "extend": 6}
+from mode_policy import BEST_OF_N
 
 
 @dataclass

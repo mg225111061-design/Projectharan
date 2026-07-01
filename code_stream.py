@@ -33,7 +33,7 @@ RESULT = "RESULT"
 class PhaseEvent:
     phase: str                       # ANALYZE | RECOGNIZE | APPLY | CERTIFY | VERIFY | RESULT
     message: str                     # human-readable Korean live status
-    tier: str                        # fast | normal | extend
+    tier: str                        # normal | extend
     budget: str                      # the live tier+budget line, e.g. 'extend · 0:03 / 8:00'
     detail: str = ""
     grade: Optional[str] = None      # EXACT | PROBABILISTIC | DECLINE — the REAL grade where one exists

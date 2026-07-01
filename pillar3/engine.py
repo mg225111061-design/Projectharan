@@ -22,7 +22,7 @@ from pillar3 import complexity as CX
 from pillar3 import measure as M
 from pillar3 import record as RC
 from pillar3 import verifier as V
-from pillar3.mode import Mode, ModePolicy
+from pillar3.mode import EARLY_EXIT_DETECTORS, Mode, ModePolicy
 
 
 @dataclass
@@ -156,7 +156,7 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
     oracle = RC.record_oracle(baseline, [(make_input(),) for _ in range(3)])
     make_args = lambda: (make_input(),)
 
-    # complexity sweep — policy-gated (extend always; fast never)
+    # complexity sweep — policy-gated (extend always; normal never)
     if policy.runs_complexity_sweep and sweep_fn is not None:
         fit = CX.measure_complexity(sweep_fn, list(sweep_sizes))
         rep.ran_complexity_sweep = True
@@ -166,6 +166,39 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
     # the profiler is ground truth for WHERE: order candidates by hotspot fraction (largest first)
     ordered = sorted(candidates, key=lambda c: -c.fraction)
     pool = ordered if policy.max_hotspots is None else ordered[:policy.max_hotspots]
+
+    # ── normal's internal early-exit (absorbs the retired `fast` tier's instant-win behaviour) ────────────
+    # normal tries the cheapest, most obvious detectors FIRST, EXACT-only, no Z3 — and returns the moment one
+    # certifies, before ever reaching the heavy solver. Never a speculative PROBABILISTIC shortcut (that
+    # allowance retired with `fast`). If nothing qualifies here, normal falls through to its full loop below,
+    # unchanged. extend never takes this path — it deliberately explores everything within its own budget.
+    if mode is Mode.NORMAL:
+        for c in pool:
+            if c.detector not in EARLY_EXIT_DETECTORS or not c.exact_justification:
+                continue
+            cand_pipe = _pipeline(candidates, {c.name}, residual)
+            diff = RC.differential_test(cand_pipe, oracle, c.eq)
+            if not diff.passed:
+                continue
+            grade, _note = _decide_grade(policy, c)      # exact_justification ⇒ EXACT, no Z3 touched
+            if grade != KV.EXACT:
+                continue
+            floor_pipe = _floor_pipeline(candidates, {c.name}, residual)
+            sr = _measure_coherent(baseline, cand_pipe, floor_pipe, make_args, n=n, samples=policy.samples)
+            if not sr.beats(c.floor):
+                continue
+            rep.attempted_detectors.add(c.detector)
+            rep.hotspots_attacked += 1
+            rep.shipped.append(Shipped(c.name, c.waste_type, c.detector, grade, sr.whole_program_ratio,
+                                       sr.amdahl_ceiling, sr.hotspot_fraction))
+            rep.rounds = 1
+            rep.cumulative_ratio = sr.whole_program_ratio
+            rep.fresh_cumulative_ratio = sr.whole_program_ratio
+            rep.final_ceiling = sr.amdahl_ceiling
+            rep.z3_calls = V.z3_check_count()
+            rep.latency_s = time.perf_counter() - t0
+            rep.stop_reason = "instant early-exit (certified cheap win — normal's internal fast-path)"
+            return rep
 
     active: Set[str] = set()
     prev_cumulative = 1.0
@@ -220,7 +253,7 @@ def optimize(candidates: List[Candidate], make_input: Callable[[], Dict], *, mod
         rep.final_ceiling = sr.amdahl_ceiling
 
         if policy.stop_on_first_win:
-            rep.stop_reason = "first accepted win (fast)"
+            rep.stop_reason = "first accepted win (stop_on_first_win policy)"
             break
         if rep.rounds >= policy.max_iterations:
             rep.stop_reason = f"max iterations ({policy.max_iterations}) reached"

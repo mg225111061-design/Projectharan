@@ -604,8 +604,9 @@ def test_stage1_clockA_bestofn():
     sum. (Live LLM latency is [BLOCKED: key]; orchestration measured with simulated/varied latencies.)"""
     import asyncio
     import bestofn as B
-    # mode_sets_N
-    assert B.MODE_N == {"fast": 1, "normal": 3, "extend": 6}
+    import mode_policy as MP
+    # mode_sets_N: §BU-0 unification — bestofn keeps no N-table of its own, it imports mode_policy's
+    assert B.BEST_OF_N is MP.BEST_OF_N and set(B.BEST_OF_N) == {"normal", "extended"}, "fast retired from the N-table"
     # parallel_candidates_concurrent: N launched together → wall ≈ one latency, NOT N×latency
     async def conc():
         started = []
@@ -635,30 +636,33 @@ def test_stage1_clockA_bestofn():
 
 
 def test_stage5_three_modes_selectable():
-    """v31 STAGE 5 (three_modes_selectable): the UI offers Fast / Normal / Extend, and the policy backs all
-    three. fast = single shot (budget 1), still SOUNDLY verified — the dial is DEPTH, never correctness."""
+    """v31 STAGE 5 (three_modes_selectable, 2-tier): the UI offers Normal / Extend, and the policy backs both
+    (a former third mode, `fast`, retired — its instant-win behaviour lives inside normal's early-exit on the
+    CODE-optimize side; here it is simply gone as a user-facing dial). Normal is the SHALLOWEST budget, still
+    SOUNDLY verified — the dial is DEPTH, never correctness."""
     import agentic as AG
     import mode_policy as MP
     html = open("haran.html").read()
-    # three distinct pills present, in order (fast → normal → extended)
-    for dm in ('data-mode="fast"', 'data-mode="normal"', 'data-mode="extended"'):
+    # two distinct pills present, in order (normal → extended); fast is GONE, not just hidden
+    for dm in ('data-mode="normal"', 'data-mode="extended"'):
         assert dm in html, f"missing mode pill {dm}"
-    assert html.index('data-mode="fast"') < html.index('data-mode="normal"') < html.index('data-mode="extended"')
-    # setMode accepts all THREE (the old guard rejected 'fast' — that bug is fixed)
-    assert 'mode !== "fast" && mode !== "normal" && mode !== "extended"' in html
-    assert 'classList.toggle("mode-fast"' in html
-    # policy backs fast with the SHALLOWEST budget, and fast shares NORMAL's (sound) gate column
-    assert MP.MODE_BUDGET["fast"] == 1 < MP.MODE_BUDGET["normal"] < MP.MODE_BUDGET["extended"]
-    assert MP.BEST_OF_N["fast"] == (1, 1)
-    pf = MP.plan("fast")
-    assert pf.mode == "fast" and pf.loop_budget == 1 and pf.best_of_n == (1, 1)
-    assert set(pf.gates) == set(MP.gates_for("normal")), "fast must use the cheap-but-SOUND gate set, not extended"
-    assert pf.sound_selector_only and pf.zero_wrong_answer            # invariants hold for fast too
-    # fast still SOUNDLY verifies: one good single-shot candidate → converged + PROVEN (gate ran, not skipped)
-    r = AG.agentic_code("sum 1..n", "fast", mock_sequence=[AG._GOOD])
-    assert r.mode == "fast" and r.converged and r.iters == 1 and r.status == "VERIFIED" and r.proof_tier == "PROVEN"
-    print(f"PASS test_stage5_three_modes_selectable (fast/normal/extend pills + setMode; fast budget "
-          f"{MP.MODE_BUDGET['fast']} shares NORMAL's sound gates; fast run PROVEN in {r.iters} shot)")
+    assert 'data-mode="fast"' not in html, "fast must be retired as a pill, not merely reordered"
+    assert html.index('data-mode="normal"') < html.index('data-mode="extended"')
+    # setMode accepts ONLY the two remaining modes
+    assert 'mode !== "normal" && mode !== "extended"' in html
+    assert 'mode !== "fast"' not in html, "the old fast-guard clause must be gone, not dead-coded"
+    # policy backs normal with the SHALLOWEST budget
+    assert MP.MODE_BUDGET["normal"] < MP.MODE_BUDGET["extended"]
+    assert set(MP.MODE_BUDGET) == {"normal", "extended"}, "fast retired from the budget table"
+    pn = MP.plan("normal")
+    assert pn.mode == "normal" and pn.loop_budget == MP.MODE_BUDGET["normal"] and pn.best_of_n == MP.BEST_OF_N["normal"]
+    assert set(pn.gates) < set(MP.gates_for("extended")), "normal must use the cheap-but-SOUND gate set, not extended"
+    assert pn.sound_selector_only and pn.zero_wrong_answer
+    # normal still SOUNDLY verifies: one good single-shot candidate → converged + PROVEN (gate ran, not skipped)
+    r = AG.agentic_code("sum 1..n", "normal", mock_sequence=[AG._GOOD])
+    assert r.mode == "normal" and r.converged and r.iters == 1 and r.status == "VERIFIED" and r.proof_tier == "PROVEN"
+    print(f"PASS test_stage5_three_modes_selectable (2-tier: normal/extend pills + setMode, fast retired; normal "
+          f"budget {MP.MODE_BUDGET['normal']} uses the sound gate subset; normal run PROVEN in {r.iters} shot)")
 
 
 def test_stage5_progress_states_shown():
@@ -672,17 +676,17 @@ def test_stage5_progress_states_shown():
     for k in ("stage_classify", "stage_generate", "stage_verify", "stage_optimize"):
         assert html.count(k + ":") >= 2, f"stage label {k} missing in ko+en"
     # generate state shows the mode's best-of-N budget (configured), via MODE_N + bestof_n/1shot labels
-    assert "const MODE_N = {fast:1, normal:2, extended:8}" in html
+    assert "const MODE_N = {normal:2, extended:8}" in html, "fast retired from the client-side N table"
     assert 'if(s==="generate")' in html and 'T("bestof_n")' in html and 'T("bestof_1shot")' in html
     # agentic_stream emits the REAL stages in order, only when that work runs (mock, no network)
     evs = [e["stage"] for e in AG.agentic_stream("sum 1..n", "normal", mock_sequence=[AG._WRONG, AG._GOOD])]
     assert evs[0] == "generate" and "code_done" in evs and "verify" in evs
     assert "refuted" in evs and "fix" in evs, "a refuted candidate must show the fix state (real, not faked)"
     assert "optimize" in evs and evs[-1] == "done"
-    # per-mode honest progress set (fast/normal share the cheap stages; extended adds z3/octagon)
-    assert "z3_smt" not in MP.progress_stages("fast") and "z3_smt" in MP.progress_stages("extended")
+    # per-mode honest progress set (2-tier: normal runs the cheap stages; extended adds z3/octagon)
+    assert "z3_smt" not in MP.progress_stages("normal") and "z3_smt" in MP.progress_stages("extended")
     print(f"PASS test_stage5_progress_states_shown (real stages {evs}; best-of-N budget surfaced on generate; "
-          f"fast/normal cheap stages ⊊ extended)")
+          f"2-tier: normal's cheap stages ⊊ extended, fast retired)")
 
 
 def test_stage5_result_shows_measured_times_labeled():
@@ -729,7 +733,7 @@ def test_stage5_no_fake_latency_numbers():
     assert not fakes, f"fabricated sub-ms latency literal(s) found: {fakes}"
     # the backend confirms the SIM is honestly provenanced (source=mock-sim) so the UI knows to BLOCK Clock A,
     # and clock_a_ms is NOT a fabricated network latency (mock generator ≈ 0), while clock_b_ms is REAL.
-    res = [e for e in AG.agentic_stream("sum 1..n", "fast", mock_sequence=[AG._GOOD]) if e["stage"] == "done"][0]["result"]
+    res = [e for e in AG.agentic_stream("sum 1..n", "normal", mock_sequence=[AG._GOOD]) if e["stage"] == "done"][0]["result"]
     rd = SV.to_result_dict(res)
     assert rd["source"] == "mock-sim"                                   # → UI BLOCKs Clock A (no real call happened)
     assert rd["clock_a_ms"] < 5.0                                       # mock gen ≈ 0; never inflated to look like an LLM
@@ -3246,7 +3250,7 @@ def test_phaseD1_catastrophic_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS
 
     adv = ["a" * 16 + "!" for _ in range(5)] + ["aaaa", "a!", "aaa"]
     cases = [
@@ -3268,7 +3272,7 @@ def test_phaseD1_catastrophic_detectors():
         assert v.status in (KV.EXACT, KV.PROBABILISTIC) and v.report.whole_program_ratio > 1, f"{waste}: {v.status}"
         w = apply_and_grade(slow, wrong, mk, n=n, hotspot_fraction=0.9, oracle=oracle, waste_type=waste, samples=5)
         assert w.status == KV.DECLINE, f"{waste}: wrong fix not caught"
-        assert waste in FAST_DETECTORS, f"{waste} must be fast-eligible"
+        assert waste in EARLY_EXIT_DETECTORS, f"{waste} must be fast-eligible"
         wins[waste] = v.report.whole_program_ratio
 
     # redundant_sort (two-arg signature)
@@ -3281,7 +3285,7 @@ def test_phaseD1_catastrophic_detectors():
     assert sv.status in (KV.EXACT, KV.PROBABILISTIC) and sv.report.whole_program_ratio > 1
     sw = apply_and_grade(_d1_sort_slow, lambda items, ref: [x for x in items], smk, n=400, hotspot_fraction=0.9,
                          oracle=soracle, waste_type="redundant_sort", samples=5)
-    assert sw.status == KV.DECLINE and "redundant_sort" in FAST_DETECTORS
+    assert sw.status == KV.DECLINE and "redundant_sort" in EARLY_EXIT_DETECTORS
     wins["redundant_sort"] = sv.report.whole_program_ratio
 
     print(f"PASS test_phaseD1_catastrophic_detectors (5 fast-eligible detectors: "
@@ -3319,7 +3323,7 @@ def test_phaseInfinity_D7_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS
 
     # sorted_min_max (normal) — rows must be UNSORTED so sorted() is genuinely O(m log m) (Timsort is O(m) on
     # already-ordered runs); pseudo-random elements make the asymptotic win real
@@ -3333,7 +3337,7 @@ def test_phaseInfinity_D7_detectors():
     rw = apply_and_grade(_d7_sortmin_slow, lambda rs: [0 for _ in rs], rmk, n=3000, hotspot_fraction=0.9,
                          oracle=ror, waste_type="sorted_min_max", samples=5)
     assert rw.status == KV.DECLINE
-    assert "sorted_min_max" in NORMAL_DETECTORS and "sorted_min_max" not in FAST_DETECTORS
+    assert "sorted_min_max" in NORMAL_DETECTORS and "sorted_min_max" not in EARLY_EXIT_DETECTORS
 
     # count_in_loop (normal): O(n²)→O(n)
     assert D.detect_count_in_loop(_d7_count_slow).found
@@ -3346,7 +3350,7 @@ def test_phaseInfinity_D7_detectors():
     cw = apply_and_grade(_d7_count_slow, lambda its: [0 for _ in its], cmk, n=3000, hotspot_fraction=0.95,
                          oracle=cor, waste_type="count_in_loop", samples=5)
     assert cw.status == KV.DECLINE
-    assert "count_in_loop" in NORMAL_DETECTORS and "count_in_loop" not in FAST_DETECTORS
+    assert "count_in_loop" in NORMAL_DETECTORS and "count_in_loop" not in EARLY_EXIT_DETECTORS
 
     print(f"PASS test_phaseInfinity_D7_detectors (2 more detectors → 29 total: sorted(x)[0|-1]→min/max "
           f"{rv.report.whole_program_ratio:.1f}× (O(n log n)→O(n)), .count()-in-loop→Counter "
@@ -3394,7 +3398,7 @@ def test_phaseInfinity_D6_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS
 
     # list_pop_zero (normal): O(n²)→O(n) via deque
     assert D.detect_list_pop_zero(_d6_pop_slow).found
@@ -3406,7 +3410,7 @@ def test_phaseInfinity_D6_detectors():
     pw = apply_and_grade(_d6_pop_slow, lambda items: list(items)[::-1], pmk, n=4000, hotspot_fraction=0.95,
                          oracle=por, waste_type="list_pop_zero", samples=5)
     assert pw.status == KV.DECLINE
-    assert "list_pop_zero" in NORMAL_DETECTORS and "list_pop_zero" not in FAST_DETECTORS
+    assert "list_pop_zero" in NORMAL_DETECTORS and "list_pop_zero" not in EARLY_EXIT_DETECTORS
 
     # exception_control_flow (normal): high miss-rate try/except → .get()
     assert D.detect_exception_control_flow(_d6_exc_slow).found
@@ -3419,7 +3423,7 @@ def test_phaseInfinity_D6_detectors():
     ew = apply_and_grade(_d6_exc_slow, lambda ks: [0 for _ in ks], emk, n=6000, hotspot_fraction=0.9,
                          oracle=eor, waste_type="exception_control_flow", samples=5)
     assert ew.status == KV.DECLINE
-    assert "exception_control_flow" in NORMAL_DETECTORS and "exception_control_flow" not in FAST_DETECTORS
+    assert "exception_control_flow" in NORMAL_DETECTORS and "exception_control_flow" not in EARLY_EXIT_DETECTORS
 
     print(f"PASS test_phaseInfinity_D6_detectors (2 more detectors → 27 total: list.pop(0)→deque "
           f"{pv.report.whole_program_ratio:.0f}× (O(n²)→O(n)), exceptions-as-control-flow→.get() "
@@ -3543,7 +3547,7 @@ def test_phaseInfinity_D5_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC, equiv as EQ
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
     import z3
 
     # power_strength_reduction (extend): x**k → repeated multiply, Z3-PROVEN EXACT; wrong form → DECLINE
@@ -3573,7 +3577,7 @@ def test_phaseInfinity_D5_detectors():
     mw = apply_and_grade(_d5_mem_slow, lambda queries, pool: list(queries), mmk, n=400, hotspot_fraction=0.95,
                          oracle=mor, waste_type="membership_to_set_param", samples=5)
     assert mw.status == KV.DECLINE
-    assert "membership_to_set_param" in FAST_DETECTORS
+    assert "membership_to_set_param" in EARLY_EXIT_DETECTORS
 
     print(f"PASS test_phaseInfinity_D5_detectors (2 more detectors → 25 total: power-strength-reduction "
           f"x**k→x*x* {pv.report.whole_program_ratio:.2f}× (EXACT, Z3-proven; wrong form Z3-REFUTED→DECLINE); "
@@ -3651,7 +3655,7 @@ def test_phaseInfinity_D4_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC, superopt as S
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS
 
     wins = {}
     # regex_compile_in_loop (fast)
@@ -3664,7 +3668,7 @@ def test_phaseInfinity_D4_detectors():
     assert rv.status == KV.PROBABILISTIC and rv.report.whole_program_ratio > 1
     rw = apply_and_grade(_d4_recompile_slow, lambda ls: [False for _ in ls], rmk, n=4000, hotspot_fraction=0.9,
                          oracle=ror, waste_type="regex_compile_in_loop", samples=5)
-    assert rw.status == KV.DECLINE and "regex_compile_in_loop" in FAST_DETECTORS
+    assert rw.status == KV.DECLINE and "regex_compile_in_loop" in EARLY_EXIT_DETECTORS
     wins["regex_compile_in_loop"] = rv.report.whole_program_ratio
 
     # nested_loop_join (normal)
@@ -3679,7 +3683,7 @@ def test_phaseInfinity_D4_detectors():
     jw = apply_and_grade(_d4_join_slow, lambda d: [], jmk, n=400, hotspot_fraction=0.95, oracle=jor,
                          waste_type="nested_loop_join", samples=5)
     assert jw.status == KV.DECLINE
-    assert "nested_loop_join" in NORMAL_DETECTORS and "nested_loop_join" not in FAST_DETECTORS
+    assert "nested_loop_join" in NORMAL_DETECTORS and "nested_loop_join" not in EARLY_EXIT_DETECTORS
     wins["nested_loop_join"] = jv.report.whole_program_ratio
 
     # sum_genexpr (normal) — early-exit any()
@@ -3692,7 +3696,7 @@ def test_phaseInfinity_D4_detectors():
     sw = apply_and_grade(_d4_sum_slow, lambda xs: not _d4_sum_fast(xs), smk, n=4000, hotspot_fraction=0.9,
                          oracle=sor, waste_type="sum_genexpr", samples=5)
     assert sw.status == KV.DECLINE
-    assert "sum_genexpr" in NORMAL_DETECTORS and "sum_genexpr" not in FAST_DETECTORS
+    assert "sum_genexpr" in NORMAL_DETECTORS and "sum_genexpr" not in EARLY_EXIT_DETECTORS
     wins["sum_genexpr"] = sv.report.whole_program_ratio
 
     # manual_groupby (normal)
@@ -3706,7 +3710,7 @@ def test_phaseInfinity_D4_detectors():
     gw = apply_and_grade(_d4_group_slow, lambda p: {}, gmk, n=40000, hotspot_fraction=0.9, oracle=gor,
                          waste_type="manual_groupby", samples=5)
     assert gw.status == KV.DECLINE
-    assert "manual_groupby" in NORMAL_DETECTORS and "manual_groupby" not in FAST_DETECTORS
+    assert "manual_groupby" in NORMAL_DETECTORS and "manual_groupby" not in EARLY_EXIT_DETECTORS
     wins["manual_groupby"] = gv.report.whole_program_ratio
 
     # hardened moat: ≥5 adversarial wrong swaps, all Z3-REFUTED
@@ -3721,11 +3725,12 @@ def test_phaseInfinity_D4_detectors():
 
 
 def test_phaseU_studio():
-    """PHASE U (v62): the MR.JEFFREY Studio — mode picker + provider picker + API-key UI, bound to REAL engine
-    data. Asserts: the displayed MODE CONTRACTS match ModePolicy exactly and the PROVIDERS match provider.py
-    (data binding == engine output); the per-mode runs are coherent (extend EXACT-only, fast z3=0, ratio ≤
-    ceiling); the panel rows are the real corpus; ★ the API key is never in the data, never logged, never
-    stored ★; HTML well-formed with the mode/provider/key controls. Visual quality → human review."""
+    """PHASE U (v62, 2-tier): the MR.JEFFREY Studio — mode picker + provider picker + API-key UI, bound to REAL
+    engine data. Asserts: the displayed MODE CONTRACTS match ModePolicy exactly (normal/extend only — `fast`
+    retired) and the PROVIDERS match provider.py (data binding == engine output); the per-mode runs are coherent
+    (extend EXACT-only, normal never touches Z3 when its early-exit fires, ratio ≤ ceiling); the panel rows are
+    the real corpus; ★ the API key is never in the data, never logged, never stored ★; HTML well-formed with the
+    mode/provider/key controls. Visual quality → human review."""
     import json
     import os
     from html.parser import HTMLParser
@@ -3740,8 +3745,8 @@ def test_phaseU_studio():
 
     # ★ data binding == engine output: the displayed mode CONTRACTS match ModePolicy exactly ★
     jm = {m["mode"]: m for m in data["modes"]}
-    assert set(jm) == {"fast", "normal", "extend"}
-    for mode in (Mode.FAST, Mode.NORMAL, Mode.EXTEND):
+    assert set(jm) == {"normal", "extend"}, "fast must no longer appear as a mode contract"
+    for mode in (Mode.NORMAL, Mode.EXTEND):
         p = ModePolicy.for_mode(mode); j = jm[mode.value]
         assert j["verifier_tier"] == p.verifier_tier.name
         assert j["detectors"] == len(p.enabled_detectors)
@@ -3750,16 +3755,15 @@ def test_phaseU_studio():
         assert j["runs_complexity_sweep"] == p.runs_complexity_sweep
     assert jm["extend"]["acceptable_grades"] == ["EXACT"]            # EXACT-or-DECLINE on screen
 
-    # providers match provider.py (all five) + correct transport per provider
+    # providers match provider.py (data-driven — the count itself is not hardcoded) + correct transport per provider
     jp = {p["id"]: p for p in data["providers"]}
     assert set(jp) == set(PRV.VALID_PROVIDERS)
     for pid, pjson in jp.items():
         assert pjson["transport"] == PRV.transport_kind(pid)
     assert {"openai", "gemini"} <= set(jp)                          # native ChatGPT + Gemini present
 
-    # the per-mode runs are coherent and mode-distinct (fast z3=0, extend EXACT-only + swept; ratio ≤ ceiling)
+    # the per-mode runs are coherent and mode-distinct (extend EXACT-only + swept; ratio ≤ ceiling)
     runs = {r["mode"]: r for r in data["runs"]}
-    assert runs["fast"]["z3_calls"] == 0
     assert {s["grade"] for s in runs["extend"]["shipped"]} == {"EXACT"} and runs["extend"]["ran_complexity_sweep"]
     assert runs["extend"]["z3_calls"] > 0
     for r in data["runs"]:
@@ -3789,14 +3793,15 @@ def test_phaseU_studio():
     pp = P(); pp.feed(html)
     assert {"modes", "providers", "keyInput", "feed", "foot"} <= pp.ids
     assert all(s in html for s in ("g-EXACT", "g-PROBABILISTIC", "g-DECLINE"))
-    assert all(s in html for s in ("Claude", "ChatGPT", "Gemini", "fast", "normal", "extend"))
+    assert all(s in html for s in ("Claude", "ChatGPT", "Gemini", "normal", "extend"))
+    assert "fast" not in html.lower().replace("faster", ""), "fast must be retired as a mode-tier reference"
     assert "pillar3_studio_data.json" in html and "[BLOCKED:" in html
 
     g = {gr: sum(1 for r in data["panel_rows"] if r["grade"] == gr) for gr in ("EXACT", "PROBABILISTIC", "DECLINE")}
-    print(f"PASS test_phaseU_studio (mode contracts match ModePolicy exactly (MICRO/CHEAP_CERT/FULL_CERT, "
-          f"{jm['fast']['detectors']}/{jm['normal']['detectors']}/{jm['extend']['detectors']} detectors, extend="
-          f"EXACT-or-DECLINE); 5 providers match provider.py incl. native ChatGPT+Gemini; runs coherent (fast "
-          f"z3=0, extend EXACT-only+swept, ratio≤ceiling); panel = real corpus (E{g['EXACT']}/P{g['PROBABILISTIC']}"
+    print(f"PASS test_phaseU_studio (2-tier: mode contracts match ModePolicy exactly (CHEAP_CERT/FULL_CERT, "
+          f"{jm['normal']['detectors']}/{jm['extend']['detectors']} detectors, extend=EXACT-or-DECLINE, fast "
+          f"retired); {len(jp)} providers match provider.py incl. native ChatGPT+Gemini; runs coherent (extend "
+          f"EXACT-only+swept, ratio≤ceiling); panel = real corpus (E{g['EXACT']}/P{g['PROBABILISTIC']}"
           f"/D{g['DECLINE']}); ★key never in data / never logged / never stored (session-only)★; HTML well-formed "
           f"w/ mode+provider+key controls; React+live-call [BLOCKED: toolchain]; visual → human review)")
 
@@ -3808,7 +3813,7 @@ def test_phaseS_extend_depth():
     import kernel_verdict as KV
     from pillar3 import superopt as S, equiv as EQ, record as RC
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
 
     # 1) verified lifting: Σ c·x → c·Σ x, Z3-PROVEN, measured win (n multiplies → n adds + 1 multiply)
     assert S.recognize_reduction(S.dist_naive)
@@ -3851,7 +3856,7 @@ def test_phaseS_extend_depth():
 
     # 5) extend reaches what fast/normal cannot: the depth detectors are extend-only
     for d in ("verified_lifting", "egg_superopt", "algorithm_recognition"):
-        assert d in EXTEND_DETECTORS and d not in FAST_DETECTORS and d not in NORMAL_DETECTORS
+        assert d in EXTEND_DETECTORS and d not in EARLY_EXIT_DETECTORS and d not in NORMAL_DETECTORS
 
     print(f"PASS test_phaseS_extend_depth (verified lifting Σc·x→c·Σx Z3-PROVEN {dv.report.whole_program_ratio:.1f}× "
           f"EXACT; memoised DP fib {fv.report.whole_program_ratio:.0f}× EXACT (wrong memo→DECLINE); egg superopt "
@@ -4001,7 +4006,7 @@ def test_phaseD3_heavy_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC, equiv as EQ
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
     import z3
 
     def fl(a, b):
@@ -4032,7 +4037,7 @@ def test_phaseD3_heavy_detectors():
     pw = apply_and_grade(_d3_par_slow, lambda items: [0 for _ in items], pmk, n=24, hotspot_fraction=0.95,
                          oracle=por, waste_type="parallelizable_loop", samples=4)
     assert pw.status == KV.DECLINE
-    assert "parallelizable_loop" in EXTEND_DETECTORS and "parallelizable_loop" not in FAST_DETECTORS
+    assert "parallelizable_loop" in EXTEND_DETECTORS and "parallelizable_loop" not in EARLY_EXIT_DETECTORS
     wins["parallelizable_loop"] = pv.report.whole_program_ratio
 
     # interproc_memoize → lru_cache (EXACT by construction)
@@ -4176,7 +4181,7 @@ def test_phaseD2_structural_detectors():
     import kernel_verdict as KV
     from pillar3 import detectors2 as D, record as RC
     from pillar3.fixers.pipeline import apply_and_grade
-    from pillar3.mode import FAST_DETECTORS, NORMAL_DETECTORS
+    from pillar3.mode import EARLY_EXIT_DETECTORS, NORMAL_DETECTORS
 
     cases = [
         ("dict_to_columnar", D.detect_dict_to_columnar, _d2_soa_slow, _d2_soa_fast,
@@ -4197,7 +4202,7 @@ def test_phaseD2_structural_detectors():
         assert v.status in (KV.EXACT, KV.PROBABILISTIC) and v.report.whole_program_ratio > 1, f"{waste}:{v.status}"
         w = apply_and_grade(slow, wrong, mk, n=n, hotspot_fraction=0.9, oracle=oracle, waste_type=waste, samples=5)
         assert w.status == KV.DECLINE, f"{waste}: wrong not caught"
-        assert waste in NORMAL_DETECTORS and waste not in FAST_DETECTORS, f"{waste}: gating"
+        assert waste in NORMAL_DETECTORS and waste not in EARLY_EXIT_DETECTORS, f"{waste}: gating"
         wins[waste] = v.report.whole_program_ratio
 
     # loop_invariant_hoist (two-arg)
@@ -4210,7 +4215,7 @@ def test_phaseD2_structural_detectors():
     iw = apply_and_grade(_d2_inv_slow, lambda items, k: [x for x in items], imk, n=3000, hotspot_fraction=0.9,
                          oracle=ior, waste_type="loop_invariant_hoist", samples=5)
     assert iw.status == KV.DECLINE
-    assert "loop_invariant_hoist" in NORMAL_DETECTORS and "loop_invariant_hoist" not in FAST_DETECTORS
+    assert "loop_invariant_hoist" in NORMAL_DETECTORS and "loop_invariant_hoist" not in EARLY_EXIT_DETECTORS
     wins["loop_invariant_hoist"] = iv.report.whole_program_ratio
 
     print(f"PASS test_phaseD2_structural_detectors (5 normal-tier detectors: SoA {wins['dict_to_columnar']:.1f}×, "
@@ -4220,49 +4225,47 @@ def test_phaseD2_structural_detectors():
 
 
 def test_phaseM1_mode_policy():
-    """PHASE M1 (v54): the three modes are enforced CONTRACTS, not presets. Assert ModePolicy encodes every row
-    of the M.2 table — the verifier-tier ladder (fast=MICRO never-Z3 / normal≤CHEAP_CERT / extend=FULL_CERT),
-    monotone detector sets, mode-dependent grade floors (extend = EXACT-or-DECLINE), hotspot caps, sweep flags,
-    and stop conditions. A reader of mode.py can state exactly what each mode will and won't do."""
+    """PHASE M1 (v54, 2-tier): the two modes are enforced CONTRACTS, not presets. Assert ModePolicy encodes
+    every row of the M.2 table — the verifier-tier ladder (normal≤CHEAP_CERT / extend=FULL_CERT), monotone
+    detector sets (the early-exit-eligible subset ⊂ normal's full set ⊂ extend's), mode-dependent grade floors
+    (extend = EXACT-or-DECLINE), hotspot caps, sweep flags, and stop conditions. `fast` no longer exists as a
+    Mode — its instant-win behaviour lives inside normal's own early-exit (test_phaseM2_mode_distinctness)."""
     import kernel_verdict as KV
     from pillar3 import verifier as V
-    from pillar3.mode import Mode, ModePolicy, FAST_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
+    from pillar3.mode import Mode, ModePolicy, EARLY_EXIT_DETECTORS, NORMAL_DETECTORS, EXTEND_DETECTORS
 
-    fast, normal, extend = (ModePolicy.for_mode(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND))
+    assert set(Mode) == {Mode.NORMAL, Mode.EXTEND}, "fast must no longer exist as a Mode"
+    normal, extend = (ModePolicy.for_mode(m) for m in (Mode.NORMAL, Mode.EXTEND))
 
     # verifier-tier ladder (the spine of "never blocks" vs "always proves")
-    assert fast.verifier_tier == V.VerifierTier.MICRO
     assert normal.verifier_tier == V.VerifierTier.CHEAP_CERT
     assert extend.verifier_tier == V.VerifierTier.FULL_CERT
-    assert V.VerifierTier.MICRO < V.VerifierTier.CHEAP_CERT < V.VerifierTier.FULL_CERT
-    # tier gate: MICRO never certifies; CHEAP_CERT only small regions; FULL_CERT always
-    assert V.tier_allows_certificate(V.VerifierTier.MICRO, 1) is False                  # fast NEVER invokes Z3
+    assert V.VerifierTier.CHEAP_CERT < V.VerifierTier.FULL_CERT
+    # tier gate: CHEAP_CERT only small regions; FULL_CERT always
     assert V.tier_allows_certificate(V.VerifierTier.CHEAP_CERT, 3) is True
     assert V.tier_allows_certificate(V.VerifierTier.CHEAP_CERT, 9999) is False          # too large for cheap
     assert V.tier_allows_certificate(V.VerifierTier.FULL_CERT, 9999) is True
 
     # the grade floor is mode-dependent (extend = EXACT-or-DECLINE)
-    assert fast.acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
     assert normal.acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
     assert extend.acceptable_grades == frozenset({KV.EXACT})                            # PROBABILISTIC REJECTED
-    assert not extend.grade_acceptable(KV.PROBABILISTIC) and fast.grade_acceptable(KV.PROBABILISTIC)
+    assert not extend.grade_acceptable(KV.PROBABILISTIC) and normal.grade_acceptable(KV.PROBABILISTIC)
 
-    # detector sets are strictly monotone fast ⊂ normal ⊂ extend
-    assert FAST_DETECTORS < NORMAL_DETECTORS < EXTEND_DETECTORS
-    assert fast.enabled_detectors == FAST_DETECTORS and extend.enabled_detectors == EXTEND_DETECTORS
-    assert "list_as_set" in fast.enabled_detectors                                      # cheap structural: all modes
-    assert "accidental_quadratic" in normal.enabled_detectors and "accidental_quadratic" not in fast.enabled_detectors
+    # detector sets are strictly monotone: the early-exit-eligible subset ⊂ normal's full set ⊂ extend's
+    assert EARLY_EXIT_DETECTORS < NORMAL_DETECTORS < EXTEND_DETECTORS
+    assert normal.enabled_detectors == NORMAL_DETECTORS and extend.enabled_detectors == EXTEND_DETECTORS
+    assert "list_as_set" in EARLY_EXIT_DETECTORS and "list_as_set" in normal.enabled_detectors  # cheap: both
+    assert "accidental_quadratic" in normal.enabled_detectors and "accidental_quadratic" not in EARLY_EXIT_DETECTORS
     assert "gpu_simd_offload" in extend.enabled_detectors                               # heavy: extend only
-    assert "gpu_simd_offload" not in fast.enabled_detectors and "gpu_simd_offload" not in normal.enabled_detectors
+    assert "gpu_simd_offload" not in normal.enabled_detectors and "gpu_simd_offload" not in EARLY_EXIT_DETECTORS
     assert "algorithm_recognition" in extend.enabled_detectors and "algorithm_recognition" not in normal.enabled_detectors
 
     # iteration / sweep / latency posture
-    assert fast.max_hotspots == 3 and fast.stop_on_first_win and not fast.runs_complexity_sweep
     assert normal.max_hotspots is None and normal.marginal_floor >= 0.10
     assert extend.max_hotspots is None and extend.runs_complexity_sweep and extend.deep_search
-    # ★ extend is BOUNDED ~8 min (480 s) — NOT unlimited; all three budgets are bounded and strictly ordered ★
-    assert fast.latency_budget_s == 1.0 and normal.latency_budget_s == 30.0 and extend.latency_budget_s == 480.0
-    assert fast.latency_budget_s < normal.latency_budget_s < extend.latency_budget_s
+    # ★ extend is BOUNDED ~8 min (480 s) — NOT unlimited; both budgets are bounded and strictly ordered ★
+    assert normal.latency_budget_s == 30.0 and extend.latency_budget_s == 480.0
+    assert normal.latency_budget_s < extend.latency_budget_s
     assert extend.latency_budget_s is not None, "extend must be time-BOUNDED (~8 min), never unbounded/overnight"
 
     # the Z3 counter (the instrument that makes separation checkable) works
@@ -4270,69 +4273,73 @@ def test_phaseM1_mode_policy():
     V.note_z3_check(); V.note_z3_check(); assert V.z3_check_count() == 2
     V.reset_z3_checks()
 
-    print(f"PASS test_phaseM1_mode_policy (verifier-tier ladder MICRO<CHEAP_CERT<FULL_CERT, fast NEVER certifies; "
-          f"grade floor mode-dependent: extend=EXACT-or-DECLINE (PROBABILISTIC rejected); detector sets strictly "
-          f"monotone fast⊂normal⊂extend ({len(FAST_DETECTORS)}⊂{len(NORMAL_DETECTORS)}⊂{len(EXTEND_DETECTORS)}); "
-          f"fast top-{fast.max_hotspots} first-win no-sweep ~1s, extend ~8min-BOUNDED full-sweep deep-search — contract enforced)")
+    print(f"PASS test_phaseM1_mode_policy (2-tier: verifier-tier ladder CHEAP_CERT<FULL_CERT; grade floor "
+          f"mode-dependent: extend=EXACT-or-DECLINE (PROBABILISTIC rejected); detector sets strictly monotone "
+          f"early_exit({len(EARLY_EXIT_DETECTORS)})⊂normal({len(NORMAL_DETECTORS)})⊂extend({len(EXTEND_DETECTORS)}); "
+          f"extend ~8min-BOUNDED full-sweep deep-search; fast retired as a Mode — contract enforced)")
 
 
 def test_phaseM2_mode_distinctness():
-    """PHASE M2 (v55): the seven distinctness proofs on ONE canonical multi-waste program. The single most
-    important assertion: a fix that passes differential testing but has NO certificate is ACCEPTED in normal and
-    DECLINEd in extend (EXACT-or-DECLINE). Plus: fast never invokes Z3 (z3_calls==0); cross-mode monotonicity of
-    BOTH speedup and latency; detector gating; and every shipped row is Amdahl-coherent (ratio ≤ ceiling)."""
+    """PHASE M2 (v55, 2-tier): distinctness proofs on the canonical multi-waste program. normal tries an
+    internal early-exit FIRST — on the full corpus, S2_n_plus_1 is early-exit-eligible AND by-construction
+    EXACT, so it fires immediately (the retired `fast` tier's instant-win behaviour, absorbed): one round,
+    Z3 NEVER touched. With that one candidate excluded, normal's FULL loop still compounds ≥2 real wins and
+    still ACCEPTS a fix that passes differential testing but has no certificate (S3, PROBABILISTIC) — the same
+    fix extend (EXACT-or-DECLINE) DECLINEs, unaffected by the early-exit (it never takes that path). Every
+    shipped row across all three runs is Amdahl-coherent (ratio ≤ ceiling)."""
     from pillar3 import engine as E, canonical as C
     from pillar3.mode import Mode
 
     cands = C.build_candidates()
-    runs = {m: E.optimize(cands, C.make_input, mode=m, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
-            for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND)}
-    f, n, e = runs[Mode.FAST], runs[Mode.NORMAL], runs[Mode.EXTEND]
+    cands_no_early_exit = [c for c in cands if c.name != "S2_n_plus_1"]
 
-    # (1) fast: ≤3 hotspots attacked; Z3 NEVER invoked; one accepted win; accepts a PROBABILISTIC; fast latency
-    assert f.hotspots_attacked <= 3
-    assert f.z3_calls == 0, f"fast invoked Z3 ({f.z3_calls}) — fast must NEVER block on Z3"
-    assert len(f.shipped) == 1 and "first accepted win" in f.stop_reason
-    assert any(s.grade == "PROBABILISTIC" for s in f.shipped)              # a fast likely-win
-    assert f.latency_s < 2.0                                               # sub-second target (generous CI bound)
+    # (1) normal's early-exit fires on the FULL corpus: ships ONLY the early-exit-eligible EXACT candidate, in
+    #     one round, NEVER touching Z3, fast — this IS the absorbed `fast` behaviour, now internal to normal.
+    fx = E.optimize(cands, C.make_input, mode=Mode.NORMAL, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
+    assert fx.rounds == 1 and fx.shipped_names() == {"S2_n_plus_1"}
+    assert fx.z3_calls == 0, "the early-exit must never invoke Z3 — that's the whole point"
+    assert {s.grade for s in fx.shipped} == {"EXACT"}, "early-exit ships EXACT only, never PROBABILISTIC-for-speed"
+    assert "early-exit" in fx.stop_reason
+    assert fx.latency_s < 2.0                                              # sub-second target (generous CI bound)
 
-    # (2) normal: iterates ≥2 rounds; ships EXACT and PROBABILISTIC; compounds a measured fresh cumulative win
-    assert n.rounds >= 2 and {s.grade for s in n.shipped} == {"EXACT", "PROBABILISTIC"}
-    assert n.fresh_cumulative_ratio > f.fresh_cumulative_ratio
+    # (2) with the early-exit candidate absent, normal falls through to its full compounding behaviour —
+    #     UNCHANGED from before: iterates ≥2 rounds, accepts a differential-only PROBABILISTIC fix (S3).
+    n = E.optimize(cands_no_early_exit, C.make_input, mode=Mode.NORMAL, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
+    assert n.rounds >= 2 and {s.grade for s in n.shipped} == {"PROBABILISTIC"}
+    assert "S3_accidental_quadratic" in n.shipped_names()
+    assert n.fresh_cumulative_ratio > 1.0, "normal's full loop still compounds a real measured win"
 
-    # (3) extend: ran the multi-size complexity sweep (≥3 sizes); invoked full Z3 (z3_calls>0); ships ONLY EXACT;
-    #     reaches a higher whole-program speedup than fast
+    # (3) extend: unaffected by the early-exit (never takes that path) — full multi-size sweep, full Z3, ships
+    #     ONLY EXACT; the SAME PROBABILISTIC-only fix (S3) that normal(full) accepts is DECLINEd here
+    e = E.optimize(cands, C.make_input, mode=Mode.EXTEND, n=1, residual=C.residual, sweep_fn=C.sweep_fn)
     assert e.ran_complexity_sweep and len(e.sweep_sizes) >= 3
     assert e.z3_calls > 0, "extend must invoke full Z3 on the algorithm swap"
     assert {s.grade for s in e.shipped} == {"EXACT"}
-    assert e.fresh_cumulative_ratio > f.fresh_cumulative_ratio
 
     # ★ THE KEY ASSERTION: the same PROBABILISTIC-only fix (S3) is ACCEPTED in normal, DECLINEd in extend ★
-    assert "S3_accidental_quadratic" in n.shipped_names()
     s3_decline = next((d for d in e.declined if d.name == "S3_accidental_quadratic"), None)
     assert s3_decline is not None and "below extend floor" in s3_decline.reason
 
-    # (4) cross-mode monotonicity: speedup extend ≥ normal ≥ fast; latency fast < normal < extend
-    assert e.fresh_cumulative_ratio >= n.fresh_cumulative_ratio >= f.fresh_cumulative_ratio
-    assert f.latency_s < n.latency_s < e.latency_s
+    # (4) cross-mode monotonicity on the SAME full corpus: extend reaches ≥ the early-exit's instant win;
+    #     the early-exit is strictly faster than extend's full budgeted run
+    assert e.fresh_cumulative_ratio >= fx.fresh_cumulative_ratio
+    assert fx.latency_s < e.latency_s
 
-    # (5) detector gating: an extend-only detector (gpu_simd_offload) fires in extend, NOT in fast or normal
+    # (5) detector gating: an extend-only detector (gpu_simd_offload) fires in extend, NOT in normal (either run)
     assert "gpu_simd_offload" in e.attempted_detectors
-    assert "gpu_simd_offload" not in f.attempted_detectors and "gpu_simd_offload" not in n.attempted_detectors
+    assert "gpu_simd_offload" not in n.attempted_detectors and "gpu_simd_offload" not in fx.attempted_detectors
 
-    # (6) verifier-tier gating already proven structurally in M1; here: fast reached zero Z3 at runtime (above)
-    # (7) Amdahl coherence: EVERY shipped row across ALL modes has ratio ≤ its own ceiling (by construction)
-    for m, r in runs.items():
+    # (6) Amdahl coherence: EVERY shipped row across ALL three runs has ratio ≤ its own ceiling (by construction)
+    for label, r in (("normal-early-exit", fx), ("normal-full", n), ("extend", e)):
         for s in r.shipped:
-            assert s.ratio <= s.ceiling + 1e-6, f"{m.value}:{s.name} ratio {s.ratio} > ceiling {s.ceiling}"
+            assert s.ratio <= s.ceiling + 1e-6, f"{label}:{s.name} ratio {s.ratio} > ceiling {s.ceiling}"
 
-    print(f"PASS test_phaseM2_mode_distinctness (fast: 1 PROBABILISTIC win, z3=0, {f.latency_s*1e3:.0f}ms, "
-          f"{f.fresh_cumulative_ratio:.2f}×; normal: {n.rounds} rounds EXACT+PROB {n.fresh_cumulative_ratio:.2f}×; "
-          f"extend: EXACT-only {e.fresh_cumulative_ratio:.2f}× z3={e.z3_calls} sweep={e.sweep_klass}({len(e.sweep_sizes)} "
-          f"sizes); ★S3 PROBABILISTIC accepted-in-normal / DECLINEd-in-extend★; monotonic speedup "
-          f"{e.fresh_cumulative_ratio:.2f}≥{n.fresh_cumulative_ratio:.2f}≥{f.fresh_cumulative_ratio:.2f} & latency "
-          f"{f.latency_s*1e3:.0f}<{n.latency_s*1e3:.0f}<{e.latency_s*1e3:.0f}ms; gpu-offload fires only in extend; "
-          f"all rows ratio≤ceiling — the three modes are observably distinct contracts)")
+    print(f"PASS test_phaseM2_mode_distinctness (normal early-exit: 1 EXACT win z3=0 {fx.latency_s*1e3:.0f}ms "
+          f"{fx.fresh_cumulative_ratio:.2f}× — the absorbed fast-tier behaviour; normal full loop (early-exit "
+          f"candidate excluded): {n.rounds} rounds PROBABILISTIC {n.fresh_cumulative_ratio:.2f}×; extend: "
+          f"EXACT-only {e.fresh_cumulative_ratio:.2f}× z3={e.z3_calls} sweep={e.sweep_klass}({len(e.sweep_sizes)} "
+          f"sizes); ★S3 PROBABILISTIC accepted-in-normal(full) / DECLINEd-in-extend★; gpu-offload fires only in "
+          f"extend; all rows ratio≤ceiling — normal's early-exit + full loop and extend are observably distinct)")
 
 
 def test_phaseP_provider_proposer():
@@ -6545,43 +6552,45 @@ def test_round2_monoid_mapreduce():
 
 
 def test_mode_separation_invariant():
-    """§B MODE-SEPARATION INVARIANT (must hold on EVERY commit) — the three modes are distinct CONTRACTS, not a
-    quality dial: (1) fast NEVER invokes Z3 (MICRO tier); (2) extend ships ONLY EXACT (EXACT-or-DECLINE —
-    PROBABILISTIC rejected); (3) fast/normal accept a well-tested PROBABILISTIC win; (4) the expensive techniques
-    (Z3/octagon/Gosper-FFT/Coq/race-free/deep-SIMD) are extended-only and the technique sets are monotone
-    (extend ⊇ fast); (5) EVERY graded capability is mode-tagged BY ITS GRADE — extend accepts it iff EXACT, so a
-    PROBABILISTIC capability can never leak into extend. Blurring any boundary fails this test (the build)."""
+    """§B MODE-SEPARATION INVARIANT (must hold on EVERY commit) — the two modes (2-tier — a former third tier,
+    `fast`, retired; its instant-win behaviour absorbed into normal's own early-exit, tested separately) are
+    distinct CONTRACTS, not a quality dial: (1) normal never reaches full Z3-everywhere (CHEAP_CERT tier);
+    (2) extend ships ONLY EXACT (EXACT-or-DECLINE — PROBABILISTIC rejected); (3) normal accepts a well-tested
+    PROBABILISTIC win; (4) the expensive techniques (Z3/octagon/Gosper-FFT/Coq/race-free/deep-SIMD) are
+    extended-only and the technique sets are monotone (extend ⊇ normal); (5) EVERY graded capability is
+    mode-tagged BY ITS GRADE — extend accepts it iff EXACT, so a PROBABILISTIC capability can never leak into
+    extend. Blurring any boundary fails this test (the build)."""
     from pillar3 import mode as M
     import kernel_verdict as KV
     import mode_policy as MP
 
-    fast = M.ModePolicy.for_mode(M.Mode.FAST)
     normal = M.ModePolicy.for_mode(M.Mode.NORMAL)
     extend = M.ModePolicy.for_mode(M.Mode.EXTEND)
 
-    assert fast.verifier_tier == M.VerifierTier.MICRO, "fast must be the MICRO tier (no Z3)"
-    assert MP.should_run("z3_smt", "fast") is False and MP.should_run("z3_smt", "normal") is False, "fast/normal never Z3"
+    assert normal.verifier_tier == M.VerifierTier.CHEAP_CERT, "normal must stay below the full-Z3-everywhere tier"
+    assert MP.should_run("z3_smt", "normal") is False, "normal never reaches unconditional Z3"
     assert MP.should_run("z3_smt", "extended") is True, "only extend calls Z3"
     assert extend.acceptable_grades == frozenset({KV.EXACT}), "extend ships only EXACT"
     assert extend.grade_acceptable(KV.EXACT) and not extend.grade_acceptable(KV.PROBABILISTIC), "extend rejects PROBABILISTIC"
-    assert fast.grade_acceptable(KV.PROBABILISTIC) and normal.grade_acceptable(KV.PROBABILISTIC)
+    assert normal.grade_acceptable(KV.PROBABILISTIC)
     for tech in ("octagon_polyhedra", "gosper_toeplitz_fft", "coq_forall", "racefree_parallel", "layout_simd_deep"):
-        assert MP.should_run(tech, "extended") and not MP.should_run(tech, "fast"), f"{tech} must be extended-only"
-    assert set(MP.gates_for("fast")) <= set(MP.gates_for("extended")), "extend ⊇ fast (monotone separation)"
+        assert MP.should_run(tech, "extended") and not MP.should_run(tech, "normal"), f"{tech} must be extended-only"
+    assert set(MP.gates_for("normal")) <= set(MP.gates_for("extended")), "extend ⊇ normal (monotone separation)"
 
     from pillar3 import exact_share as ES
     for cap in ES.INVENTORY:
         assert extend.grade_acceptable(cap.grade) == (cap.grade == KV.EXACT), \
             f"capability '{cap.name}' ({cap.grade}): extend-eligibility must equal (grade==EXACT)"
-        assert fast.grade_acceptable(cap.grade) and normal.grade_acceptable(cap.grade), \
-            f"capability '{cap.name}': fast/normal accept both grades"
+        assert normal.grade_acceptable(cap.grade), \
+            f"capability '{cap.name}': normal accepts both grades"
 
     n_exact = sum(1 for c in ES.INVENTORY if c.grade == KV.EXACT)
     n_prob = sum(1 for c in ES.INVENTORY if c.grade == KV.PROBABILISTIC)
-    print(f"PASS test_mode_separation_invariant (fast=MICRO/no-Z3; extend=EXACT-or-DECLINE; fast/normal accept "
-          f"PROBABILISTIC; {len(MP.gates_for('fast'))} fast gates ⊆ {len(MP.gates_for('extended'))} extend gates; "
-          f"all {len(ES.INVENTORY)} capabilities mode-tagged by grade — {n_exact} EXACT extend-eligible, {n_prob} "
-          f"PROBABILISTIC fast/normal-only, ZERO leak into extend)")
+    print(f"PASS test_mode_separation_invariant (2-tier: normal=CHEAP_CERT/no-unconditional-Z3; extend="
+          f"EXACT-or-DECLINE; normal accepts PROBABILISTIC; {len(MP.gates_for('normal'))} normal gates ⊆ "
+          f"{len(MP.gates_for('extended'))} extend gates; all {len(ES.INVENTORY)} capabilities mode-tagged by "
+          f"grade — {n_exact} EXACT extend-eligible, {n_prob} PROBABILISTIC normal-only, ZERO leak into extend; "
+          f"fast retired, absorbed into normal's early-exit)")
 
 
 def test_continuum_polysum_kinduction_exact():
@@ -6680,10 +6689,11 @@ def test_round2_sublinear_sampling():
 
 def test_mathascent_topmode_split():
     """MATH-ASCENT §1 — the two TOP-LEVEL modes CODE and MATH route MEASURABLY differently, AND the OMEGA §B
-    fast/normal/extend sub-separation is preserved VERBATIM inside each. CODE's first move is profile→recognize
-    (fold is NOT central); MATH's first move is fold (central, structure-first). The per-commit invariant
-    `routes_differ()` asserts the split; and inside both top modes fast=MICRO/never-Z3 and extend=EXACT-or-DECLINE
-    (the §B contract is identical in CODE and MATH — blurring either fails the build)."""
+    normal/extend sub-separation (2-tier — a former third tier, `fast`, retired) is preserved VERBATIM inside
+    each. CODE's first move is profile→recognize (fold is NOT central); MATH's first move is fold (central,
+    structure-first). The per-commit invariant `routes_differ()` asserts the split; and inside both top modes
+    normal=CHEAP_CERT and extend=EXACT-or-DECLINE (the §B contract is identical in CODE and MATH — blurring
+    either fails the build)."""
     from mathmode import topmode as TM
     from pillar3 import mode as M
     from pillar3.verifier import VerifierTier
@@ -6701,19 +6711,17 @@ def test_mathascent_topmode_split():
     for top in (TM.TopMode.CODE, TM.TopMode.MATH):
         inner = TM.inner_modes(top)
         by = {p.mode: p for p in inner}
-        assert set(by) == {M.Mode.FAST, M.Mode.NORMAL, M.Mode.EXTEND}, f"{top} must keep all three sub-modes"
-        # fast: MICRO tier — NEVER invokes Z3 (Clock A, no blocking)
-        assert by[M.Mode.FAST].verifier_tier == VerifierTier.MICRO, f"{top}.fast must be MICRO (never Z3)"
-        assert not by[M.Mode.FAST].runs_complexity_sweep and by[M.Mode.FAST].stop_on_first_win
+        assert set(by) == {M.Mode.NORMAL, M.Mode.EXTEND}, f"{top} must keep both sub-modes (fast retired)"
+        # normal: CHEAP_CERT tier, accepts EXACT+PROBABILISTIC (the balanced contract)
+        assert by[M.Mode.NORMAL].verifier_tier == VerifierTier.CHEAP_CERT, f"{top}.normal must be CHEAP_CERT"
+        assert by[M.Mode.NORMAL].acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
         # extend: EXACT-or-DECLINE (PROBABILISTIC-only fixes rejected)
         assert by[M.Mode.EXTEND].acceptable_grades == frozenset({KV.EXACT}), f"{top}.extend is EXACT-only"
         assert by[M.Mode.EXTEND].verifier_tier == VerifierTier.FULL_CERT
-        # normal accepts EXACT+PROBABILISTIC (the balanced contract)
-        assert by[M.Mode.NORMAL].acceptable_grades == frozenset({KV.EXACT, KV.PROBABILISTIC})
 
     print("PASS test_mathascent_topmode_split (CODE first-move=profile→recognize / MATH first-move=fold "
-          "[central]; toolsets disjoint; routes_differ()=True; §B preserved VERBATIM inside BOTH: "
-          "fast=MICRO/never-Z3, extend=EXACT-or-DECLINE, normal=EXACT+PROBABILISTIC)")
+          "[central]; toolsets disjoint; routes_differ()=True; §B preserved VERBATIM inside BOTH (2-tier, fast "
+          "retired): normal=CHEAP_CERT/EXACT+PROBABILISTIC, extend=EXACT-or-DECLINE)")
 
 
 def test_mathascent_fold_universal():
@@ -7268,8 +7276,10 @@ def test_mathascent_optimization_and_science():
 def test_mathascent_b1_mode_toggle():
     """§B1 (backend invariant; the UI surface was retired in §S) — the CODE and MATH engines route measurably
     differently, and the MATH §B grade floor is real: extend is EXACT-or-DECLINE (a PROBABILISTIC answer is
-    rejected), fast/normal accept it. The §S UI rebuild made the three-pillar code product the whole surface and
-    retired the CODE⇄MATH toggle + MATH screens; the MATH engine remains and these backend invariants still hold."""
+    rejected), normal accepts it. 2-tier — a former third inner mode, `fast`, retired (absorbed into normal's
+    own early-exit on the CODE side; MATH's `solve_in_mode` simply no longer recognises it as a floor-bearing
+    mode). The §S UI rebuild made the three-pillar code product the whole surface and retired the CODE⇄MATH
+    toggle + MATH screens; the MATH engine remains and these backend invariants still hold."""
     from mathmode import solver as MS
     from mathmode import topmode as TM
     import kernel_verdict as KV
@@ -7277,22 +7287,21 @@ def test_mathascent_b1_mode_toggle():
     # CODE and MATH route measurably differently (the per-commit topmode invariant)
     assert TM.routes_differ(), "CODE and MATH must route differently"
 
-    # the MATH §B grade floor is enforced (extend EXACT-or-DECLINE; fast/normal accept PROBABILISTIC)
+    # the MATH §B grade floor is enforced (extend EXACT-or-DECLINE; normal accepts PROBABILISTIC)
     prob = {"domain": "certified_numeric", "op": "montecarlo_pi", "samples": 8000, "delta": 1e-2}
-    assert MS.solve_in_mode(prob, "fast").verdict.status == KV.PROBABILISTIC
     assert MS.solve_in_mode(prob, "normal").verdict.status == KV.PROBABILISTIC
     ext = MS.solve_in_mode(prob, "extend")
     assert ext.verdict.status == KV.DECLINE and any(s.stage == "mode-floor" for s in ext.reasoning)
-    # an EXACT problem stays EXACT in all three inner modes; the result is JSON-serializable for the API
+    # an EXACT problem stays EXACT in both inner modes; the result is JSON-serializable for the API
     import json
-    for m in ("fast", "normal", "extend"):
+    for m in ("normal", "extend"):
         sol = MS.solve_in_mode("sum: k**2", m)
         assert sol.verdict.status == KV.EXACT
         json.dumps(sol.to_dict())
 
     print("PASS test_mathascent_b1_mode_toggle (UI toggle retired in §S — the three-pillar code product is the whole "
           "surface; the MATH engine remains: CODE/MATH route differently; §B floor enforced [extend EXACT-or-DECLINE, "
-          "fast/normal accept PROBABILISTIC]; to_dict JSON-safe)")
+          "normal accepts PROBABILISTIC]; fast retired; to_dict JSON-safe)")
 
 
 def test_mathascent_b3_archive_safety():
@@ -9038,7 +9047,7 @@ def test_algo50_registry():
     """HARAN/MR.JEFFREY §1 — the 50 NAMED layer-1 algorithms are CATALOGUED honestly in `algo50`, and every
     CONFIRMED/PARTIAL entry point RESOLVES (import + attribute) so 'we have algorithm N' is a re-checked fact,
     never a claim. The catalog is the honest spine: GAPS are NAMED (never padded over), grades obey the ADT,
-    quantum/relativity is exact-algebraic-only, the heavy decision procedures are extend-tier (fast never runs
+    quantum/relativity is exact-algebraic-only, the heavy decision procedures are extend-tier (normal never runs
     them), and the doubly-exp / O(p)-iteration / sieve-enumeration honesty caveats are RECORDED, not glossed."""
     import algo50 as A
     import kernel_verdict as KV
@@ -9057,7 +9066,7 @@ def test_algo50_registry():
     # (c) the grade ADT is honoured; the PROBABILISTIC frontier kernels are NEVER marked EXACT (24/26/27)
     for a in A.ALGOS:
         assert a.grade in {KV.EXACT, KV.PROBABILISTIC, KV.DECLINE}, a
-        assert a.tier in {"fast", "normal", "extend"} and a.status in {"CONFIRMED", "PARTIAL", "GAP"}, a
+        assert a.tier in {"normal", "extend"} and a.status in {"CONFIRMED", "PARTIAL", "GAP"}, a
     for n in (24, 26, 27):
         assert A.BY_NUM[n].grade == KV.PROBABILISTIC, f"#{n} must be PROBABILISTIC (never EXACT)"
 
@@ -9073,10 +9082,10 @@ def test_algo50_registry():
     assert "O(p)" in A.BY_NUM[37].complexity, "Lucas–Lehmer must be flagged O(p)-iteration (never O(1))"
     assert "ENUMERATION" in A.BY_NUM[43].complexity.upper(), "sieve is enumeration, not a collapse"
 
-    # (f) TIER discipline: fast NEVER hosts the heavy decision procedures — those live in extend (budgeted ~8min)
+    # (f) TIER discipline: normal NEVER hosts the heavy decision procedures — those live in extend (budgeted ~8min)
     HEAVY = {4, 6, 16, 18, 19, 20}   # Petkovsek, PiSigma*, Risch, CAD, Gröbner, Kovacic
     assert all(A.BY_NUM[n].tier == "extend" for n in HEAVY), "heavy decision procedures must be extend-tier"
-    assert all(a.num not in HEAVY for a in A.by_tier("fast")), "fast must never host a heavy decision procedure"
+    assert all(a.num not in HEAVY for a in A.by_tier("normal")), "normal must never host a heavy decision procedure"
 
     # (g) quantum/relativity (46–50) is the exact ALGEBRAIC layer — all EXACT with a recorded exact-only caveat
     for a in A.by_group("D"):
@@ -9667,44 +9676,47 @@ def test_haran_stern_brocot():
 
 
 def test_haran_tier_routing():
-    """HARAN §4 — TIER ROUTING for the 50 algorithms: a BROTH HIT short-circuits instantly in ANY mode (even
-    fast — it was pre-proven offline); on a MISS, fast (~1s) NEVER runs an extend-tier heavy solver (it returns
-    TIER_UP), normal runs fast+normal, extend runs everything within its bounded ~8-min budget. Operationalizes
-    the fast/normal/extend contract from pillar3/mode.py for the 50."""
+    """HARAN §4 — TIER ROUTING for the 50 algorithms (2-tier — a former third tier, `fast`, retired; algorithms
+    it used to host are tagged `normal`, the new floor): a BROTH HIT short-circuits instantly in ANY mode (even
+    normal — it was pre-proven offline); on a MISS, normal (~30s) NEVER runs an extend-tier heavy solver (it
+    returns TIER_UP), extend runs everything within its bounded ~8-min budget. Operationalizes the normal/extend
+    contract from pillar3/mode.py for the 50."""
     import algo50_router as R
     import kernel_verdict as KV
 
-    # (a) broth HIT short-circuits in fast — instant EXACT (the "사전증명된 닫힌형 0.1µs" path)
-    h = R.route(9, "fast", broth_key=("faulhaber", 5))
+    # (a) broth HIT short-circuits in normal — instant EXACT (the "사전증명된 닫힌형 0.1µs" path)
+    h = R.route(9, "normal", broth_key=("faulhaber", 5))
     assert h["action"] == "BROTH_HIT" and h["grade"] == KV.EXACT and "0.1µs" in h["ui"]
-    assert R.route(49, "fast", broth_key=("wigner3j", 1, 1, 2, 0, 0, 0))["action"] == "BROTH_HIT"
+    assert R.route(49, "normal", broth_key=("wigner3j", 1, 1, 2, 0, 0, 0))["action"] == "BROTH_HIT"
 
     # ★ the §2↔§4 payoff on the BROADENED broth: #38 factorization & #40 discrete-log are EXTEND-tier (HEAVY) —
-    #   a fast-mode MISS TIERS UP (fast won't run the heavy solver), but a pre-proven BROTH HIT returns INSTANTLY
-    #   even in fast, returning the exact pre-proven value ★
-    assert R.route(38, "fast")["action"] == "TIER_UP"                       # heavy factorizer: fast won't run it…
-    hb = R.route(38, "fast", broth_key=("factorize", 12))                   # …but the broth hit short-circuits it
+    #   a normal-mode MISS TIERS UP (normal won't run the heavy solver), but a pre-proven BROTH HIT returns
+    #   INSTANTLY even in normal, returning the exact pre-proven value ★
+    assert R.route(38, "normal")["action"] == "TIER_UP"                    # heavy factorizer: normal won't run it…
+    hb = R.route(38, "normal", broth_key=("factorize", 12))                # …but the broth hit short-circuits it
     assert hb["action"] == "BROTH_HIT" and hb["grade"] == KV.EXACT and hb["value"] == "{2: 2, 3: 1}"
-    assert R.route(40, "fast", broth_key=("dlog", 2, 22, 29))["action"] == "BROTH_HIT"   # heavy dlog, instant in fast
+    assert R.route(40, "normal", broth_key=("dlog", 2, 22, 29))["action"] == "BROTH_HIT"  # heavy dlog, instant
 
-    # (b) MISS: fast NEVER hosts a heavy extend-tier solver — it tiers up (the headline fast contract)
+    # (b) MISS: normal NEVER hosts a heavy extend-tier solver — it tiers up (the headline normal contract)
     for heavy in (4, 6, 16, 18, 19, 20):     # Petkovsek, PiSigma*, Risch, CAD, Gröbner, Kovacic
-        r = R.route(heavy, "fast")
+        r = R.route(heavy, "normal")
         assert r["action"] == "TIER_UP" and r["required_tier"] == "extend", (heavy, r)
 
-    # (c) MISS: a fast-tier algorithm RUNs in fast; a normal-tier one tiers up in fast but RUNs in normal
-    assert R.route(9, "fast")["action"] == "RUN"                  # Faulhaber is fast-tier
-    assert R.route(1, "fast")["action"] == "TIER_UP"             # Gosper is normal-tier
-    assert R.route(1, "normal")["action"] == "RUN"
+    # (c) MISS: a normal-tier algorithm RUNs in normal (the absorbed former-fast algorithms included)
+    assert R.route(9, "normal")["action"] == "RUN"                # Faulhaber is normal-tier (absorbed from fast)
+    assert R.route(1, "normal")["action"] == "RUN"                # Gosper is normal-tier
 
-    # (d) whole-fleet invariant: fast hosts NO heavy solver; extend runs all 50; only the 10 fast-tier RUN in fast
+    # (d) whole-fleet invariant: normal hosts NO heavy solver; extend runs all 50; only the 9 extend-tier
+    #     (HEAVY) algorithms tier up from normal — the other 41 (incl. the 10 absorbed from the old fast tier)
+    #     RUN directly in normal
     m = R.routing_matrix()
-    assert m["fast_hosts_no_heavy_solver"] and m["extend_runs_all"], m
-    assert m["fast_tier_up_count"] == 40, m
+    assert m["normal_hosts_no_heavy_solver"] and m["extend_runs_all"], m
+    assert m["normal_tier_up_count"] == 9, m
 
-    print(f"PASS test_haran_tier_routing (§4: broth HIT → instant in ANY mode incl. fast; MISS → fast (~1s) NEVER "
-          f"runs an extend-tier heavy solver [{m['fast_tier_up_count']}/50 TIER_UP in fast, 0 heavy hosted]; normal "
-          f"runs fast+normal; extend runs all 50 within its bounded budget — fast/normal/extend contract enforced)")
+    print(f"PASS test_haran_tier_routing (2-tier §4: broth HIT → instant in ANY mode incl. normal; MISS → normal "
+          f"(~30s) NEVER runs an extend-tier heavy solver [{m['normal_tier_up_count']}/50 TIER_UP in normal, 0 "
+          f"heavy hosted]; extend runs all 50 within its bounded budget — fast retired, its algorithms absorbed "
+          f"into normal — normal/extend contract enforced)")
 
 
 def test_haran_code_shape_invariance():
@@ -10121,27 +10133,28 @@ def test_haran_broth_lookup():
 
 
 def test_mode_budget_roles():
-    """§1 (CORE) — fast/normal/extend are DISTINCT roles with DISTINCT, ENFORCED wall-clock budgets, not speed
-    presets. The headline guarantee: extend is BOUNDED at ~8 min — NOT unlimited; at the deadline it returns the
-    BEST CERTIFIED result reached (or an honest partial), never runs past budget, never fakes a result to fill the
-    time, never weakens a grade to go faster; and fast NEVER calls the heavy solver. Each claim is a CHECKED
-    invariant here, so the role separation cannot silently drift back into 'same thing, slower/faster'."""
+    """§1 (CORE, 2-tier) — normal/extend are DISTINCT roles with DISTINCT, ENFORCED wall-clock budgets, not
+    speed presets (a former third role, `fast`, retired — its instant-win behaviour lives inside normal's own
+    early-exit, tested separately in test_phaseM2_mode_distinctness). The headline guarantee: extend is BOUNDED
+    at ~8 min — NOT unlimited; at the deadline it returns the BEST CERTIFIED result reached (or an honest
+    partial), never runs past budget, never fakes a result to fill the time, never weakens a grade to go
+    faster. Each claim is a CHECKED invariant here, so the role separation cannot silently drift back into
+    'same thing, slower/faster'."""
     import time
     import mode_budget as MB
     import kernel_verdict as KV
     from pillar3.mode import Mode, ModePolicy
     from pillar3 import verifier as V
 
-    # (a) the three TOTAL budgets are bounded and strictly ordered — extend is ~8 min, NOT unlimited
-    bf, bn, be = (MB.budget_for_mode(m) for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND))
-    assert (bf, bn, be) == (1.0, 30.0, 480.0), (bf, bn, be)
-    assert bf < bn < be and be == 480.0, "extend BOUNDED ~8min"
-    for m in (Mode.FAST, Mode.NORMAL, Mode.EXTEND):
+    # (a) the two TOTAL budgets are bounded and strictly ordered — extend is ~8 min, NOT unlimited
+    bn, be = (MB.budget_for_mode(m) for m in (Mode.NORMAL, Mode.EXTEND))
+    assert (bn, be) == (30.0, 480.0), (bn, be)
+    assert bn < be and be == 480.0, "extend BOUNDED ~8min"
+    for m in (Mode.NORMAL, Mode.EXTEND):
         assert ModePolicy.for_mode(m).latency_budget_s is not None, f"{m} must be time-bounded (never None/overnight)"
 
-    # (b) fast NEVER calls the heavy solver — its verifier tier provably excludes Z3 (a code-path guarantee)
-    assert ModePolicy.for_mode(Mode.FAST).verifier_tier == V.VerifierTier.MICRO
-    assert V.tier_allows_certificate(V.VerifierTier.MICRO, 1) is False, "fast (MICRO) must never invoke the solver"
+    # (b) normal never reaches unconditional Z3 (CHEAP_CERT); extend may go full (FULL_CERT)
+    assert ModePolicy.for_mode(Mode.NORMAL).verifier_tier == V.VerifierTier.CHEAP_CERT
     assert V.tier_allows_certificate(V.VerifierTier.FULL_CERT, 1) is True   # extend may
 
     # (c) WITHIN_BUDGET: work that completes returns its result + real grade
@@ -10167,11 +10180,11 @@ def test_mode_budget_roles():
     assert r2.grade == KV.PROBABILISTIC and r2.result == "best-so-far", "must return the honest best-so-far partial"
     assert r2.grade != KV.EXACT, "a DEFERRED partial is NEVER relabeled EXACT (grade not weakened/faked to look done)"
 
-    # (e) GRADES DIFFER BY TIER: extend is EXACT-or-DECLINE (PROBABILISTIC rejected); fast/normal accept the
-    # honest fast PROBABILISTIC — so the SAME probabilistic fix is acceptable in fast/normal but NOT in extend
-    fast_p, ext_p = ModePolicy.for_mode(Mode.FAST), ModePolicy.for_mode(Mode.EXTEND)
+    # (e) GRADES DIFFER BY TIER: extend is EXACT-or-DECLINE (PROBABILISTIC rejected); normal accepts the honest
+    # PROBABILISTIC win — so the SAME probabilistic fix is acceptable in normal but NOT in extend
+    normal_p, ext_p = ModePolicy.for_mode(Mode.NORMAL), ModePolicy.for_mode(Mode.EXTEND)
     assert ext_p.acceptable_grades == frozenset({KV.EXACT}), "extend ships only EXACT (or DECLINEs)"
-    assert fast_p.grade_acceptable(KV.PROBABILISTIC) and not ext_p.grade_acceptable(KV.PROBABILISTIC)
+    assert normal_p.grade_acceptable(KV.PROBABILISTIC) and not ext_p.grade_acceptable(KV.PROBABILISTIC)
 
     # (f) the live UI line (§3): 'mode · m:ss / m:ss' + a fraction in [0,1] that advances with elapsed time
     b = MB.TimeBudget(Mode.EXTEND, 480.0, time.monotonic() - 192.0)     # 3:12 into an 8:00 budget
@@ -10180,23 +10193,24 @@ def test_mode_budget_roles():
     assert b.remaining_s() > 0 and "BOUNDED" in MB.tier_label(Mode.EXTEND) and "8 min" in MB.tier_label(Mode.EXTEND)
 
     # (g) the REAL engine path runs UNDER the enforced budget and surfaces it — and grades differ by tier on it:
-    # the list-as-set fix is a differential/PROBABILISTIC win → SHIPPED in fast, but extend (EXACT-or-DECLINE)
-    # DECLINEs it. So the same code yields a shipped win in fast and a proven decline in extend — distinct roles.
+    # the list-as-set fix is a differential/PROBABILISTIC win → SHIPPED in normal, but extend (EXACT-or-DECLINE)
+    # DECLINEs it. So the same code yields a shipped win in normal and a proven decline in extend — distinct roles.
     from webapi import engine_bridge as EB
     waste = "def f(xs):\n    out = []\n    for x in xs:\n        if x in out:\n            continue\n        out.append(x)\n    return out\n"
-    rf, rn, re_ = (EB.run_optimize(waste, mm) for mm in ("fast", "normal", "extend"))
-    for rr, want_b in ((rf, 1.0), (rn, 30.0), (re_, 480.0)):
+    rn, re_ = (EB.run_optimize(waste, mm) for mm in ("normal", "extend"))
+    for rr, want_b in ((rn, 30.0), (re_, 480.0)):
         bd = rr["budget"]
         assert bd["budget_s"] == want_b and bd["bounded"] is True and bd["status"] == "WITHIN_BUDGET"
         assert bd["elapsed_s"] <= want_b, "the run must respect (stay within) its mode budget"
     assert re_["budget"]["display"] == "extend · 0:00 / 8:00" or re_["budget"]["display"].endswith("/ 8:00")
-    assert len(rf["shipped"]) >= 1, "fast ships the honest differential/PROBABILISTIC win"
+    assert len(rn["shipped"]) >= 1, "normal ships the honest differential/PROBABILISTIC win"
     assert len(re_["shipped"]) == 0, "extend is EXACT-or-DECLINE — the PROBABILISTIC-only fix is NOT shipped"
 
-    print(f"PASS test_mode_budget_roles (fast/normal/extend = {bf:.0f}s/{bn:.0f}s/{be:.0f}s ENFORCED & ordered; "
-          f"extend BOUNDED ~8min NOT unlimited; fast(MICRO) never calls the solver; budget overrun → DEFERRED_PARTIAL "
-          f"in {elapsed:.2f}s [no hang], best-so-far grade={r2.grade} kept honest [not faked/weakened to EXACT]; "
-          f"grades differ by tier (extend EXACT-or-DECLINE, PROBABILISTIC rejected); live UI line '{b.display()}')")
+    print(f"PASS test_mode_budget_roles (2-tier: normal/extend = {bn:.0f}s/{be:.0f}s ENFORCED & ordered; "
+          f"extend BOUNDED ~8min NOT unlimited; normal never reaches unconditional Z3 (CHEAP_CERT); budget "
+          f"overrun → DEFERRED_PARTIAL in {elapsed:.2f}s [no hang], best-so-far grade={r2.grade} kept honest "
+          f"[not faked/weakened to EXACT]; grades differ by tier (extend EXACT-or-DECLINE, PROBABILISTIC "
+          f"rejected); live UI line '{b.display()}'; fast retired, absorbed into normal's early-exit)")
 
 
 def test_loop_decision():
@@ -10262,7 +10276,7 @@ def test_code_stream():
     progressively (mirroring MATH's ROUTE/RECOGNIZE/KERNEL/증명서). The honesty invariant: every record reflects
     the REAL tier+budget, the REAL decision/fold, and the REAL grade+certificate — the displayed grade EQUALS the
     engine's actual grade (re-derived here), never fabricated progress; extend's budget line shows the BOUNDED
-    ~8 min, fast's shows ~1 s."""
+    ~8 min, normal's shows ~30 s."""
     import code_stream as CS
     from webapi import engine_bridge as EB
     import structure_recognizer as SR
@@ -10287,13 +10301,15 @@ def test_code_stream():
     assert res_graded[0].certificate == real.certificate                    # displayed cert == engine cert (verbatim)
     assert "닫힌형이 없음" in res_graded[0].message and "PROVEN DECLINE" in res_graded[0].message
 
-    # (c) for a shipped win, the RESULT grade EQUALS run_optimize's ACTUAL shipped grade (displayed == engine)
-    tw = CS.build_code_trace(waste, "fast")
-    eng = EB.run_optimize(waste, "fast")
-    assert eng["shipped"], "fast ships the differential win"
+    # (c) for a shipped win, the RESULT grade EQUALS run_optimize's ACTUAL shipped grade (displayed == engine) —
+    # "waste" is a list-as-set membership check, an EARLY_EXIT_DETECTORS member, so normal ships it via its own
+    # certified-only instant early-exit (the retired fast tier's absorbed behaviour)
+    tw = CS.build_code_trace(waste, "normal")
+    eng = EB.run_optimize(waste, "normal")
+    assert eng["shipped"], "normal's early-exit ships the differential win"
     rw = [e for e in tw if e.phase == CS.RESULT and e.grade]
     assert rw and rw[0].grade == eng["shipped"][0]["grade"].upper(), "displayed grade must equal the engine's grade"
-    assert all(e.budget.endswith("/ 0:01") for e in tw)                     # fast budget ~1 s
+    assert all(e.budget.endswith("/ 0:30") for e in tw)                     # normal budget ~30 s (ships instantly)
 
     # (d) SSE frames are well-formed and JSON-decodable (the frontend's existing live event channel)
     frames = CS.to_sse(th)

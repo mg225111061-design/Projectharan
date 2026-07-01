@@ -1,5 +1,7 @@
 """
-v26.2 STAGE 10 — NORMAL/EXTENDED mode-allocation policy (which mathematics, how far).
+v26.2 STAGE 10 — NORMAL/EXTENDED mode-allocation policy (which mathematics, how far). 2-tier — a former
+third tier, `fast`, retired from this table (§BU-0 N-table unification): this module's BEST_OF_N is now the
+SINGLE canonical source for best-of-N sizing (`bestofn.py` imports it rather than keeping its own table).
 =====================================================================================
 A mode is a DIAL on *how much mathematics to spend*, never a knob on correctness — BOTH modes are
 zero-wrong-answer (the difference is depth/coverage, not soundness). This module is the declarative
@@ -46,10 +48,10 @@ POLICY: Dict[str, Tuple[bool, bool, str]] = {
     "taint_ifds":            (True,  True,  "security"),
 }
 
-# write→verify→fix loop depth. ★ fast = single shot (fewest iterations) — still SOUNDLY verified; "검증 최소"
-# = minimal depth/retries, NOT skipping the sound gate (we never emit unverified code). ★
-MODE_BUDGET = {"fast": 1, "normal": 2, "extended": 5}
-BEST_OF_N = {"fast": (1, 1), "normal": (1, 2), "extended": (4, 8)}  # selector = SOUND verifier only (never learned reward)
+# write→verify→fix loop depth. "검최소" = minimal depth/retries, NOT skipping the sound gate (we never emit
+# unverified code) — normal is already the shallowest shot, still SOUNDLY verified.
+MODE_BUDGET = {"normal": 2, "extended": 5}
+BEST_OF_N = {"normal": (1, 2), "extended": (4, 8)}  # selector = SOUND verifier only (never learned reward)
 
 
 @dataclass
@@ -63,8 +65,7 @@ class ModePlan:
 
 
 def _idx(mode: str) -> int:
-    # fast & normal share the CHEAP (sound) gate column; only extended unlocks the expensive column.
-    # "fast" is still SOUNDLY verified — it just spends fewer retries (MODE_BUDGET), never a weaker gate.
+    # normal gets the CHEAP (sound) gate column; only extended unlocks the expensive column.
     return 1 if mode == "extended" else 0
 
 
@@ -81,14 +82,14 @@ def gates_for(mode: str) -> List[str]:
 
 
 def plan(mode: str) -> ModePlan:
-    mode = mode if mode in ("fast", "normal", "extended") else "normal"
+    mode = mode if mode in ("normal", "extended") else "normal"
     return ModePlan(mode=mode, gates=gates_for(mode), best_of_n=BEST_OF_N[mode],
                     loop_budget=MODE_BUDGET[mode])
 
 
 def progress_stages(mode: str) -> List[str]:
     """Honest progress labels for the SSE UI — only the stages this mode actually runs.
-    fast/normal share the cheap-but-SOUND gate set; extended adds the expensive proofs."""
+    normal runs the cheap-but-SOUND gate set; extended adds the expensive proofs."""
     base = ["classify", "generate", "clover_spec_gate", "type_property_metamorphic", "verify"]
     if mode == "extended":
         base += ["z3_smt", "octagon_polyhedra", "optimize"]

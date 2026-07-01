@@ -1321,7 +1321,9 @@ def test_product_phase8_ui_honest_numbers():
     html = open("mrjeffrey_landing.html", encoding="utf-8").read()
     runs_block = re.search(r"const RUNS = \{(.*?)\n\};", html, re.DOTALL).group(1)
     shown = [float(x) for x in re.findall(r"(?:ratio|ceil|cum|f):\s*([0-9]+\.[0-9]+)", runs_block)]
-    assert len(shown) >= 18, f"too few demo numbers parsed ({len(shown)}) — parser drift"
+    # 2-tier (fast retired, §BT-0): normal ships 1 early-exit row + extend ships 2 rows = 11 raw fields;
+    # the floor is lowered from the old 3-tier's 18 to match, still catching real parser drift (e.g. 0 matches)
+    assert len(shown) >= 10, f"too few demo numbers parsed ({len(shown)}) — parser drift"
     # the two hero numbers the page headlines (the O(n²)→O(n) win and the honest decline)
     assert "115×" in html and "1.00×" in html
     shown += [115.0, 1.00]
@@ -1332,8 +1334,8 @@ def test_product_phase8_ui_honest_numbers():
     assert unbacked == [], f"(4) UNBACKED UI numbers (not in the measured engine source): {unbacked}"
     print(f"PASS test_product_phase8_ui_honest_numbers (provenance: real-engine generator, no hand-edits; AMDAHL "
           f"law ratio≤ceiling holds on all {len(data['runs'])} runs + {len(data['panel_rows'])} panel rows; declines "
-          f"carry a reason + hide no >10% win; PINNED: all {len(shown)} landing-page numbers [6 demo bars + hero 115× "
-          f"+ decline 1.00×, re-synced from stale 112×/0.97×] backed by the measured JSON — a fabricated/drifted UI "
+          f"carry a reason + hide no >10% win; PINNED: all {len(shown)} landing-page numbers [3 demo bars (2-tier — "
+          f"fast retired, §BT-0) + hero 115× + decline 1.00×] backed by the measured JSON — a fabricated/drifted UI "
           f"number is now a test failure)")
 
 
@@ -3640,7 +3642,7 @@ def test_v_precision_and_report():
     # every mode measured cold AND warm, warm faster (the cold→warm transition realized on repeated work)
     for m in rep["cold_vs_warm_per_mode"]:
         assert m["cold_ms"] > 0 and m["warm_ms"] > 0 and m["warm_speedup"] > 1.0
-    assert rep["cold_vs_warm_per_mode"][2]["mode"] == "extend" and rep["cold_vs_warm_per_mode"][2]["depth_ops"] == 160
+    assert rep["cold_vs_warm_per_mode"][1]["mode"] == "extend" and rep["cold_vs_warm_per_mode"][1]["depth_ops"] == 160
     # the LLM lever: count reduction measured, latency modeled (never a fabricated measured latency)
     llm = rep["llm_call_count_reduction"]
     assert llm["call_count_reduction"] > 0.5 and "MODELED" in llm["note"]

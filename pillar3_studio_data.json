@@ -3,21 +3,6 @@
   "generated_by": "pillar3_studio_gen.py — real engine runs; no hand-edited numbers",
   "modes": [
     {
-      "mode": "fast",
-      "primary_clock": "A (felt speed)",
-      "verifier_tier": "MICRO",
-      "detectors": 12,
-      "acceptable_grades": [
-        "EXACT",
-        "PROBABILISTIC"
-      ],
-      "max_hotspots": 3,
-      "runs_complexity_sweep": false,
-      "latency_budget_s": 1.0,
-      "risk_posture": "miss-a-win OK; block-the-dev NEVER",
-      "stop_condition": "first accepted win"
-    },
-    {
       "mode": "normal",
       "primary_clock": "balance A/B/C",
       "verifier_tier": "CHEAP_CERT",
@@ -42,9 +27,9 @@
       ],
       "max_hotspots": null,
       "runs_complexity_sweep": true,
-      "latency_budget_s": null,
-      "risk_posture": "DECLINE-a-real-win OK; ship-unproven NEVER",
-      "stop_condition": "every enabled detector tried; floor or Clock-B budget reached"
+      "latency_budget_s": 480.0,
+      "risk_posture": "DECLINE-a-real-win OK; ship-unproven NEVER; run-past-budget NEVER",
+      "stop_condition": "every enabled detector tried, OR the ~8-min extend budget is spent — then return the best CERTIFIED result reached (or an honest partial); never past budget, never faked"
     }
   ],
   "providers": [
@@ -75,101 +60,67 @@
     },
     {
       "id": "groq",
-      "label": "Groq",
+      "label": "groq",
       "transport": "openai_chat"
     },
     {
       "id": "mistral",
-      "label": "Mistral",
+      "label": "mistral",
       "transport": "openai_chat"
     },
     {
       "id": "cohere",
-      "label": "Cohere",
+      "label": "cohere",
       "transport": "openai_chat"
     },
     {
       "id": "deepseek",
-      "label": "DeepSeek",
+      "label": "deepseek",
       "transport": "openai_chat"
     },
     {
       "id": "xai",
-      "label": "Grok (xAI)",
+      "label": "xai",
       "transport": "openai_chat"
     },
     {
       "id": "together",
-      "label": "Together AI",
+      "label": "together",
       "transport": "openai_chat"
     },
     {
       "id": "fireworks",
-      "label": "Fireworks AI",
+      "label": "fireworks",
       "transport": "openai_chat"
     },
     {
       "id": "openrouter",
-      "label": "OpenRouter",
+      "label": "openrouter",
       "transport": "openai_chat"
     },
     {
       "id": "perplexity",
-      "label": "Perplexity",
+      "label": "perplexity",
       "transport": "openai_chat"
     }
   ],
   "runs": [
     {
-      "mode": "fast",
-      "shipped": [
-        {
-          "name": "S1_list_as_set",
-          "waste_type": "list_as_set",
-          "grade": "PROBABILISTIC",
-          "ratio": 1.279,
-          "ceiling": 1.31,
-          "hotspot_fraction": 0.234
-        }
-      ],
-      "declined": [],
-      "cumulative_ratio": 1.293,
-      "z3_calls": 0,
-      "latency_ms": 556.4,
-      "ran_complexity_sweep": false
-    },
-    {
       "mode": "normal",
       "shipped": [
-        {
-          "name": "S1_list_as_set",
-          "waste_type": "list_as_set",
-          "grade": "PROBABILISTIC",
-          "ratio": 1.229,
-          "ceiling": 1.28,
-          "hotspot_fraction": 0.218
-        },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 1.536,
-          "ceiling": 1.57,
-          "hotspot_fraction": 0.361
-        },
-        {
-          "name": "S3_accidental_quadratic",
-          "waste_type": "accidental_quadratic",
-          "grade": "PROBABILISTIC",
-          "ratio": 1.925,
-          "ceiling": 1.96,
-          "hotspot_fraction": 0.49
+          "ratio": 1.148,
+          "ceiling": 1.18,
+          "hotspot_fraction": 0.146
         }
       ],
       "declined": [],
-      "cumulative_ratio": 1.867,
+      "cumulative_ratio": 1.149,
       "z3_calls": 0,
-      "latency_ms": 1356.7,
+      "latency_ms": 294.1,
       "ran_complexity_sweep": false
     },
     {
@@ -179,17 +130,17 @@
           "name": "S4_algorithm_recognition",
           "waste_type": "algo_replace",
           "grade": "EXACT",
-          "ratio": 1.782,
-          "ceiling": 1.82,
-          "hotspot_fraction": 0.45
+          "ratio": 1.754,
+          "ceiling": 1.83,
+          "hotspot_fraction": 0.452
         },
         {
           "name": "S2_n_plus_1",
           "waste_type": "n_plus_1",
           "grade": "EXACT",
-          "ratio": 2.277,
-          "ceiling": 2.47,
-          "hotspot_fraction": 0.595
+          "ratio": 2.282,
+          "ceiling": 2.44,
+          "hotspot_fraction": 0.59
         }
       ],
       "declined": [
@@ -206,9 +157,9 @@
           "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
         }
       ],
-      "cumulative_ratio": 2.267,
+      "cumulative_ratio": 2.244,
       "z3_calls": 2,
-      "latency_ms": 2135.4,
+      "latency_ms": 1242.3,
       "ran_complexity_sweep": true
     }
   ],

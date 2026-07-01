@@ -1,13 +1,13 @@
 """
-§1 (CORE) — fast / normal / extend as ENFORCED TIME-BUDGET roles (not speed presets).
+§1 (CORE) — normal / extend as ENFORCED TIME-BUDGET roles (not speed presets). 2-tier — a former third tier,
+`fast`, retired; its instant-win behaviour is now normal's own internal early-exit (pillar3.engine.optimize).
 =====================================================================================
-The three CODE tiers are DISTINCT roles with DISTINCT wall-clock budgets and DISTINCT guarantees:
+The two CODE tiers are DISTINCT roles with DISTINCT wall-clock budgets and DISTINCT guarantees:
 
-  • fast   ≈ 1 s   — quick, cheap, NEVER calls the heavy solver (no Z3 / no extend-grade search). It returns a
-                     fast result or honestly tiers up. If it would exceed ~1 s it bails to a quick answer; it
-                     never hangs.
   • normal ≈ 30 s  — the standard tier: real optimisation + real verification within a ~30 s budget; a verified
-                     result or an honest "needs extend" at the boundary.
+                     result or an honest "needs extend" at the boundary. It FIRST tries an internal, EXACT-only
+                     instant early-exit (no Z3, never a speculative shortcut) before its full compounding loop —
+                     the absorbed fast-tier behaviour, now just normal's first move.
   • extend ≈ 8 min — the DEEPEST tier, but TIME-BOUNDED at ~480 s, NOT unlimited. It does the heaviest work that
                      fits in 8 minutes; when the budget is spent it returns the BEST CERTIFIED result reached so
                      far, or an honest partial. It NEVER runs past the budget, NEVER fakes a result to fill the
@@ -150,7 +150,8 @@ def run_under_mode_budget(mode: Mode, work: Callable[["TimeBudget", "Partial"], 
 def tier_label(mode: Mode) -> str:
     """The honest one-line role+budget label for the report/UI (§3) — never describes extend as unlimited."""
     return {
-        Mode.FAST:   "fast · ~1 s · quick, may defer · NEVER calls the heavy solver",
-        Mode.NORMAL: "normal · ~30 s · standard verified within budget",
+        Mode.NORMAL: "normal · ~30 s · standard verified within budget, with an internal certified-only "
+                     "instant early-exit (absorbs the retired fast tier) · NEVER calls the heavy solver on "
+                     "that early-exit path",
         Mode.EXTEND: "extend · ~8 min (BOUNDED) · deepest; returns the best certified result within budget",
     }[mode]

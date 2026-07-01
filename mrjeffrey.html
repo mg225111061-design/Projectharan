@@ -198,9 +198,8 @@ const DATA = {
     {"id":"anthropic_compat","label":"Claude-compatible gateway","transport":"anthropic_sdk","default_model":"claude-opus-4-8","free_no_card":false,"key_label":"Claude-compatible gateway API key","get_key_url":null}
   ],
   "modes":[
-    {"id":"fast","name":"빠르게","note":"가벼운 검증 — 빠른 응답"},
-    {"id":"normal","name":"표준","note":"기본 — 균형"},
-    {"id":"extend","name":"깊게","note":"더 깊은 검증·탐색"}
+    {"id":"normal","name":"표준(정확)","note":"기본 — 확실한 히트는 즉시, 아니면 균형 있게 반복 검증"},
+    {"id":"extend","name":"깊게(보안)","note":"더 깊은 검증·탐색 (formal + 보안 점검까지)"}
   ],
   "key_policy":"API 키는 세션 전용입니다 (session-only): 이 브라우저 탭에서 요청에만 쓰이고, 저장·로그·커밋되지 않으며 (never logged, never stored), 당신이 고른 제공자 외 어디로도 전송되지 않습니다.",
   "account_policy":"계정은 아이디와 비밀번호, 그리고 지난 대화만 저장합니다 — API 키는 절대 저장하지 않습니다. 키는 매 세션 다시 붙여넣으며, 이 탭에만 머뭅니다.",
