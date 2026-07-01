@@ -92,3 +92,26 @@ gate strictness) are NEVER decided solo — flagged below and that item is skipp
   test function, exactly as the directive instructed). Committing now. Next: Task 5 (production re-sweep —
   create PRODUCTION_LEDGER.md, register all 10H Task 1-4 files, no orphans; continue AUDIT_LEDGER.md's backlog
   if time remains).
+
+- **2026-07-01 16:20 UTC** — Task 5 part 1 (PRODUCTION_LEDGER.md) DONE. Created the ledger (confirmed absent
+  first) registering all 9 new `.py` files (the `agenttools/` package's 9 modules + `swebench/real_dataset.py`)
+  plus the 3 modified pre-existing files (`agentic.py`, `webapi/engine_dispatch.py`, `engine_inventory.py`) from
+  Tasks 1–4. **Method, not assumption**: ran `engine_inventory.classify(path)` directly against each file for
+  the verdict column (repo's own vocabulary: transitive/package_init/app_layer/observability — never invented
+  terms), and cited the actual test function or reach-probe call site per row. **One real finding while
+  building the evidence, not just formatting**: `agenttools/toolcall.py` is NOT touched by `agenttools_reach()`'s
+  `adversarial_battery()` self-test (confirmed by reading `agenttools/__init__.py` directly — it isn't imported
+  there) — its `classify()`-assigned `transitive` verdict rests only on same-package membership. Its REAL
+  reachability is a stronger, separate path: `agentic.py:38` imports it unconditionally at module level (the
+  actual production app-layer entry point), which I confirmed by grep rather than assuming the coarse verdict
+  told the whole story. Also grep-verified that `agenttools_reach()`/`swebench_reach()` follow the SAME
+  test-only-called convention as the pre-existing `newengine_reach`/`metakernel_reach`/`qmkernel_reach` (none
+  are aggregated into `full_inventory()`/`production_reach()` either) — not a weaker convention invented for
+  this directive. **Tier-A call made+logged**: modeled the ledger on `AUDIT_LEDGER.md`'s per-file table
+  granularity but with `engine_inventory.py`'s own wired/gap vocabulary for the verdict column, since this is a
+  reachability registration (Task 5's actual ask) not a grade-honesty violation review (`AUDIT_LEDGER.md`'s
+  separate, larger job) — documented the distinction in the ledger's own header so the two are never confused.
+  **No code changed this step** (pure documentation, zero test coupling — grep-confirmed no test file references
+  `PRODUCTION_LEDGER.md`), so skipped a full 30-minute gate re-run as disproportionate; `test_docs_not_stale`
+  re-confirmed clean regardless. Committing now. Next: continue with `AUDIT_LEDGER.md`'s pre-existing
+  unreviewed-files backlog (Batch 1 remainder + Batches 2–6) for the remainder of Task 5's scope.
