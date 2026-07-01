@@ -242,6 +242,86 @@ def test_s8_glm_preset():
     print("PASS test_s8_glm_preset")
 
 
+def test_mrj_ollama_local_preset():
+    """MR.JEFFREY v2.2 Task 1: 'download' fuses JEFF's verification engine with Ollama's LOCAL inference —
+    never a redistribution of Ollama. The preset rides the SAME openai_chat transport as every other
+    family-C gateway (Ollama's REST API is OpenAI-compatible at localhost:11434/v1; web-confirmed) — zero
+    new transport code. free_no_card=True and get_key_url=None (there is no key to obtain; Ollama accepts
+    any non-empty placeholder), and resolve_key_for supplies one so a live call is never silently mocked."""
+    import provider
+    prov, base, model, _src = provider.GATEWAY_PRESETS["Ollama (local)"]
+    assert prov == "ollama_local" and base == "http://localhost:11434/v1" and model == ""
+    assert provider.transport_kind(prov) == "openai_chat"
+    assert provider.base_url(prov) == "http://localhost:11434/v1"
+    assert provider.is_free_no_card(prov) and provider.get_key_url(prov) is None
+    assert provider.resolve_key_for(prov)                       # non-empty placeholder — never falsy
+    assert "ollama_local" in provider.VALID_PROVIDERS
+    # the openai request shape is the plain chat/completions form (identical to every other openai_chat id)
+    k = CA._build_openai_kwargs("hi", None, "llama3:8b", 256, False)
+    assert k["model"] == "llama3:8b" and k["messages"][0]["role"] == "system"
+    print("PASS test_mrj_ollama_local_preset")
+
+
+def test_mrj_claude_generate_base_url_per_provider():
+    """MR.JEFFREY v2.2 fix: `claude_generate`'s base_url resolution previously ignored a PER-REQUEST
+    `provider` override (it always fell back to the server's frozen import-time env default) — meaning
+    picking any non-default provider in the UI (Groq, Ollama, ...) without ALSO setting a server-side env
+    var would silently dial the wrong host. ★ REGRESSION ★: an explicit provider (no base_url override)
+    now resolves ITS OWN verified base_url from provider.py; the no-args default path is byte-identical
+    to before; an explicit base_url always wins regardless of provider."""
+    import provider as PRV
+    assert CA._resolve_base_url(CA.DEFAULT_PROVIDER, None) == CA.DEFAULT_BASE_URL         # unchanged default path
+    assert CA._resolve_base_url("groq", None) == PRV.base_url("groq") == "https://api.groq.com/openai/v1"
+    assert CA._resolve_base_url("ollama_local", None) == PRV.base_url("ollama_local") == "http://localhost:11434/v1"
+    assert CA._resolve_base_url("groq", "https://custom.example/v1") == "https://custom.example/v1"  # override wins
+    print("PASS test_mrj_claude_generate_base_url_per_provider")
+
+
+def test_v22_onboarding_ui_structure():
+    """MR.JEFFREY v2.2 Task 3/4: the onboarding flow (API-key path vs Local-Ollama path) lives in
+    mrjeffrey.html as NEW SCREENS on the SAME single-file app — never a forked/duplicate chat
+    implementation. Structural regression (a live click-through was ALSO run manually via Playwright
+    this session — HTML parses, onboarding choice/API-disabled-Next/local-not-found-guidance/local-chat
+    data-skin/§BG-badge-on-local-chat all confirmed in a real headless browser): the onboarding screens
+    and Ollama client calls are present exactly once, the local-Ollama screens carry the
+    [data-skin="ollama"] scope, and that skin NEVER touches the §BG grade-badge classes — the one
+    deliberate exception the v2.2 overriding clause requires."""
+    from pathlib import Path
+    html = (Path(__file__).parent / "mrjeffrey.html").read_text(encoding="utf-8")
+
+    # (1) the onboarding screens + Ollama client calls exist, each exactly once (no accidental fork)
+    for needle in ("function scrOnboard", "function onboardApi", "function onboardLocal",
+                   "function ollamaDetect", "function ollamaListModels", "function ollamaPull",
+                   "function chooseLocalModel"):
+        assert html.count(needle) == 1, needle
+    assert '"/api/ollama/status"' in html and '"/api/ollama/models"' in html and '"/api/ollama/pull"' in html
+
+    # (2) the chat pipeline is NOT forked for the local path — exactly one definition of each, shared
+    #     by both entry paths (Prime Directive 8: UI-skin difference is never a pipeline difference).
+    for fn in ("function sendMessage", "function applyEvent", "function renderAssistant",
+               "function checkGrade", "function checkOnly", "function validateKey"):
+        assert html.count(fn) == 1, f"{fn} must be the single shared implementation (no local-only fork)"
+
+    # (3) the API path's "Next" is genuinely disabled (not just styled) until keyState.phase==="ok" —
+    #     the same LIVE_OK signal validateKey()/the existing ⚿ settings panel already produces.
+    assert 'disabled:ready?null:""' in html and 'S.keyState.phase==="ok"' in html
+
+    # (4) the local skin is scoped via data-skin="ollama" and NEVER restyles the §BG grade classes.
+    skin_block = html[html.index('[data-skin="ollama"] .slab'):html.index("</style>")]
+    for grade_cls in (".run-grade", ".g-EXACT", ".g-CHECKED", ".g-FLAGGED", ".g-DEFER", ".defer-box"):
+        assert grade_cls not in skin_block, f"{grade_cls} must never be restyled by the ollama skin"
+    # the chat screen carries that skin ONLY when entered via the local onboarding path
+    assert '"data-skin": S.onboardPath==="local"?"ollama":null' in html
+
+    # (5) STEPS/SCREENS wiring: onboarding sits between landing and chat, both routes converge on "chat"
+    assert '["landing","0","개요"],["onboard","1","시작하기"],["chat","2","대화"]' in html
+    assert "onboard:scrOnboard" in html
+    print("PASS test_v22_onboarding_ui_structure (onboarding screens present exactly once each, chat "
+          "pipeline single-shared with no local-path fork, API-path Next genuinely gated on "
+          "keyState.phase==='ok', ollama skin scoped to data-skin and never touches .run-grade/.g-*/"
+          ".defer-box — live click-through confirmed in a real headless browser this session)")
+
+
 def test_s7_fold_kernels():
     """v26 S7: FOLDED where structure is provable, ABSENT/DECLINED honestly, never a wrong closed form."""
     import fold_kernels as FK

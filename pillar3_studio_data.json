@@ -64,6 +64,11 @@
       "transport": "openai_chat"
     },
     {
+      "id": "ollama_local",
+      "label": "ollama_local",
+      "transport": "openai_chat"
+    },
+    {
       "id": "mistral",
       "label": "mistral",
       "transport": "openai_chat"

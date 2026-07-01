@@ -533,6 +533,42 @@ def create_app():
         p = await req.json()
         return JSONResponse(_ENGINE.validate_key(p.get("provider", ""), p.get("key", ""), p.get("model")))
 
+    # ---- MR.JEFFREY local-Ollama onboarding (detect / list / pull) — see webapi/local_models.py ----
+    # These probe the SERVER PROCESS'S OWN localhost:11434 (self-hosted deployment ⇒ the user's own
+    # machine; a remote deployment ⇒ honestly not-found). The chat/generate call itself needs NONE of
+    # these routes — it reuses /api/stream + /api/generate unchanged via provider="ollama_local".
+    try:
+        from webapi import local_models as _OLLAMA               # noqa: PLC0415
+    except Exception:                                             # noqa: BLE001
+        _OLLAMA = None
+
+    @app.get("/api/ollama/status")
+    async def api_ollama_status():                                # noqa: ANN202
+        if _OLLAMA is None:
+            return JSONResponse({"ok": False, "detail": "local_models unavailable"}, status_code=503)
+        return JSONResponse(_OLLAMA.detect())
+
+    @app.get("/api/ollama/models")
+    async def api_ollama_models():                                # noqa: ANN202
+        if _OLLAMA is None:
+            return JSONResponse({"ok": False, "models": []}, status_code=503)
+        return JSONResponse(_OLLAMA.list_models())
+
+    @app.post("/api/ollama/pull")                                 # SSE: Ollama's own download-progress shape
+    async def api_ollama_pull(req: Request):                      # noqa: ANN202
+        p = await req.json()
+        name = p.get("name", "")
+
+        def gen():
+            if _OLLAMA is None:
+                yield sse_event({"status": "error", "error": "local_models unavailable"})
+                return
+            for ev in _OLLAMA.pull_model(name):
+                yield sse_event(ev)
+            yield sse_event({"type": "done"})
+        return StreamingResponse(gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
     @app.get("/api/search/policy")                             # PART 2: observable search-toggle gate
     async def api_search_policy(req: Request):                 # noqa: ANN202
         # Returns the structural gate decision for a given toggle state: OFF ⇒ no tools (search impossible),

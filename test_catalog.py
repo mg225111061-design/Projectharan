@@ -7134,6 +7134,60 @@ def test_br_qmkernel():
           "points); 202 battery cases all green, 0 new mechanism, 15 reference engine files at 0 diff, gap=0)")
 
 
+def test_v22_local_provider_parity():
+    """MR.JEFFREY v2.2 Prime Directive 8 (the core correction): a UI-SKIN difference must never become a
+    PIPELINE difference. `provider` selects ONLY the proposer — downstream, write_verify_fix -> FOLD ->
+    ACCEL -> VERIFY (the kernel_verdict ADT) -> FIX is one identical path regardless of provider, because
+    the verifier never trusts the proposer. ★ REGRESSION ★: feed the IDENTICAL code-generation task through
+    agentic_code() once with provider="anthropic" and once with provider="ollama_local" (both mocked, so
+    this is deterministic and needs no network/key) and assert both runs produce the SAME grade via the
+    SAME kernel_verdict Verdict/certificate path — proving the local-Ollama path can never quietly skip or
+    weaken verification relative to the API path for a code-generation task."""
+    import agentic as AG
+    import claude_agent as CA
+    from foldrate import foldcache as FC
+    request = "sum 1..n"                                       # the directive's own example: arithmetic series
+    seq = [CA._MOCK_HARAN]                                      # triangular(n) = n(n+1)/2 — parses AND verifies
+    ra = AG.agentic_code(request, "normal", mock_sequence=seq, provider="anthropic")
+    ro = AG.agentic_code(request, "normal", mock_sequence=seq, provider="ollama_local")
+    # identical outcome on every field except wall-clock (ms) itself
+    for field in ("converged", "iters", "status", "final_code", "proof_tier", "source", "gates", "best_of_n"):
+        assert getattr(ra, field) == getattr(ro, field), (field, getattr(ra, field), getattr(ro, field))
+    assert ra.converged and ra.status == "VERIFIED"              # the mock sequence DOES converge (sanity)
+    # the verdict trace (kernel_verdict-ADT path) is the identical sequence of statuses/codes for both providers
+    assert [s.verdict.status for s in ra.trace] == [s.verdict.status for s in ro.trace]
+    assert [s.code for s in ra.trace] == [s.code for s in ro.trace]
+    # the optimization (closed-form fold) that PROVEN code triggers is identical too — never provider-gated
+    assert (ra.optimization is None) == (ro.optimization is None)
+    if ra.optimization is not None:
+        assert ra.optimization.optimized == ro.optimization.optimized
+        assert ra.optimization.closed_form == ro.optimization.closed_form
+    # FoldCache keys on CODE TEXT alone (content-hash / canonical-AST) — never on provider identity, so the
+    # identical final code from either provider hits the identical cache entry (provider-blind by construction)
+    assert FC._key(ra.final_code) == FC._key(ro.final_code)
+    print("PASS test_v22_local_provider_parity (provider=anthropic vs provider=ollama_local: identical "
+          "kernel_verdict-ADT trace/grade/optimization/FoldCache-key for the same code-generation task — "
+          "provider selects ONLY the proposer, never the verification strength)")
+
+
+def test_v22_local_models_client():
+    """MR.JEFFREY v2.2 Task 1: webapi/local_models.py (detect/list/pull) must be failure-honest — a
+    connection-refused localhost:11434 (this sandbox has no Ollama running, same as a remote/Render
+    deployment probing ITS OWN loopback) is a NORMAL, EXPECTED outcome, never an exception and never a
+    fabricated ok=True. Real network calls (stdlib urllib only, zero new dependency), not mocked."""
+    from webapi import local_models as LM
+    d = LM.detect()
+    assert d["ok"] is False and d.get("install_url") == "https://ollama.com/download"
+    m = LM.list_models()
+    assert m["ok"] is False and m["models"] == []
+    events = list(LM.pull_model("llama3:8b"))
+    assert len(events) == 1 and events[0]["status"] == "error"
+    # an empty model name is rejected locally — never even attempts the network call
+    assert list(LM.pull_model(""))[0]["status"] == "error"
+    print("PASS test_v22_local_models_client (detect/list_models/pull_model all fail honestly — never raise, "
+          "never fabricate ok=True — when no local Ollama server is reachable)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

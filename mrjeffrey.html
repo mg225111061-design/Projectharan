@@ -165,6 +165,25 @@ main{flex:1;width:100%;max-width:1040px;margin:0 auto;padding:34px 22px 28px;per
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media(max-width:560px){:root{--slab:0 2px 6px rgba(20,20,23,.06),0 10px 22px rgba(20,20,23,.07),0 24px 44px rgba(20,20,23,.06)}.slab::after{display:none}.msg.user .bubble{max-width:90%}}
+/* ── MR.JEFFREY v2.2 — the LOCAL-Ollama skin ──────────────────────────────────────────────────────
+   "다운로드 = JEFF(fold+검증엔진) + Ollama(로컬추론) 융합" — never a redistribution of Ollama. This skin
+   mirrors the REAL Ollama app's character (verified 2026-07: clean/simple chat window, model list +
+   single panel, no dashboard chrome) and applies ONLY to chat-window whitespace/typography/color.
+   ★ It NEVER touches .run-grade / .g-EXACT / .g-CHECKED / .g-FLAGGED / .g-DEFER / .defer-box (§BG) — that
+   is the ONE deliberate exception to "look minimal like Ollama", and its unstyled survival here is the
+   visible proof this is JEFF+Ollama fused, not vanilla Ollama. */
+[data-skin="ollama"] .slab{box-shadow:none;border:1px solid var(--line)}
+[data-skin="ollama"] .slab::before,[data-skin="ollama"] .slab::after{display:none}
+[data-skin="ollama"] .msg.bot .bubble,[data-skin="ollama"] .msg.user .bubble{border-radius:6px;box-shadow:none}
+[data-skin="ollama"] .cbox{box-shadow:none;border-radius:8px}
+[data-skin="ollama"] .composer{backdrop-filter:none}
+[data-skin="ollama"] .send{border-radius:6px}
+[data-skin="ollama"] .tag{background:none;border-color:var(--line);color:var(--ink-2)}
+[data-skin="ollama"] .tag.fast,[data-skin="ollama"] .tag.warn{background:none}
+[data-skin="ollama"] .stage.run,[data-skin="ollama"] .stage.done{border-color:var(--line);color:var(--ink-2)}
+[data-skin="ollama"] .ollama-modelrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;font-family:var(--mono);font-size:13px}
+[data-skin="ollama"] .ollama-pull{height:6px;border-radius:3px;background:var(--line-soft);overflow:hidden;margin-top:6px}
+[data-skin="ollama"] .ollama-pull-bar{height:100%;background:var(--pick);transition:width .2s}
 </style>
 </head>
 <body>
@@ -230,13 +249,15 @@ const $ = (t, p = {}, kids = []) => {
   (Array.isArray(kids) ? kids : [kids]).forEach((c) => c != null && e.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
   return e;
 };
-const STEPS = [["landing","0","개요"],["chat","1","대화"]];
+const STEPS = [["landing","0","개요"],["onboard","1","시작하기"],["chat","2","대화"]];
 const STAGE_LABEL = { classify:"분류", thinking:"생각 중", generate:"코드 생성", verify:"동치 검증", fix:"수정", optimize:"최적화" };
 
 const S = { screen:"landing", provider:null, key:"", model:"", mode:"normal", searchAllowed:false,
   messages:[], input:"", streaming:false, settingsOpen:false, keyState:{phase:"idle"},
   live:false, theme:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"),
-  toast:null, account:null, authPanel:false, files:[], error:null };
+  toast:null, account:null, authPanel:false, files:[], error:null,
+  // MR.JEFFREY v2.2 onboarding: which entry path, and (local only) the Ollama detect/model-browse state.
+  onboardPath:null, ollama:{status:"idle", version:"", models:[], pullName:"", pull:null} };
 let TOAST_T = null;
 
 const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -370,6 +391,55 @@ async function validateKey(){
   const prov=DATA.providers.find(x=>x.id===p);
   S.keyState={phase:"bad",res:{blocked:true,detail:"정적 빌드(서버 없음): 라이브 키 확인은 백엔드가 필요합니다. 키 발급: "+(prov&&prov.get_key_url||"")}};
   render();
+}
+
+// ── MR.JEFFREY v2.2 local-Ollama onboarding: detect / list / pull (webapi/local_models.py) ─────────
+// "다운로드 = JEFF(fold+검증엔진) + Ollama(로컬추론) 융합" — these calls probe the SERVER PROCESS'S OWN
+// localhost:11434 (self-hosted ⇒ the user's own machine; a remote deployment ⇒ honestly not-found, never
+// faked). Once a model is chosen, the LOCAL path converges on the SAME sendMessage()/applyEvent()/
+// renderAssistant()/checkGrade() used by every other provider — only S.provider/S.model/S.key + the chat
+// chrome's CSS skin differ; the fold/verify pipeline itself is untouched (Prime Directive 8).
+async function ollamaDetect(){
+  S.ollama.status="checking"; render();
+  try{ const r=await fetch("/api/ollama/status"); const j=await r.json();
+    S.ollama.status=j.ok?"found":"not_found"; S.ollama.version=j.version||""; }
+  catch(e){ S.ollama.status="not_found"; }
+  render();
+  if(S.ollama.status==="found") ollamaListModels();
+}
+async function ollamaListModels(){
+  try{ const r=await fetch("/api/ollama/models"); const j=await r.json();
+    S.ollama.models=(j.ok&&j.models)||[]; }
+  catch(e){ S.ollama.models=[]; }
+  render();
+}
+function ollamaPull(name){
+  name=(name||"").trim();
+  if(!name||S.ollama.pull) return;
+  S.ollama.pull={name, status:"시작 중…", completed:0, total:0}; render();
+  fetch("/api/ollama/pull",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name})})
+    .then(async resp=>{
+      if(!resp.ok||!resp.body) throw new Error("HTTP "+resp.status);
+      const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf="";
+      for(;;){
+        const {value,done}=await reader.read(); if(done) break;
+        buf+=dec.decode(value,{stream:true});
+        let i;
+        while((i=buf.indexOf("\n\n"))>=0){
+          const block=buf.slice(0,i); buf=buf.slice(i+2);
+          const dl=block.split("\n").find(l=>l.startsWith("data:")); if(!dl) continue;
+          let ev; try{ ev=JSON.parse(dl.slice(5).trim()); }catch(_){ continue; }
+          if(ev.type==="done"){ S.ollama.pull=null; ollamaListModels(); return; }
+          if(ev.status==="error"){ S.ollama.pull={name, status:"오류: "+(ev.error||""), completed:0, total:0}; render(); continue; }
+          S.ollama.pull={name, status:ev.status||"", completed:ev.completed||0, total:ev.total||0}; render();
+        }
+      }
+    })
+    .catch(()=>{ S.ollama.pull=null; showToast("다운로드 연결 실패"); });
+}
+function chooseLocalModel(tag){
+  S.provider="ollama_local"; S.model=tag; S.key="ollama"; S.keyState={phase:"ok"};
+  setScreen("chat");
 }
 
 // ── the conversation: build history (only code-producing turns carry context to the server) ───────
@@ -540,7 +610,7 @@ function scrLanding(){
         $("h1",{},"대화하세요. 코드는 만들어 드리고, 검증해 돌려드립니다."),
         $("p",{class:"lead mt"},"무엇이든 물어보세요 — 일반 질문이면 그냥 답합니다. 코드를 만들거나 고쳐 달라면, LLM이 제안하고 MR.JEFFREY가 그 위에서 같은 결과인지 확인한 뒤 돌려드립니다. 필요한 곳만 보안을, 진짜 구조가 있는 곳만 빠르게, 못 하는 곳은 정직하게 그대로."),
         $("div",{class:"row mt"},[
-          $("button",{class:"btn lg",onclick:()=>setScreen("chat")},"대화 시작하기 →"),
+          $("button",{class:"btn lg",onclick:()=>setScreen("onboard")},"시작하기 →"),
           S.live?$("span",{class:"badge-free"},[$("span",{class:"gd"}),"라이브 엔진"]):$("span",{class:"pill"},"엔진 연결 대기"),
         ]),
       ]),
@@ -555,8 +625,103 @@ function scrLanding(){
   ]);
 }
 
+// ── MR.JEFFREY v2.2 onboarding screen: API-key path vs Local-Ollama path ────────────────────────────
+// The overriding correction: "다운로드 = Ollama 스킨"이 아니라 "다운로드 = JEFF(fold+검증엔진)+Ollama(로컬추론)
+// 융합" — so this screen frames the choice honestly, and both branches converge on the identical chat
+// pipeline (only S.provider/S.model/S.key + the chat chrome's skin differ downstream).
+function scrOnboard(){
+  if(!S.onboardPath){
+    return $("div",{},[
+      $("div",{class:"eyebrow"},"시작하기"),
+      $("h1",{},"어떻게 시작할까요?"),
+      $("p",{class:"lead mt"},"\"다운로드 = Ollama 스킨\"이 아닙니다 — 다운로드는 JEFF의 fold+검증 엔진과 Ollama의 로컬 추론이 하나로 융합된 프로그램입니다."),
+      $("div",{class:"grid cols-2 mt",style:"max-width:820px"},[
+        $("button",{class:"slab mode-card float-in",style:"padding:22px",onclick:()=>{S.onboardPath="api";render();}},[
+          $("div",{class:"mc-head"},[$("span",{class:"glyph"},"☁"),$("span",{class:"mc-name"},"API 키로 시작")]),
+          $("p",{},"Claude / ChatGPT / Gemini 등 — 우리의 하이퍼-디멘셔널·미니멀 디자인 그대로."),
+        ]),
+        $("button",{class:"slab mode-card float-in",style:"padding:22px",onclick:()=>{S.onboardPath="local";S.ollama.status="idle";render();ollamaDetect();}},[
+          $("div",{class:"mc-head"},[$("span",{class:"glyph"},"⌂"),$("span",{class:"mc-name"},"로컬 오픈웨이트 (Ollama)")]),
+          $("p",{},"JEFF의 검증 엔진 + Ollama의 로컬 추론. 채팅창의 모양은 Ollama 앱처럼 미니멀합니다 — 검증 배지만은 예외입니다."),
+        ]),
+      ]),
+      $("div",{class:"honesty mt"},[$("span",{},"◈"),$("span",{},"어느 경로로 들어와도 코드가 나오면 똑같이 검증되고 접힙니다 — 로컬 경로도 같은 fold→검증 파이프라인을 그대로 거칩니다.")]),
+    ]);
+  }
+  return S.onboardPath==="api" ? onboardApi() : onboardLocal();
+}
+
+// API path: reuses the SAME settingsPanel()/validateKey() the chat screen's ⚿ button already uses.
+// "Next" is genuinely disabled (not just styled) until S.keyState.phase==="ok" (a real 200 from
+// /api/key/validate) — the LIVE_OK gate the directive calls for.
+function onboardApi(){
+  const ready=S.keyState.phase==="ok";
+  return $("div",{},[
+    $("div",{class:"row",style:"justify-content:space-between"},[
+      $("div",{},[$("div",{class:"eyebrow"},"API 키로 시작"),$("h2",{},"제공자를 고르고 키를 확인하세요")]),
+      $("button",{class:"ghost",onclick:()=>{S.onboardPath=null;render();}},"← 뒤로"),
+    ]),
+    settingsPanel(),
+    $("div",{class:"row mt",style:"justify-content:flex-end"},[
+      ready?$("span",{class:"note good",style:"margin-right:10px"},"확인됨 — 다음으로 진행할 수 있습니다")
+           :$("span",{class:"v-sub",style:"margin-right:10px"},"키를 붙여넣고 '키 확인'을 눌러야 다음으로 진행할 수 있습니다"),
+      $("button",{class:"btn lg",disabled:ready?null:"",onclick:()=>{ if(ready) setScreen("chat"); }},"다음 →"),
+    ]),
+  ]);
+}
+
+// Local path: detect → (not found: install guidance) / (found: Ollama-style minimal model browser + pull
+// progress). `data-skin="ollama"` scopes the minimal-utilitarian look to THESE screens (never .run-grade
+// / .g-* / .defer-box — see the CSS comment above `.ollama-modelrow`).
+function onboardLocal(){
+  const O=S.ollama;
+  const body=[
+    $("div",{class:"row",style:"justify-content:space-between"},[
+      $("div",{},[$("div",{class:"eyebrow"},"로컬 오픈웨이트 (Ollama)"),$("h2",{},"로컬 Ollama 서버를 확인합니다")]),
+      $("button",{class:"ghost",onclick:()=>{S.onboardPath=null;render();}},"← 뒤로"),
+    ]),
+  ];
+  if(O.status==="idle"||O.status==="checking"){
+    body.push($("div",{class:"card mt"},[$("span",{class:"spin"})," Ollama를 찾는 중… (http://localhost:11434)"]));
+  } else if(O.status==="not_found"){
+    body.push($("div",{class:"card mt","data-skin":"ollama"},[
+      $("p",{},"이 주소에서 로컬 Ollama를 찾지 못했습니다. 셀프호스팅(자신의 컴퓨터에서 python server.py 실행) 환경에서만 감지됩니다 — 공개 배포 서버는 방문자의 localhost에 닿을 수 없으므로, 이는 정직한 결과이지 오류가 아닙니다."),
+      $("div",{class:"row mt"},[
+        $("a",{class:"btn",href:"https://ollama.com/download",target:"_blank",rel:"noreferrer"},"Ollama 설치 ↗"),
+        $("button",{class:"ghost",onclick:()=>ollamaDetect()},"다시 확인"),
+      ]),
+    ]));
+  } else {
+    const list=O.models.length
+      ? O.models.map(m=>$("div",{class:"ollama-modelrow"},[
+          $("span",{},m.name+(m.quant?"  ["+m.quant+"]":"")+(m.parameter_size?"  "+m.parameter_size:"")),
+          $("button",{class:"ghost",onclick:()=>chooseLocalModel(m.name)},"이 모델 사용 →"),
+        ]))
+      : $("p",{class:"v-sub"},"아직 설치된 모델이 없습니다 — 아래에서 하나를 받으세요.");
+    body.push($("div",{class:"card mt","data-skin":"ollama"},[
+      $("div",{class:"v-sub"},"Ollama 감지됨"+(O.version?(" · v"+O.version):"")),
+      $("div",{class:"mt"},list),
+      $("div",{class:"row mt"},[
+        $("input",{id:"ollama-pull-input",placeholder:"예: llama3.2, qwen2.5-coder:7b-q3_K_M",value:O.pullName,
+          oninput:e=>{O.pullName=e.target.value;},
+          style:"flex:1;font:inherit;font-family:var(--mono);font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--page);color:var(--ink)"}),
+        $("button",{class:"ghost",disabled:O.pull?"":null,onclick:()=>ollamaPull(O.pullName)},"받기"),
+      ]),
+      O.pull?$("div",{class:"mt"},[
+        $("div",{class:"v-sub"},O.pull.name+" — "+O.pull.status+(O.pull.total?(" ("+Math.round(O.pull.completed/O.pull.total*100)+"%)"):"")),
+        $("div",{class:"ollama-pull"},[$("div",{class:"ollama-pull-bar",style:"width:"+(O.pull.total?Math.round(O.pull.completed/O.pull.total*100):0)+"%"})]),
+      ]):null,
+    ]));
+  }
+  body.push($("div",{class:"honesty mt"},[$("span",{},"◈"),$("span",{},"엔진(로컬 추론)은 Ollama 그대로이며 재구현하지 않습니다 — 채팅창의 모양만 Ollama 앱을 따르고, 코드가 나오면 API 경로와 동일한 검증·fold 파이프라인을 거칩니다.")]));
+  return $("div",{},body);
+}
+
 function scrChat(){
-  const wrap=$("div",{class:"chatwrap"});
+  // ★ v2.1/v2.2 Prime Directive 8: this is the SAME chat screen for every provider — the local-Ollama
+  // path is never a separate/forked implementation. Only the CSS skin (chrome, never .run-grade/.g-*/
+  // .defer-box) differs by entry path; sendMessage/applyEvent/renderAssistant/checkGrade are untouched.
+  const wrap=$("div",{class:"chatwrap", "data-skin": S.onboardPath==="local"?"ollama":null});
   const thread=$("div",{class:"thread",id:"thread"});
   if(!S.messages.length){
     const ex=$("div",{class:"exgrid"});
@@ -582,7 +747,8 @@ function scrChat(){
   ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
   const sendBtn=$("button",{class:"send",title:"전송",disabled:S.streaming?"":null,onclick:()=>sendMessage()}, S.streaming?$("span",{class:"spin"}):"↑");
   const modeChips=DATA.modes.map(m=>$("button",{class:"chip"+(S.mode===m.id?" on":""),title:m.note,onclick:()=>{S.mode=m.id;render();}},m.name));
-  const provName=S.provider?(DATA.providers.find(p=>p.id===S.provider)||{}).label:"제공자 · 키";
+  const provName=S.provider==="ollama_local" ? "Ollama (로컬)"+(S.model?" · "+S.model:"")
+    : S.provider?(DATA.providers.find(p=>p.id===S.provider)||{}).label:"제공자 · 키";
   // §W multi-file attach: ≤max_files, 50+ allow-listed types, untrusted-input validated (type/size/traversal)
   const mfi=$("input",{type:"file",multiple:"",style:"display:none"});
   mfi.addEventListener("change",e=>{ addFiles([...e.target.files]); e.target.value=""; });
@@ -614,7 +780,7 @@ function scrChat(){
   return wrap;
 }
 
-const SCREENS={landing:scrLanding, chat:scrChat};
+const SCREENS={landing:scrLanding, onboard:scrOnboard, chat:scrChat};
 
 function render(){
   document.documentElement.setAttribute("data-theme",S.theme);

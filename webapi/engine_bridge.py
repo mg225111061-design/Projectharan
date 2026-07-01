@@ -352,18 +352,21 @@ _PROVIDER_LABELS = {"anthropic": "Claude (official)", "anthropic_compat": "Claud
                     "openai": "ChatGPT (OpenAI)", "openai_compat": "OpenAI-compatible gateway",
                     "gemini": "Gemini (Google)", "groq": "Groq", "mistral": "Mistral", "cohere": "Cohere",
                     "deepseek": "DeepSeek", "xai": "Grok (xAI)", "together": "Together AI",
-                    "fireworks": "Fireworks AI", "openrouter": "OpenRouter", "perplexity": "Perplexity"}
+                    "fireworks": "Fireworks AI", "openrouter": "OpenRouter", "perplexity": "Perplexity",
+                    "ollama_local": "Ollama (local)"}
 _PROVIDER_KEYVAR = {"anthropic": "ANTHROPIC_API_KEY", "anthropic_compat": "ANTHROPIC_API_KEY",
                     "openai": "OPENAI_API_KEY", "openai_compat": "OPENAI_API_KEY",
                     "gemini": "GEMINI_API_KEY", "groq": "GROQ_API_KEY", "mistral": "MISTRAL_API_KEY",
                     "cohere": "COHERE_API_KEY", "deepseek": "DEEPSEEK_API_KEY", "xai": "XAI_API_KEY",
                     "together": "TOGETHER_API_KEY", "fireworks": "FIREWORKS_API_KEY",
-                    "openrouter": "OPENROUTER_API_KEY", "perplexity": "PERPLEXITY_API_KEY"}
+                    "openrouter": "OPENROUTER_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
+                    "ollama_local": "OLLAMA_API_KEY"}
 _KEY_LABELS = {"gemini": "Google AI Studio API key", "groq": "Groq API key",
                "openai": "OpenAI API key", "anthropic": "Anthropic API key", "xai": "xAI API key",
                "mistral": "Mistral API key", "cohere": "Cohere API key", "deepseek": "DeepSeek API key",
                "together": "Together API key", "fireworks": "Fireworks API key",
-               "openrouter": "OpenRouter API key", "perplexity": "Perplexity API key"}
+               "openrouter": "OpenRouter API key", "perplexity": "Perplexity API key",
+               "ollama_local": "no key required — Ollama accepts any placeholder"}
 
 
 def providers() -> List[Dict]:

@@ -33,6 +33,13 @@ _OPENAI_COMPAT = "openai_compat"
 _OPENAI = "openai"            # PHASE P — native ChatGPT (api.openai.com/v1/chat/completions)
 _GEMINI = "gemini"            # PHASE P — native Gemini (generativelanguage.googleapis.com)
 _GROQ = "groq"               # PHASE P2 — Groq (OpenAI-compatible; free, no credit card)
+# MR.JEFFREY local-Ollama preset — NOT a remote gateway: the engine (real inference incl. quantization) is
+# Ollama's, running on whatever machine the SERVER PROCESS itself lives on (self-hosted `python server.py`
+# alongside `ollama serve`). A public remote deployment of this server cannot reach the visitor's own
+# localhost, so on such a deployment the /api/ollama/status probe honestly reports "not found" — this is
+# the correct, honest behavior for that topology, not a bug. Rides the SAME `openai_chat` transport as every
+# other family-C provider (Ollama's REST API is OpenAI-compatible at localhost:11434/v1) — zero new transport.
+_OLLAMA_LOCAL = "ollama_local"
 # §MRJ — the remaining family-C (OpenAI-compatible /chat/completions, Bearer) named providers. Each rides the
 # `openai_chat` transport with its own base_url; the author can override base/model in the UI or via env.
 _MISTRAL = "mistral"
@@ -50,12 +57,18 @@ DEFAULT_MODEL = "claude-opus-4-8"
 _OPENAI_DEFAULT_BASE = "https://api.openai.com/v1"
 _GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta"
 _GROQ_DEFAULT_BASE = "https://api.groq.com/openai/v1"           # OpenAI-compatible /chat/completions
+# Ollama's own REST API, confirmed OpenAI-compatible at this path (web-confirmed 2026-07; official desktop
+# app since Jul 2025). No key is ever validated by Ollama itself — any non-empty string is accepted.
+_OLLAMA_DEFAULT_BASE = "http://localhost:11434/v1"
 
 # §MRJ — family-C registry: id → (base_url, default_model, free_no_card, get_key_url). base_url/model are
 # EDITABLE defaults in the UI (HARAN_BASE_URL / HARAN_MODEL override); filled from each vendor's public docs,
 # never guessed. Cohere/Fireworks use a vendor-specific compat path / model prefix — confirm on Render.
 _OPENAI_CHAT_REGISTRY = {
     _GROQ:       (_GROQ_DEFAULT_BASE, "llama-3.3-70b-versatile", True, "https://console.groq.com/keys"),
+    # no universal default model — the local model browser (webapi/local_models.py, real /api/tags query)
+    # fills this in from whatever the user actually pulled; get_key_url=None (there is no key to obtain).
+    _OLLAMA_LOCAL: (_OLLAMA_DEFAULT_BASE, "", True, None),
     _MISTRAL:    ("https://api.mistral.ai/v1", "mistral-large-latest", False, "https://console.mistral.ai/api-keys"),
     _COHERE:     ("https://api.cohere.ai/compatibility/v1", "command-r-plus", False, "https://dashboard.cohere.com/api-keys"),
     _DEEPSEEK:   ("https://api.deepseek.com/v1", "deepseek-chat", False, "https://platform.deepseek.com/api_keys"),
@@ -138,6 +151,8 @@ def resolve_key_for(p: Optional[str] = None) -> Optional[str]:
     p = p or provider_name()
     if os.environ.get("HARAN_KEY"):
         return os.environ["HARAN_KEY"].strip()
+    if p == _OLLAMA_LOCAL:            # Ollama never validates the key; any non-empty string is accepted
+        return (os.environ.get("OLLAMA_API_KEY") or "ollama").strip()
     if p == _OPENAI:
         return (os.environ.get("OPENAI_API_KEY") or "").strip() or None
     if p == _GEMINI:
@@ -186,6 +201,9 @@ GATEWAY_PRESETS = {
     "GLM (Z.ai)":        (_OPENAI_COMPAT, "https://api.z.ai/api/paas/v4/", "glm-4.6", "z.ai docs (web-confirmed)"),
     "OpenRouter":        (_OPENAI_COMPAT, "https://openrouter.ai/api/v1", "", "well-known (editable)"),
     "DeepSeek":          (_OPENAI_COMPAT, "https://api.deepseek.com", "deepseek-chat", "well-known (editable)"),
+    "Ollama (local)":    (_OLLAMA_LOCAL, _OLLAMA_DEFAULT_BASE, "",
+                          "ollama.com docs (web-confirmed 2026-07): OpenAI-compatible /v1/chat/completions "
+                          "at localhost:11434; self-hosted only, not reachable from a remote deployment"),
 }
 
 # Free, no-credit-card providers (the default way to test the whole site) + where to get a key.
