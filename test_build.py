@@ -10825,6 +10825,78 @@ def test_bf_soundness_gates_survive_dash_O():
           "STRUCTURAL across kernel_verdict + sublinear_layer + bitblast_smt, not flag-dependent)")
 
 
+def test_br1_emission_gate_survives_dash_O():
+    """§BS-1 (audit directive §7) — extend "grade enforced at construction" (§BF FIX-1, proven above) to the
+    EMISSION/API boundary. `kernel_verdict.to_api()` is the ONE sanctioned way to build a grade-carrying
+    response dict; it constructs a real `Verdict` internally, so it inherits `__post_init__`'s soundness
+    gates verbatim — this test does NOT re-prove those gates (test_bf_soundness_gates_survive_dash_O already
+    does, under -O). What's genuinely NEW here and needs its own regression: (a) `to_api()` itself routes
+    through the ADT rather than a parallel, weaker check; (b) `extras` kwargs can never OVERRIDE the enforced
+    core fields — the §BQ audit finding was raw `{"grade": "EXACT", ...}` dict literals bypassing the ADT
+    entirely, so the smuggling defense (a caller passing `grade=...`/`certificate=...` as an extra) is the
+    actual attack surface `to_api()` exists to close."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).parent
+    import kernel_verdict as KV
+
+    # in-process: to_api rejects a rubber-stamp cert exactly like a direct Verdict(...) would
+    try:
+        KV.to_api("EXACT", 1, "k", "O(1)", cert=KV.Cert("EXACT", "fake", passed=False)); _normal = False
+    except AssertionError:
+        _normal = True
+    assert _normal, "to_api() must reject a rubber-stamp certificate (routes through Verdict.__post_init__)"
+
+    # a valid call constructs, and produces the expected shape
+    d = KV.to_api("EXACT", 42, "k", "O(1)", cert=KV.Cert("EXACT", "real", passed=True),
+                  action="BROTH_HIT", ui="demo")
+    assert d["grade"] == "EXACT" and d["result"] == 42 and isinstance(d["certificate"], dict) and d["action"] == "BROTH_HIT"
+
+    # ★ the smuggling defense: extras CANNOT override the enforced core fields, even same-named. ("result"/
+    # "kernel"/"complexity"/"cert"/"reason"/"status" are real positional/keyword params of to_api(), so
+    # Python's own argument-binding already rejects smuggling those — TypeError, not a silent override. The
+    # actual attack surface is keys that are NOT formal parameters but ARE in the as_dict() output: "grade"
+    # and "certificate" themselves.)
+    d2 = KV.to_api("EXACT", 1, "k", "O(1)", cert=KV.Cert("EXACT", "real", passed=True),
+                   grade="DECLINE", certificate="not-a-real-cert")
+    assert d2["grade"] == "EXACT" and d2["result"] == 1 and isinstance(d2["certificate"], dict), (
+        "extras must never override the ADT-enforced grade/result/certificate — smuggling succeeded")
+
+    # ★ the real test: a subprocess under -O, where `assert` is provably a no-op, to_api() must still reject
+    probe = (
+        "import sys\n"
+        "assert sys.flags.optimize >= 1\n"
+        "stripped=True\n"
+        "try:\n"
+        "    assert False\n"
+        "except AssertionError:\n"
+        "    stripped=False\n"
+        "import kernel_verdict as KV\n"
+        "def rej(f):\n"
+        "    try:\n"
+        "        f(); return False\n"
+        "    except AssertionError:\n"
+        "        return True\n"
+        "gates = all([\n"
+        "  rej(lambda: KV.to_api('EXACT',1,'k','O(1)',cert=KV.Cert('EXACT','f',passed=False))),\n"     # rubber stamp
+        "  rej(lambda: KV.to_api('EXACT',1,'k','O(1)',cert=KV.Cert('PROBABILISTIC','x',passed=True))),\n"  # mismatch
+        "  rej(lambda: KV.to_api('EXACT',1,'k','O(1)',cert=None)),\n"                                  # no cert at all
+        "])\n"
+        "d = KV.to_api('EXACT', 1, 'k', 'O(1)', cert=KV.Cert('EXACT','real',passed=True), grade='DECLINE')\n"
+        "smuggle_blocked = (d['grade'] == 'EXACT')\n"                    # extras still can't win, under -O either
+        "sys.exit(0 if (stripped and gates and smuggle_blocked) else 1)\n"
+    )
+    r = subprocess.run([sys.executable, "-O", "-c", probe], cwd=str(root),
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, (
+        f"under `python -O` to_api()'s emission-boundary gate FAILED: rc={r.returncode} stderr={r.stderr[-400:]}")
+    print("PASS test_br1_emission_gate_survives_dash_O (§BS-1: kernel_verdict.to_api() extends 'grade enforced "
+          "at construction' to the API/dict emission boundary — rubber-stamp/δ-masquerade/grade-cert-mismatch/"
+          "no-cert all rejected even under `python -O`; extras kwargs can NEVER override the enforced grade/"
+          "result/certificate [the smuggling defense]; a valid call still produces the expected dict shape)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

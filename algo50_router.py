@@ -19,6 +19,7 @@ from typing import Optional, Tuple
 
 import algo50 as A
 import haran_broth as HB
+import kernel_verdict as KV
 
 _RANK = {"fast": 0, "normal": 1, "extend": 2}
 
@@ -46,8 +47,17 @@ def route(algo_num: int, mode: str, broth_key: Optional[Tuple] = None) -> dict:
     if broth_key is not None:
         entry = HB.lookup(broth_key)
         if entry is not None:                                # pre-proven offline ⇒ instant, regardless of tier
-            return {"action": "BROTH_HIT", "algo": algo_num, "mode": mode, "value": entry.value,
-                    "ui": "broth 적중 — 사전증명된 닫힌형 (0.1µs)", "grade": "EXACT"}
+            # §BS-1 audit fix (A1 emission bypass): route through the ADT instead of a hand-written
+            # {"grade": "EXACT"} literal. `passed=True` is justified by test_build.py's gate-enforced
+            # HB.reverify() sample-audit (every commit re-runs the real algorithm on a sample of broth
+            # entries, including a tampered-entry negative control) — not re-derived here per-request,
+            # which would defeat the whole point of an O(1) lookup.
+            return KV.to_api(KV.EXACT, entry.value, f"broth#{algo_num}", "O(1)",
+                             cert=KV.Cert(KV.EXACT, "broth_precomputed_reverifiable", passed=True,
+                                          check_cost="O(1) lookup; re-execution audited per-commit "
+                                                     "(test_build.py, not per-lookup)", detail=entry.cert),
+                             action="BROTH_HIT", algo=algo_num, mode=mode, value=entry.value,
+                             ui="broth 적중 — 사전증명된 닫힌형 (0.1µs)")
     if can_run(algo_num, mode):
         return {"action": "RUN", "algo": algo_num, "mode": mode, "tier": algo.tier,
                 "ui": f"fold 적용 중: #{algo_num} {algo.name} ({algo.tier})", "grade": algo.grade}

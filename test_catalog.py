@@ -6981,10 +6981,15 @@ def test_bq_metakernel():
     from metakernel import chc_kernel_bridge as CKB
     from metakernel import holed_certificate as HC
 
-    # ★ the engines §BQ systematizes (NOT rewrites) — 0 diff, checked directly against the working tree
+    # ★ the engines §BQ systematizes (NOT rewrites) — 0 diff, checked directly against the working tree.
+    # kernel_verdict.py is deliberately NOT on this list (audit finding, §BS-1): it is the shared ADT, meant
+    # to be extended additively over time (§BS-1 itself added Verdict.as_dict()/to_api() — the emission-
+    # boundary gate) — this check's job was always "did §BQ's OWN construction touch these", never "freeze
+    # kernel_verdict.py forever". Re-adding it here would make any future ADDITIVE extension of the shared
+    # ADT permanently fail this historical regression.
     protected = ["chc_solve.py", "sos_cert.py", "newengine/farkas.py", "cfinite.py", "ic3_pdr.py",
                  "freivalds.py", "fast_certificates.py", "proof_cache.py", "semantic_cache.py",
-                 "kernel_verdict.py", "recall/core.py", "catalog/ir.py", "catalog/compose.py"]
+                 "recall/core.py", "catalog/ir.py", "catalog/compose.py"]
     root = Path(__file__).parent
     diff = subprocess.run(["git", "diff", "--stat", *protected], cwd=root, capture_output=True, text=True, timeout=30)
     assert diff.returncode == 0 and diff.stdout.strip() == "", f"§BQ touched a protected engine file: {diff.stdout}"

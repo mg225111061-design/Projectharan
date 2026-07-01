@@ -26,6 +26,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import kernel_verdict as KV
 import provider as PRV
 from pillar3 import canonical as C
 from pillar3 import corpus_runner as CR
@@ -262,9 +263,17 @@ def _loop_collapse(code: str) -> Optional[Dict]:
             if nst is not None:                                # a RECOGNIZED double-nested accumulation
                 nd = SR._offload_nested(code, fn, nst)
                 if nd.status == "OFFLOADED":                   # CAS-proposed + differential-equivalence gated (honest)
+                    # §BS-1 audit fix (A1 emission bypass): route grade/certificate through the ADT instead of
+                    # a hand-written {"grade": "EXACT"} literal. `passed=True` is justified by
+                    # _offload_nested's OWN in-function equivalence gate (structure_recognizer.py) — status
+                    # can only BE "OFFLOADED" after `ok == checked` on ≥5 differential-equivalence samples;
+                    # `nd.certificate` (a descriptive string, not a KV.Cert) is preserved verbatim as detail.
+                    _api = KV.to_api(KV.EXACT, nd.closed_form, "engine_bridge.nested_offload",
+                                     nd.complexity.replace("O(1) (was ", "").rstrip(")") + " → O(1)",
+                                     cert=KV.Cert(KV.EXACT, "nested_offload_differential_equivalence",
+                                                  passed=True, detail=nd.certificate))
                     return {"kind": "nested_sum", "status": "CLOSED_FORM", "closed_form": nd.closed_form,
-                            "complexity": nd.complexity.replace("O(1) (was ", "").rstrip(")") + " → O(1)",
-                            "grade": "EXACT", "certificate": nd.certificate}
+                            "complexity": _api["complexity"], "grade": _api["grade"], "certificate": _api["certificate"]}
                 # Recognized as nested but did NOT collapse ⇒ honest NONE. Do NOT fall through to the recurrence
                 # detector: a double-nested accumulation is never a single-state C-finite recurrence, and the
                 # recurrence detector SAMPLES the loop by executing it — for an explosive inner bound (e.g.
@@ -277,8 +286,16 @@ def _loop_collapse(code: str) -> Optional[Dict]:
             # the recurrence detector so a polynomial sum (which IS C-finite) surfaces as O(1), not O(log n).
             sd = SR.dispatch(code)
             if sd.status == "OFFLOADED" and sd.closed_form:
+                # §BS-1 audit fix (A1 emission bypass): same pattern as the nested-sum branch above — route
+                # through the ADT rather than a hand-written literal. `passed=True` is justified by
+                # SR.dispatch's own internal fold-recognition gates (never speculative — status=="OFFLOADED"
+                # only after a real, certified fold was found); `sd.certificate` (descriptive string)
+                # preserved verbatim as detail.
+                _api = KV.to_api(KV.EXACT, sd.closed_form, "engine_bridge.code_shape_dispatch",
+                                 sd.complexity or "O(1)",
+                                 cert=KV.Cert(KV.EXACT, "code_shape_offload", passed=True, detail=sd.certificate))
                 return {"kind": "code_shape", "status": "CLOSED_FORM", "closed_form": sd.closed_form,
-                        "complexity": (sd.complexity or "O(1)"), "grade": "EXACT", "certificate": sd.certificate}
+                        "complexity": _api["complexity"], "grade": _api["grade"], "certificate": _api["certificate"]}
             # a genuine state-update recurrence loop (Fibonacci-like — dispatch can't fold it) → O(log n) companion
             import loop_recurrence as LR                       # noqa: PLC0415
             rc = LR.decide_recurrence_collapse(code, measure=False)       # decide-only: fast, no timing, no threads

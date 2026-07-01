@@ -70,6 +70,26 @@ class Verdict:
                 raise GradeViolation("EXACT cannot carry a probabilistic δ — use PROBABILISTIC, or an exact "
                                      "interval (epsilon)")                            # soundness gate
 
+    def as_dict(self) -> dict:
+        """Plain-dict, JSON-safe serialization of an ALREADY-validated Verdict. Grade enforcement happened
+        ONCE, in __post_init__ at construction time — this is a safe projection, not a second gate. The
+        canonical grade key is "grade" (deliberately NOT aliased as "status": several bespoke API response
+        shapes already use "status" for an unrelated outcome label, e.g. "CLOSED_FORM"/"OFFLOADED" — aliasing
+        would silently collide with those on merge)."""
+        d = {"grade": self.status, "result": self.result, "kernel": self.kernel,
+             "complexity": self.complexity, "reason": self.reason}
+        if self.certificate is not None:
+            c = self.certificate
+            d["certificate"] = {"grade": c.grade, "kind": c.kind, "passed": c.passed, "check_cost": c.check_cost,
+                                "epsilon": c.epsilon, "delta": c.delta, "bound": c.bound, "detail": c.detail}
+        else:
+            d["certificate"] = None
+        if self.crossover_n is not None:
+            d["crossover_n"] = self.crossover_n
+        if self.amdahl_p is not None:
+            d["amdahl_p"] = self.amdahl_p
+        return d
+
 
 # ── constructors ────────────────────────────────────────────────────────────────────────────────────
 def decline(reason: str, kernel: str = "-") -> Verdict:
@@ -82,6 +102,27 @@ def exact(result, kernel: str, complexity: str, cert: Cert, **kw) -> Verdict:
 
 def probabilistic(result, kernel: str, complexity: str, cert: Cert, **kw) -> Verdict:
     return Verdict(PROBABILISTIC, result, kernel, complexity, cert, **kw)
+
+
+# ── §BS-1 emission-boundary gate: "grade enforced at construction" extended to the API/dict boundary ───
+def to_api(status: str, result: Any, kernel: str, complexity: str, cert: Optional[Cert] = None,
+           reason: str = "", **extras) -> dict:
+    """The ONE sanctioned way to build an API/response dict that carries a grade. Constructs a real
+    `Verdict` internally, so `__post_init__`'s soundness gates apply EXACTLY as they would to any other
+    kernel output — a raw `{"grade": "EXACT", ...}` dict literal with no certificate, or a grade/certificate
+    mismatch, is STRUCTURALLY unreachable via this path (§BP-16/§BQ audit finding: several call-sites hand-
+    wrote such literals, bypassing the ADT entirely).
+
+    `extras` may ADD route-specific display keys (e.g. `action`/`ui`/`kind`/`status` — a bespoke response's
+    OWN "status" field, distinct from the grade) but can never OVERRIDE the enforced core fields (grade/
+    result/kernel/complexity/certificate/reason/crossover_n/amdahl_p) — a caller cannot smuggle a bypass
+    grade past the gate through a same-named kwarg; the enforced value always wins."""
+    v = Verdict(status, result, kernel, complexity, cert, reason)   # __post_init__ enforces every soundness gate
+    d = v.as_dict()
+    for k, val in extras.items():
+        if k not in d:
+            d[k] = val
+    return d
 
 
 # ── §0.2 rule-of-three: a sampling count yields δ=3/n, never EXACT ────────────────────────────────────
