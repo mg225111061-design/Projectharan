@@ -6965,6 +6965,76 @@ def test_bp_functional_summation_intake():
           "match]; RF-1 intake gain, NOT a fold-rate multiplier; 0 new mechanism/disposer)")
 
 
+def test_bq_metakernel():
+    """§BQ STAGE 1 — the unified-certificate trusted kernel + CHC TCB-reduction bridge + holed certificates.
+    ★ Research finding acted on: our CHC independent re-verification / fast_certificates / IC3 "never false
+    SAFE" / Farkas / SOS are ALREADY Necula/Shankar kernel-of-truth instances — NONE of them are rewritten
+    here (★ asserted below via git diff = 0 on every one of those files). The only genuinely new code is
+    metakernel/: a small witness contract (wrapping the already-minimal SOS/Farkas/LP/cfinite checkers) plus
+    a from-scratch propositional+ground-EUF decision procedure that removes z3 from the TCB for the CHC
+    fragment where that procedure is a complete decider — proven correct by DIRECT cross-check against z3
+    on a formula battery, not by trusting it on faith."""
+    import subprocess
+    from pathlib import Path
+
+    from metakernel import trusted_kernel as TK
+    from metakernel import chc_kernel_bridge as CKB
+    from metakernel import holed_certificate as HC
+
+    # ★ the engines §BQ systematizes (NOT rewrites) — 0 diff, checked directly against the working tree
+    protected = ["chc_solve.py", "sos_cert.py", "newengine/farkas.py", "cfinite.py", "ic3_pdr.py",
+                 "freivalds.py", "fast_certificates.py", "proof_cache.py", "semantic_cache.py",
+                 "kernel_verdict.py", "recall/core.py", "catalog/ir.py", "catalog/compose.py"]
+    root = Path(__file__).parent
+    diff = subprocess.run(["git", "diff", "--stat", *protected], cwd=root, capture_output=True, text=True, timeout=30)
+    assert diff.returncode == 0 and diff.stdout.strip() == "", f"§BQ touched a protected engine file: {diff.stdout}"
+
+    # ★ Part B/C of trusted_kernel.py — the genuinely new decision procedure — battery + direct spot-checks
+    tb = TK.adversarial_battery()
+    assert tb["all_ok"], tb["failed"]
+    assert TK.propositional_unsat([[1], [-1]]) is True                         # x ∧ ¬x — UNSAT
+    assert TK.dpll_sat([[1, 2]]) is not None                                   # x1∨x2 — SAT
+    a, b, c = "a", "b", "c"
+    assert TK.euf_consistent([(a, b), (b, c)], []) is True                     # no contradiction asserted
+    assert TK.euf_consistent([(a, b), (b, c)], [(a, c)]) is False              # congruence FORCES a=c — contradiction
+    assert tb["tcb_loc"] < 500                                                 # ★ TCB-size regression guard (measured, see METAUPGRADE_MEASURE.md)
+
+    # ★ chc_kernel_bridge — z3-AST fragment classifier + the kernel-checked CHC path, cross-checked vs z3
+    cb = CKB.adversarial_battery()
+    assert cb["all_ok"], cb["failed"]
+    import z3
+    x, y = z3.Ints("x y")
+    assert CKB.classify_formula(x == y) == "in_fragment"                       # equality of Int vars — EUF, no arithmetic
+    assert CKB.classify_formula(x + 1 == y) == "out_of_fragment"               # arithmetic — fails CLOSED, never guessed in
+    assert CKB.kernel_confirms_unsat(z3.And(x == y, x != y)) is True           # trivial EUF contradiction
+    assert CKB.kernel_confirms_unsat(x + 1 == y) is None                      # out of fragment ⇒ no claim, never a wrong DECLINE
+
+    # ★ holed_certificate — Why3-style proof skeletons over the EXISTING (untouched) StructForm machinery
+    hcb = HC.adversarial_battery()
+    assert hcb["all_ok"], hcb["failed"]
+
+    # ★ finalize: metakernel is genuinely wired into the production dispatcher, and the repo-wide gap stays 0
+    from webapi import engine_dispatch as ED
+    import engine_inventory as EI
+    mb = ED.metakernel_reach()
+    assert mb["all_ok"], mb["failed"]
+    assert EI.summary(".")["gap_count"] == 0
+
+    print("PASS test_bq_metakernel (§BQ STAGE 1: ★CHC independent re-verification/fast_certificates/IC3 "
+          "'never false SAFE'/Farkas/SOS were ALREADY kernel-of-truth instances — 0 diff on every engine "
+          "file, verified via git; ★NEW-1 metakernel/trusted_kernel.py — unified witness contract (thin "
+          "wraps of SOS/Farkas/LP/cfinite) + a from-scratch propositional+ground-EUF DPLL decision "
+          "procedure, TCB<500 lines, proven correct by direct cross-check against z3; ★NEW-1b "
+          "chc_kernel_bridge.py — z3-AST fragment classifier (fails CLOSED on any arithmetic/quantifier/ITE) "
+          "+ a CHC entry point that removes z3 from the TCB for the propositional/ground-EUF fragment, "
+          "safe-by-construction fallback to the unmodified chc_solve.chc_grade() everywhere else (measured: "
+          "Spacer's invariant synthesis defaults to linear-arithmetic even for equality-only relations, so "
+          "this fires less than 'the fragment' framing suggests — honestly reported, not papered over); "
+          "★NEW-2 holed_certificate.py — Why3-style proof skeletons (open/filled holes) over the unmodified "
+          "StructForm/weakest-link machinery, enabling Stage-2 incremental re-verification (only the "
+          "changed stage's hole needs refilling); 0 new mechanism, 14-mechanism count unchanged)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -32,6 +32,7 @@ _WIRED_PACKAGES = {
     "newengine",                                                       # §BM: 10 new certificate-or-DECLINE branches (wired via engine_dispatch.newengine_reach)
     "newengine5",                                                      # §BN: 7 decidable-fragment-guarded branches (wired via engine_dispatch.newengine5_reach)
     "newengine3",                                                      # §BO: 3 decidable-boundary branches (prob-loop moment/EPR/CSP; wired via engine_dispatch.newengine3_reach)
+    "metakernel",                                                      # §BQ: unified trusted-kernel witness contract + CHC TCB-reduction bridge + holed certificates (wired via engine_dispatch.metakernel_reach)
 }
 # root-level engine files the dispatcher reaches directly (the §BK + §BL wired entries)
 _WIRED_ENTRIES = {

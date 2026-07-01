@@ -152,6 +152,24 @@ def newengine3_reach() -> dict:
         return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
 
 
+def metakernel_reach() -> dict:
+    """§BQ — reach the unified trusted-kernel layer (metakernel.trusted_kernel propositional/ground-EUF decision
+    procedure + metakernel.chc_kernel_bridge CHC TCB-reduction bridge + metakernel.holed_certificate Why3-style
+    holed fold-IR certificates). None of these re-implement chc_solve/fast_certificates/ic3_pdr/farkas/sos_cert —
+    they wrap/classify on top (NO 15th mechanism). Aggregates all 3 sub-batteries into one verdict."""
+    try:
+        import metakernel.trusted_kernel as TK
+        import metakernel.chc_kernel_bridge as CKB
+        import metakernel.holed_certificate as HC
+        tb, cb, hb = TK.adversarial_battery(), CKB.adversarial_battery(), HC.adversarial_battery()
+        all_ok = bool(tb["all_ok"] and cb["all_ok"] and hb["all_ok"])
+        failed = list(tb["failed"]) + list(cb["failed"]) + list(hb["failed"])
+        return {"trusted_kernel": tb, "chc_kernel_bridge": cb, "holed_certificate": hb,
+                "all_ok": all_ok, "failed": failed}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""
