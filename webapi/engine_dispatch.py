@@ -221,6 +221,43 @@ def agenttools_reach() -> dict:
         return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
 
 
+def swebench_reach() -> dict:
+    """10H directive Task 3 — reach the SWE-bench score-amplifier (harness + multi_candidate + fix_loop +
+    regression + localization + formal_check + score_report) AND the real-dataset schema loader added this
+    task (real_dataset.py). Confirms: the mini-bench ladder/precision hold (measured, not asserted); live
+    generation (Clock A) and the real-dataset live-fetch both stay HONESTLY labeled pending-real-stack /
+    BLOCKED — this sandbox's egress genuinely blocks huggingface.co (re-confirmed by an actual attempt
+    inside this probe, not a remembered fact) — never a fabricated score or a fabricated fetch success; and
+    the real SWE-bench JSON schema (instance_id/repo/base_commit/patch/test_patch/FAIL_TO_PASS/PASS_TO_PASS)
+    parses correctly on a fixture matching the ACTUAL field names, and rejects an incomplete one."""
+    try:
+        from swebench import real_dataset as RD
+        from swebench import score_report as SR
+        rep = SR.report()
+        fixture = {"instance_id": "x", "repo": "o/r", "base_commit": "abc", "patch": "p", "test_patch": "tp",
+                  "problem_statement": "s", "FAIL_TO_PASS": '["a"]', "PASS_TO_PASS": "[]"}
+        inst = RD.parse_instance(fixture)
+        try:
+            RD.parse_instance({"instance_id": "incomplete"})
+            rejects_incomplete = False
+        except ValueError:
+            rejects_incomplete = True
+        fetch = RD.live_fetch()
+        cases = {
+            "ladder_monotone": rep["ladder_summary"]["full_pipeline"] >= rep["ladder_summary"]["opus_alone"],
+            "precision_full": rep["precision_on_submissions"]["precision"] == 1.0,
+            "zero_dep_ok": rep["zero_dep_forbidden_present"] == [],
+            "honest_pending_real_stack": "PENDING-REAL-STACK" in rep["honest_limits"]["real_swebench_score"],
+            "real_schema_parses": inst.instance_id == "x" and inst.fail_to_pass == ["a"],
+            "real_schema_rejects_incomplete": rejects_incomplete,
+            "live_fetch_status_is_honest": fetch["status"] in ("OK", "BLOCKED"),  # never a 3rd fabricated state
+        }
+        failed = [k for k, v in cases.items() if not v]
+        return {"cases": cases, "all_ok": not failed, "failed": failed, "live_fetch_status": fetch["status"]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}", "all_ok": False}
+
+
 def full_inventory() -> dict:
     """§BL — tie the production reach to the full-repo scan: every real engine reachable ⇒ gap == 0 (the rest are
     app_layer / dev_tooling / observability, classified not hidden). Honest 100% over the WIREABLE set."""

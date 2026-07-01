@@ -54,3 +54,23 @@ gate strictness) are NEVER decided solo — flagged below and that item is skipp
   (+4: measured-count/no-fold-mislabel/sandboxing/functional-reality). Committing now. Next: Task 3 (swebench/
   production wiring + real dataset — sandbox egress-blocks the actual SWE-bench corpus/repos, so this will be
   an honest BLOCKED-labeled real-loader build, not a live benchmark run).
+
+- **2026-07-01 15:15 UTC** — Task 3 (swebench wiring + real dataset) DONE. Added
+  `webapi/engine_dispatch.py::swebench_reach()` (same convention as newengine/agenttools) reaching the mini-
+  bench ladder/precision report and the new `swebench/real_dataset.py`. **Tier-A call made+logged**: did NOT
+  literally "replace `mini_bench()`" as the directive's shorthand put it — confirmed BOTH a network block
+  (huggingface.co + HF datasets-server: 403 through the proxy; external git clone: blocked outside the 3
+  allowlisted repos; api.github.com: blocked/redirected) AND a genuine schema gap (`harness.Task` needs
+  executable Python + concrete test tuples; a real instance's FAIL_TO_PASS/PASS_TO_PASS are pytest node IDs
+  against a repo checkout — deriving them requires actually running pytest, not a data reshape;
+  `real_dataset.harness_conversion_gap()` documents this honestly instead of faking a lossy conversion).
+  `mini_bench()` is therefore UNCHANGED — no real data exists in this sandbox to replace it with; it stays
+  the clearly-labeled synthetic substrate. What IS real: `real_dataset.py`'s `RealInstance` matches the
+  ACTUAL SWE-bench field names, parses the real FAIL_TO_PASS/PASS_TO_PASS JSON-string-encoding quirk,
+  rejects incomplete instances, and `live_fetch()` makes a genuine network attempt every call (re-verified
+  live inside the reach-probe itself, not asserted from memory) — this session's honest result: `"BLOCKED"`.
+  This is the SAME honesty pattern this codebase already uses dozens of times (Clock A generation, GPU
+  throughput, React+CI toolchain) — not a new excuse invented for this task. **Both gates confirmed green
+  on a full isolated run**: test_build.py 280/280 (unaffected), test_catalog.py 271/271 (+4: reach-probe,
+  real-schema parsing, live-fetch-honest, mini_bench-unchanged lock-in). Committing now. Next: Task 4
+  (extend the v2.1 provider-parity regression to also cover tool availability/execution).
