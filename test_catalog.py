@@ -7151,7 +7151,13 @@ def test_v22_local_provider_parity():
     capability gate (Prime Directive 4 — a deliberate, directive-mandated exception for local/arbitrary-
     model reliability, never a hidden "fewer tools for local models" policy). When that gate is satisfied,
     both providers get the IDENTICAL tool set; only the WIRE ENCODING legitimately differs (native vs
-    OpenAI-wrapped), never which tools are considered."""
+    OpenAI-wrapped), never which tools are considered.
+
+    ★ 번들 지시서 Task 1 extension (프라임 4 — parity를 번들 데몬 모드로 확장) ★: the launcher injects
+    `JEFF_BUNDLE=1` + `HARAN_PROVIDER=ollama_local` into the daemon's ENV — bundle mode may change process
+    WIRING only, never verification. Proven two ways: (1) the identical mocked run under those env vars
+    produces the byte-identical Verdict trace, and (2) structurally, neither `agentic.py` nor
+    `kernel_verdict.py` even contains the string `JEFF_BUNDLE` — the verify path cannot read the marker."""
     import agentic as AG
     import claude_agent as CA
     from foldrate import foldcache as FC
@@ -7211,12 +7217,36 @@ def test_v22_local_provider_parity():
     assert tools_ollama_unconfirmed == []
     assert len(AG._tools_for_call(request, "anthropic", CA.DEFAULT_MODEL, None)) > 0
 
+    # ── 번들 지시서 Task 1: bundle-daemon-mode env must be verification-invisible ────────────────────
+    # local_bundle/launcher.py injects exactly these two env vars into the daemon it spawns; re-running
+    # the SAME mocked task under them must reproduce the SAME Verdict path bit-for-bit.
+    import os as _os
+    _saved = {k: _os.environ.get(k) for k in ("JEFF_BUNDLE", "HARAN_PROVIDER")}
+    try:
+        _os.environ["JEFF_BUNDLE"] = "1"
+        _os.environ["HARAN_PROVIDER"] = "ollama_local"
+        rb = AG.agentic_code(request, "normal", mock_sequence=seq, provider="ollama_local")
+    finally:
+        for k, v in _saved.items():
+            if v is None:
+                _os.environ.pop(k, None)
+            else:
+                _os.environ[k] = v
+    for field in ("converged", "iters", "status", "final_code", "proof_tier", "source", "gates", "best_of_n"):
+        assert getattr(rb, field) == getattr(ro, field), ("bundle-mode drift", field, getattr(rb, field))
+    assert [s.verdict.status for s in rb.trace] == [s.verdict.status for s in ro.trace]
+    assert [s.code for s in rb.trace] == [s.code for s in ro.trace]
+    # structural lock: the verify path cannot even SEE the bundle marker (grep-level, not just behavioral)
+    import kernel_verdict as _KV_mod
+    assert "JEFF_BUNDLE" not in inspect.getsource(AG), "agentic.py must never read the bundle marker"
+    assert "JEFF_BUNDLE" not in inspect.getsource(_KV_mod), "kernel_verdict.py must never read the bundle marker"
+
     print("PASS test_v22_local_provider_parity (provider=anthropic vs provider=ollama_local: identical "
           "kernel_verdict-ADT trace/grade/optimization/FoldCache-key for the same code-generation task; "
           "10H Task 4 — router/executor structurally provider-blind, identical tool set when Ollama's "
-          "capability gate is satisfied, honest empty-list when it isn't — provider selects ONLY the "
-          "proposer and (for Ollama alone) gates on live capability, never the verification strength or "
-          "which tools are considered)")
+          "capability gate is satisfied, honest empty-list when it isn't; 번들 Task 1 — bundle-daemon env "
+          "[JEFF_BUNDLE + HARAN_PROVIDER] reproduces the byte-identical Verdict trace and the verify path "
+          "provably never reads the bundle marker — bundle mode is process wiring, never verification)")
 
 
 def test_v22_local_models_client():
@@ -7235,6 +7265,119 @@ def test_v22_local_models_client():
     assert list(LM.pull_model(""))[0]["status"] == "error"
     print("PASS test_v22_local_models_client (detect/list_models/pull_model all fail honestly — never raise, "
           "never fabricate ok=True — when no local Ollama server is reachable)")
+
+
+def test_bundle_launcher_smoke():
+    """번들 지시서 Task 1 — local_bundle/launcher.py 융합층 스모크(Linux에서 실행 가능한 전 범위, 전부
+    실프로세스 실측 — import 검사 아님): (1) 런처가 'ollama 바이너리'(JEFF_OLLAMA_BIN으로 주입한 mock —
+    프라임 5가 정직하게 기록한 한계: 진짜 Windows 동봉 바이너리는 이 샌드박스에서 실행 불가하므로, 여기선
+    같은 env-주입 경로를 mock으로 관통)를 **OLLAMA_ORIGINS가 미리 세팅된 env로** 기동하고 — 그 값이 실제
+    자식 프로세스 env에 도달했음을 mock 자신의 /api/env 에코로 확인(수동 CORS 체크리스트 제거의 실체),
+    (2) 기존 server.py 스택 데몬이 번들 포트에서 응답하며(새 파이프라인 아님 — 프라임 4), (3) 런처에
+    SIGTERM 한 방이면 두 자식이 모두 정리되어 양쪽 포트가 닫힌다."""
+    import json as _json
+    import os
+    import signal as _signal
+    import socket
+    import subprocess
+    import sys
+    import tempfile
+    import time as _time
+    import urllib.request
+    from pathlib import Path
+
+    def _free_port() -> int:
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        p = s.getsockname()[1]
+        s.close()
+        return p
+
+    def _get(url: str, timeout: float = 2.0):
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return r.status, r.read().decode()
+
+    oport, dport = _free_port(), _free_port()
+    tmp = tempfile.mkdtemp(prefix="bundle_smoke_")
+    mock = Path(tmp) / "mock_ollama"
+    mock.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os\n"
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "class H(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        if self.path == '/api/version':\n"
+        "            body = json.dumps({'version': 'mock'}).encode()\n"
+        "        elif self.path == '/api/env':\n"
+        "            body = json.dumps({'OLLAMA_ORIGINS': os.environ.get('OLLAMA_ORIGINS', '')}).encode()\n"
+        "        else:\n"
+        "            self.send_response(404); self.end_headers(); return\n"
+        "        self.send_response(200)\n"
+        "        self.send_header('Content-Length', str(len(body)))\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(body)\n"
+        "    def log_message(self, *a):\n"
+        "        pass\n"
+        "h, p = os.environ['OLLAMA_HOST'].rsplit(':', 1)\n"
+        "HTTPServer((h, int(p)), H).serve_forever()\n", encoding="utf-8")
+    mock.chmod(0o755)
+
+    env = dict(os.environ)
+    env.update({"JEFF_OLLAMA_BIN": str(mock), "OLLAMA_HOST": f"127.0.0.1:{oport}",
+                "JEFF_SITE_ORIGIN": "https://jeff-site.example"})
+    env.pop("OLLAMA_ORIGINS", None)                       # 사용자 프리셋 없는 기본 경로를 검증
+    proc = subprocess.Popen([sys.executable, "local_bundle/launcher.py", "--port", str(dport)], env=env)
+    try:
+        deadline = _time.monotonic() + 90
+        origins = None
+        while _time.monotonic() < deadline:
+            assert proc.poll() is None, "launcher died prematurely"
+            try:
+                st, body = _get(f"http://127.0.0.1:{oport}/api/env")
+                if st == 200:
+                    origins = _json.loads(body)["OLLAMA_ORIGINS"]
+                    break
+            except OSError:
+                _time.sleep(0.3)
+        assert origins is not None, "mock ollama never came up under the launcher"
+        # ★ CORS 프리셋이 자식 프로세스의 실제 env에 도달 — 우리 코드의 주장이 아니라 자식의 자기보고
+        assert f"http://127.0.0.1:{dport}" in origins, origins
+        assert "https://jeff-site.example" in origins, origins
+        booted = False
+        while _time.monotonic() < deadline:
+            assert proc.poll() is None, "launcher died before the daemon came up"
+            try:
+                st, _body = _get(f"http://127.0.0.1:{dport}/", timeout=3.0)
+                if st == 200:
+                    booted = True
+                    break
+            except OSError:
+                _time.sleep(0.4)
+        assert booted, "daemon (the EXISTING server.py stack) never answered on the bundle port"
+        proc.send_signal(_signal.SIGTERM)
+        proc.wait(timeout=15)
+        both_down = False
+        deadline2 = _time.monotonic() + 10
+        while _time.monotonic() < deadline2:
+            up = 0
+            for port, path in ((oport, "/api/version"), (dport, "/")):
+                try:
+                    _get(f"http://127.0.0.1:{port}{path}", timeout=1.0)
+                    up += 1
+                except OSError:
+                    pass
+            if up == 0:
+                both_down = True
+                break
+            _time.sleep(0.4)
+        assert both_down, "children still serving after launcher SIGTERM — cleanup failed"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    print("PASS test_bundle_launcher_smoke (launcher booted mock-ollama WITH OLLAMA_ORIGINS preset — site "
+          "origin + daemon origin observed in the CHILD's own env via /api/env — plus the existing "
+          "server.py stack on the bundle port, and one SIGTERM tore both children down; the fusion is "
+          "process/API-layer wiring only, exactly the no-fork prime directive)")
 
 
 def test_10h_tool_registry_tiers():

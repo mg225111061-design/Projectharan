@@ -94,7 +94,8 @@ _DEV_TOOLING = {
     "projectharan_all_code.py", "gen_haran_md.py", "pillar3_panel_gen.py", "pillar3_studio_gen.py",
     "property_test.py", "diagnostics.py",
 }
-_DEV_PKGS = {"benchmarks", "scripts", "defer_corpus"}
+_DEV_PKGS = {"benchmarks", "scripts", "defer_corpus",
+             "local_bundle"}    # 번들 지시서: 원클릭 설치기 런처/패키징 — CLI 오케스트레이션이지 요청 엔진이 아님
 
 
 def _purpose(path: str) -> str:

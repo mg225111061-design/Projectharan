@@ -1,0 +1,19 @@
+MR.JEFFREY local bundle — third-party notices
+=============================================
+
+This product bundles Ollama (https://github.com/ollama/ollama),
+Copyright (c) Ollama contributors, licensed under the MIT License.
+The full license text is included at: third_party/OLLAMA_LICENSE
+
+Ollama itself builds on llama.cpp (MIT License, Copyright (c) The ggml authors);
+that license is covered by the Ollama distribution bundled here.
+
+The bundled Ollama binary is an UNMODIFIED official release (version pinned in
+ollama_pin.json, sha256-verified at build time). MR.JEFFREY does not fork or
+patch Ollama — local model inference is powered by Ollama; the agent loop,
+verification kernel (kernel_verdict), tool catalog (agenttools), and
+orchestration are MR.JEFFREY's own work.
+
+Model weights are NOT bundled. Models are pulled by the user on first run and
+are licensed separately by their publishers (for example: Qwen — Apache-2.0;
+Llama — Meta Llama Community License). Review each model's license before use.
