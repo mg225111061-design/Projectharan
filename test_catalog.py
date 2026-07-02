@@ -7633,11 +7633,11 @@ def test_10h_catalog_measured_count():
     # I/O-bound or plain computation, NOT verified-fold/accel-engine delegations — the P1/P3 ACCEL
     # suggestion in the v2 design doc is overridden to PLAIN for exactly that reason, see
     # catalog_context.py's header note).
-    assert REG.total_count() == 48, REG.total_count()
+    assert REG.total_count() == 63, REG.total_count()
     counts = REG.counts_by_tier()
-    assert counts == {REG.FOLD_ELIGIBLE: 4, REG.ACCEL_ELIGIBLE: 2, REG.PLAIN: 42}, counts
-    print("PASS test_10h_catalog_measured_count (48 tools: 42 PLAIN + 4 FOLD-ELIGIBLE + 2 ACCEL-ELIGIBLE — "
-          "the honest measured count after 카탈로그-v2 P군, not force-fit toward any target)")
+    assert counts == {REG.FOLD_ELIGIBLE: 4, REG.ACCEL_ELIGIBLE: 2, REG.PLAIN: 57}, counts
+    print("PASS test_10h_catalog_measured_count (63 tools: 57 PLAIN + 4 FOLD-ELIGIBLE + 2 ACCEL-ELIGIBLE — "
+          "the honest measured count after 카탈로그-v2 K군, not force-fit toward any target)")
 
 
 def test_10h_catalog_plain_never_fold_labeled():
@@ -7830,8 +7830,9 @@ def test_catv2_envelope_foundation():
     for t in REG.all_tools():
         census.setdefault(t.sandbox, []).append(t.name)
     assert sorted(census["WRITE"]) == ["file_patch", "file_write", "git_apply_patch", "git_checkout_commit",
-                                       "git_stash_ops", "repo_clone_shallow", "write_scratch_file"]
-    assert census["EXEC"] == ["run_python_file"] and len(census["READ"]) == 48 - 8   # 11 P-tools all READ
+                                       "git_stash_ops", "print_instrument", "repo_clone_shallow",
+                                       "write_scratch_file"]
+    assert len(census["EXEC"]) == 6 and "run_python_file" in census["EXEC"] and len(census["READ"]) == 63 - 14
 
     # (d) R7 gate hook: WRITE refused without allow_write, runs with it (scratch-confined tool only)
     blocked = execute_enveloped("write_scratch_file", {"path": "v2probe.txt", "content": "x"})
@@ -7853,7 +7854,7 @@ def test_catv2_envelope_foundation():
         assert "verdict_stripped_non_fold_tool" in ep["labels"]                  # and never silently
     finally:
         REG.unregister("catv2_probe_fold"); REG.unregister("catv2_probe_plain")
-    assert REG.total_count() == 48                        # probe tools left no registry drift
+    assert REG.total_count() == 63                        # probe tools left no registry drift
 
     # (f) v1 wire path unchanged
     r = execute("file_exists", {"path": "server.py"})
@@ -7885,7 +7886,7 @@ def test_catv2_p_group_context():
     P_TOOLS = ("context_window_pack", "readme_context_pack", "similar_code_find", "example_usage_find",
                "api_doc_extract", "docstring_gen_check", "type_annotate_infer", "comment_stale_detect",
                "history_context", "todo_context_link", "spec_extract_haran")
-    assert REG.total_count() == 48
+    assert REG.total_count() == 63
     for name in P_TOOLS:
         t = REG.get(name)
         assert t is not None and t.sandbox == "READ", name
@@ -7933,6 +7934,104 @@ def test_catv2_p_group_context():
           "real call-sites/API; P7 fixture suggestions, no patch, heuristic; P8 flag_only; P9 real git "
           "history + honest NOT_FOUND; P11 draft; traversal INVALID_INPUT; P1/P3 PLAIN [Tier-A override "
           "locked — no accel delegate, no ACCEL claim]; all READ; router ≤6 on live 48)")
+
+
+def test_catv2_k_group_debug():
+    """카탈로그-v2 K군 (15 디버깅/진단 도구, 우선순위 2): end-to-end through execute_enveloped with
+    deterministic fixtures. (a) K3 ddmin actually minimizes a failing input ("aaXbb"→"X") and rejects a
+    non-failing input as INVALID_INPUT (nonexact label attached); (b) K6 print_instrument is R7-gated
+    (BLOCKED without allow_write), inserts a marker-tagged probe, and remove=True restores the file
+    byte-identically; (c) K7 state_snapshot captures real locals at a line via settrace and honestly
+    NOT_FOUNDs an unreached line; (d) K4 bisect finds the culprit on a 1-commit range (worktree restored)
+    and its ref-injection guard rejects '-'-prefixed refs; (e) K2 parses a real traceback and rejects
+    frameless text; (f) K8 lists static raise sites AND leaves dynamic raises unresolved (never guessed);
+    (g) labels: K1/K12/K15 heuristic, K10/K13 flag_only, K3/K14 nonexact; (h) sandbox census over the
+    live 63 is exact (READ 49 / WRITE 8 / EXEC 6) and the new typed escapes (BlockedError/UndecidableError)
+    map to BLOCKED/UNDECIDABLE; (i) router ≤6 holds on the live 63."""
+    import os
+    import agenttools  # noqa: F401
+    from agenttools import registry as REG
+    from agenttools.envelope import BlockedError, UndecidableError
+    from agenttools.executor import _map_exception, execute_enveloped as run
+    from agenttools.router import select_tools
+
+    assert _map_exception(BlockedError("x"))[0] == "BLOCKED"
+    assert _map_exception(UndecidableError("x"))[0] == "UNDECIDABLE"
+    census = {}
+    for t in REG.all_tools():
+        census.setdefault(t.sandbox, []).append(t.name)
+    assert len(census["READ"]) == 49 and len(census["WRITE"]) == 8 and len(census["EXEC"]) == 6, \
+        {k: len(v) for k, v in census.items()}
+    assert "print_instrument" in census["WRITE"]
+    assert sorted(census["EXEC"]) == ["bisect_commits", "bisect_hunks", "delta_debug_input",
+                                      "heisenbug_rerun", "run_python_file", "state_snapshot"]
+
+    # K3 ddmin on a deterministic fixture (fails iff input contains 'X')
+    fix = "catv2_k3_fixture_tmp.py"
+    with open(fix, "w", encoding="utf-8") as f:
+        f.write("import sys\nsys.exit(1 if (len(sys.argv)>1 and 'X' in sys.argv[1]) else 0)\n")
+    try:
+        e = run("delta_debug_input", {"failing_input": "aaXbb", "test_path": fix})
+        assert e["ok"] and e["result"]["minimal_input"] == "X" and "nonexact" in e["labels"], e
+        bad = run("delta_debug_input", {"failing_input": "aabb", "test_path": fix})
+        assert not bad["ok"] and bad["error"]["code"] == "INVALID_INPUT"
+    finally:
+        os.remove(fix)
+
+    # K6 instrument: R7 gate → insert → marker removal restores byte-identical
+    fix2 = "catv2_k6_fixture_tmp.py"
+    orig = "def g(a):\n    b = a + 1\n    return b\n"
+    with open(fix2, "w", encoding="utf-8") as f:
+        f.write(orig)
+    try:
+        assert run("print_instrument", {"path": fix2, "lines": [2], "vars": ["a"]})["error"]["code"] == "BLOCKED"
+        e = run("print_instrument", {"path": fix2, "lines": [2], "vars": ["a"]}, allow_write=True)
+        assert e["ok"] and e["result"]["inserted"] == 1
+        e = run("print_instrument", {"path": fix2, "remove": True}, allow_write=True)
+        assert e["ok"] and open(fix2, encoding="utf-8").read() == orig
+    finally:
+        os.remove(fix2)
+
+    # K7 settrace snapshot + honest NOT_FOUND
+    fix3 = "catv2_k7_fixture_tmp.py"
+    with open(fix3, "w", encoding="utf-8") as f:
+        f.write("x = 41\ny = x + 1\nprint(y)\n")
+    try:
+        e = run("state_snapshot", {"path": fix3, "line": 2})
+        assert e["ok"] and e["result"]["locals_at_line"].get("x") == "41"
+        assert run("state_snapshot", {"path": fix3, "line": 99})["error"]["code"] == "NOT_FOUND"
+    finally:
+        os.remove(fix3)
+
+    # K4 bisect: 1-commit range (only HEAD is ever checked out; worktree restored) + injection guard
+    fix4 = "catv2_k4_fixture_tmp.py"
+    with open(fix4, "w", encoding="utf-8") as f:
+        f.write("import sys\nsys.exit(1)\n")                     # always fails → culprit = HEAD
+    try:
+        e = run("bisect_commits", {"good_ref": "HEAD~1", "bad_ref": "HEAD", "test_path": fix4})
+        assert e["ok"] and e["result"]["culprit_commit"], e
+        inj = run("bisect_commits", {"good_ref": "-bad", "bad_ref": "HEAD", "test_path": fix4})
+        assert not inj["ok"] and inj["error"]["code"] == "INVALID_INPUT"
+    finally:
+        os.remove(fix4)
+
+    # K2 / K8 / labels
+    tb = 'Traceback (most recent call last):\n  File "x.py", line 3, in f\n    d["k"]\nKeyError: \'k\''
+    e = run("stack_deep_parse", {"traceback_text": tb})
+    assert e["ok"] and e["result"]["innermost"]["line"] == 3
+    assert run("stack_deep_parse", {"traceback_text": "no frames"})["error"]["code"] == "INVALID_INPUT"
+    e = run("raise_path_trace", {"path": "agenttools/catalog_plain.py", "exception_type": "ValueError"})
+    assert e["ok"] and e["result"]["reachable_paths"] and "unresolved" in e["result"]["note"]
+    assert "heuristic" in run("error_explain", {"exception_type": "KeyError"})["labels"]
+    assert "flag_only" in run("off_by_one_scan", {"path": "agenttools/catalog_debug.py"})["labels"]
+    e = run("regression_pinpoint", {"failing_log": "coder tier catalog recommend"})
+    assert e["ok"] and e["result"]["suspect_commits"] and "heuristic" in e["labels"]
+    assert len(select_tools("debug this failing test and find the culprit")) <= 6
+    print("PASS test_catv2_k_group_debug (15 K-tools live via the envelope path: ddmin minimizes aaXbb→X + "
+          "rejects non-failing input; print_instrument R7-gated + byte-identical marker removal; settrace "
+          "snapshot captures locals + honest NOT_FOUND; bisect culprit on 1-commit range + '-'-ref guard; "
+          "traceback parse; static-raise map leaves dynamic unresolved; labels heuristic/flag_only/nonexact "
+          "attached; census 49/8/6 exact; BlockedError→BLOCKED, UndecidableError→UNDECIDABLE; router ≤6 on 63)")
 
 
 def test_cat100_ad_group_functional():

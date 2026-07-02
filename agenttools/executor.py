@@ -14,8 +14,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from agenttools.envelope import (BLOCKED, EXEC_FAILED, INVALID_INPUT, NOT_FOUND, TIMEOUT,
-                                 WRITE, is_to_api_shaped, make_envelope)
+from agenttools.envelope import (BLOCKED, EXEC_FAILED, INVALID_INPUT, NOT_FOUND, TIMEOUT, UNDECIDABLE,
+                                 WRITE, BlockedError, UndecidableError, is_to_api_shaped, make_envelope)
 from agenttools.registry import FOLD_ELIGIBLE
 from agenttools.registry import get as _get_tool
 
@@ -49,6 +49,10 @@ def _map_exception(e: BaseException) -> tuple:
     """Map an in-tool exception to the closest of the six §1.3 codes — every crash becomes an honest
     envelope, never a propagated exception, never a seventh invented code."""
     import subprocess
+    if isinstance(e, UndecidableError):
+        return UNDECIDABLE, "tool cannot decide (honest DECLINE at the tool layer)"
+    if isinstance(e, BlockedError):
+        return BLOCKED, "blocked (tool-stated reason in detail)"
     if isinstance(e, (TimeoutError, subprocess.TimeoutExpired)):
         return TIMEOUT, "budget/timeout exceeded"
     if isinstance(e, (PermissionError, ConnectionError)):

@@ -48,6 +48,17 @@ SANDBOXES = (READ, WRITE, EXEC)
 _TO_API_CORE_KEYS = ("grade", "kernel", "complexity")
 
 
+class BlockedError(RuntimeError):
+    """Raise inside a tool to signal the §1.3 BLOCKED code with a specific reason (e.g. 'the test itself
+    is flaky — bisect verdicts would be noise'). Typed, so the executor maps it structurally — never a
+    semantic abuse of PermissionError."""
+
+
+class UndecidableError(RuntimeError):
+    """Raise inside a tool to signal §1.3 UNDECIDABLE — the tool cannot decide (dynamic constructs, an
+    unbounded domain). The tool-layer expression of an honest DECLINE."""
+
+
 def is_to_api_shaped(v: Any) -> bool:
     return isinstance(v, dict) and all(k in v for k in _TO_API_CORE_KEYS)
 

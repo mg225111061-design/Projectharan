@@ -135,3 +135,23 @@
   INVALID_INPUT / P4·P5 실파일 / P7 fixture 제안+no-patch / P8 flag_only / P9 실이력+NOT_FOUND / P11
   draft / traversal / P1·P3 PLAIN lock / 전부 READ / 라우터≤6 on 48). agenttools 18개 테스트 suite-order
   전부 green + census 48 유지. 카탈로그 278. 다음: K군(#337, 디버깅 15종, 우선순위 2).
+
+- **2026-07-02 05:50 UTC** — **카탈로그-v2 K군 (#337) DONE — 디버깅/진단 15종, 도구 48→63.**
+  `agenttools/catalog_debug.py`: K1 error_explain(규칙표+confidence, heuristic) · K2 traceback 구조화
+  (frameless→INVALID_INPUT) · K3 ddmin(실최소화 "aaXbb"→"X" 6런, 비실패 입력 거부, nonexact) ·
+  K4 bisect(이진탐색+worktree finally 복원+★flaky 게이트: bad_ref에서 2회 검증 불일치→BLOCKED, ref
+  '-'주입 가드) · K5 hunk 격리(단독 적용→테스트→역적용) · K6 print_instrument(WRITE/R7 — 마커 삽입→
+  remove=True로 byte-identical 복원) · K7 settrace 드라이버 서브프로세스(locals 실캡처, 미도달 라인→
+  NOT_FOUND) · K8 정적 raise 지도(★동적 raise는 UNDECIDABLE 위장 없이 `unresolved` 목록 — PLAIN은 판정
+  흉내 금지) · K9 def-use · K10/K13 flag_only 스캔 · K11 리소스 · K12 NaN/Inf(heuristic) · K14 heisenbug
+  (PYTHONHASHSEED 가변 재실행, nonexact) · K15 회귀 용의커밋 랭킹(heuristic). **Tier-A 판단 3건**: K3
+  ACCEL·K8 FOLD·K15 ACCEL 설계 제안 전부 기각→PLAIN(검증 엔진 위임 아님, RF-5 — 3곳 기록). **§BE 경계
+  (Tier-A)**: 모든 test_command는 워크스페이스 .py+argv로 제한(임의 shell 금지 — run_python_file과 동일
+  경계, timeout+출력캡). **파운데이션 확장**: `envelope.BlockedError`/`UndecidableError` 타입드 에스케이프
+  +executor 매핑(K4의 flaky-BLOCKED가 PermissionError 오남용 없이 정직 신고). **빌드 중 잡은 것**: K15의
+  set-슬라이싱 버그(스모크가 INVALID_INPUT로 노출 — 봉투가 크래시를 정확히 분류해서 즉시 보임). EXEC 5종
+  census(ddmin/bisect×2/settrace/heisenbug — 이름 고정 회귀), WRITE +1(print_instrument). 카운트락 8건
+  동커밋 갱신(48→63, PLAIN 57, census 49-8-6). 회귀 `test_catv2_k_group_debug`. agenttools 19개 suite-order
+  green. 카탈로그 279. **9차(CA~CJ, ACI+환경기반) 도착** — ★9차 자신의 §0 "빌드·측정 우선, 신규설계
+  후순위" 권고 그대로 #369~372로 8차 뒤에 체이닝(그 권고가 지금 진행 중인 K/J/L… 빌드 순서를 정확히
+  뒷받침). 다음: J군(#338, 검증된 리팩터링 14 — equiv 게이트 먼저 배선, WRITE).
