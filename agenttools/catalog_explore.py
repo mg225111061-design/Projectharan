@@ -257,12 +257,12 @@ def loc_stats(path: str = ".", max_files: int = 500) -> Dict:
 register(Tool("file_write", "Create a NEW file in the workspace (refuses to overwrite — use file_patch to "
               "edit an existing file).",
               _schema({"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
-              file_write, PLAIN, keywords=("write", "create", "newfile", "add")))
+              file_write, PLAIN, keywords=("write", "create", "newfile", "add"), sandbox="WRITE"))
 register(Tool("file_patch", "Precise str_replace edit: `old` must occur exactly once; on ambiguity returns "
               "candidate line numbers instead of editing.",
               _schema({"path": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}},
                       ["path", "old", "new"]),
-              file_patch, PLAIN, keywords=("patch", "edit", "replace", "modify", "fix")))
+              file_patch, PLAIN, keywords=("patch", "edit", "replace", "modify", "fix"), sandbox="WRITE"))
 register(Tool("dir_tree", "Recursive directory tree under `path` (depth + entry capped).",
               _schema({"path": {"type": "string"}, "max_depth": {"type": "integer"},
                       "max_entries": {"type": "integer"}}),

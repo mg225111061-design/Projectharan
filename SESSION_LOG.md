@@ -96,3 +96,24 @@
   각각 트래커에 등록하고 **전부 2차 §1 공통계약 파운데이션(#335)에 blocked**로 체이닝(각 물결의 §3.1 대조
   매트릭스는 직전 물결에 blocked; 6차는 RF-6 LOSSLESS/LOSSY-SAFE/LOSSY-RISK 라벨을 §1 확장으로 추가). 어느
   물결도 파운데이션+대조매트릭스 전엔 도구 코드 시작 안 함 — 각 스펙 자신의 "이거 없이 시작 금지" 준수.
+
+- **2026-07-02 03:30 UTC** — **카탈로그-v2 §3.1+§3.2 공통계약 파운데이션 (#335) DONE** — 1~8차 전 물결
+  (~600 도구)의 단일 선행조건. **§3.2**: `agenttools/envelope.py`(§1.1 Result Envelope의 유일한 생성자 —
+  에러 6종 closed-set[7번째 코드 = 생성자 ValueError], to_api-shape 아닌 verdict = 생성 불가) +
+  `registry.Tool`에 `sandbox`(READ/WRITE/EXEC 등록 검증)·`labels`(§1.4 자동부착) 필드 +
+  `executor.execute_enveloped()`(예외→6종 매핑: ValueError[_safe_path 탈출거부]→INVALID_INPUT ·
+  FileNotFoundError→NOT_FOUND · Timeout→TIMEOUT · Permission/Connection→BLOCKED · 그 외→EXEC_FAILED;
+  WRITE 도구는 allow_write 없이 BLOCKED = **R7 safe_checkpoint 게이트 훅 선설치**; FOLD 도구의 to_api
+  verdict만 봉투로 승격, 비-FOLD의 verdict는 가시적 strip[라벨] — 조용한 grade 통과 구조적 불가).
+  **Tier-A 판단 3건 기록**: (1) 봉투는 도구가 아니라 **실행기가 만든다** — 스펙의 실패모드("개별 도구가
+  봉투를 제각각")의 구조적 방지가 생성 지점 1곳이고, 기존 37 도구는 등록 메타데이터만 변경(반환 shape
+  불변, v1 execute() 와이어 경로 바이트 동일 유지 — toolcall.py 무변경). (2) 샌드박스는 **효과 기준**:
+  고정-argv 읽기전용 git 서브프로세스는 부작용 0이라 READ(아니면 read-only git 14종이 §BE 격리 의무를
+  지는 EXEC가 되어 위험모델 과장) — 실측 census READ 29/WRITE 7/EXEC 1, WRITE 7종 이름 고정 회귀.
+  (3) cost.subprocess_ct=None(미계측 정직 unknown — 0으로 위장 금지). **§3.1**: `CATALOG_RECONCILE.md` —
+  v2 101종 이름 전부 지시서 원문에서 실측 추출(J14/K15/L12/M11/N11/O11/P11/Q8/R8), 라이브 37과 이름충돌
+  **0건**, backing-재사용 매트릭스(J←symbol_find/file_patch/equiv · K←git+run_python_file · M←FOLD 도구
+  재호출 · R7←git_stash_ops 기반 등) + 3~8차 사전 지적 누적 구조. 회귀 `test_catv2_envelope_foundation`
+  (봉투 shape·6종·traversal→INVALID_INPUT·census 정확명명·R7 게이트 차단/허용·FOLD-verdict 승격/PLAIN-strip
+  가시·프로브 unregister 드리프트 0·v1 경로 불변). 카탈로그 277. **지시서 큐**: 8차(BQ~BZ, 선택병목 —
+  의미 등가류 투표+formal tiebreak) 도착 → #365~368 등록, 7차에 체이닝. 다음: P군(#336, v2 우선순위 1).

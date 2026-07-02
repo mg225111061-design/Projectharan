@@ -7417,13 +7417,16 @@ def test_10h_registry_register_and_get():
     name = "test_10h_fixture_tool_zzz"
     t = REG.Tool(name, "a fixture tool for the registry mechanics test",
                 {"type": "object", "properties": {}}, lambda: "ok", REG.PLAIN)
-    returned = REG.register(t)
-    assert returned is t
-    assert REG.get(name) is t
-    assert t in REG.all_tools()
-    assert REG.get("test_10h_definitely_not_registered_xyz") is None
+    try:
+        returned = REG.register(t)
+        assert returned is t
+        assert REG.get(name) is t
+        assert t in REG.all_tools()
+        assert REG.get("test_10h_definitely_not_registered_xyz") is None
+    finally:
+        REG.unregister(name)              # fixture must not inflate the live catalog (count-drift guard)
     print("PASS test_10h_registry_register_and_get (register/get/all_tools mechanics; unknown name → None, "
-          "never a fabricated Tool)")
+          "never a fabricated Tool; fixture unregistered — no drift)")
 
 
 def test_10h_router_exposes_small_subset():
@@ -7493,16 +7496,21 @@ def test_10h_executor_never_crashes():
     REG.register(REG.Tool("test_10h_needs_arg_tool", "needs a path", {"type": "object",
                           "properties": {"path": {"type": "string"}}, "required": ["path"]},
                           _needs_arg, REG.PLAIN))
-    r1 = EX.execute("test_10h_no_such_tool_xyz", {})
-    assert r1.ok is False and "unknown tool" in r1.error
-    r2 = EX.execute("test_10h_boom_tool", {})
-    assert r2.ok is False and "RuntimeError" in r2.error and "simulated tool bug" in r2.error
-    r3 = EX.execute("test_10h_needs_arg_tool", {})                 # missing required 'path'
-    assert r3.ok is False and "bad arguments" in r3.error
-    r4 = EX.execute("test_10h_needs_arg_tool", {"path": "/tmp/x"})
-    assert r4.ok is True and r4.output == "read /tmp/x"
+    try:
+        r1 = EX.execute("test_10h_no_such_tool_xyz", {})
+        assert r1.ok is False and "unknown tool" in r1.error
+        r2 = EX.execute("test_10h_boom_tool", {})
+        assert r2.ok is False and "RuntimeError" in r2.error and "simulated tool bug" in r2.error
+        r3 = EX.execute("test_10h_needs_arg_tool", {})                 # missing required 'path'
+        assert r3.ok is False and "bad arguments" in r3.error
+        r4 = EX.execute("test_10h_needs_arg_tool", {"path": "/tmp/x"})
+        assert r4.ok is True and r4.output == "read /tmp/x"
+    finally:
+        REG.unregister("test_10h_boom_tool"); REG.unregister("test_10h_needs_arg_tool")   # probe tools must
+        # not permanently inflate the live catalog (the same count-drift class 10H Task 2 fixed — the catv2
+        # census regression later in the suite now watches the whole registry, which is how this leak surfaced)
     print("PASS test_10h_executor_never_crashes (unknown tool / raising tool / missing-argument tool all "
-          "degrade to ToolResult(ok=False), never propagate an exception)")
+          "degrade to ToolResult(ok=False), never propagate an exception; probe tools unregistered — no drift)")
 
 
 def test_10h_capability_gate_failsafe():
@@ -7578,13 +7586,16 @@ def test_10h_tools_for_call_ollama_gate():
     fixture = REG.Tool("test_10h_gate_fixture_tool", "d", {"type": "object", "properties": {}},
                        lambda: 1, REG.PLAIN, keywords=("zzqqxyzprobe",))
     REG.register(fixture)
-    prompt = "please use the zzqqxyzprobe tool"
-    ollama_tools = AG._tools_for_call(prompt, "ollama_local", "some-model", None)
-    assert ollama_tools == [], ollama_tools              # no live Ollama in this sandbox ⇒ honest empty
-    anthropic_tools = AG._tools_for_call(prompt, "anthropic", "claude-opus-4-8", None)
-    assert fixture in anthropic_tools                     # non-ollama providers skip the live check
+    try:
+        prompt = "please use the zzqqxyzprobe tool"
+        ollama_tools = AG._tools_for_call(prompt, "ollama_local", "some-model", None)
+        assert ollama_tools == [], ollama_tools          # no live Ollama in this sandbox ⇒ honest empty
+        anthropic_tools = AG._tools_for_call(prompt, "anthropic", "claude-opus-4-8", None)
+        assert fixture in anthropic_tools                 # non-ollama providers skip the live check
+    finally:
+        REG.unregister("test_10h_gate_fixture_tool")      # fixture must not inflate the live catalog
     print("PASS test_10h_tools_for_call_ollama_gate (ollama_local honestly gates on live capability; every "
-          "other provider gets the router's normal task-matched subset)")
+          "other provider gets the router's normal task-matched subset; fixture unregistered — no drift)")
 
 
 def test_10h_agenttools_production_wiring():
@@ -7772,6 +7783,83 @@ def test_coder_live_fetch_honest():
     assert got == ["qwen3-coder", "deepseek-coder"], got        # dedup + only /library/ links
     print(f"PASS test_coder_live_fetch_honest (live_library_names → {status}, never raises; name extractor "
           "pulls exactly the deduped /library/<name> links from fixed HTML)")
+
+
+def test_catv2_envelope_foundation():
+    """카탈로그-v2 §3.2 공통계약 파운데이션 (#335): the ONE Result-Envelope shape, the SIX-code closed set,
+    the 3-class sandbox census over the live 37, the R7 WRITE gate hook, and the grade-emission boundary —
+    all enforced STRUCTURALLY at the executor, not per-tool. (a) envelope has exactly the §1.1 keys and
+    wall_ms is measured; (b) unknown tool→NOT_FOUND, model-shaped bad args→INVALID_INPUT, a traversal-escape
+    ValueError→INVALID_INPUT (the tool's own _safe_path defense surfaces as the right code); a 7th error code
+    and a hand-shaped verdict dict are ValueError at the constructor (unbuildable, not discouraged);
+    (c) live sandbox census is exactly READ 29 / WRITE 7 / EXEC 1 with the 7 WRITE tools named (a new
+    mutating tool CANNOT silently ship as READ without breaking this); (d) a WRITE tool is REFUSED (BLOCKED)
+    without allow_write — the R7 safe_checkpoint gate hook — and executes with it (scratch-confined tool);
+    (e) verdict boundary: a FOLD tool's to_api verdict is lifted into envelope.verdict, a PLAIN tool's
+    verdict-shaped key is stripped VISIBLY (label), never passed — probe tools are unregistered after
+    (registry-count drift guard); (f) the v1 execute() wire path is byte-identical in behavior."""
+    import agenttools.catalog_plain, agenttools.catalog_fold, agenttools.catalog_accel, agenttools.catalog_explore  # noqa: F401,E501
+    from agenttools import registry as REG
+    from agenttools.envelope import ERROR_CODES, make_envelope
+    from agenttools.executor import execute, execute_enveloped
+    import kernel_verdict as KV
+
+    # (a) shape + measured cost on a live READ tool
+    e = execute_enveloped("file_exists", {"path": "server.py"})
+    assert set(e) == {"ok", "tool", "result", "error", "verdict", "labels", "cost"}
+    assert e["ok"] and e["error"] is None and e["verdict"] is None and e["cost"]["wall_ms"] >= 0
+    assert e["cost"]["subprocess_ct"] is None            # honest not-instrumented, never a fake 0
+
+    # (b) the six codes, and only the six
+    assert len(ERROR_CODES) == 6
+    assert execute_enveloped("no_such_tool")["error"]["code"] == "NOT_FOUND"
+    assert execute_enveloped("file_exists", {"nope": 1})["error"]["code"] == "INVALID_INPUT"
+    esc = execute_enveloped("read_file", {"path": "../../etc/passwd"})
+    assert not esc["ok"] and esc["error"]["code"] == "INVALID_INPUT"      # traversal guard → right code
+    for bad in (lambda: make_envelope("x", False, error_code="MADE_UP"),
+                lambda: make_envelope("x", True, verdict={"grade": "EXACT"})):
+        try:
+            bad(); raise AssertionError("constructor accepted a contract violation")
+        except ValueError:
+            pass
+
+    # (c) sandbox census over the live registry — exact, named
+    census = {}
+    for t in REG.all_tools():
+        census.setdefault(t.sandbox, []).append(t.name)
+    assert sorted(census["WRITE"]) == ["file_patch", "file_write", "git_apply_patch", "git_checkout_commit",
+                                       "git_stash_ops", "repo_clone_shallow", "write_scratch_file"]
+    assert census["EXEC"] == ["run_python_file"] and len(census["READ"]) == 37 - 8
+
+    # (d) R7 gate hook: WRITE refused without allow_write, runs with it (scratch-confined tool only)
+    blocked = execute_enveloped("write_scratch_file", {"path": "v2probe.txt", "content": "x"})
+    assert not blocked["ok"] and blocked["error"]["code"] == "BLOCKED" and "safe_checkpoint" in blocked["error"]["message"]
+    allowed = execute_enveloped("write_scratch_file", {"path": "v2probe.txt", "content": "x"}, allow_write=True)
+    assert allowed["ok"], allowed
+
+    # (e) grade-emission boundary at the envelope layer
+    v = KV.to_api("EXACT", 1, "probe-kernel", "O(1)", cert=KV.Cert("EXACT", "probe", passed=True))
+    REG.register(REG.Tool("catv2_probe_fold", "probe", {"type": "object", "properties": {}},
+                          lambda: {"answer": 1, "verdict": v}, REG.FOLD_ELIGIBLE, delegate="kernel_verdict"))
+    REG.register(REG.Tool("catv2_probe_plain", "probe", {"type": "object", "properties": {}},
+                          lambda: {"answer": 1, "verdict": dict(v)}, REG.PLAIN))
+    try:
+        ef = execute_enveloped("catv2_probe_fold")
+        assert ef["verdict"] is not None and ef["verdict"]["grade"] == "EXACT" and "verdict" not in ef["result"]
+        ep = execute_enveloped("catv2_probe_plain")
+        assert ep["verdict"] is None and "verdict" not in ep["result"]          # never passes a grade
+        assert "verdict_stripped_non_fold_tool" in ep["labels"]                  # and never silently
+    finally:
+        REG.unregister("catv2_probe_fold"); REG.unregister("catv2_probe_plain")
+    assert REG.total_count() == 37                        # probe tools left no registry drift
+
+    # (f) v1 wire path unchanged
+    r = execute("file_exists", {"path": "server.py"})
+    assert r.ok and r.output is True
+    print("PASS test_catv2_envelope_foundation (§1.1 single envelope shape [executor-built, tools return raw "
+          "payloads]; §1.3 six-code closed set [7th code + hand-shaped verdict = unbuildable]; §1.5 census "
+          "READ 29/WRITE 7/EXEC 1 exact-named + R7 WRITE gate hook live [BLOCKED without allow_write]; §1.1 "
+          "verdict lifted only from FOLD via to_api shape, PLAIN's stripped visibly; v1 execute() untouched)")
 
 
 def test_cat100_ad_group_functional():

@@ -276,7 +276,8 @@ register(Tool("file_stat", "Get size/mtime/is_dir for a path in the workspace.",
 register(Tool("write_scratch_file", "Write content to a path inside the disposable scratch directory "
               "(never the real source tree).",
               _schema({"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
-              write_scratch_file, PLAIN, keywords=("write", "save", "scratch", "create", "file")))
+              write_scratch_file, PLAIN, keywords=("write", "save", "scratch", "create", "file"),
+              sandbox="WRITE"))
 register(Tool("git_status", "Show `git status --short` for the workspace repo.", _schema({}),
               git_status, PLAIN, keywords=("git", "status", "changes", "dirty")))
 register(Tool("git_diff", "Show `git diff` (optionally for one path) for the workspace repo.",
@@ -301,20 +302,22 @@ register(Tool("recent_changes", "Recent commits WITH the files each touched (nam
 register(Tool("git_apply_patch", "Apply a unified-diff patch to the workspace (3-way by default); on failure "
               "returns the rejected-hunk stderr, never a partial silent apply.",
               _schema({"patch_text": {"type": "string"}, "three_way": {"type": "boolean"}}, ["patch_text"]),
-              git_apply_patch, PLAIN, keywords=("apply", "patch", "diff", "hunk", "merge")))
+              git_apply_patch, PLAIN, keywords=("apply", "patch", "diff", "hunk", "merge"), sandbox="WRITE"))
 register(Tool("git_checkout_commit", "Checkout a specific commit/ref (SWE-bench base_commit); detached HEAD "
               "is reported honestly.", _schema({"ref": {"type": "string"}}, ["ref"]),
-              git_checkout_commit, PLAIN, keywords=("checkout", "commit", "ref", "base", "revision")))
+              git_checkout_commit, PLAIN, keywords=("checkout", "commit", "ref", "base", "revision"),
+              sandbox="WRITE"))
 register(Tool("repo_clone_shallow", "Shallow-clone an https:// repo into a workspace dir (egress-blocked "
               "hosts fail honestly, never fabricated).",
               _schema({"url": {"type": "string"}, "dest": {"type": "string"}, "depth": {"type": "integer"}},
                       ["url", "dest"]),
-              repo_clone_shallow, PLAIN, keywords=("clone", "repo", "checkout", "fetch", "shallow")))
+              repo_clone_shallow, PLAIN, keywords=("clone", "repo", "checkout", "fetch", "shallow"),
+              sandbox="WRITE"))
 register(Tool("git_stash_ops", "Bounded git stash ops (push/pop/list only).",
               _schema({"op": {"type": "string"}}), git_stash_ops, PLAIN,
-              keywords=("stash", "save", "pop", "wip")))
+              keywords=("stash", "save", "pop", "wip"), sandbox="WRITE"))
 register(Tool("run_python_file", "Run a .py file already inside the workspace as a subprocess (capped "
               "output, timeout-bounded); use this to execute/verify generated code.",
               _schema({"path": {"type": "string"}, "timeout_s": {"type": "number"},
                       "args": {"type": "array", "items": {"type": "string"}}}, ["path"]),
-              run_python_file, PLAIN, keywords=("run", "execute", "python", "test", "verify")))
+              run_python_file, PLAIN, keywords=("run", "execute", "python", "test", "verify"), sandbox="EXEC"))

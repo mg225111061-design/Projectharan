@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
+from agenttools.envelope import READ, SANDBOXES
+
 # RF-5: every tool gets EXACTLY one of these three tags — never a fold/EXACT label on a plain tool.
 FOLD_ELIGIBLE = "FOLD-ELIGIBLE"     # genuine numeric/structural core — delegates to an existing fold engine
 ACCEL_ELIGIBLE = "ACCEL-ELIGIBLE"   # not fold, but legitimately fast via caching/parallelization (accel/)
@@ -33,6 +35,8 @@ class Tool:
     tier: str                                 # one of TIERS (RF-5)
     delegate: str = ""                        # for FOLD/ACCEL: the real engine this delegates to (honesty trail)
     keywords: Tuple[str, ...] = ()            # router hint words — Stage-1 local match (mirrors intent.py)
+    sandbox: str = READ                       # v2 §1.5 class: READ (side-effect 0) / WRITE (R7-gated) / EXEC
+    labels: Tuple[str, ...] = ()              # v2 §1.4 honest labels — auto-attached to every envelope
 
     def __post_init__(self) -> None:
         if self.tier not in TIERS:
@@ -40,6 +44,8 @@ class Tool:
         if self.tier in (FOLD_ELIGIBLE, ACCEL_ELIGIBLE) and not self.delegate:
             raise ValueError(f"tool {self.name!r}: tier={self.tier} requires `delegate` naming the real "
                              "engine it calls (RF-5 honesty trail — never a bare fold/accel claim)")
+        if self.sandbox not in SANDBOXES:
+            raise ValueError(f"tool {self.name!r}: sandbox must be one of {SANDBOXES}, got {self.sandbox!r}")
 
 
 _REGISTRY: Dict[str, Tool] = {}
