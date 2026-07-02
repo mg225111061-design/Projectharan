@@ -8169,6 +8169,109 @@ def test_10h_swebench_mini_bench_unchanged():
           "synthetic substrate is untouched by Task 3's real-dataset addition)")
 
 
+def test_swebench_live_harness_offline_score():
+    """★측정루프 단계1 (#373): the REAL SWE-bench resolve criterion — swebench/live_harness._score_in_repo —
+    proven on a SYNTHETIC LOCAL git repo (offline, sub-second, stdlib-only). The live path (fetch_subset/
+    provision_instance = network + minutes) is deliberately kept OUT of the gate, exactly as
+    real_dataset.live_fetch keeps huggingface network out; that live path was proven end-to-end this session
+    on django__django-16527 (load→clone→checkout→runtests → F2P fails pre-fix, all pass post-gold). Here we
+    lock the ORCHESTRATION `_score_in_repo` was built to expose to the gate (its own docstring: "kept separate
+    from provisioning so the gate can drive it on a synthetic offline repo"): a tiny repo with a buggy add()
+    and a correct mul() regression test; test_patch adds the F2P test; the gold patch fixes a-b→a+b — both
+    generated with REAL `git diff` so REAL `git apply` (the harness's apply_patch) applies them exactly. The
+    runner is the injected `runner` dependency, here a deterministic in-process one (no pytest — the shipped
+    _pytest_runner/_django_runner subprocess path is what the live django run exercised, and infer_runner's
+    routing to them is asserted below). Asserts the SWE-bench definition: (A) gold → resolved=True (every
+    FAIL_TO_PASS flips fail→pass AND every PASS_TO_PASS stays passing); (B) a no-op (empty) candidate →
+    resolved=False (F2P still fails, P2P still passes, empty applies trivially — never a crash); (C) a
+    non-applying candidate → resolved=False/applied=False (0 pts, never a crash)."""
+    import os as _os, sys as _sys, subprocess as _sp, tempfile as _tf, shutil as _sh
+    from swebench.live_harness import _score_in_repo, infer_runner, _pytest_runner, _django_runner
+    from swebench.real_dataset import RealInstance
+
+    scratch = "/tmp/claude-0/-home-user/be2af19b-3a00-5be9-9ed5-515f2ca18f77/scratchpad"
+    if not _os.path.isdir(scratch):
+        scratch = _tf.gettempdir()
+    genv = dict(_os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+
+    def g(repo, *a):
+        return _sp.run(["git"] + list(a), cwd=repo, env=genv, capture_output=True, text=True, check=True)
+
+    def w(repo, name, body):
+        with open(_os.path.join(repo, name), "w", encoding="utf-8") as fh:
+            fh.write(body)
+
+    def inproc_runner(repo_dir, node_ids):
+        """The injected test-runner: run each `file::func` node id against the CURRENT working tree, reloading
+        the user module so an applied candidate patch is reflected. rc=0 iff every named test passes."""
+        added = repo_dir not in _sys.path
+        if added:
+            _sys.path.insert(0, repo_dir)
+        failures = []
+        try:
+            for nid in node_ids:
+                fname, _, func = nid.partition("::")
+                _sys.modules.pop("mymod", None)               # reload the (possibly patched) module fresh
+                ns = {}
+                with open(_os.path.join(repo_dir, fname), encoding="utf-8") as fh:
+                    exec(compile(fh.read(), fname, "exec"), ns)
+                try:
+                    ns[func]()
+                except Exception as e:                        # noqa: BLE001 — a failed test is data, not a crash
+                    failures.append(f"{nid}: {type(e).__name__}: {e}")
+        finally:
+            if added and repo_dir in _sys.path:
+                _sys.path.remove(repo_dir)
+            _sys.modules.pop("mymod", None)
+        return (1 if failures else 0, "\n".join(failures) or "all pass")
+
+    # infer_runner routing (pure): django→runtests, everything else→pytest — the shipped runners, by identity
+    dj = RealInstance("django__x", "django/django", "0" * 40, "", "", "", [], [])
+    assert infer_runner(dj) == (_django_runner, "django-runtests")
+    assert infer_runner(RealInstance("z", "local/synthetic", "0" * 40, "", "", "", [], [])) == (_pytest_runner, "pytest")
+
+    repo = _tf.mkdtemp(prefix="swebench_off_", dir=scratch)
+    try:
+        g(repo, "init", "-q"); g(repo, "config", "user.email", "t@t"); g(repo, "config", "user.name", "t")
+        w(repo, "mymod.py", "def add(a, b):\n    return a - b\ndef mul(a, b):\n    return a * b\n")   # add() buggy
+        w(repo, "test_existing.py", "import mymod\ndef test_mul():\n    assert mymod.mul(2, 3) == 6\n")  # P2P
+        g(repo, "add", "-A"); g(repo, "commit", "-qm", "base")
+
+        # test_patch: add the F2P test, capture the new-file diff with real git, clean back to base
+        w(repo, "test_add.py", "import mymod\ndef test_add():\n    assert mymod.add(2, 3) == 5\n")
+        g(repo, "add", "-N", "test_add.py")
+        test_patch = g(repo, "diff").stdout
+        g(repo, "reset", "-q"); _os.remove(_os.path.join(repo, "test_add.py"))
+        # gold patch: a-b → a+b, captured with real git, reverted
+        w(repo, "mymod.py", "def add(a, b):\n    return a + b\ndef mul(a, b):\n    return a * b\n")
+        gold = g(repo, "diff", "mymod.py").stdout
+        g(repo, "checkout", "-q", "--", "mymod.py")
+        assert "test_add.py" in test_patch and "+    return a + b" in gold           # real diffs, not empty
+
+        inst = RealInstance("synthetic-add-1", "local/synthetic", "HEAD", gold, test_patch,
+                            "add() subtracts instead of adds",
+                            ["test_add.py::test_add"], ["test_existing.py::test_mul"])
+
+        def reset():
+            # git apply --3way implies --index (stages), so reset index+worktree hard, then drop untracked
+            g(repo, "reset", "-q", "--hard", "HEAD"); g(repo, "clean", "-fdq")
+
+        reset(); a = _score_in_repo(repo, inst, gold, inproc_runner)                  # (A) gold → resolved
+        assert a.resolved and a.f2p_all_pass and a.p2p_all_pass and a.applied, a
+        reset(); b = _score_in_repo(repo, inst, "", inproc_runner)                    # (B) no-op → F2P still fails
+        assert (not b.resolved) and (not b.f2p_all_pass) and b.p2p_all_pass and b.applied, b
+        bad = "diff --git a/nope.py b/nope.py\n--- a/nope.py\n+++ b/nope.py\n@@ -1 +1 @@\n-x\n+y\n"
+        reset(); c = _score_in_repo(repo, inst, bad, inproc_runner)                   # (C) non-applying → 0 pts
+        assert (not c.resolved) and (not c.applied) and "did not apply" in c.detail, c
+    finally:
+        _sh.rmtree(repo, ignore_errors=True)
+        _sys.modules.pop("mymod", None)
+    print("PASS test_swebench_live_harness_offline_score (측정루프 단계1: SWE-bench resolve criterion locked on a "
+          "synthetic offline git repo — real git-apply of test_patch+gold, gold→resolved [F2P fail→pass, P2P "
+          "held], no-op→unresolved [F2P still fails, never a crash], non-applying→0pts/applied=False; "
+          "infer_runner routes django→runtests / else→pytest by identity; live network path stays out of the gate)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 

@@ -155,3 +155,28 @@
   green. 카탈로그 279. **9차(CA~CJ, ACI+환경기반) 도착** — ★9차 자신의 §0 "빌드·측정 우선, 신규설계
   후순위" 권고 그대로 #369~372로 8차 뒤에 체이닝(그 권고가 지금 진행 중인 K/J/L… 빌드 순서를 정확히
   뒷받침). 다음: J군(#338, 검증된 리팩터링 14 — equiv 게이트 먼저 배선, WRITE).
+
+- **2026-07-02 06:xx UTC** — **★측정루프 단계1 (#373) DONE — SWE-bench 실데이터 파이프라인 관통 + 게이트 회귀.**
+  ★지시 전환: "측정 루프 닫기"가 신규 카탈로그 설계(10차)를 대체 — 「측정되지 않은 천 개의 도구보다,
+  측정된 하나의 Δ」. 단계1 = 실제 SWE-bench 태스크를 로드→클론→체크아웃→테스트 실행까지 관통.
+  **수동 실증(라이브)**: django__django-16527에서 HF datasets-server rows API로 로드(200) → `git init`+
+  `fetch --depth 1 <base_commit>`+checkout(★프록시의 전역 github→proxy insteadOf 리라이트를
+  `GIT_CONFIG_GLOBAL=/dev/null`로 우회하니 public clone이 통함 — 이전 세션의 두 장벽이 둘 다 열림) →
+  test_patch 적용 시 F2P(`test_submit_row_save_as_new_add_permission_required`)가 수정 전 실패 → gold
+  패치 후 7개 전부 통과 = SWE-bench resolve 기준을 실제 ground truth로 확인. **내구 아티팩트**:
+  `swebench/live_harness.py` — `fetch_subset`(서브셋만 n≤50)·`provision_instance`(정직 BLOCKED)·
+  `apply_patch`(--3way→plain 폴백)·`infer_runner`(django→runtests·else→pytest, 그 외 UNSUPPORTED — 조작
+  통과 없음)·`_score_in_repo`(resolve 기준: 모든 F2P fail→pass ∧ 모든 P2P 유지; 미적용→resolved=False,
+  크래시 아님). **게이트 회귀** `test_swebench_live_harness_offline_score`(test_catalog): 합성 로컬 git
+  레포(오프라인·서브초)에 실제 `git diff`로 test_patch(F2P 추가)+gold(a-b→a+b) 생성 → 실제 `git apply`
+  경유 `_score_in_repo`가 gold→resolved / no-op→unresolved(F2P 여전히 실패) / non-applying→0pts·
+  applied=False, 그리고 infer_runner 라우팅을 identity로 단언. 라이브 네트워크/느린 경로는 게이트 밖
+  (real_dataset.live_fetch가 네트워크를 게이트 밖에 두는 것과 동일 규율). **빌드 중 잡은 것**: 다케이스
+  재사용 리셋이 `git checkout -- .`이면 `git apply --3way`가 --index를 함의해 인덱스 오염이 다음 케이스로
+  샘 → `git reset --hard`+`clean -fdq`로 교정(하네스 버그 아님 — 실 SWE-bench는 태스크마다 새 체크아웃 후
+  1회 채점). pytest 미설치 확인 → 게이트는 stdlib-only in-process 러너를 주입(하네스가 `runner`를 주입
+  의존성으로 설계해 둔 그 용도; 실 `_pytest_runner`/`_django_runner`는 라이브 django 경로가 실증). 두
+  게이트 green(test_build 280/280 · test_catalog 279→280). 카탈로그 도구 수 불변(63 — live_harness는
+  등록 도구 아님). **단계3(raw vs JEFF-wrapped Δ 실측)은 ANTHROPIC_API_KEY 미설정으로 BLOCKED**(또는
+  로컬 Ollama 기동) — 유일한 사용자-측 블로커. 다음: 단계2(최소 핵심 BI/BJ1/BQ1·2/BU1, 대부분 swebench/
+  재사용) → (키 도착 시) 단계3 실측 → 단계4 Δ 분해가 다음 우선순위 결정.
