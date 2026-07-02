@@ -117,3 +117,21 @@
   (봉투 shape·6종·traversal→INVALID_INPUT·census 정확명명·R7 게이트 차단/허용·FOLD-verdict 승격/PLAIN-strip
   가시·프로브 unregister 드리프트 0·v1 경로 불변). 카탈로그 277. **지시서 큐**: 8차(BQ~BZ, 선택병목 —
   의미 등가류 투표+formal tiebreak) 도착 → #365~368 등록, 7차에 체이닝. 다음: P군(#336, v2 우선순위 1).
+
+- **2026-07-02 04:40 UTC** — **카탈로그-v2 P군 (#336) DONE — 컨텍스트/문서 11종, 도구 37→48.**
+  `agenttools/catalog_context.py`: P1 context_window_pack(★기함 — 어휘 관련도 랭킹→예산 내 팩, 토큰은
+  stdlib 근사 chars//4를 payload `token_note`로 명시, 예산<200→ValueError→INVALID_INPUT) · P2 readme팩 ·
+  P3 similar(Jaccard, heuristic) · P4 usage(실 호출부) · P5 api-markdown · P6 docstring 누락+스텁 ·
+  P7 type 제안(default-literal만, 패치 절대 안 냄) · P8 stale-comment(flag_only) · P9 git log -L 함수이력
+  (고정 argv, 심볼없음→NOT_FOUND) · P10 todo+커밋(기존 todo_scan 재호출 — 재구현 0) · P11 HARAN
+  requires/ensures 초안(draft 명시). 전부 READ·raw-payload — §1 계약은 등록 메타데이터+실행기 봉투로
+  자동 상속(파운데이션이 의도대로 작동). **Tier-A 판단(3곳 기록: 모듈헤더·이 로그·RECONCILE)**: 설계서의
+  P1/P3 ACCEL 제안 기각→PLAIN — 검증된 accel/ 엔진 위임이 없는 순수 어휘 계산(RF-5; Phase-1 선례 그대로;
+  5차 AN1이 실재하면 delegate와 함께 승격). **빌드 중 잡은 것 2건(정직)**: (a) 경계 스캔 기본값
+  300/400이 실측 731 .py를 못 덮어 P4가 빈 결과 — 정렬 walk+기본 800으로 정정(작은 캡은 호출자가 요청한
+  정직한 부분 스캔), (b) P7 회귀 타깃을 레포 파일에서 자기정리 fixture로 교체(레포가 점점 annotate되면
+  영원히 깨질 회귀는 애초에 잘못된 설계). 실측 카운트 테스트 2건(37→48, tier 42-4-2)과 census(READ 40)를
+  **같은 커밋에서** 갱신(그 테스트 자신의 규칙). 회귀 `test_catv2_p_group_context`(P1 관련도+예산+
+  INVALID_INPUT / P4·P5 실파일 / P7 fixture 제안+no-patch / P8 flag_only / P9 실이력+NOT_FOUND / P11
+  draft / traversal / P1·P3 PLAIN lock / 전부 READ / 라우터≤6 on 48). agenttools 18개 테스트 suite-order
+  전부 green + census 48 유지. 카탈로그 278. 다음: K군(#337, 디버깅 15종, 우선순위 2).

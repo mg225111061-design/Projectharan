@@ -7628,14 +7628,16 @@ def test_10h_catalog_measured_count():
     this file) must be updated in the SAME commit as the code change — never silently."""
     import agenttools as AT              # noqa: F401 — import triggers catalog_plain/fold/accel/explore registration
     from agenttools import registry as REG
-    # 21 (10H Task 2) + 16 net-new A+D tools (카탈로그-100 Phase 1: 11 catalog_explore + 5 catalog_plain
-    # git/recent) = 37. All 16 net-new are PLAIN (RF-5-honest: AST/graph/git are I/O-bound or plain
-    # computation, NOT verified-fold/accel-engine delegations — see catalog_explore.py's tier-honesty note).
-    assert REG.total_count() == 37, REG.total_count()
+    # 21 (10H Task 2) + 16 net-new A+D (카탈로그-100 Phase 1) + 11 P-group context tools (카탈로그-v2 P군,
+    # catalog_context.py) = 48. All net-new are PLAIN (RF-5-honest: AST/graph/git/lexical-ranking are
+    # I/O-bound or plain computation, NOT verified-fold/accel-engine delegations — the P1/P3 ACCEL
+    # suggestion in the v2 design doc is overridden to PLAIN for exactly that reason, see
+    # catalog_context.py's header note).
+    assert REG.total_count() == 48, REG.total_count()
     counts = REG.counts_by_tier()
-    assert counts == {REG.FOLD_ELIGIBLE: 4, REG.ACCEL_ELIGIBLE: 2, REG.PLAIN: 31}, counts
-    print("PASS test_10h_catalog_measured_count (37 tools: 31 PLAIN + 4 FOLD-ELIGIBLE + 2 ACCEL-ELIGIBLE — "
-          "the honest measured count after 카탈로그-100 Phase 1 A+D, not force-fit toward any target)")
+    assert counts == {REG.FOLD_ELIGIBLE: 4, REG.ACCEL_ELIGIBLE: 2, REG.PLAIN: 42}, counts
+    print("PASS test_10h_catalog_measured_count (48 tools: 42 PLAIN + 4 FOLD-ELIGIBLE + 2 ACCEL-ELIGIBLE — "
+          "the honest measured count after 카탈로그-v2 P군, not force-fit toward any target)")
 
 
 def test_10h_catalog_plain_never_fold_labeled():
@@ -7829,7 +7831,7 @@ def test_catv2_envelope_foundation():
         census.setdefault(t.sandbox, []).append(t.name)
     assert sorted(census["WRITE"]) == ["file_patch", "file_write", "git_apply_patch", "git_checkout_commit",
                                        "git_stash_ops", "repo_clone_shallow", "write_scratch_file"]
-    assert census["EXEC"] == ["run_python_file"] and len(census["READ"]) == 37 - 8
+    assert census["EXEC"] == ["run_python_file"] and len(census["READ"]) == 48 - 8   # 11 P-tools all READ
 
     # (d) R7 gate hook: WRITE refused without allow_write, runs with it (scratch-confined tool only)
     blocked = execute_enveloped("write_scratch_file", {"path": "v2probe.txt", "content": "x"})
@@ -7851,7 +7853,7 @@ def test_catv2_envelope_foundation():
         assert "verdict_stripped_non_fold_tool" in ep["labels"]                  # and never silently
     finally:
         REG.unregister("catv2_probe_fold"); REG.unregister("catv2_probe_plain")
-    assert REG.total_count() == 37                        # probe tools left no registry drift
+    assert REG.total_count() == 48                        # probe tools left no registry drift
 
     # (f) v1 wire path unchanged
     r = execute("file_exists", {"path": "server.py"})
@@ -7860,6 +7862,77 @@ def test_catv2_envelope_foundation():
           "payloads]; §1.3 six-code closed set [7th code + hand-shaped verdict = unbuildable]; §1.5 census "
           "READ 29/WRITE 7/EXEC 1 exact-named + R7 WRITE gate hook live [BLOCKED without allow_write]; §1.1 "
           "verdict lifted only from FOLD via to_api shape, PLAIN's stripped visibly; v1 execute() untouched)")
+
+
+def test_catv2_p_group_context():
+    """카탈로그-v2 P군 (11 컨텍스트/문서 도구, 우선순위 1): every tool runs END-TO-END through
+    execute_enveloped() on REAL repo files, inheriting the §1 contract from registration metadata alone.
+    Covers the v2 regression discipline (new-backing normal + failure mode, reuse 1): (a) P1 ranks the
+    genuinely-relevant file above unrelated ones AND respects the token budget AND rejects a too-small
+    budget as INVALID_INPUT through the envelope; (b) P4/P5 find real call-sites / real public API;
+    (c) P7 suggests annotations from a deterministic fixture and NEVER emits a patch (heuristic label
+    auto-attached); (d) P8 carries flag_only; (e) P9 walks real git history and honestly NOT_FOUNDs a
+    missing symbol; (f) P11 is draft-labeled; (g) the traversal guard surfaces as INVALID_INPUT;
+    (h) the Tier-A override is LOCKED: P1/P3 are PLAIN (the design doc suggested ACCEL, but neither
+    delegates to a verified accel engine — same precedent as 카탈로그-100 Phase 1); (i) router ≤6 holds
+    on the live 48-tool catalog; (j) all 11 are READ-sandbox (zero side effects)."""
+    import os
+    import agenttools  # noqa: F401 — populates the registry
+    from agenttools import registry as REG
+    from agenttools.executor import execute_enveloped as run
+    from agenttools.router import select_tools
+
+    P_TOOLS = ("context_window_pack", "readme_context_pack", "similar_code_find", "example_usage_find",
+               "api_doc_extract", "docstring_gen_check", "type_annotate_infer", "comment_stale_detect",
+               "history_context", "todo_context_link", "spec_extract_haran")
+    assert REG.total_count() == 48
+    for name in P_TOOLS:
+        t = REG.get(name)
+        assert t is not None and t.sandbox == "READ", name
+    assert REG.get("context_window_pack").tier == "PLAIN" and REG.get("similar_code_find").tier == "PLAIN"
+
+    e = run("context_window_pack", {"task_desc": "coder tier catalog recommend vram ollama",
+                                    "token_budget": 1200})
+    paths = [x["path"] for x in e["result"]["packed_context"]]
+    assert e["ok"] and any("coder_models" in p for p in paths[:3]), paths[:5]   # relevant ranks top
+    assert e["result"]["tokens_used"] <= 1200                                    # budget respected
+    assert "estimate" in e["result"]["token_note"]                               # honest approx, stated
+    bad = run("context_window_pack", {"task_desc": "x y z", "token_budget": 10})
+    assert not bad["ok"] and bad["error"]["code"] == "INVALID_INPUT"
+
+    e = run("example_usage_find", {"symbol": "make_envelope"})
+    assert e["ok"] and any("executor.py" in u["location"] for u in e["result"]["usages"])
+    e = run("api_doc_extract", {"path": "agenttools/envelope.py"})
+    assert e["ok"] and "make_envelope" in e["result"]["markdown_api"] and e["result"]["public_count"] >= 2
+
+    fix = "catv2_p7_fixture_tmp.py"
+    with open(fix, "w", encoding="utf-8") as f:
+        f.write("def f(a, b=3, c='x', d=True):\n    return a\n")
+    try:
+        e = run("type_annotate_infer", {"path": fix})
+        assert e["ok"] and "heuristic" in e["labels"] and "patch" not in e["result"]
+        got = {s["param"]: s["suggested"] for s in e["result"]["suggestions"]}
+        assert got == {"b": "int", "c": "str", "d": "bool"}, got
+    finally:
+        os.remove(fix)
+
+    e = run("comment_stale_detect", {"path": "agenttools/catalog_plain.py"})
+    assert e["ok"] and "flag_only" in e["labels"]
+    e = run("history_context", {"path": "agenttools/executor.py", "func": "execute"})
+    assert e["ok"] and isinstance(e["result"]["change_history"], list)
+    miss = run("history_context", {"path": "agenttools/executor.py", "func": "no_such_func_zz"})
+    assert not miss["ok"] and miss["error"]["code"] == "NOT_FOUND"
+    e = run("spec_extract_haran", {"path": "agenttools/envelope.py", "func": "make_envelope"})
+    assert e["ok"] and e["result"]["note"] == "draft" and "heuristic" in e["labels"]
+    assert e["result"]["haran_draft"]["requires"] and e["result"]["haran_draft"]["ensures"]
+    esc = run("api_doc_extract", {"path": "../../etc/passwd"})
+    assert not esc["ok"] and esc["error"]["code"] == "INVALID_INPUT"
+    assert len(select_tools("pack relevant context for this task")) <= 6       # Prime Directive 1 on 48
+    print("PASS test_catv2_p_group_context (11 P-tools live end-to-end via the envelope path on real repo "
+          "files: P1 relevance-ranks coder_models top + budget respected + tiny-budget INVALID_INPUT; P4/P5 "
+          "real call-sites/API; P7 fixture suggestions, no patch, heuristic; P8 flag_only; P9 real git "
+          "history + honest NOT_FOUND; P11 draft; traversal INVALID_INPUT; P1/P3 PLAIN [Tier-A override "
+          "locked — no accel delegate, no ACCEL claim]; all READ; router ≤6 on live 48)")
 
 
 def test_cat100_ad_group_functional():
