@@ -29,6 +29,18 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import ai_loop
 import repo_partition as RP
+try:
+    import graph_core as GC          # v38 Rust graph core (cdylib/ctypes) — drop-in, internal Python fallback
+except Exception:                     # noqa: BLE001 — never let an import break grounding
+    GC = None
+
+
+def _partition(graph, k):
+    """Live partition: prefer the differential-verified Rust core (removes the N=4000 ceiling), else the
+    pure-Python repo_partition. graph_core.partition falls back internally too, so this is doubly safe."""
+    if GC is not None and GC.available():
+        return GC.partition(graph, k=k)
+    return RP.partition(graph, k=k)
 
 
 @dataclass
@@ -81,7 +93,7 @@ def build_index(entities: List[Entity], edges: List[Tuple[str, str]], k: int = 2
             undirected[a].append(b)
             undirected[b].append(a)
     if len(ents) >= 2:
-        part = RP.partition(undirected, k=min(k, len(ents)))
+        part = _partition(undirected, k=min(k, len(ents)))
         nodes_sorted = sorted(undirected)
         clusters: Dict[int, List[str]] = {}
         for node_idx, pid in enumerate(part.parts):

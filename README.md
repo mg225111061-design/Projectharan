@@ -109,16 +109,23 @@ The same image deploys unchanged. Two common options:
 gcloud run deploy mrjeffrey --source . --port 8000 --allow-unauthenticated --region us-central1
 ```
 **Render** — push this repo to GitHub, then "New → Web Service", Docker env, port `8000`
-(or add a `render.yaml`). No API key is set as an env var — users enter it in the UI.
+(or add a `render.yaml`). On the **web-UI path** no API key is set as an env var — users enter it in the UI.
 
-> The Claude API key is **never** an env var, image layer, file, or log — it is entered per request
-> in the browser. Friends/teammates each paste their own key.
+## ★ Key security — scoped precisely to each path ★
+There are two deployment paths and the guarantee differs; we state each exactly (the marketing absolute must
+never be broader than the code):
 
-## ★ Key security — LEVEL 1 (no-log, no-store) ★
-The key is entered every request, used for exactly one Claude call, and dropped. It is **never** written
-to env / file / log / cache / DB / localStorage, never echoed, never in the image. `claude_agent.py`
-doesn't even `import os`. The UI masks the key (●●●●) and a `*` next to the field explains the policy.
-Verified by grep across the whole repo (see the project's honesty checks).
+- **Web-UI path (the product surface).** Enter your key in the browser; it is held in the tab for that one
+  request, **stored nowhere, logged nowhere, written to no env/file/cache/DB/localStorage, never in the image**,
+  and **sent only to the provider you pick, for that request.** The request handler that makes the call
+  (`claude_agent.py`) does not even `import os` (verified: `import os == 0`). The UI masks the key (●●●●).
+- **Gateway / CLI path (self-host).** When you run HARAN as a gateway/CLI, it reads a **standard
+  environment-variable key, `HARAN_KEY`** (see `provider.resolve_key()` — a server/CLI fallback only), used
+  per call and dropped, masked in logs, never persisted beyond the process environment. This is an ordinary
+  env-var secret like any server deployment — *not* the "never an env var" guarantee, which is the web-UI path.
+
+So: **"the key is never an env var" is true on the web-UI per-request path; the gateway/CLI path uses the
+standard `HARAN_KEY` env var.** Both keep the key out of logs/files/images and send it only to the provider.
 
 ## What's auto-verified vs. needs your eyes
 - **Auto-verified:** dependency closure (clean repo runs standalone), intent/route logic, real progress

@@ -284,10 +284,6 @@
     </section>
 
     <div class="mode-select" id="modeSelect">
-      <div class="mode-pill" data-mode="fast">
-        <div class="name" data-i18n="mode_fast_name">Fast</div>
-        <div class="desc" data-i18n="mode_fast_desc">속도 우선 · 1회 생성 · 기본 검증 (검증 최소)</div>
-      </div>
       <div class="mode-pill" data-mode="normal">
         <div class="name" data-i18n="mode_normal_name">Normal</div>
         <div class="desc" data-i18n="mode_normal_desc">빠르고 검증됨 · 흔한 경우 · 절대 틀리지 않음</div>
@@ -386,8 +382,6 @@ const I18N = {
     ex4: "동시성 안전한 작업 큐",
     scope_note: "이 요청은 큰 프로그램입니다. MR.JEFFREY는 작은~중간 코드를 *명세 대비* 검증·최적화합니다 (Rice: 무에서 전체 생성은 불가). 핵심 로직과 명세(ensures)를 주시면 증명합니다.",
     placeholder: "대화형 인터페이스가 여기에 들어갑니다.",
-    mode_fast_name: "Fast",
-    mode_fast_desc: "속도 우선 · 1회 생성 · 기본 검증 (검증 최소)",
     mode_normal_name: "Normal",
     mode_normal_desc: "빠르고 검증됨 · 흔한 경우 · 절대 틀리지 않음",
     mode_extended_name: "Extend",
@@ -414,7 +408,6 @@ const I18N = {
     you: "당신",
     tagline_normal: "가장 빠르게 — 즉각 생성",
     tagline_extended: "가장 강력하게 — 깊은 검증과 최적화",
-    asst_fast: "빠른 모드 · 단발 생성",
     asst_normal: "일반 모드 · 빠른 경로",
     asst_extended: "확장 모드 · 깊은 검증",
     m_fast: "즉각 생성 (속도 우선)",
@@ -456,8 +449,6 @@ const I18N = {
     ex4: "Concurrency-safe job queue",
     scope_note: "This is a large program. MR.JEFFREY verifies & optimizes small-to-medium code *against a spec* (Rice: full generation from nothing is impossible). Give the core logic + a spec (ensures) and it proves it.",
     placeholder: "The conversational interface goes here.",
-    mode_fast_name: "Fast",
-    mode_fast_desc: "Speed first · single shot · basic verification",
     mode_normal_name: "Normal",
     mode_normal_desc: "Fast & verified · common case · never wrong",
     mode_extended_name: "Extend",
@@ -484,7 +475,6 @@ const I18N = {
     you: "You",
     tagline_normal: "The fastest — instant generation",
     tagline_extended: "The most powerful — deep verification & optimization",
-    asst_fast: "Fast mode · single shot",
     asst_normal: "Normal mode · fast path",
     asst_extended: "Extended mode · deep verification",
     m_fast: "instant generation (speed first)",
@@ -551,13 +541,12 @@ document.getElementById("langToggle").addEventListener("click", e=>{
   const b = e.target.closest("button"); if(b) setLang(b.getAttribute("data-lang"));
 });
 
-// ── three modes (v31 STAGE 5): fast / normal / extended — contrasting accent + click transition ──
-// ★ All three are SOUNDLY verified — the dial is DEPTH (retries/proof power), never correctness. ★
+// ── two modes (2-tier — a former third mode, fast, retired): normal / extended — contrasting accent + click transition ──
+// ★ Both are SOUNDLY verified — the dial is DEPTH (retries/proof power), never correctness. ★
 let MODE = "normal";
 function setMode(mode){
-  if(mode !== "fast" && mode !== "normal" && mode !== "extended") return;
+  if(mode !== "normal" && mode !== "extended") return;
   MODE = mode;
-  document.body.classList.toggle("mode-fast", mode === "fast");
   document.body.classList.toggle("mode-normal", mode === "normal");
   document.body.classList.toggle("mode-extended", mode === "extended");
   document.querySelectorAll(".mode-pill").forEach(p=>{
@@ -572,8 +561,8 @@ document.getElementById("modeSelect").addEventListener("click", e=>{
 function T(k){ return (I18N[LANG] && I18N[LANG][k] !== undefined) ? I18N[LANG][k] : k; }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 // v31 STAGE 5 helpers. MODE_N mirrors mode_policy.BEST_OF_N upper bound (CONFIGURED budget, not a live claim).
-const MODE_N = {fast:1, normal:2, extended:8};
-function asstLabel(mode){ return T(mode==="extended"?"asst_extended":(mode==="fast"?"asst_fast":"asst_normal")); }
+const MODE_N = {normal:2, extended:8};
+function asstLabel(mode){ return T(mode==="extended"?"asst_extended":"asst_normal"); }
 // honest ms formatting — shows the genuine measured number; never invents one (caller decides if a clock is BLOCKED).
 function fmtMs(ms){ const v = Number(ms); if(!isFinite(v)) return "—"; return v >= 1000 ? (v/1000).toFixed(2)+"s" : v.toFixed(1)+"ms"; }
 

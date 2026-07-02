@@ -1,0 +1,244 @@
+{
+  "engine": "MR.JEFFREY — the Whole-Program Verified Speedup Engine",
+  "generated_by": "pillar3_studio_gen.py — real engine runs; no hand-edited numbers",
+  "modes": [
+    {
+      "mode": "normal",
+      "primary_clock": "balance A/B/C",
+      "verifier_tier": "CHEAP_CERT",
+      "detectors": 27,
+      "acceptable_grades": [
+        "EXACT",
+        "PROBABILISTIC"
+      ],
+      "max_hotspots": null,
+      "runs_complexity_sweep": false,
+      "latency_budget_s": 30.0,
+      "risk_posture": "balanced",
+      "stop_condition": "next marginal whole-program gain < 10%"
+    },
+    {
+      "mode": "extend",
+      "primary_clock": "C (emitted speed); A sacrificed",
+      "verifier_tier": "FULL_CERT",
+      "detectors": 40,
+      "acceptable_grades": [
+        "EXACT"
+      ],
+      "max_hotspots": null,
+      "runs_complexity_sweep": true,
+      "latency_budget_s": 480.0,
+      "risk_posture": "DECLINE-a-real-win OK; ship-unproven NEVER; run-past-budget NEVER",
+      "stop_condition": "every enabled detector tried, OR the ~8-min extend budget is spent — then return the best CERTIFIED result reached (or an honest partial); never past budget, never faked"
+    }
+  ],
+  "providers": [
+    {
+      "id": "anthropic",
+      "label": "Claude (official)",
+      "transport": "anthropic_sdk"
+    },
+    {
+      "id": "anthropic_compat",
+      "label": "Claude-compatible gateway",
+      "transport": "anthropic_sdk"
+    },
+    {
+      "id": "openai_compat",
+      "label": "OpenAI-compatible gateway",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "openai",
+      "label": "ChatGPT (OpenAI)",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "gemini",
+      "label": "Gemini (Google)",
+      "transport": "gemini_generate"
+    },
+    {
+      "id": "groq",
+      "label": "groq",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "ollama_local",
+      "label": "ollama_local",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "mistral",
+      "label": "mistral",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "cohere",
+      "label": "cohere",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "deepseek",
+      "label": "deepseek",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "xai",
+      "label": "xai",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "together",
+      "label": "together",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "fireworks",
+      "label": "fireworks",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "openrouter",
+      "label": "openrouter",
+      "transport": "openai_chat"
+    },
+    {
+      "id": "perplexity",
+      "label": "perplexity",
+      "transport": "openai_chat"
+    }
+  ],
+  "runs": [
+    {
+      "mode": "normal",
+      "shipped": [
+        {
+          "name": "S2_n_plus_1",
+          "waste_type": "n_plus_1",
+          "grade": "EXACT",
+          "ratio": 1.148,
+          "ceiling": 1.18,
+          "hotspot_fraction": 0.146
+        }
+      ],
+      "declined": [],
+      "cumulative_ratio": 1.149,
+      "z3_calls": 0,
+      "latency_ms": 294.1,
+      "ran_complexity_sweep": false
+    },
+    {
+      "mode": "extend",
+      "shipped": [
+        {
+          "name": "S4_algorithm_recognition",
+          "waste_type": "algo_replace",
+          "grade": "EXACT",
+          "ratio": 1.754,
+          "ceiling": 1.83,
+          "hotspot_fraction": 0.452
+        },
+        {
+          "name": "S2_n_plus_1",
+          "waste_type": "n_plus_1",
+          "grade": "EXACT",
+          "ratio": 2.282,
+          "ceiling": 2.44,
+          "hotspot_fraction": 0.59
+        }
+      ],
+      "declined": [
+        {
+          "name": "S1_list_as_set",
+          "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
+        },
+        {
+          "name": "S3_accidental_quadratic",
+          "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
+        },
+        {
+          "name": "S5_simd_offload",
+          "reason": "grade PROBABILISTIC below extend floor ['EXACT'] ⇒ DECLINE (differential only (no proof av"
+        }
+      ],
+      "cumulative_ratio": 2.244,
+      "z3_calls": 2,
+      "latency_ms": 1242.3,
+      "ran_complexity_sweep": true
+    }
+  ],
+  "panel_rows": [
+    {
+      "name": "ai_todo_app",
+      "archetype": "AI-generated (never profiled)",
+      "detected": [
+        "list_as_set",
+        "accidental_full_scan",
+        "dict_to_columnar"
+      ],
+      "grade": "PROBABILISTIC",
+      "ratio": 47.033,
+      "ceiling": 1000.0,
+      "hotspot_fraction": 0.999,
+      "note": "differential PASS on 3 cases (δ=3/3)"
+    },
+    {
+      "name": "log_analyzer",
+      "archetype": "CLI tool",
+      "detected": [
+        "n_plus_1",
+        "redundant_io_parse",
+        "dict_to_columnar",
+        "loop_invariant_hoist",
+        "vectorizable_loop"
+      ],
+      "grade": "PROBABILISTIC",
+      "ratio": 8.745,
+      "ceiling": 1000.0,
+      "hotspot_fraction": 0.999,
+      "note": "differential PASS on 3 cases (δ=3/3)"
+    },
+    {
+      "name": "csv_stats",
+      "archetype": "data utility",
+      "detected": [
+        "quadratic_build",
+        "vectorizable_loop"
+      ],
+      "grade": "PROBABILISTIC",
+      "ratio": 115.494,
+      "ceiling": 1000.0,
+      "hotspot_fraction": 0.999,
+      "note": "differential PASS on 3 cases (δ=3/3)"
+    },
+    {
+      "name": "json_pipeline",
+      "archetype": "ETL pipeline",
+      "detected": [
+        "n_plus_1",
+        "parallelizable_loop"
+      ],
+      "grade": "EXACT",
+      "ratio": 83.67,
+      "ceiling": 1000.0,
+      "hotspot_fraction": 0.999,
+      "note": "coalesced_identical_lookups"
+    },
+    {
+      "name": "template_render",
+      "archetype": "parser/renderer (well-written)",
+      "detected": [
+        "n_plus_1",
+        "parallelizable_loop"
+      ],
+      "grade": "DECLINE",
+      "ratio": 1.003,
+      "ceiling": 1000.0,
+      "hotspot_fraction": 0.999,
+      "note": "no whole-program win ≥ floor — honest DECLINE (nothing worth shipping)"
+    }
+  ],
+  "key_policy": "API key is session-only: held in the browser for the request, never logged, never stored, never committed, never phoned home.",
+  "scope_note": "Self-contained studio artifact. The full React+TS build (live provider calls, CI visual/a11y/perf gates) needs a frontend toolchain absent in this sandbox [BLOCKED: toolchain]; the data binding here is real and tested, visual quality → human review."
+}

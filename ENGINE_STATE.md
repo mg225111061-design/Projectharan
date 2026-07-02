@@ -1,0 +1,113 @@
+# ENGINE_STATE.md — autonomous research-build engine checkpoint (the lifeline)
+
+> **RESUME PROTOCOL (read first on every restart/compaction):** read this file top-to-bottom, then resume at
+> "CURRENT LOOP POSITION". Never stop with an excuse; if a task blocks, log BLOCKED + reason and move to the next
+> loop. The engine has no completion condition — it runs until the 10h mark, then §4 final report (WAKE_REPORT.md).
+
+## 🟢 INVARIANT STATUS — ALL GREEN, CAPSTONE-CONFIRMED @ HEAD 628f09a (cycle 6)
+- **INV-1 false-EXACT == 0** — ✅ HOLDING. (a) corpus seed 20260628 = EXACT 660 / PROB 0 / DECLINE 1340 / ERROR 0 (all
+  EXACT independently far-reverified); (b) Loop-C red-team **820 probes, 0 false-EXACT** (islands + core's 3 recognition
+  classes); (c) Loop-A digs (Krylov 88 unary + extract/ 536 non-unary) 0 false-EXACT.
+- **INV-2 660 EXACT lossless + test_build 273 + test_catalog 223** — ✅ CAPSTONE-CONFIRMED at HEAD: test_build **273/0**,
+  test_catalog **223/0**, corpus **EXACT 660**. (catalog 218→219 red-team→220/221 Loop-A/B→222 extract-ledger→223 hygiene.)
+- **INV-3 no boundary-loosening (z3 gate / DECLINE / precision)** — ✅ none attempted (engine code UNCHANGED across all
+  6 cycles; engine/ modules are measurement + self-censor + red-team + hygiene artifacts, 0 new EXACT obligations).
+- **INV-4 progress = obligations + flip counts (provenance-split), NOT a single scalar.** Total new EXACT obligations
+  across cycles 1–6: **0** (recall saturated). Gates added: **+5** engine gates (catalog 218→223). HONEST: 0 new folds.
+- **INV-5 no new mechanism (14/22 saturated)** — ✅ PROVEN: Loop B accepted 0/5 candidates, each a named face/axis-cross;
+  Hankel-rank≡Berlekamp-Massey demonstrated with running code (BM order == Hankel rank on 2 seqs).
+- **Verifier truth**: z3 = finite identities only; ∀-n = telescoping / companion / Pfaffian / symplectic + held-out.
+
+## REPO
+- repo `mg225111061-design/Projectharan`, branch `claude/charming-brahmagupta-q4wwgh`, HEAD = engine cycle 1 (03ba721),
+  cycle 2 about to commit.
+- Gates command: `OMP_NUM_THREADS=1 python3 test_build.py` (273) · `python3 test_catalog.py` (223) ·
+  `python3 -c "from measure import run_corpus as RC; print(RC.run(seed=20260628).summary['overall'])"` (EXACT 660).
+
+## PART 1 (8-phase initial fuel) — ✅ COMPLETE (built+pushed this session)
+- P5 recall/strip disguise-strip = §AL · P6 recall/compose = §AP · P7 extract/classify on corpus = §AQ ·
+  P8 proof-carrying flip = §AT (proof_carrying.py, Clock B) · P1 free-fermion island = §AU (mathmode/free_fermion.py) ·
+  P2 Krylov/Carleman/displacement = §AY (qfold/) · P3 Koopman/treewidth = §AU (island_hooks.py + extract/tensor_contract.py).
+- **PHASES COMPLETE → ENGINE MODE.**
+
+## MEASURED BASELINE (corpus seed 20260628, n=2000)
+- overall: EXACT 660 / PROB 0 / DECLINE 1340 / ERROR 0; fold_rate 0.33 (NEVER reported as a lone scalar — §M-1).
+- provenance: synthetic 90.4% / realworld 6.8% (+§AN k-regular recoveries on realworld popcount).
+- DECLINE clusters (the dig-map): UNCLASSIFIED ~46.6% · C/crypto-info-floor ~17.9% · I/data-branch ~17.9% ·
+  F/transcendental-z3-wall ~8.8% · H/IO ~4.5% · E/chaos ~4.3%. Most are the PROVEN honest ceiling (not foldable).
+- near_miss R class historically = 44 (all k-regular, recovered §AN). New §AY/§AU recognizers (Krylov/Pfaffian/…)
+  are niche vs this corpus mix ⇒ expected Loop-A yield is small; honest to measure and log either way.
+
+## CURRENT LOOP POSITION
+- **ENGINE MODE → CONVERGED PLATEAU. Cycles 1–6 COMPLETE, committed+pushed (HEAD 628f09a). Final 223 regression GREEN
+  (223/0) + capstone GREEN (test_build 273/0, corpus EXACT 660). All invariants hold.** The non-redundant, spine-
+  compliant work surface is exhausted: recall triple-confirmed saturated, mechanisms at INV-5 saturation (self-censor
+  0-accept), the red-team spans the islands + the core's 3 recognition classes, hygiene drift-guard in place, WAKE_REPORT
+  current. Per the HONESTY SPINE a verified green plateau is the correct terminal state once the mathematics ceiling is
+  reached — manufacturing further "recall" would be the mirage the spine forbids. ENGINE now in MAINTENANCE: re-confirm
+  invariants on any change; resume new cycles only if a genuinely-additive surface appears or the directive provides one.
+- Cycle-6 Loop C (`engine/red_team.py`): extended the core-conjecturer red-team to THREE foldable classes that stress
+  distinct conjecturers — C-finite (BM) + polynomial (closedform_guess) + eventually-periodic (period_guess). Sweep now
+  **820 probes**: 60/60 + 40/40 + 40/40 fold EXACT-and-CORRECT (far-reverified), 40/40 hash DECLINE, **false-EXACT 0**.
+- Cycle-5 Loop D (`engine/hygiene.py`): codified a drift guard auditing the engine/ package the autonomous loop authors
+  — H1 zero-dep (blacklist pyzx/cadabra/torch/scipy/...; engine/ imports only z3+stdlib+repo-internal, confirmed), H2
+  banned bigram absent, H3 no agent-model-id leak in engine/ source (the PRODUCT's own backend-model config in
+  README/providers/haran.html is pre-existing, legitimate, OUT OF SCOPE — not scrubbed), H4 no float-EXACT (Fraction/int
+  only). ★★ NEGATIVE CONTROL proves all four detectors fire on a synthetic violating source. Engine package CLEAN.
+- Cycle-4 Loop C (`engine/red_team.py::redteam_core_conjecturers`): broadened INV-1 from this-session folds to the
+  ENGINE CORE. 100 NEW randomized probes (total sweep now **740**): 60 randomly-GENERATED true C-finite oracles run the
+  full `engine_adapter.classify` path → **60/60 fold EXACT-and-CORRECT** (re-verified vs the true oracle on a far window
+  via the EXISTING `reverify_exact`); 40 random hash oracles → **40/40 DECLINE**. **false-EXACT 0.** Memoized
+  red_team_report (deterministic LCG) so the gate stays ~4s despite the heavier sweep. The core black-box conjecturers
+  are now proven sound (perfect recall + perfect precision) under randomized adversarial generation, not just the fixed
+  660-corpus reverify.
+- Cycle-3 Loop A (extract-ledger): 0 folds of 536 non-unary UNCLASSIFIED (separate ledger). Cycle-2 Loop A/B: Krylov 0
+  recovery / self-censor 0 accept. catalog 222 (+loop_a probe-headroom, +loop_b self-censor, +loop_a extract-ledger).
+- Cycle-3 Loop A (`engine/loop_a.py::dig_extract_ledger`): measured the §AQ `extract/` effect-system frontend (a real
+  product path via server.py/intent.py, but NOT measured by engine_adapter) on the **536 non-unary UNCLASSIFIED** as a
+  SEPARATE fold-unit ledger (own denominator, NEVER summed into 0.33 — M-1/§AB fold_units; additive not double-count
+  since the conjecturers can't run on non-unary code). Result: router sends 44→parse_arith + 110→io_frame, but the
+  extractor z3 gates **DECLINE all 154 ⇒ 0 folds**, rate 0.0. ★★ HONEST CEILING NOW TRIPLE-CONFIRMED: Krylov 0 (88
+  unary) + extract/ 0 (536 non-unary) + the distinct near_miss R=44 (k-regular) — the UNCLASSIFIED 624 cluster yields
+  ZERO additional folds from every available recognizer. Fold rate does not rise; PROVEN by measurement, not asserted.
+- (prior) cycle 2 catalog now **221** (+ loop_a probe-headroom gate, + loop_b self-censor gate).
+- Cycle-2 Loop A (`engine/loop_a.py`): corpus live re-measure = **EXACT 660 / DECLINE 1340** (invariant held). Dug the
+  UNCLASSIFIED cluster (**624** = 46.6%: 88 unary oracles, 536 non-unary [212 data-loop, 362 structureless]). The only
+  non-double-counting probe (Krylov 32→128 samples, since `near_miss` already covers 64) recovered **0** of 88 with
+  **0 false-EXACT** — the new §AY/§AU islands add 0 corpus recall (matrices/circuits absent by construction). Synthetic
+  soundness PROVEN (order-18 declined@32 / recovered@128 / far-reverified; hash declines@128). HONEST CEILING CONFIRMED.
+- Cycle-2 Loop B (`engine/loop_b.py`): F1–F4 + INV-5 self-censor over 5 proposed candidates (Hankel-rank, Padé/rat-GF,
+  roots-of-unity filter, P-recursive holonomic, Toeplitz-solve) → **0 accepted, 5 rejected**, each a named face/axis-
+  cross. Flagship double-count PROVEN: Berlekamp-Massey order == Hankel stabilized rank on Fibonacci(2) & custom(3).
+- Cycle-2 Loop C (re-run): red-team 640 probes, **0 false-EXACT**, INV-1 holds.
+- NEXT (after Loop D 273/223/660 green + push): cycle 6 — all four loops are now built with permanent gates + negative
+  controls, and the WAKE_REPORT.md living draft exists (§4 deliverable accreting). The engine is at a HONEST PLATEAU.
+  Honest low-churn remaining work: (1) extend the core red-team to POLYNOMIAL & PERIODIC generated oracles (more core
+  surface, same false-EXACT-0 + far-reverify discipline) — the last clearly-additive safety surface; (2) MAINTENANCE —
+  periodically re-confirm the invariants (273 / 223 / 660 / red-team 0) and keep WAKE_REPORT.md current; (3) finalize
+  WAKE_REPORT.md at the 10h mark / usage reset. The engine will NOT manufacture recall to look busy (that breaches the
+  spine); a green plateau, honestly reported, IS the correct terminal state once the mathematics ceiling is reached.
+
+## AUTONOMOUS DECISION LOG (morning audit)
+- (cycle 0) PART 1 judged complete (all 8 phases already built+pushed across §AL/§AP/§AQ/§AT/§AY/§AU); → ENGINE MODE.
+- (cycle 1, Loop C) Built the red-team FIRST (before fold-rate hunting) because INV-1 (false-EXACT 0) is the only
+  total-freeze trigger — the active safety device must exist before the engine proposes/builds more folds. Result:
+  0 false-EXACT across 640 probes; wired as a permanent gate. Logged.
+- (cycle 2, Loop A) Discovered the new §AY/§AU islands' corpus recall is provably ~0: (1) the conjecturers already run
+  BM on proceed=True oracles, (2) `near_miss` already retries at probe=64, so the only honest non-double-counting probe
+  is 32→128. Measured it on all 88 UNCLASSIFIED unary oracles: 0 recovery, 0 false-EXACT. Did NOT force a recovery —
+  logged the honest ceiling. The new islands' value is for matrix/circuit INPUTS not present in this code corpus.
+- (cycle 2, Loop B) Refused to invent a fake "new fold": ran 5 candidates through F1–F4 + INV-5 and let the self-censor
+  kill all 5 as faces of existing mechanisms. Proved the flagship (Hankel≡BM) with running code rather than asserting
+  it. A clean "0 accepted, every rejection named" is the discipline working at saturation, not a failure.
+- (cycle 3, Loop A) Determined extract/ IS a product path (server.py/intent.py) but a DIFFERENT fold unit; measured it
+  as a SEPARATE ledger (never summed). 0 folds of 536 non-unary UNCLASSIFIED ⇒ honest ceiling triple-confirmed. Chose
+  NOT to wire extract/ into the asymptotic rate (would conflate denominators / inflate — breaches M-1 + fold_units).
+- (cycle 4, Loop C) With recall proven exhausted, pivoted from chasing folds to HARDENING THE SAFETY NET — the honest
+  high-value move at a plateau. Extended the red-team to randomly GENERATE true foldables + hash oracles and stress the
+  CORE conjecturer path (60/60 fold correct, 40/40 hash decline, false-EXACT 0). Reused reverify_exact (not reimplemented)
+  and memoized the deterministic sweep. Did NOT build the island micro-corpus (it would duplicate the existing red-team's
+  random island-input probes — INV-5 double-count of effort). Logged the plateau honestly.
+
+## RESTART/COMPACTION COUNTER
+- compactions: 1 so far (resumed from this file post-compaction; cycle 2 done clean) · restarts: 0.

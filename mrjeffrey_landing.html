@@ -1,0 +1,344 @@
+<!doctype html>
+<!-- ===================================================================================================
+     MR.JEFFREY — landing page.  Design-system pure (white canvas · cyan/amber/violet mode accents ·
+     signature verification row).  Single job: make a visitor understand, in one screen, that this engine
+     makes ordinary code faster AND proves the speedup preserves behaviour — through the measured bar that
+     visibly stops at its Amdahl ceiling — and trust it through visible honesty.
+     The live panel is bound to REAL engine output (per-mode runs from pillar3_studio_data.json); labelled.
+      months: flat, no gradients/glow/shadows (focus rings only); headings weight 500; numbers in mono.
+     =================================================================================================== -->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MR.JEFFREY — faster code, with a proof it still does the same thing</title>
+<style>
+:root{
+  --page:#FAFAF8; --card:#FFFFFF; --ink:#1A1A17; --ink-2:#55534C; --muted:#85827A;
+  --line:rgba(0,0,0,.12); --line-soft:rgba(0,0,0,.07);
+  --normal:#BA7517; --normal-deep:#633806; --normal-tint:#FAEEDA;
+  --extend:#534AB7; --extend-deep:#26215C; --extend-tint:#EEEDFE;
+  --exact:#3B6D11; --exact-bg:#EAF3DE;
+  --prob:#444441; --prob-bg:#F1EFE8;
+  --decline:#5F5E5A; --decline-bg:#F1EFE8;
+  --wall:rgba(0,0,0,.52); --track:#EFEEE9;
+  --r:8px; --r-lg:12px; --focus:#534AB7;
+  --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono","Roboto Mono",monospace;
+  --accent:var(--extend); --accent-deep:var(--extend-deep); --accent-tint:var(--extend-tint);
+}
+:root[data-theme="dark"]{
+  --page:#0E0E10; --card:#171719; --ink:#ECEAE3; --ink-2:#B7B4AC; --muted:#8C897F;
+  --line:rgba(255,255,255,.15); --line-soft:rgba(255,255,255,.08);
+  --normal-tint:#633806; --extend-tint:#26215C;
+  --exact:#9AD16A; --exact-bg:#19260F; --prob:#C8C5BC; --prob-bg:#201F1B; --decline:#A8A49B; --decline-bg:#201F1B;
+  --wall:rgba(255,255,255,.55); --track:#26262A; --focus:#A79EF5;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--page);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--page) 86%,transparent);
+  backdrop-filter:blur(8px);border-bottom:.5px solid var(--line)}
+.top .row{display:flex;align-items:center;justify-content:space-between;height:60px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:500;font-size:17px;letter-spacing:-.01em}
+.seal{width:26px;height:26px;border:1px solid var(--ink);border-radius:50%;display:grid;place-items:center;
+  font-family:var(--mono);font-size:11px}
+nav.links{display:flex;gap:22px;align-items:center}
+nav.links a{font-size:14px;color:var(--ink-2);text-decoration:none}
+nav.links a:hover{color:var(--ink)}
+.iconbtn{width:36px;height:36px;border:.5px solid var(--line);border-radius:var(--r);background:transparent;
+  color:var(--ink-2);cursor:pointer;display:grid;place-items:center}
+.cta{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;border-radius:var(--r);
+  padding:9px 15px;text-decoration:none;cursor:pointer;border:1px solid transparent;background:var(--ink);color:var(--page)}
+.cta.ghost{background:transparent;color:var(--ink);border:.5px solid var(--line)}
+@media(max-width:680px){nav.links a:not(.cta){display:none}}
+
+/* hero */
+.hero{padding:64px 0 18px}
+.hero h1{font-size:clamp(28px,4.6vw,40px);font-weight:500;line-height:1.12;letter-spacing:-.02em;margin:14px 0 0;max-width:16ch}
+.hero p.lede{color:var(--ink-2);font-size:17px;max-width:60ch;margin:16px 0 0}
+.hero .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+.hero .tagrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.pill-static{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);border:.5px solid var(--line);
+  border-radius:99px;padding:5px 11px}
+
+/* the verification instrument */
+.section{padding:30px 0}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.sec-head h2{font-size:18px;font-weight:500;letter-spacing:-.01em}
+.sec-head .note{font-size:13px;color:var(--muted)}
+.instrument{border:.5px solid var(--line);border-radius:var(--r-lg);background:var(--card);overflow:hidden}
+.modebar{display:flex;gap:8px;padding:14px 16px;border-bottom:.5px solid var(--line-soft);flex-wrap:wrap;align-items:center}
+.mtab{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--ink-2);
+  background:transparent;border:.5px solid var(--line);border-radius:var(--r);padding:8px 13px;cursor:pointer}
+.mtab .ic{width:16px;height:16px;display:inline-grid;place-items:center}
+.mtab[aria-pressed="true"]{border:2px solid var(--mc);background:var(--mtint);color:var(--ink);padding:7px 12px}
+.mtab[data-m="normal"]{--mc:var(--normal);--mtint:var(--normal-tint)}
+.mtab[data-m="extend"]{--mc:var(--extend);--mtint:var(--extend-tint)}
+:root[data-theme="dark"] .mtab[aria-pressed="true"]{color:#fff}
+.mtab[aria-pressed="true"] .ic{color:var(--mc)}
+:root[data-theme="dark"] .mtab[aria-pressed="true"] .ic{color:var(--mc)}
+.summary{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.summary b{color:var(--ink);font-weight:500}
+
+/* the signature verification row */
+.rows{padding:4px 16px 12px}
+.vrow{padding:15px 0;border-bottom:.5px solid var(--line-soft)}
+.vrow:last-child{border-bottom:0}
+.vrow .top2{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.vrow .name{font-size:14.5px;font-weight:500;flex:1;min-width:0}
+.vrow .name .wp{font-family:var(--mono);font-size:11px;color:var(--muted);display:block;margin-top:2px;font-weight:400}
+.bargrid{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+.track{position:relative;height:9px;background:var(--track);border-radius:6px}
+.fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--accent);width:0;
+  transition:width .9s cubic-bezier(.2,.7,.2,1)}
+.ceil{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--wall)}
+.ceil::after{content:"ceiling";position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
+.readout{font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap;text-align:right}
+.readout .ratio{font-size:15px;color:var(--ink)}
+.gbadge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:500;
+  border-radius:6px;padding:3px 9px;white-space:nowrap}
+.g-exact{color:var(--exact);background:var(--exact-bg)}
+.g-prob{color:var(--prob);background:var(--prob-bg)}
+.g-decline{color:var(--decline);background:var(--decline-bg)}
+.gbadge .ic{width:13px;height:13px}
+.clocks{display:flex;gap:14px;margin-top:9px;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.clocks b{color:var(--ink-2);font-weight:500}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+@media(min-width:720px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{border:.5px solid var(--line);border-radius:var(--r-lg);background:var(--card);padding:16px}
+.stat .n{font-family:var(--mono);font-size:24px;letter-spacing:-.02em}
+.stat .l{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+
+/* modes */
+.modes{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.modes{grid-template-columns:repeat(2,1fr)}}
+.mcard{border:.5px solid var(--line);border-radius:var(--r-lg);background:var(--card);padding:18px;
+  border-top:3px solid var(--mc)}
+.mcard[data-m="normal"]{--mc:var(--normal);--mtint:var(--normal-tint)}
+.mcard[data-m="extend"]{--mc:var(--extend);--mtint:var(--extend-tint)}
+.mcard .hd{display:flex;align-items:center;gap:9px}
+.mcard .ic{width:20px;height:20px;color:var(--mc)}
+.mcard h3{font-size:16px;font-weight:500}
+.mcard .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+.intensity{height:6px;border-radius:4px;background:var(--track);margin:13px 0;overflow:hidden}
+.intensity span{display:block;height:100%;background:var(--mc);border-radius:4px}
+.mcard p{font-size:13.5px;color:var(--ink-2);margin-top:2px}
+.mcard .floor{margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--mc);font-weight:500}
+.mcard dl{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);margin-top:10px;line-height:1.8}
+.mcard dl b{color:var(--ink);font-weight:500}
+
+/* honesty */
+.honest{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.honest{grid-template-columns:1fr 1fr}}
+.hcard{border:.5px solid var(--line);border-radius:var(--r-lg);background:var(--card);padding:18px}
+.hcard h4{font-size:15px;font-weight:500;margin-bottom:6px}
+.hcard p{font-size:13.5px;color:var(--ink-2)}
+.declinebox{border:.5px solid var(--line);border-radius:var(--r-lg);background:var(--decline-bg);padding:18px;margin-top:12px}
+.declinebox .top2{display:flex;align-items:center;gap:10px}
+.declinebox .name{font-size:14.5px;font-weight:500;flex:1}
+.declinebox p{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);margin-top:9px}
+
+footer{border-top:.5px solid var(--line);margin-top:40px}
+footer .row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:24px 0;font-size:13px;color:var(--muted)}
+footer .mono{font-size:11.5px}
+.snaplabel{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap row">
+  <div class="brand"><span class="seal mono">MJ</span> mr.jeffrey</div>
+  <nav class="links">
+    <a href="#how">how it works</a>
+    <a href="#modes">modes</a>
+    <a href="#honesty">honesty</a>
+    <button class="iconbtn" id="theme" aria-label="toggle dark mode" title="toggle theme">◐</button>
+    <a class="cta" href="#" id="openStudio">open the studio</a>
+  </nav>
+</div></header>
+
+<main>
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">whole-program · measured · verified</span>
+    <h1>Faster — and proven to still do the same thing.</h1>
+    <p class="lede">mr.jeffrey finds accidental waste in ordinary code, fixes it, and proves the fix preserves
+      behaviour — by differential testing and Z3 equivalence. Every number it shows is a <b>measured
+      whole-program speedup</b> with its Amdahl ceiling. Never a kernel number; never a claim it can't check.</p>
+    <div class="actions">
+      <a class="cta" href="#how">see a verification</a>
+      <a class="cta ghost" href="#modes">three modes →</a>
+    </div>
+    <div class="tagrow">
+      <span class="pill-static">ratio ≤ ceiling, always</span>
+      <span class="pill-static">grades enforced by the verifier</span>
+      <span class="pill-static">a decline is a first-class answer</span>
+    </div>
+  </div></section>
+
+  <section class="section" id="how"><div class="wrap">
+    <div class="sec-head">
+      <h2>A verification, live</h2>
+      <span class="note">pick a mode — color is the meaning, and the bar can never cross its ceiling</span>
+    </div>
+    <div class="instrument">
+      <div class="modebar" role="group" aria-label="optimization mode">
+        <button class="mtab" data-m="normal" aria-pressed="false">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4"/></svg></span>normal</button>
+        <button class="mtab" data-m="extend" aria-pressed="true">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg></span>extend</button>
+        <span class="summary" id="summary"></span>
+      </div>
+      <div class="rows" id="rows"></div>
+    </div>
+    <p class="snaplabel" id="snap">— real engine run (best-of-k whole-program, snapshot from pillar3_studio_data.json)</p>
+
+    <div class="stats">
+      <div class="stat"><div class="n mono">115×</div><div class="l">the corpus best case (not typical) — whole-program measured on a data utility with an accidental O(n²) build, differential-verified</div></div>
+      <div class="stat"><div class="n mono">≤ 1/(1−f)</div><div class="l">every speedup carries its Amdahl ceiling; the bar stops there by construction</div></div>
+      <div class="stat"><div class="n mono">3</div><div class="l">grades the verifier decides at runtime — exact, probabilistic, decline</div></div>
+      <div class="stat"><div class="n mono">~1.0×</div><div class="l">honest result on already-well-written code: nothing safe to ship</div></div>
+    </div>
+  </div></section>
+
+  <section class="section" id="modes"><div class="wrap">
+    <div class="sec-head"><h2>Two modes, two contracts</h2>
+      <span class="note">not speed presets — different promises about what the system will and won't do</span></div>
+    <div class="modes">
+      <div class="mcard" data-m="normal">
+        <div class="hd"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4v4M8 10v4M16 16v4"/></svg></span>
+          <div><h3>normal</h3><div class="sub">balances A / B / C</div></div></div>
+        <div class="intensity"><span style="width:66%"></span></div>
+        <p>Tries one certified win instantly first (no Z3); if none qualifies, compounds real wins down the flame
+        graph until the next gain stops being worth it (&lt;10%).</p>
+        <div class="floor">grade floor: exact or well-tested probabilistic</div>
+        <dl><div>verifier · <b>differential + cheap certs</b></div><div>stops · <b>diminishing returns</b></div></dl>
+      </div>
+      <div class="mcard" data-m="extend">
+        <div class="hd"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg></span>
+          <div><h3>extend</h3><div class="sub">optimises emitted speed (clock C)</div></div></div>
+        <div class="intensity"><span style="width:100%"></span></div>
+        <p>Find every reachable win and prove it. Full Z3 equivalence — ships nothing it cannot prove.</p>
+        <div class="floor">grade floor: exact-or-decline</div>
+        <dl><div>verifier · <b>full Z3 translation-validation</b></div><div>latency · <b>unbounded (overnight)</b></div></dl>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="section" id="honesty"><div class="wrap">
+    <div class="sec-head"><h2>What it refuses to claim</h2>
+      <span class="note">the honesty is the product</span></div>
+    <div class="honest">
+      <div class="hcard"><h4>The Amdahl ceiling is always on screen</h4>
+        <p>A fix in fraction <span class="mono">f</span> of the runtime can never beat <span class="mono">1/(1−f)</span>.
+        The measured bar stops at that wall by construction — illustratively, a 700× kernel inside 40% of runtime
+        is capped at the 1.67× it really delivers (1/(0.6 + 0.4/700)), never 700×.</p></div>
+      <div class="hcard"><h4>Kernel ≠ whole-program</h4>
+        <p>Every ratio is the warmup-aware whole-program wall-clock, measured against a neutral baseline. We never
+        put a kernel number where a whole-program number belongs.</p></div>
+      <div class="hcard"><h4>The grade is output confidence</h4>
+        <p>exact / probabilistic / decline is decided at runtime by the input and the verifier — not a fixed
+        property of a fixer. The same rewrite can be exact on integers and decline on floats.</p></div>
+      <div class="hcard"><h4>Component speedups don't multiply</h4>
+        <p>Illustratively, 3× · 20× · 6.7× component wins do not compound to 400×. The cumulative number is never a
+        product of component factors — it is re-measured fresh, end to end, every round.</p></div>
+      <div class="hcard"><h4>Big wins are the minority — measured, not promised</h4>
+        <p>On a production-representative corpus most code is I/O and control flow with no foldable asymptotic
+        structure, so only a low-single-digit fraction folds to a big win — the rest is a modest constant-factor or
+        an honest decline. The 115× above is real but <em>selected</em>; the engine's value is telling you the truth
+        either way, not promising a uniform speedup.</p></div>
+    </div>
+
+    <div class="declinebox">
+      <div class="top2">
+        <span class="name">a well-written renderer — nothing to ship</span>
+        <span class="gbadge g-decline"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V6a1.5 1.5 0 0 1 3 0v5m0-1V5a1.5 1.5 0 0 1 3 0v6m0-1a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3.5a1.6 1.6 0 0 1 2.7-1.6L9 13"/></svg></span> decline</span>
+      </div>
+      <p>measured whole-program <b>1.00×</b> · profiled f=0.999 · no fix beats its floor → a decline is the
+      honest answer, not an error. the engine found the hot path, tried it, and reports that it's already optimal.</p>
+    </div>
+  </div></section>
+</main>
+
+<footer><div class="wrap row">
+  <div>mr.jeffrey — the whole-program verified speedup engine. grades enforced by the verifier, never a label.</div>
+  <div class="mono">measured · not projected · ratio ≤ ceiling</div>
+</div></footer>
+
+<script>
+"use strict";
+// REAL engine output — per-mode runs (best-of-k whole-program). Labelled snapshot of pillar3_studio_data.json.
+const NAMES = {
+  list_as_set:"list-as-set membership → dict.fromkeys",
+  n_plus_1:"N+1 per-item fetch → batched access",
+  accidental_quadratic:"accidental O(n²) build → O(n)",
+  algo_replace:"naive O(n²) poly eval → Horner O(n)"
+};
+const RUNS = {
+  normal: {cum:1.149, z3:0, rows:[
+    {w:"n_plus_1", ratio:1.148, ceil:1.18, f:0.146, grade:"exact"}]},
+  extend: {cum:2.244, z3:2, rows:[
+    {w:"algo_replace", ratio:1.754, ceil:1.83, f:0.452, grade:"exact"},
+    {w:"n_plus_1", ratio:2.282, ceil:2.44, f:0.59, grade:"exact"}]}
+};
+const ACCENT = {normal:"var(--normal)", extend:"var(--extend)"};
+const TINT   = {normal:"var(--normal-tint)", extend:"var(--extend-tint)"};
+const CEILPOS = 86;            // ceiling marker sits at 86% of the track; fill = ratio/ceil * CEILPOS (≤ marker)
+const GICON = {
+  exact:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4 3 7 7 9 4-2 7-5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
+  probabilistic:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>',
+  decline:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V6a1.5 1.5 0 0 1 3 0v5m0-1V5a1.5 1.5 0 0 1 3 0v6m0-1a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3.5a1.6 1.6 0 0 1 2.7-1.6L9 13"/></svg>'
+};
+const GCLASS = {exact:"g-exact", probabilistic:"g-prob", decline:"g-decline"};
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc = s => String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function render(mode){
+  const run = RUNS[mode];
+  document.documentElement.style.setProperty("--accent", ACCENT[mode]);
+  document.querySelectorAll(".mtab").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.m===mode)));
+  document.getElementById("summary").innerHTML =
+    `cumulative <b>${run.cum.toFixed(2)}×</b> · z3 calls <b>${run.z3}</b> · ${run.rows.length} fix${run.rows.length>1?"es":""} shipped`;
+  const host = document.getElementById("rows");
+  host.innerHTML = run.rows.map(r=>{
+    const cap = Math.min(1, r.ratio/r.ceil);                 // captured share of the ceiling (≤ 1)
+    const w = (cap*CEILPOS).toFixed(1);
+    const g = GCLASS[r.grade];
+    return `<div class="vrow">
+      <div class="top2">
+        <div class="name">${esc(NAMES[r.w]||r.w)}<span class="wp">measured whole-program · hotspot f=${r.f}</span></div>
+        <span class="gbadge ${g}"><span class="ic" aria-hidden="true">${GICON[r.grade]}</span> ${r.grade}</span>
+      </div>
+      <div class="bargrid">
+        <div class="track" role="img" aria-label="measured ${r.ratio}× of a ${r.ceil}× Amdahl ceiling">
+          <div class="fill" data-w="${w}" style="width:${reduce?w+'%':'0%'}"></div>
+          <div class="ceil" style="left:${CEILPOS}%"></div>
+        </div>
+        <div class="readout"><span class="ratio">${r.ratio.toFixed(2)}×</span> &nbsp;<span style="color:var(--muted)">/ ceiling</span> ${r.ceil.toFixed(2)}×</div>
+      </div>
+      <div class="clocks"><span>clock A <b>felt</b></span><span>clock B <b>verify</b></span><span>clock C <b>${r.ratio.toFixed(2)}× emitted</b></span></div>
+    </div>`;
+  }).join("");
+  if(!reduce) requestAnimationFrame(()=>requestAnimationFrame(()=>
+    host.querySelectorAll(".fill").forEach(f=>{f.style.width = f.dataset.w + "%";})));
+}
+
+document.querySelectorAll(".mtab").forEach(b=>b.addEventListener("click",()=>render(b.dataset.m)));
+document.getElementById("theme").addEventListener("click",()=>{
+  const r=document.documentElement; r.dataset.theme = r.dataset.theme==="dark" ? "light":"dark";
+});
+document.getElementById("openStudio").addEventListener("click",e=>e.preventDefault());
+render("extend");   // default: the deepest, most complete contract
+</script>
+</body>
+</html>

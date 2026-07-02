@@ -17,6 +17,7 @@ wires the routes — so this module imports fine in any environment (mirrors cla
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -42,6 +43,7 @@ except Exception:   # noqa: BLE001
     Request = None
 
 HARAN_HTML = Path(__file__).with_name("haran.html")
+ONEFILE = Path(__file__).with_name("mrjeffrey.html")          # the NEW Korean single-file UI (everything inlined)
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
 PAGES = BASE / "pages"
@@ -165,8 +167,15 @@ def stream_events(payload: Optional[dict]) -> Iterator[str]:
     if not prompt:
         yield sse_event({"type": "error", "message": "empty prompt"})
         return
+    import search_gate as SG                                              # PART 2: search toggle gate
+    sa = p.get("searchAllowed", p.get("search_allowed"))
     try:
         yield sse_event({"type": "stage", "stage": "classify"})           # 분류중 (local, ~instant)
+        # ★ deliver the toggle to the backend + make the structural gate observable: OFF ⇒ no search tool is
+        # exposed (search impossible); ON ⇒ available but used only when needed. No search backend is wired yet
+        # (egress-blocked) so this announces the gate, not an executed search — honest.
+        yield sse_event({"type": "search", "allowed": SG.normalize(sa), "available": SG.search_available(sa),
+                         "tools": [t["name"] for t in SG.tools_for(sa)]})
         it = IN.classify_intent(prompt, api_key, provider=provider, model=model, base_url=base_url)
 
         if it.intent != "CODING":                                          # chat / question
@@ -244,6 +253,8 @@ def handle_route(payload: Optional[dict]) -> dict:
     provider, model, base_url = _gen_cfg(p)
     if not text:
         return {"error": True, "message": "empty prompt"}
+    import search_gate as SG                          # PART 2: search toggle gate (OFF ⇒ tool never exposed)
+    sa = p.get("searchAllowed", p.get("search_allowed"))
     try:
         rr = IN.route(text, mode, api_key, history, force=bool(p.get("force")),
                       provider=provider, model=model, base_url=base_url)
@@ -254,6 +265,11 @@ def handle_route(payload: Optional[dict]) -> dict:
             out["reply"] = rr.reply                  # plain answer — NO verification label
         elif rr.kind == "ask":
             out["asks"] = rr.asks                    # expected questions (suggestions)
+        # ★ the toggle's structural guarantee, observable on every reply: OFF ⇒ tools=[] (search impossible),
+        # ON ⇒ the search tool is exposed but used only when needed (LLM-judged). No search backend is wired yet
+        # (egress-blocked sandbox) so this reports the GATE, not an executed search — honest.
+        out["search"] = {"allowed": SG.normalize(sa), "available": SG.search_available(sa),
+                         "tools": [t["name"] for t in SG.tools_for(sa)]}
         return out
     except Exception as e:   # noqa: BLE001 — never leak the key
         return {"error": True, "message": f"{type(e).__name__}: {CA.redact_key(str(e))}"}
@@ -270,6 +286,77 @@ def reverify_incremental(prev_src: str, new_src: str) -> dict:
             "warm_one_edit_ms": round(m.warm_one_edit_s * 1000, 2),
             "speedup_one_edit": round(m.speedup_one_edit, 1),
             "speedup_unchanged": round(m.speedup_unchanged, 1)}
+
+
+# ── §BE TE-3/4/5: server-side fold CHECK (O(1) loop semantics) + keep-alive warmup + recompute-0 cache ──────────
+# Role split (§BE): EXECUTION is the browser's job (Pyodide/WASM, isolated — see static/runner.worker.js); the
+# server only ORCHESTRATES + runs the cheap fold CHECK. These are plain functions (testable without FastAPI), and
+# they REUSE the §BD checker layer — no new mechanism, no new disposer, no new math.
+_CHECK_CACHE: dict = {}          # sha256(code) → result dict; the fastest check is the one we don't recompute
+_CHECK_CACHE_MAX = 256
+
+
+def run_fold_check(code: str) -> dict:
+    """Run the §BD checker layer over LLM-generated code → an honest grade (EXACT/CHECKED/FLAGGED/DEFER) + located
+    fix instructions. O(N) read + O(1) loop semantics (fold). Content-hash cached (recompute 0 on a repeat)."""
+    if not isinstance(code, str) or not code.strip():
+        return {"ok": False, "error": "no code to check"}
+    key = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    if key in _CHECK_CACHE:
+        out = dict(_CHECK_CACHE[key]); out["cached"] = True
+        return out
+    try:
+        from checker.grade_and_fix import check as _check    # noqa: PLC0415 — lazy/guarded (mirrors _ENGINE)
+        r = _check(code)
+        out = {
+            "ok": True,
+            "grade": r.grade,                                 # EXACT | CHECKED | FLAGGED | DEFER
+            "summary": r.summary,
+            "effect": r.effect,
+            "n_lines": r.n_lines,
+            "findings": [{"line": f.line, "severity": f.severity, "pattern": f.pattern_id,
+                          "message": f.message, "hint": f.hint} for f in r.findings],
+            "fix_instructions": r.fix_instructions(),
+            "cached": False,
+        }
+        # §BF FIX-7: a DEFER/declined grade is FEEDBACK, not a wall — attach WHY + an actionable hint (the
+        # checker already computed the reason; we surface + categorize it). Never changes the grade.
+        if r.grade == "DEFER":
+            try:
+                from diagnostics import categorize_decline   # noqa: PLC0415
+                out["diagnosis"] = categorize_decline(r.summary)
+            except Exception:                                 # noqa: BLE001 — diagnostics is best-effort feedback
+                pass
+    except Exception as e:                                    # noqa: BLE001 — checker must never crash the server
+        return {"ok": False, "error": f"checker unavailable: {type(e).__name__}"}
+    if len(_CHECK_CACHE) >= _CHECK_CACHE_MAX:
+        _CHECK_CACHE.pop(next(iter(_CHECK_CACHE)))            # simple bounded FIFO
+    _CHECK_CACHE[key] = out
+    return out
+
+
+def warmup_engines() -> dict:
+    """TE-4: preload the heavy modules ONCE (z3/numpy/fold/checker) so the first real request after a cold start is
+    instant. Render free-tier sleeps after ~15min; an external keep-alive ping to /health prevents the sleep, and
+    /warmup pays the import/JIT cost ahead of the user. Best-effort — a missing optional module is skipped, not fatal."""
+    warmed, skipped = [], []
+    for name, thunk in (
+        ("numpy", lambda: __import__("numpy")),
+        ("z3", lambda: __import__("z3")),
+        ("loop_decision", lambda: __import__("loop_decision")),
+        ("checker", lambda: __import__("checker.grade_and_fix", fromlist=["check"])),
+    ):
+        try:
+            thunk(); warmed.append(name)
+        except Exception:                                     # noqa: BLE001 — optional; never fatal
+            skipped.append(name)
+    # touch the fold path once so its first real use is JIT-warm (tiny, deterministic)
+    try:
+        run_fold_check("def f(n):\n s=0\n for i in range(n):\n  s+=i\n return s")
+        warmed.append("fold_check")
+    except Exception:                                         # noqa: BLE001
+        skipped.append("fold_check")
+    return {"ok": True, "warmed": warmed, "skipped": skipped}
 
 
 def _fastapi_available() -> bool:
@@ -295,14 +382,25 @@ def create_app():
         resp.set_cookie(SESSION_COOKIE, sess["cookie"], httponly=True, samesite="lax",
                         secure=(req.url.scheme == "https"), path="/", max_age=max_age)
 
+    def _onefile() -> "HTMLResponse":
+        # THE LIVE UI: the new Korean single-file (everything inlined — no /static/design.css, no /static/site.js)
+        if ONEFILE.is_file():
+            return HTMLResponse(ONEFILE.read_text(encoding="utf-8"))
+        return HTMLResponse(HARAN_HTML.read_text(encoding="utf-8")) if HARAN_HTML.is_file() else HTMLResponse("not found", 404)
+
     # ---- pages ----
+    # ★ ROOT serves the NEW single-file UI ★ (was: the old React landing + /static React build — that is GONE).
     @app.get("/", response_class=HTMLResponse)
     async def landing():                                       # noqa: ANN202
-        return _page("landing")
+        return _onefile()
 
     @app.get("/app", response_class=HTMLResponse)
     async def app_page():                                      # noqa: ANN202
-        return HTMLResponse(HARAN_HTML.read_text(encoding="utf-8"))   # the existing codegen/verify app
+        return _onefile()
+
+    @app.get("/onefile", response_class=HTMLResponse)
+    async def onefile_page():                                  # noqa: ANN202
+        return _onefile()
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page():                                    # noqa: ANN202
@@ -316,9 +414,13 @@ def create_app():
     async def profile_page():                                  # noqa: ANN202
         return _page("profile")
 
-    @app.get("/health")                                        # deploy health check (Cloud Run/Render)
+    @app.get("/health")                                        # deploy health check (Cloud Run/Render) + keep-alive ping
     async def health():                                        # noqa: ANN202
         return {"ok": True, "service": "mrjeffrey"}
+
+    @app.get("/warmup")                                        # §BE TE-4: preload z3/numpy/fold/checker (kill cold-start)
+    async def warmup():                                        # noqa: ANN202
+        return JSONResponse(warmup_engines())
 
     # ---- auth API (no LLM key involved anywhere here) ----
     @app.post("/api/auth/signup")
@@ -363,11 +465,206 @@ def create_app():
             return JSONResponse({"items": []}, status_code=401)
         return JSONResponse({"items": AU.list_work(s["user_id"])})
 
+    # ---- the SPEEDUP ENGINE API (what the new single-file UI calls for LIVE mode) ----
+    # Delegates to webapi.engine_bridge (the real pillar3 engine). The submitted LLM key is header/body-only and
+    # is NEVER logged or stored here — it only travels to the provider the user chose.
+    try:
+        from webapi import engine_bridge as _ENGINE            # noqa: PLC0415
+    except Exception:                                          # noqa: BLE001
+        _ENGINE = None
+
+    @app.get("/api/health")
+    async def api_health():                                    # noqa: ANN202
+        return JSONResponse({"ok": _ENGINE is not None, "engine": "pillar3", "real": _ENGINE is not None})
+
+    @app.get("/api/modes")
+    async def api_modes():                                     # noqa: ANN202
+        return JSONResponse({"modes": _ENGINE.modes()} if _ENGINE else {"modes": []})
+
+    @app.post("/api/check")                                    # §BE TE-3: server-side fold CHECK → honest grade
+    async def api_check(req: Request):                         # noqa: ANN202
+        # ★ code-only: never a key/session (keys live server-side; the browser run payload is code-only too).
+        p = await req.json()
+        return JSONResponse(run_fold_check(p.get("code", "")))
+
+    @app.get("/api/providers")
+    async def api_providers():                                 # noqa: ANN202
+        return JSONResponse({"providers": _ENGINE.providers()} if _ENGINE else {"providers": []})
+
+    @app.get("/api/corpus")
+    async def api_corpus():                                    # noqa: ANN202
+        return JSONResponse(_ENGINE.corpus() if _ENGINE else {"rows": []})
+
+    @app.get("/api/demo")
+    async def api_demo():                                      # noqa: ANN202
+        return JSONResponse(_ENGINE.demo() if _ENGINE else {})
+
+    @app.post("/api/optimize")
+    async def api_optimize(req: Request):                      # noqa: ANN202
+        if _ENGINE is None:
+            return JSONResponse({"error": "engine unavailable"}, status_code=503)
+        p = await req.json()
+        return JSONResponse(_ENGINE.run_optimize(p.get("code", ""), p.get("mode", "normal"),
+                                                 p.get("provider"), p.get("model"), p.get("key")))
+
+    @app.post("/api/optimize/stream")                          # §3: the LIVE CODE process trace (SSE)
+    async def api_optimize_stream(req: Request):               # noqa: ANN202
+        import json                                            # noqa: PLC0415
+        import code_stream as CS                               # noqa: PLC0415 (lazy: keeps server import light)
+        p = await req.json()
+        code, mode = p.get("code", ""), p.get("mode", "normal")
+
+        def gen():                                             # yield each phase AS the real work completes
+            try:
+                for ev in CS.iter_code_trace(code, mode):
+                    yield CS.to_sse([ev])[0]
+            except Exception as e:                             # noqa: BLE001 — never crash the stream
+                yield "data: " + json.dumps({"phase": "RESULT", "message": f"오류: {type(e).__name__}",
+                                             "tier": mode, "budget": "", "grade": "DECLINE"},
+                                            ensure_ascii=False) + "\n\n"
+            yield "data: " + json.dumps({"type": "done"}) + "\n\n"
+        return StreamingResponse(gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    @app.post("/api/key/validate")
+    async def api_key_validate(req: Request):                  # noqa: ANN202
+        if _ENGINE is None:
+            return JSONResponse({"ok": False, "detail": "engine unavailable"}, status_code=503)
+        p = await req.json()
+        return JSONResponse(_ENGINE.validate_key(p.get("provider", ""), p.get("key", ""), p.get("model")))
+
+    # ---- MR.JEFFREY local-Ollama onboarding (detect / list / pull) — see webapi/local_models.py ----
+    # These probe the SERVER PROCESS'S OWN localhost:11434 (self-hosted deployment ⇒ the user's own
+    # machine; a remote deployment ⇒ honestly not-found). The chat/generate call itself needs NONE of
+    # these routes — it reuses /api/stream + /api/generate unchanged via provider="ollama_local".
+    try:
+        from webapi import local_models as _OLLAMA               # noqa: PLC0415
+    except Exception:                                             # noqa: BLE001
+        _OLLAMA = None
+
+    @app.get("/api/ollama/status")
+    async def api_ollama_status():                                # noqa: ANN202
+        if _OLLAMA is None:
+            return JSONResponse({"ok": False, "detail": "local_models unavailable"}, status_code=503)
+        return JSONResponse(_OLLAMA.detect())
+
+    @app.get("/api/ollama/models")
+    async def api_ollama_models():                                # noqa: ANN202
+        if _OLLAMA is None:
+            return JSONResponse({"ok": False, "models": []}, status_code=503)
+        return JSONResponse(_OLLAMA.list_models())
+
+    @app.post("/api/ollama/pull")                                 # SSE: Ollama's own download-progress shape
+    async def api_ollama_pull(req: Request):                      # noqa: ANN202
+        p = await req.json()
+        name = p.get("name", "")
+
+        def gen():
+            if _OLLAMA is None:
+                yield sse_event({"status": "error", "error": "local_models unavailable"})
+                return
+            for ev in _OLLAMA.pull_model(name):
+                yield sse_event(ev)
+            yield sse_event({"type": "done"})
+        return StreamingResponse(gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # ---- 코더-티어: coder-model tier catalog + hardware-aware recommendation — webapi/coder_models.py ----
+    try:
+        from webapi import coder_models as _CODER                 # noqa: PLC0415
+    except Exception:                                             # noqa: BLE001
+        _CODER = None
+
+    @app.get("/api/coder/catalog")
+    async def api_coder_catalog(req: Request):                    # noqa: ANN202
+        if _CODER is None:
+            return JSONResponse({"ok": False, "detail": "coder_models unavailable"}, status_code=503)
+        live = req.query_params.get("live", "1") != "0"
+        return JSONResponse(_CODER.tier_catalog(live=live))
+
+    @app.get("/api/coder/recommend")
+    async def api_coder_recommend(req: Request):                  # noqa: ANN202
+        if _CODER is None:
+            return JSONResponse({"ok": False, "detail": "coder_models unavailable"}, status_code=503)
+        raw = req.query_params.get("vram_gb", "")
+        try:
+            vram = int(raw) if raw not in ("", None) else None
+        except ValueError:
+            vram = None                                           # 프라임 6: unparseable ⇒ don't guess (CPU-safe)
+        return JSONResponse(_CODER.recommend(vram))
+
+    @app.get("/api/search/policy")                             # PART 2: observable search-toggle gate
+    async def api_search_policy(req: Request):                 # noqa: ANN202
+        # Returns the structural gate decision for a given toggle state: OFF ⇒ no tools (search impossible),
+        # ON ⇒ the web_search tool is exposed (available) but used only when needed (LLM-judged). No key, no
+        # network — pure policy. Query: ?on=true|false (default OFF, the fail-safe).
+        import search_gate as SG                                # noqa: PLC0415
+        on = req.query_params.get("on")
+        return JSONResponse({"allowed": SG.normalize(on), "available": SG.search_available(on),
+                             "tools": [t["name"] for t in SG.tools_for(on)],
+                             "guidance": SG.system_suffix(on).strip()})
+
+    @app.get("/health/provider")                               # §MRJ author diagnostic (Render env-config path)
+    async def health_provider(req: Request):                   # noqa: ANN202
+        # Reads the Render env config (HARAN_PROVIDER/HARAN_MODEL/HARAN_BASE_URL/HARAN_KEY), masks the key, and
+        # makes one tiny ping. ★ NEVER takes a key in the URL/query (it would land in access logs) — only the
+        # non-secret provider/model may be overridden via query; the key comes from the env only.
+        if _ENGINE is None:
+            return JSONResponse({"ok": False, "detail": "engine unavailable"}, status_code=503)
+        q = req.query_params
+        return JSONResponse(_ENGINE.health_provider(q.get("provider"), q.get("model")))
+
+    # ── MATH mode (the second top-level mode): fold-first solving + the verified arsenal + visible reasoning ──
+    @app.post("/api/math/solve")
+    async def api_math_solve(req: Request):                    # noqa: ANN202
+        from mathmode import solver as _MS                     # noqa: PLC0415 (lazy: keeps server import light)
+        p = await req.json()
+        problem = p.get("problem")
+        text = p.get("text", "")
+        mode = p.get("mode", "normal")
+        try:
+            sol = _MS.solve_in_mode(problem if problem is not None else text, mode)
+            return JSONResponse(sol.to_dict())
+        except Exception as e:                                 # noqa: BLE001
+            return JSONResponse({"status": "DECLINE", "grade_ko": "보류",
+                                 "reason": f"math solve failed ({type(e).__name__})", "reasoning": [],
+                                 "certificate": None, "answer": ""}, status_code=200)
+
+    # ── B2/B3: universal file attachment — detect → safely extract (archives) → fold-accelerated analysis ──
+    @app.post("/api/math/ingest")
+    async def api_math_ingest(req: Request):                   # noqa: ANN202
+        import base64                                          # noqa: PLC0415
+        from mathmode import ingest as _ING                    # noqa: PLC0415
+        p = await req.json()
+        name = str(p.get("filename", "upload.txt"))
+        try:
+            data = base64.b64decode(p.get("content_b64", "") or "")
+        except Exception:                                      # noqa: BLE001
+            return JSONResponse({"kind": "file", "name": name, "unverified": "invalid base64 payload",
+                                 "findings": [], "declines": []}, status_code=200)
+        if len(data) > 300 * 1024 * 1024:                      # defense-in-depth size guard at the boundary
+            return JSONResponse({"kind": "file", "name": name, "findings": [], "declines": [],
+                                 "unverified": "file too large (>300MB) — refused (bomb defense)"}, status_code=200)
+        try:
+            return JSONResponse(_ING.analyze_upload(name, data))
+        except Exception as e:                                 # noqa: BLE001
+            return JSONResponse({"kind": "file", "name": name, "findings": [], "declines": [],
+                                 "unverified": f"ingest failed ({type(e).__name__})"}, status_code=200)
+
     @app.get("/static/{name}")                                  # shared design system + site script
     async def static_file(name: str):                          # noqa: ANN202
         # allow-listed by suffix + name-only (no path traversal): only files directly under static/.
         p = (STATIC / name).resolve()
         if p.parent != STATIC.resolve() or not p.is_file() or p.suffix not in _STATIC_TYPES:
+            return Response(status_code=404)
+        return Response(content=p.read_text(encoding="utf-8"), media_type=_STATIC_TYPES[p.suffix])
+
+    @app.get("/static/runtimes/{name}")                         # §BG LANG-1: WASM runtime registry + module cache
+    async def static_runtime(name: str):                       # noqa: ANN202
+        # same allow-list, one fixed sub-dir only (name-only ⇒ no traversal; suffix in the whitelist).
+        rt = (STATIC / "runtimes").resolve()
+        p = (rt / name).resolve()
+        if p.parent != rt or not p.is_file() or p.suffix not in _STATIC_TYPES:
             return Response(status_code=404)
         return Response(content=p.read_text(encoding="utf-8"), media_type=_STATIC_TYPES[p.suffix])
 
@@ -419,5 +716,6 @@ if __name__ == "__main__":   # pragma: no cover - manual local run
     if app is None:
         raise SystemExit("FastAPI not installed — `pip install -r requirements.txt` to run the server.")
     import uvicorn
-    uvicorn.run(app, host=os.environ.get("HARAN_HOST", "127.0.0.1"),
-                port=int(os.environ.get("HARAN_PORT", "8000")))
+    # Render/Cloud Run inject $PORT; honor it (then HARAN_PORT, then 8000) so the container binds the right port.
+    port = int(os.environ.get("HARAN_PORT") or os.environ.get("PORT") or "8000")
+    uvicorn.run(app, host=os.environ.get("HARAN_HOST", "0.0.0.0"), port=port)

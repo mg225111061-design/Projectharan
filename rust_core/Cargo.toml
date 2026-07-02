@@ -1,0 +1,15 @@
+[package]
+name = "haran_core"
+version = "0.1.0"
+edition = "2021"
+
+# ★ ZERO dependencies — std only (no flint/faer/PyO3/maturin/cffi). Builds fully offline. ★
+[dependencies]
+
+[lib]
+name = "haran_core"
+crate-type = ["cdylib"]   # ctypes-loadable shared library (no PyO3/maturin needed)
+
+[profile.release]
+opt-level = 3
+lto = true

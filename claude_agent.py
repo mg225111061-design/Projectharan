@@ -91,6 +91,21 @@ def normalize_base_url(url: Optional[str]) -> Optional[str]:
     return u
 
 
+def _resolve_base_url(provider: str, base_url: Optional[str]) -> Optional[str]:
+    """The gateway base URL for ONE call. An explicit `base_url` always wins. Otherwise: if the caller
+    didn't override `provider` either, use the frozen import-time env default (DEFAULT_BASE_URL) — the
+    original, unchanged behavior for the common no-args case. But a `provider` picked PER REQUEST (e.g.
+    the UI's settings panel, or an ollama_local chat turn) must resolve ITS OWN verified base_url from
+    provider.py — it must never silently inherit whatever gateway the server process itself defaults to,
+    which could be a completely different host (a Groq key sent to api.anthropic.com is a 401, not a
+    routing error, so this class of bug is easy to miss without this explicit split)."""
+    if base_url is not None:
+        return base_url
+    if provider == DEFAULT_PROVIDER:
+        return DEFAULT_BASE_URL
+    return _PV.base_url(provider)
+
+
 @dataclass
 class GenResult:
     text: str            # the generated code (HARAN), text blocks only
@@ -361,15 +376,22 @@ def claude_generate(prompt: str, api_key: Optional[str] = None, *,
     `stream=True` + `on_delta(chunk)` streams text deltas. `mock_response` overrides the canned mock."""
     model = model or DEFAULT_MODEL
     provider = provider or DEFAULT_PROVIDER
-    base_url = normalize_base_url(DEFAULT_BASE_URL if base_url is None else base_url)
+    base_url = normalize_base_url(_resolve_base_url(provider, base_url))
     if api_key:
         try:
-            if provider == "openai_compat":
-                result = _live_generate_openai(prompt, api_key, model, system, max_tokens,
-                                               stream, on_delta, base_url)
-            else:   # anthropic | anthropic_compat — both use the Anthropic SDK (base_url differs)
+            if provider in ("anthropic", "anthropic_compat"):     # Anthropic Messages SDK (base_url differs)
                 result = _live_generate_anthropic(prompt, api_key, model, system, max_tokens,
                                                   thinking, stream, on_delta, base_url, provider)
+            else:
+                # every OTHER provider speaks OpenAI-compatible /chat/completions (Bearer): openai, groq,
+                # openai_compat, and the named gateways (mistral/cohere/deepseek/xai/together/fireworks/
+                # openrouter/perplexity). Gemini rides its OpenAI-compatible endpoint (…/v1beta/openai),
+                # so a native …/v1beta base is upgraded here — keeps one code path for all of family C.
+                eff_base = base_url
+                if provider == "gemini" and eff_base and eff_base.rstrip("/").endswith("/v1beta"):
+                    eff_base = eff_base.rstrip("/") + "/openai"
+                result = _live_generate_openai(prompt, api_key, model, system, max_tokens,
+                                               stream, on_delta, eff_base)
         finally:
             # explicit hygiene: forget our binding to the key the instant we're done with it. The
             # caller still owns its copy (it re-supplies per call); WE keep nothing.
