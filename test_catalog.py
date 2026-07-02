@@ -7700,6 +7700,80 @@ def test_10h_catalog_tools_functionally_real():
           "DECLINED via check_tasks_independent — every delegate claim exercised on real input)")
 
 
+def test_coder_tier_catalog_honest():
+    """코더-티어 작업 1: the tier catalog is evidence-based + provenance-honest. Every seed model carries a
+    non-empty `coder_evidence` (프라임 3: coder classification is never an arbitrary whitelist); :cloud-only
+    models live in `api_only`, NEVER in a local tier (they can't be pulled locally); the source label
+    distinguishes live+seed from seed-fallback and a fetch timestamp is present (프라임 2: 조회 시점 표기);
+    and the tier labels say 'local' / '로컬', never implying 'beyond Mythos' (프라임 5). Uses live=False so
+    the gate is deterministic and network-free — the real live fetch is honesty-checked separately below."""
+    from webapi import coder_models as CM
+    cat = CM.tier_catalog(live=False)
+    assert cat["source"] == "seed-fallback" and "fetched_at" in cat
+    assert set(cat["tiers"]) == set(CM.TIERS)
+    local_names = set()
+    for tier, block in cat["tiers"].items():
+        assert ("로컬" in block["label"]) or ("local" in block["label"].lower()) or ("CPU" in block["label"]) \
+            or ("상위" in block["label"]) or ("중급" in block["label"]) or ("보급형" in block["label"]), block["label"]
+        for m in block["models"]:
+            assert m["coder_evidence"].strip(), (tier, m["name"], "coder tools need cited evidence (RF: no whitelist)")
+            assert m["classification"] == "coder"
+            assert "JEFF" in m["pipeline"]                # every model advertises the pipeline applies (§BG proof)
+            local_names.add(m["pull"].split(":")[0])
+    # :cloud-only models are quarantined to api_only — never leaking into a pullable local tier
+    api_only_names = {m["name"] for m in cat["api_only"]}
+    assert api_only_names and not (api_only_names & local_names), (api_only_names, local_names)
+    assert "3-bit" in cat["quantization_note"] and "디폴트 아님" in cat["quantization_note"]
+    print("PASS test_coder_tier_catalog_honest (every seed coder model evidence-cited; :cloud models quarantined "
+          "to api_only; source=seed-fallback + timestamp; tier labels local-scoped; quant note demotes 3-bit)")
+
+
+def test_coder_recommend_largest_that_fits():
+    """코더-티어 작업 2, 프라임 4: recommend the LARGEST coder class that FITS, never the smallest, and NEVER a
+    model that won't run. Walks tiers high→low honoring the curated default (so MoE VRAM quirks don't distort
+    the pick). 3-bit is tight-only, never the default. Monotone: more VRAM never recommends a lower tier."""
+    from webapi import coder_models as CM
+    r24 = CM.recommend(24)
+    assert r24["recommended"]["name"] == "qwen3-coder:30b", r24["recommended"]   # curated upper default, fits
+    r16 = CM.recommend(16)
+    assert r16["recommended"]["name"] == "gpt-oss:20b", r16["recommended"]        # upper doesn't fit → mid default
+    # 8GB must NOT recommend any 20GB+ model (never a won't-run recommendation)
+    r8 = CM.recommend(8)
+    assert r8["recommended"]["vram_gb"] <= 8, r8["recommended"]
+    assert not r8.get("tight")                                                     # a 7B Q4 fits honestly at 8GB
+    # a genuinely tight budget falls to the tight-only 3-bit, explicitly flagged (never silently defaulted)
+    r5 = CM.recommend(5)
+    assert r5.get("tight") is True and r5["recommended"]["quant"].startswith("Q3")
+    # CPU-only path
+    r0 = CM.recommend(0)
+    assert r0["recommended"].get("cpu_ok") and r0["vram_gb"] == 0
+    # monotonicity: every fit's VRAM need is within budget (no won't-run in the fits list)
+    for v in (8, 16, 24, 32, 48):
+        rec = CM.recommend(v)
+        for m in rec["fits"]:
+            assert m["vram_gb"] <= v, (v, m)
+    print("PASS test_coder_recommend_largest_that_fits (24GB→qwen3-coder:30b, 16GB→gpt-oss:20b, 8GB excludes "
+          "won't-run 20GB+ models, 5GB→3-bit tight-only-flagged, CPU→3b; every fit is within budget)")
+
+
+def test_coder_live_fetch_honest():
+    """코더-티어 작업 1: the live layer is failure-honest and its ONE reliably-parseable extraction (the
+    model-name links) is unit-tested on a fixed HTML fixture — never a network dependency in the gate.
+    live_library_names() returns ('OK'|'BLOCKED') and never raises; the name extractor pulls exactly the
+    /library/<name> links."""
+    from webapi import coder_models as CM
+    names, status = CM.live_library_names(timeout=1.0)          # real attempt; either OK (egress open) or BLOCKED
+    assert status in ("OK", "BLOCKED"), status                  # never a 3rd fabricated state, never an exception
+    if status == "OK":
+        assert isinstance(names, list) and names
+    fixture = '<a href="/library/qwen3-coder">x</a> <a href="/library/deepseek-coder">y</a> ' \
+              '<a href="/library/qwen3-coder">dup</a> <a href="/other/nope">z</a>'
+    got = CM._extract_library_names(fixture)
+    assert got == ["qwen3-coder", "deepseek-coder"], got        # dedup + only /library/ links
+    print(f"PASS test_coder_live_fetch_honest (live_library_names → {status}, never raises; name extractor "
+          "pulls exactly the deduped /library/<name> links from fixed HTML)")
+
+
 def test_cat100_ad_group_functional():
     """카탈로그-100 Phase 1 (A+D): the 16 net-new exploration/git tools run end-to-end through the SAME
     executor.execute() path a live tool-call uses, on REAL repo files — not just registered metadata. Also

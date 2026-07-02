@@ -569,6 +569,30 @@ def create_app():
         return StreamingResponse(gen(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    # ---- 코더-티어: coder-model tier catalog + hardware-aware recommendation — webapi/coder_models.py ----
+    try:
+        from webapi import coder_models as _CODER                 # noqa: PLC0415
+    except Exception:                                             # noqa: BLE001
+        _CODER = None
+
+    @app.get("/api/coder/catalog")
+    async def api_coder_catalog(req: Request):                    # noqa: ANN202
+        if _CODER is None:
+            return JSONResponse({"ok": False, "detail": "coder_models unavailable"}, status_code=503)
+        live = req.query_params.get("live", "1") != "0"
+        return JSONResponse(_CODER.tier_catalog(live=live))
+
+    @app.get("/api/coder/recommend")
+    async def api_coder_recommend(req: Request):                  # noqa: ANN202
+        if _CODER is None:
+            return JSONResponse({"ok": False, "detail": "coder_models unavailable"}, status_code=503)
+        raw = req.query_params.get("vram_gb", "")
+        try:
+            vram = int(raw) if raw not in ("", None) else None
+        except ValueError:
+            vram = None                                           # 프라임 6: unparseable ⇒ don't guess (CPU-safe)
+        return JSONResponse(_CODER.recommend(vram))
+
     @app.get("/api/search/policy")                             # PART 2: observable search-toggle gate
     async def api_search_policy(req: Request):                 # noqa: ANN202
         # Returns the structural gate decision for a given toggle state: OFF ⇒ no tools (search impossible),

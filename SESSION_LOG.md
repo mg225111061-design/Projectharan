@@ -75,3 +75,24 @@
   지시서(101개, J~R군, 완전 구현 스펙 v2)를 전송 — 트래커 #335~#342로 8개 작업 등록(v2 §3.3 순서:
   파운데이션→P→K→J→L→R→M→N·O·Q). 다음 작업: v2 §3.1(1차 실측 37개와 중복대조 매트릭스) + §3.2(Result
   Envelope/에러6종/라벨/샌드박스3클래스/R7 게이트 파운데이션) — 스펙 자신이 "이거 없이 구현 시작 금지".
+
+- **2026-07-02 02:30 UTC** — 코더-모델 티어 카탈로그 작업 1·2 (백엔드) DONE. `webapi/coder_models.py`(stdlib만):
+  4티어(local_frontier/upper/mid/entry)+cpu_offline+API-only 시드 카탈로그, 모델마다 vram_gb·quant·license·
+  coder_evidence 인용(프라임 3: 화이트리스트 아님) + `live_library_names()`가 `ollama.com/library`를 실제 조회해
+  이름 검증(프라임 2: 실패시 BLOCKED+seed-fallback+fetched_at 타임스탬프, 절대 안 raise; `("OK",names) if names
+  else ([],"BLOCKED")`이라 OK-with-empty 불가능) + `recommend(vram_gb)`가 "들어가는 가장 큰 coder"를 티어 상→하
+  선택(프라임 4). **Tier-A 판단 1건**: recommend는 원시 VRAM-footprint 정렬이 아니라 큐레이션 티어순으로 선택 —
+  MoE 왜곡(qwen3-coder:30b MoE가 dense 27b보다 VRAM 덜 씀) 회피가 "largest that fits"의 정직한 독해라 근거를
+  coder_models.py 헤더+이 로그에 남김. 라우트 `/api/coder/{catalog,recommend}`(server.py). 회귀 3건
+  (`test_coder_tier_catalog_honest`·`test_coder_recommend_largest_that_fits`·`test_coder_live_fetch_honest`) — 전부
+  결정론(catalog는 live=False 네트워크-프리, recommend는 순수 로직, live-fetch는 {OK,BLOCKED}만 단언). 카탈로그
+  273→**276**. **게이트 처분(정직)**: test_build 클린 머신 단독 **280/280 클린**. test_catalog 부하(동시 2-스위트)
+  하에서 275/276 — sole failure = `test_security_r5_overhead_and_report`(R5 런타임 오버헤드 편차<0.35 perf 단언),
+  **단독 3/3 통과 재확인** → 부하 플레이크(코더-티어 diff는 security/R5 경로와 무관, 순수 추가). 동일 부하에서
+  test_build도 `test_v37_stage0_freivalds`(속도향상 단언) 플레이크 — 단독 3/3 통과. 둘 다 절대-임계 perf 계열 =
+  C6 후보 Tier-B FLAG(임계값 수정 = 게이트 강도 변경, 단독 안 함), STATUS.md known-flakes에 관측 기록. 파이프라인
+  동등성은 v2.2에서 이미 확립 — 이건 UX 계층. 작업 3(Ollama풍 모델선택 UI)·작업 4(parity 티어표본)는 다음.
+  **지시서 큐 갱신(Tier-A)**: 카탈로그 3차(S~AB)·4차(AC~AL)·5차(AM~AV)·6차(AW~BF) 지시서가 연속 도착 —
+  각각 트래커에 등록하고 **전부 2차 §1 공통계약 파운데이션(#335)에 blocked**로 체이닝(각 물결의 §3.1 대조
+  매트릭스는 직전 물결에 blocked; 6차는 RF-6 LOSSLESS/LOSSY-SAFE/LOSSY-RISK 라벨을 §1 확장으로 추가). 어느
+  물결도 파운데이션+대조매트릭스 전엔 도구 코드 시작 안 함 — 각 스펙 자신의 "이거 없이 시작 금지" 준수.
