@@ -180,3 +180,25 @@
   등록 도구 아님). **단계3(raw vs JEFF-wrapped Δ 실측)은 ANTHROPIC_API_KEY 미설정으로 BLOCKED**(또는
   로컬 Ollama 기동) — 유일한 사용자-측 블로커. 다음: 단계2(최소 핵심 BI/BJ1/BQ1·2/BU1, 대부분 swebench/
   재사용) → (키 도착 시) 단계3 실측 → 단계4 Δ 분해가 다음 우선순위 결정.
+
+- **2026-07-02 07:xx UTC** — **★단계2 = "반복샘플→하이브리드-formal 선택 파이프라인" 지시서 5작업 완성.**
+  두 리서치 종합 지시: generate-then-select의 병목(select)에 JEFF formal을 sound layer로. 전부 기존
+  swebench/ 재사용, 신규 4모듈+배선 1: ① `hybrid_select.py`(심장) — 3층 selector: L1 formal
+  (formal_correct/bounded_equiv; proved=1.0 천장, **반례=구조적 탈락**), L2 실행(visible+차별화 테스트,
+  **TESTED_CAP 0.85<1.0 — 실행 증거가 증명을 못 이김을 수치로 고정**, BU1 보정테이블), L3 등가류 투표
+  (후보-대-후보 bounded_equiv 클러스터, 오라클 불필요=BQ1)+최소소스; **formal_applicable_rate 정직 로깅**
+  (오라클 태스크 1.0/스트립 0.0); 전원 refuted→chosen=None(정직 decline). ② `diff_test_gen.py` —
+  CodeT/UTBoost role의 LLM-free 재구현(후보 불일치 입력 탐색+다수결 기대값, majority_heuristic 라벨);
+  ★test-inflation 방어 회귀: 오답 2:1 다수가 생성테스트 100% 통과+정답이 그 테스트 실패해도 formal이
+  오답들을 탈락시켜 정답 선택. ③ `patch_integrity.py`(BI+"문법제약 diff"의 정직한 사후 등가물) — 펜스
+  제거·헝크카운트 재계산(본문 불변)·no_op 탐지·구조붕괴→regenerate 신호; real `git apply --check`
+  before/after 실측. **실측이 가정을 교정**: git은 펜스/후행잡음에 관대(패치메일 관례) — BI가 실제 구조하는
+  건 miscount(0→1). ④ `sample_repair.py` — Agentless 뼈대(localize→sample N→빌드게이트→select);
+  provider-blind(시그니처에 provider 없음, 소스에 provider 문자열 0); N=mode_policy.BEST_OF_N 재사용
+  (로컬 8/API 2 — 새 테이블 발명 0). ⑤ `live_harness.py` 배선 — `select_live`(★F2P를 선택 신호로 절대
+  사용 안 함=채점세트 leakage 0; P2P 서브셋+무결성+효과+등가류표만; 라이브 formal rate 정직 0.0 —
+  함수추출 어댑터 후속), `measure_delta`(raw=후보1 무선택 vs wrapped=BI+선택, 같은 _score_in_repo 채점,
+  간이러너 정직노트), `--pipeline hybrid --subset N --provider ollama_local` CLI(+어휘 국소화, gold 미사용;
+  Ollama stdlib 훅, 실패=honest BLOCKED). 오프라인 합성레포로 Δ=+1 관통 실증(no-op raw 미해결→wrapped가
+  effectful gold 선택·해결). 회귀 4건(+280→284): 3층/inflation방어/BI-실측/뼈대+Δ배선. 주말 실행:
+  `python -m swebench.live_harness --pipeline hybrid --subset 10` (로컬 Ollama 필요 — 단계3).

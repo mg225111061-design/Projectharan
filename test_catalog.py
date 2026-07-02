@@ -8272,6 +8272,254 @@ def test_swebench_live_harness_offline_score():
           "infer_runner routes django→runtests / else→pytest by identity; live network path stays out of the gate)")
 
 
+def test_hybrid_selector_three_layers():
+    """반복샘플→하이브리드 selector 지시서 작업 1 (심장): 3층 신호가 우선순위대로 작동한다.
+    (a) SOUND LAYER FIRST — 두 후보가 visible 테스트를 **전부** 통과해도(off-by-one의 함정) formal이 반례
+    있는 쪽을 refuted로 탈락시키고 증명된 쪽을 고른다(layer_used='formal'); (b) formal UNDECIDABLE(오라클/
+    도메인 없음 — 라이브 태스크의 실상)이면 정직하게 테스트/투표 신호로 폴백하고 크래시하지 않는다;
+    (c) 보정(BU1): formal-proven 점수는 tested-only 상한+투표보너스보다 **항상** 높다(실행-전용 증거가
+    증명을 못 이기는 게 수치로 고정); (d) ★formal_applicable_rate가 정직하게 로깅된다(오라클 태스크 1.0,
+    스트립 태스크 0.0 — 낮으면 낮다고); (e) 전원 refuted면 chosen=None(정직 decline — refuted를 절대 제출
+    하지 않는다, collatz의 두 오답이 정확히 그 케이스)."""
+    import dataclasses
+    from swebench.harness import mini_bench
+    from swebench.hybrid_select import CALIB, _VOTE_EPS, hybrid_select
+    tasks = {t.name: t for t in mini_bench()}
+
+    # (a) formal breaks the visible-test tie via counterexample
+    ir = tasks["in_range"]
+    r = hybrid_select(ir, ir.candidates)
+    assert r.chosen == 1 and r.layer_used == "formal", (r.chosen, r.layer_used)
+    assert r.signals[0].grade == "refuted" and r.signals[0].visible_frac == 1.0    # the trap, eliminated
+    assert r.signals[1].grade == "formal-proven" and r.signals[0].counterexample is not None
+    assert r.formal_applicable_rate == 1.0 and "formal applicable" in r.detail      # (d) honest rate
+
+    # (b) UNDECIDABLE → honest fallback (no oracle, no crash, rate 0.0)
+    ir2 = dataclasses.replace(ir, reference_src=None, formal_domain=None)
+    r2 = hybrid_select(ir2, ir2.candidates)
+    assert r2.chosen is not None and r2.formal_applicable_rate == 0.0
+    assert r2.layer_used in ("test", "vote") and all(s.formal == "n/a" for s in r2.signals)
+
+    # (c) calibration: proven floor strictly above tested ceiling (+ vote bonus can't flip grades)
+    assert CALIB["refuted"] < CALIB["tested_cap"] < CALIB["probabilistic"] < CALIB["formal_proven"]
+    assert CALIB["tested_cap"] + _VOTE_EPS < CALIB["formal_proven"]
+    proven = [s.score for s in r.signals if s.grade == "formal-proven"]
+    others = [s.score for s in r.signals if s.grade != "formal-proven"]
+    assert min(proven) > max(others)
+
+    # (e) all candidates refuted → honest decline (never submit a refuted patch)
+    col = tasks["collatz_steps"]
+    r3 = hybrid_select(col, col.candidates)
+    assert r3.chosen is None and r3.layer_used == "none"
+    assert all(s.grade in ("refuted", "build-error") for s in r3.signals)
+    print("PASS test_hybrid_selector_three_layers (formal refutes the visible-passing off-by-one via its "
+          "counterexample [layer=formal]; no-oracle task falls back honestly [rate 0.0, no crash]; calibration "
+          "locks proven > tested+vote-bonus; applicable rate logged 1.0/0.0 honestly; all-refuted → decline)")
+
+
+def test_difftest_inflation_defense():
+    """작업 3: 차별화 테스트 생성(CodeT/UTBoost의 role, LLM-free 다수결) + ★test-inflation 방어.
+    (a) off-by-one vs correct를 가르는 경계 입력을 실제로 찾아 majority_heuristic 라벨로 반환; 가를 게
+    없으면(동일 후보) 빈 리스트; (b) ★오답 다수(2:1)가 생성 테스트를 100% 통과하고 정답이 그 테스트에서
+    떨어져도(다수결의 독) formal 반례가 오답들을 탈락시켜 정답이 뽑힌다 — 생성 테스트는 Layer 2 재료일 뿐
+    formal(Layer 1)을 절대 못 뒤집는다는 지시서 프라임 2의 회귀 잠금."""
+    from swebench.diff_test_gen import as_cases, gen_differentiating_tests
+    from swebench.harness import Candidate, mini_bench
+    from swebench.hybrid_select import hybrid_select
+    tasks = {t.name: t for t in mini_bench()}
+
+    # (a) finds real differentiating boundary inputs
+    ir = tasks["in_range"]
+    ts = gen_differentiating_tests(ir, ir.candidates)
+    assert ts and all(t["label"] == "majority_heuristic" for t in ts)
+    same = gen_differentiating_tests(ir, [ir.candidates[1], ir.candidates[1]])
+    assert same == []                                     # identical candidates — nothing to split, honest empty
+
+    # (b) inflation: wrong majority (2 copies) + 1 correct on sign(0)
+    sg = tasks["sign"]
+    wrong = "def sign(x):\n    return 1 if x > 0 else -1"
+    correct = "def sign(x):\n    return (x > 0) - (x < 0)"
+    cands = [Candidate(wrong, "sign", "wrong-A"), Candidate(wrong, "sign", "wrong-B"),
+             Candidate(correct, "sign", "correct")]
+    cases = as_cases(gen_differentiating_tests(sg, cands))
+    assert cases                                          # x=0 differentiates, majority says -1 (wrong!)
+    r = hybrid_select(sg, cands, diff_tests=cases)
+    assert r.signals[0].diff_test_frac == 1.0             # the wrong pair PASSES all generated tests (inflated)
+    assert r.signals[2].diff_test_frac < 1.0              # the correct one FAILS the majority test
+    assert r.chosen == 2 and r.signals[0].grade == "refuted" and r.signals[2].grade == "formal-proven"
+    print("PASS test_difftest_inflation_defense (boundary-differentiating inputs found + majority_heuristic "
+          "labeled, identical candidates → honest empty; ★inflated wrong-majority passes 100% of generated "
+          "tests while correct fails them, yet formal's counterexample eliminates the pair and the proven "
+          "candidate wins — generated tests can never override the sound layer)")
+
+
+def test_patch_integrity_bi_gate():
+    """작업 4: BI(패치 무결성) + '문법 제약 diff'의 정직한 사후 등가물(검증→기계적 수리→재생성 신호).
+    (a) 펜스 제거·헝크 카운트 재계산(본문 불변)·no_op 탐지·구조 붕괴→regenerate=True; (b) ★before/after
+    실측: 같은 diff 집합을 REAL `git apply --check`로 수리 전/후 각각 시도 — 수리 후 적용 성공이 늘고,
+    의미 손상(없는 컨텍스트)은 수리 없이 정직하게 실패로 남는다(조작 0)."""
+    import os as _os, subprocess as _sp, tempfile as _tf, shutil as _sh
+    from swebench.patch_integrity import (apply_rate, repair_hunk_counts, strip_fences,
+                                          validate_and_repair)
+    scratch = "/tmp/claude-0/-home-user/be2af19b-3a00-5be9-9ed5-515f2ca18f77/scratchpad"
+    if not _os.path.isdir(scratch):
+        scratch = _tf.gettempdir()
+    genv = dict(_os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+
+    good = ("diff --git a/m.py b/m.py\n--- a/m.py\n+++ b/m.py\n@@ -1,2 +1,2 @@\n def add(a, b):\n"
+            "-    return a - b\n+    return a + b\n")
+    fenced = "```diff\n" + good + "```\n"
+    miscount = good.replace("@@ -1,2 +1,2 @@", "@@ -1,7 +1,9 @@")
+    corrupt = good.replace("-    return a - b", "-    NOT IN FILE")     # semantic damage — must NOT be "repaired"
+    garbage = "here is the patch:\n@@ nonsense @@\n+++ nothing\n"
+
+    # (a) mechanical repairs + honest regenerate
+    s, had = strip_fences(fenced)
+    assert had and "```" not in s
+    fixed_text, ct = repair_hunk_counts(miscount)
+    assert ct == 1 and "@@ -1,2 +1,2 @@" in fixed_text                   # recounted from the body, body unchanged
+    assert validate_and_repair("").no_op is True
+    g = validate_and_repair(garbage)
+    assert g.ok is False and g.regenerate is True and g.errors           # unrepairable → regenerate signal
+    c = validate_and_repair(corrupt)
+    assert c.ok is True and "NOT IN FILE" in c.diff       # structural pass, body NOT silently "repaired" —
+    #   semantic damage is undetectable without the target; the APPLY gate below is the honest second line
+
+    # (b) measured before/after on a real repo (git apply --check)
+    repo = _tf.mkdtemp(prefix="bi_gate_", dir=scratch)
+    try:
+        def _g(*a):
+            return _sp.run(["git"] + list(a), cwd=repo, env=genv, capture_output=True, text=True, check=True)
+        _g("init", "-q"); _g("config", "user.email", "t@t"); _g("config", "user.name", "t")
+        with open(_os.path.join(repo, "m.py"), "w", encoding="utf-8") as fh:
+            fh.write("def add(a, b):\n    return a - b\n")
+        _g("add", "-A"); _g("commit", "-qm", "base")
+        # ★실측이 가정을 교정한 지점(정직 기록): real git apply는 펜스/후행 잡음엔 관대하다(패치메일 관례로
+        # 프리앰블·트레일러를 무시) — BI가 실제로 구조하는 건 헝크 카운트 miscount(LLM의 고전)다.
+        r = apply_rate([miscount, corrupt, garbage], repo)
+        assert r["apply_ok_before"] == 0, r                               # miscount는 git이 corrupt로 거부
+        assert r["apply_ok_after"] == 1, r                                # 재계산 후 miscount만 구조된다
+        assert r["apply_ok_after"] < r["n"], r                            # corrupt+garbage honestly still fail
+        assert r["regenerate_signalled"] >= 1                             # garbage flagged for regeneration
+    finally:
+        _sh.rmtree(repo, ignore_errors=True)
+    print("PASS test_patch_integrity_bi_gate (fences stripped, hunk headers recounted from the body [body "
+          "untouched], no-op flagged, structural garbage → regenerate=True; measured on real git apply --check: "
+          "repair rescues the miscounted-hunk diff [0→1 applies; git itself tolerates fence/trailing junk — "
+          "measured fact] while semantic damage honestly keeps failing — no fabricated fixes)")
+
+
+def test_sample_repair_and_delta_wiring():
+    """작업 2+5: Agentless 뼈대(localize→sample N→apply게이트→hybrid select)와 raw-vs-wrapped Δ 측정 배선.
+    (a) N개 생성→선택 관통: build-error 후보는 apply(빌드) 게이트에서 걸러지고(n_built 감소) 정답이 뽑힌다;
+    wrong-locus는 localize가 제거(2→1); 정답 없는 태스크는 정직 decline; (b) provider 무관은 구조적 —
+    시그니처에 provider 인자가 없고 소스에 provider 문자열이 없다; N 기본값은 mode_policy.BEST_OF_N 재사용
+    (로컬 8=extended 상단, API 2=normal 상단 — 새 N 테이블 발명 0); (c) ★measure_delta 오프라인 배선:
+    합성 레포+주입 provisioner+스텁 생성기(no-op 먼저)로 raw(후보1, 무선택)=미해결 vs wrapped(BI+선택)=해결
+    → Δ=+1이 관통하고, 정직성 노트(간이러너/F2P 미사용/라이브 formal 0.0)가 리포트에 박혀 있다.
+    네트워크/실모델은 게이트 밖 — 주말 실측은 같은 코드의 gen_fn만 라이브로 바뀐다."""
+    import inspect
+    import os as _os, shutil as _sh, subprocess as _sp, sys as _sys, tempfile as _tf
+    from mode_policy import BEST_OF_N
+    import swebench.live_harness as LH
+    import swebench.sample_repair as SR
+    from swebench.harness import mini_bench
+    from swebench.real_dataset import RealInstance
+    from swebench.sample_repair import default_n, sample_repair
+    tasks = {t.name: t for t in mini_bench()}
+
+    # (a) end-to-end select + gate filtering + localization + honest decline
+    r = sample_repair(tasks["clamp_hi"])
+    assert r.stage == "select" and r.submitted.label == "correct" and r.n_built == r.n_localized - 1
+    assert r.selection.signals[0].grade == "build-error" and r.chosen_index != 0
+    r2 = sample_repair(tasks["list_sum_default"])
+    assert r2.n_localized < r2.n_generated and r2.submitted.label == "correct"
+    r3 = sample_repair(tasks["collatz_steps"])
+    assert r3.stage == "decline" and r3.submitted is None
+
+    # (b) structural provider-blindness + canonical N table reuse
+    assert "provider" not in inspect.signature(sample_repair).parameters
+    src = inspect.getsource(SR).lower()
+    assert "anthropic" not in src and "groq" not in src and "openai" not in src
+    assert default_n(True) == BEST_OF_N["extended"][1] and default_n(False) == BEST_OF_N["normal"][1]
+
+    # (c) offline Δ wiring on the synthetic repo (same fixture discipline as 단계1)
+    scratch = "/tmp/claude-0/-home-user/be2af19b-3a00-5be9-9ed5-515f2ca18f77/scratchpad"
+    if not _os.path.isdir(scratch):
+        scratch = _tf.gettempdir()
+    genv = dict(_os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+    repo = _tf.mkdtemp(prefix="delta_src_", dir=scratch)
+
+    def g(*a):
+        return _sp.run(["git"] + list(a), cwd=repo, env=genv, capture_output=True, text=True, check=True)
+
+    def w(name, body):
+        with open(_os.path.join(repo, name), "w", encoding="utf-8") as fh:
+            fh.write(body)
+
+    def inproc_runner(repo_dir, node_ids):
+        fails = []
+        for nid in node_ids:
+            fname, _, func = nid.partition("::")
+            _sys.modules.pop("mymod", None)
+            ns = {}
+            _sys.path.insert(0, repo_dir)
+            try:
+                with open(_os.path.join(repo_dir, fname), encoding="utf-8") as fh:
+                    exec(compile(fh.read(), fname, "exec"), ns)
+                try:
+                    ns[func]()
+                except Exception as e:                    # noqa: BLE001
+                    fails.append(f"{nid}:{e}")
+            finally:
+                _sys.path.remove(repo_dir)
+                _sys.modules.pop("mymod", None)
+        return (1 if fails else 0, ";".join(fails) or "ok")
+
+    try:
+        g("init", "-q"); g("config", "user.email", "t@t"); g("config", "user.name", "t")
+        w("mymod.py", "def add(a, b):\n    return a - b\ndef mul(a, b):\n    return a * b\n")
+        w("test_existing.py", "import mymod\ndef test_mul():\n    assert mymod.mul(2, 3) == 6\n")
+        g("add", "-A"); g("commit", "-qm", "base")
+        w("test_add.py", "import mymod\ndef test_add():\n    assert mymod.add(2, 3) == 5\n")
+        g("add", "-N", "test_add.py")
+        tp = g("diff").stdout
+        g("reset", "-q"); _os.remove(_os.path.join(repo, "test_add.py"))
+        w("mymod.py", "def add(a, b):\n    return a + b\ndef mul(a, b):\n    return a * b\n")
+        gold = g("diff", "mymod.py").stdout
+        g("checkout", "-q", "--", "mymod.py")
+        inst = RealInstance("synthetic-add-1", "local/synthetic", "HEAD", gold, tp, "add subtracts",
+                            ["test_add.py::test_add"], ["test_existing.py::test_mul"])
+
+        def stub_provision(_inst, dest):
+            _sh.copytree(repo, dest)
+            return {"ok": True, "head": "HEAD", "matches_base": True}
+
+        def stub_gen(_inst, n, _repo_dir):
+            return ["", gold][:n]                         # no-op FIRST → raw fails; wrapped must pick gold
+
+        orig = LH.infer_runner
+        LH.infer_runner = lambda _i: (inproc_runner, "inproc")
+        try:
+            rep = LH.measure_delta([inst], stub_gen, n=2,
+                                   workdir=_tf.mkdtemp(prefix="delta_wk_", dir=scratch),
+                                   provision=stub_provision)
+        finally:
+            LH.infer_runner = orig
+        row = rep["rows"][0]
+        assert row["raw_resolved"] is False and row["wrapped_resolved"] is True and row["wrapped_chosen"] == 1
+        assert rep["delta"] == 1 and rep["n_scored"] == 1
+        assert "간이" in rep["honesty"]["runner_note"] and "F2P" in rep["honesty"]["selection_leakage"]
+        assert row["formal_applicable_rate"] == 0.0       # live formal honestly 0.0 until the extraction adapter
+    finally:
+        _sh.rmtree(repo, ignore_errors=True)
+    print("PASS test_sample_repair_and_delta_wiring (Agentless skeleton: build-error gated out, wrong-locus "
+          "localized away, unsolvable → honest decline; provider-blind by signature+source, N from "
+          "mode_policy.BEST_OF_N [8 local / 2 api]; ★offline Δ wiring: raw no-op unresolved vs wrapped "
+          "BI+select picks the effectful gold → Δ=+1, honesty notes [간이러너/no-F2P-leakage/live-formal-0.0] "
+          "in the report — weekend run swaps only the gen_fn to live Ollama)")
+
+
 ALL = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
 
 
