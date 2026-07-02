@@ -42,3 +42,36 @@
   플래그) — 완성·검증된 이 체크포인트를 보존 커밋한 뒤 **카탈로그-100을 활성 작업으로 승격**, 번들 Task 2·3은
   산출물 초안(CI yml/spec/핀 파일 — scratchpad) 완성 상태로 큐 유지(#331/#332). 번들 Task 2·3의 잔여 작업량:
   초안 반입 + yaml 검증 + Linux 프로즌 스모크 + HTML 온보딩 분기 + DOM 회귀 + 게이트 1회.
+
+- **2026-07-02 00:45 UTC** — 카탈로그-100 Phase 1 (A+D군) DONE. 설계서 §9 순서 1번 그대로: 기존 21개 도구를
+  라이브로 대조(중복 생성 금지 원칙) → A군 5개(read_file/grep_search/list_dir/file_exists/file_stat)·D군
+  7개(git 계열)는 **이미 존재해 재사용**, 겹치지 않는 **16개만 신규**(A군 11 신설 `catalog_explore.py` +
+  D군 5 `catalog_plain.py` 추가). 도구 21→**37**(실측). **Tier-B 인접 판단 → 정직 우선 기록**: 설계서가
+  import_graph/call_graph를 FOLD, reach_closure를 ACCEL로 제안했으나, 이들은 검증된 fold/accel 엔진에
+  위임하지 않는 순수 AST/그래프 계산 — FOLD/ACCEL 라벨은 registry가 막는 false-EXACT류 오라벨이다. 설계서
+  원칙 1("애매하면 PLAIN")이 이 경우를 정확히 커버하므로 **16개 전부 PLAIN**으로 등록하고 그 근거를
+  catalog_explore.py 헤더·이 로그·STATUS.md에 명시(설계서 제안 tier를 뒤집는 판단이므로 근거를 3곳에 남김).
+  회귀 `test_cat100_ad_group_functional`: A군 4개를 실제 레포 파일에 실행(ast_outline가 Tool 클래스를,
+  reach_closure가 call_graph 도달을 실제로 잡음) + file_patch 비유일 편집 거부 + D군 나쁜입력(비-push op,
+  비-https clone) 정직 거부 + **라이브 37-도구에서 라우터 ≤6 불변**(Prime Directive 1). **정직한 유보
+  기록**: 설계서 §7의 intent 라우팅 매핑(repo-fix→A+B+D+E 등)은 Phase 1에서 미착수 — 기존 keyword 라우터가
+  이미 ≤6을 구조적으로 보장하고, intent 계층은 카탈로그가 B/E군까지 커진 뒤 붙이는 게 자연스러워 후속으로
+  남김(억지 선반영 금지). 게이트 실행 중. Phase 2(B군, bounded_equiv/counterexample 최우선)가 다음.
+
+- **2026-07-02 01:55 UTC** — Phase 1 게이트 결과 + **FLAG 1건(Tier-B, 소유자 판단 대기)**. test_catalog
+  **273/273 클린**(+1 `test_cat100_ad_group_functional`). test_build **277/280** — 실패 3건 전부 타이밍
+  계열: `test_foldext_stageB3_abft`(단독 1/1 PASS — 문서화된 foldext perf-게이트 계열),
+  `test_phaseV_equivalence_coverage`(단독 1/1 PASS — 문서화 목록에 명시된 win-floor 커플링),
+  `test_native_s3_triage_layer`(**단독 0/3 FAIL — 오늘 누적 단독 7회 중 2회만 통과**). 세 번째에 대해
+  원인 조사를 수행: (a) 측정 대상인 `SoundCache`는 순수 인메모리 OrderedDict LRU — 프로세스 간 상태
+  누적이 불가능하므로 "반복 실행으로 캐시가 비대해졌다" 가설 기각, (b) 임포트 체인(proof_triage/
+  z3_adapter/proof_cache)은 오늘 어느 커밋도 안 건드림, (c) Phase-1 변경 전 커밋(707d750, c43b657)
+  시점의 게이트에서도 동일 실패 — 즉 코드 아닌 환경(공유 컨테이너 노이즈)이 원인이고, 이 테스트의
+  차분-타이밍 단언(canonicalization 오버헤드가 z3-solve 노이즈보다 커야 관측됨)이 구조적으로 그 노이즈에
+  취약. **처분**: 임계값/구조 수정은 게이트 강도 변경 = Tier-B → 단독 수정하지 않고 FLAG. STATUS.md의
+  known-flakes 기술을 실측대로 갱신("단독에선 통과"가 더는 참이 아님을 명시)하고 C6(perf↔correctness
+  분리)의 최우선 후보로 지정. §0.3에 따라 큐는 막지 않는다 — catalog 게이트 클린 + 실패 3건 전부
+  선재·타이밍 계열·diff 무관 확인이므로 Phase 1을 커밋한다. **지시서 큐 갱신**: 지욍이 카탈로그 2차
+  지시서(101개, J~R군, 완전 구현 스펙 v2)를 전송 — 트래커 #335~#342로 8개 작업 등록(v2 §3.3 순서:
+  파운데이션→P→K→J→L→R→M→N·O·Q). 다음 작업: v2 §3.1(1차 실측 37개와 중복대조 매트릭스) + §3.2(Result
+  Envelope/에러6종/라벨/샌드박스3클래스/R7 게이트 파운데이션) — 스펙 자신이 "이거 없이 구현 시작 금지".

@@ -78,4 +78,4 @@ def adversarial_battery() -> dict:
 # Populate the catalog (Task 2) on any `agenttools` import — a router with an empty catalog can't route
 # anything. Each import is a module-level side effect (register() calls), matching catalog/__init__.py's
 # own "importing the pass modules registers their transforms" convention elsewhere in this repo.
-from agenttools import catalog_accel, catalog_fold, catalog_plain  # noqa: F401,E402
+from agenttools import catalog_accel, catalog_explore, catalog_fold, catalog_plain  # noqa: F401,E402

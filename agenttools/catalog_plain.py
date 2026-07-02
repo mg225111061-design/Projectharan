@@ -171,6 +171,66 @@ def git_blame(path: str, max_lines: int = 50) -> Dict:
     return _run_git(["blame", "-L", f"1,{n}", path])
 
 
+# ── D-group net-new git tools (카탈로그-100 §5) — mutating but bounded; still fixed-argv, flag-guarded ──
+def recent_changes(max_count: int = 10) -> Dict:
+    """Recent commits WITH the files each touched (name-status) — richer than git_log's bare oneline, for
+    'what changed lately' context."""
+    n = max(1, min(int(max_count), 100))
+    return _run_git(["log", f"-{n}", "--name-status", "--oneline"])
+
+
+def git_apply_patch(patch_text: str, three_way: bool = True) -> Dict:
+    """Apply a unified-diff patch to the workspace tree. Tries a 3-way merge first (survives minor drift);
+    on failure the git stderr (which names the rejected hunks) is returned verbatim — never a partial
+    silent apply. The patch is fed via stdin (never a shell string)."""
+    args = ["apply", "--3way"] if three_way else ["apply"]
+    try:
+        r = subprocess.run(["git", "-C", _workspace_root()] + args, input=patch_text,
+                           capture_output=True, text=True, timeout=30.0)
+        return {"ok": r.returncode == 0, "stdout": r.stdout[:4000], "stderr": r.stderr[:4000],
+                "returncode": r.returncode}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "stdout": "", "stderr": "git apply timed out", "returncode": None}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "stdout": "", "stderr": f"{type(e).__name__}: {e}", "returncode": None}
+
+
+def git_checkout_commit(ref: str) -> Dict:
+    """Checkout a specific commit/ref (SWE-bench base_commit use). Flag-guarded; detached-HEAD is expected
+    and reported honestly, not treated as an error."""
+    _reject_flag_like(ref, "ref")
+    return _run_git(["checkout", ref])
+
+
+def repo_clone_shallow(url: str, dest: str, depth: int = 1) -> Dict:
+    """Shallow-clone a repo into `dest` (inside the workspace). ★ Only https:// URLs on the session's
+    allowed hosts succeed — egress-blocked hosts fail HONESTLY (the git stderr is returned), never a
+    fabricated success. `dest` is workspace-sandboxed via _safe_path; url is flag-guarded."""
+    _reject_flag_like(url, "url")
+    if not url.startswith("https://"):
+        return {"ok": False, "stdout": "", "stderr": "only https:// clone URLs are allowed", "returncode": None}
+    dest_path = _safe_path(dest)
+    d = max(1, min(int(depth), 50))
+    try:
+        r = subprocess.run(["git", "clone", "--depth", str(d), url, dest_path],
+                           capture_output=True, text=True, timeout=120.0)
+        return {"ok": r.returncode == 0, "stdout": r.stdout[:2000], "stderr": r.stderr[:4000],
+                "returncode": r.returncode}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "stdout": "", "stderr": "git clone timed out (120s)", "returncode": None}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "stdout": "", "stderr": f"{type(e).__name__}: {e}", "returncode": None}
+
+
+def git_stash_ops(op: str = "push") -> Dict:
+    """Bounded git stash operations: push / pop / list only (an allowlist — never an arbitrary stash
+    subcommand from a model-controlled string)."""
+    if op not in ("push", "pop", "list"):
+        return {"ok": False, "stdout": "", "stderr": f"op must be push/pop/list, got {op!r}",
+                "returncode": None}
+    return _run_git(["stash", op])
+
+
 # ── one bounded subprocess tool ─────────────────────────────────────────────────────────────────────
 def run_python_file(path: str, timeout_s: float = 60.0, args: Optional[List[str]] = None) -> Dict:
     """Run a `.py` file ALREADY inside the workspace as a subprocess (fixed argv — `args` are passed
@@ -235,6 +295,24 @@ register(Tool("git_current_branch", "The current git branch name for the workspa
 register(Tool("git_blame", "Show `git blame` for the first N lines of a file in the workspace repo.",
               _schema({"path": {"type": "string"}, "max_lines": {"type": "integer"}}, ["path"]),
               git_blame, PLAIN, keywords=("git", "blame", "author", "history")))
+register(Tool("recent_changes", "Recent commits WITH the files each touched (name-status) — 'what changed "
+              "lately' context.", _schema({"max_count": {"type": "integer"}}), recent_changes, PLAIN,
+              keywords=("recent", "changes", "lately", "history", "touched")))
+register(Tool("git_apply_patch", "Apply a unified-diff patch to the workspace (3-way by default); on failure "
+              "returns the rejected-hunk stderr, never a partial silent apply.",
+              _schema({"patch_text": {"type": "string"}, "three_way": {"type": "boolean"}}, ["patch_text"]),
+              git_apply_patch, PLAIN, keywords=("apply", "patch", "diff", "hunk", "merge")))
+register(Tool("git_checkout_commit", "Checkout a specific commit/ref (SWE-bench base_commit); detached HEAD "
+              "is reported honestly.", _schema({"ref": {"type": "string"}}, ["ref"]),
+              git_checkout_commit, PLAIN, keywords=("checkout", "commit", "ref", "base", "revision")))
+register(Tool("repo_clone_shallow", "Shallow-clone an https:// repo into a workspace dir (egress-blocked "
+              "hosts fail honestly, never fabricated).",
+              _schema({"url": {"type": "string"}, "dest": {"type": "string"}, "depth": {"type": "integer"}},
+                      ["url", "dest"]),
+              repo_clone_shallow, PLAIN, keywords=("clone", "repo", "checkout", "fetch", "shallow")))
+register(Tool("git_stash_ops", "Bounded git stash ops (push/pop/list only).",
+              _schema({"op": {"type": "string"}}), git_stash_ops, PLAIN,
+              keywords=("stash", "save", "pop", "wip")))
 register(Tool("run_python_file", "Run a .py file already inside the workspace as a subprocess (capped "
               "output, timeout-bounded); use this to execute/verify generated code.",
               _schema({"path": {"type": "string"}, "timeout_s": {"type": "number"},

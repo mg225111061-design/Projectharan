@@ -7615,13 +7615,16 @@ def test_10h_catalog_measured_count():
     RF-5 tier breakdown, exactly — never rounded up, never force-fit toward a target. If this number drifts,
     the catalog changed and this assertion (like catalog.coverage()'s own `registered == 94` elsewhere in
     this file) must be updated in the SAME commit as the code change — never silently."""
-    import agenttools as AT              # noqa: F401 — import triggers catalog_plain/fold/accel registration
+    import agenttools as AT              # noqa: F401 — import triggers catalog_plain/fold/accel/explore registration
     from agenttools import registry as REG
-    assert REG.total_count() == 21, REG.total_count()
+    # 21 (10H Task 2) + 16 net-new A+D tools (카탈로그-100 Phase 1: 11 catalog_explore + 5 catalog_plain
+    # git/recent) = 37. All 16 net-new are PLAIN (RF-5-honest: AST/graph/git are I/O-bound or plain
+    # computation, NOT verified-fold/accel-engine delegations — see catalog_explore.py's tier-honesty note).
+    assert REG.total_count() == 37, REG.total_count()
     counts = REG.counts_by_tier()
-    assert counts == {REG.FOLD_ELIGIBLE: 4, REG.ACCEL_ELIGIBLE: 2, REG.PLAIN: 15}, counts
-    print("PASS test_10h_catalog_measured_count (21 tools: 15 PLAIN + 4 FOLD-ELIGIBLE + 2 ACCEL-ELIGIBLE — "
-          "the honest measured count, not force-fit toward any target)")
+    assert counts == {REG.FOLD_ELIGIBLE: 4, REG.ACCEL_ELIGIBLE: 2, REG.PLAIN: 31}, counts
+    print("PASS test_10h_catalog_measured_count (37 tools: 31 PLAIN + 4 FOLD-ELIGIBLE + 2 ACCEL-ELIGIBLE — "
+          "the honest measured count after 카탈로그-100 Phase 1 A+D, not force-fit toward any target)")
 
 
 def test_10h_catalog_plain_never_fold_labeled():
@@ -7695,6 +7698,54 @@ def test_10h_catalog_tools_functionally_real():
     print("PASS test_10h_catalog_tools_functionally_real (Fibonacci -> C-finite EXACT via detect_code_"
           "structure; Luhn recognized via recognize_checksum; independent tasks PROVEN, conflicting tasks "
           "DECLINED via check_tasks_independent — every delegate claim exercised on real input)")
+
+
+def test_cat100_ad_group_functional():
+    """카탈로그-100 Phase 1 (A+D): the 16 net-new exploration/git tools run end-to-end through the SAME
+    executor.execute() path a live tool-call uses, on REAL repo files — not just registered metadata. Also
+    locks the tier-honesty override (all 16 are PLAIN, never a fold/accel mislabel — see catalog_explore.py)
+    and confirms the ≤6 router cap still holds on the now-larger LIVE catalog (Prime Directive 1 unbroken)."""
+    import agenttools as AT              # noqa: F401
+    from agenttools import executor as EX
+    from agenttools import registry as REG
+    from agenttools import router as RT
+
+    # (1) all 16 net-new tools are PLAIN with no delegate claim (RF-5 honesty — the tier-override lock)
+    net_new = ("file_write", "file_patch", "dir_tree", "symbol_find", "ast_outline", "docstring_extract",
+               "import_graph", "call_graph", "reach_closure", "todo_scan", "loc_stats",
+               "recent_changes", "git_apply_patch", "git_checkout_commit", "repo_clone_shallow",
+               "git_stash_ops")
+    for name in net_new:
+        t = REG.get(name)
+        assert t is not None, f"{name} not registered"
+        assert t.tier == REG.PLAIN and t.delegate == "", (name, t.tier, t.delegate)
+
+    # (2) ≥3 A-group sample runs on real files, exercising the real executor
+    r = EX.execute("ast_outline", {"path": "agenttools/registry.py"})
+    assert r.ok and any(it.get("name") == "Tool" for it in r.output["outline"]), r.output
+    r = EX.execute("symbol_find", {"path": "agenttools/registry.py", "name": "register"})
+    assert r.ok and r.output["matches"] and r.output["matches"][0]["kind"] == "def", r.output
+    r = EX.execute("reach_closure", {"path": "agenttools/catalog_explore.py", "symbol": "reach_closure"})
+    assert r.ok and "call_graph" in r.output["reachable"], r.output   # reach_closure() really calls call_graph()
+    r = EX.execute("import_graph", {"path": "agenttools", "max_files": 50})
+    assert r.ok and any(e[1] == "ast" for e in r.output["edges"]), "catalog_explore imports ast"
+
+    # (3) file_patch honesty: a non-unique `old` must REFUSE (candidate lines returned), never a blind edit
+    r = EX.execute("file_patch", {"path": "agenttools/registry.py", "old": "def ", "new": "def "})
+    assert r.output["ok"] is False and "occurs" in r.output["error"], r.output
+
+    # (4) D-group: bounded-op allowlist + non-https clone both refuse honestly (no fabricated success)
+    assert EX.execute("git_stash_ops", {"op": "danger"}).output["ok"] is False
+    assert EX.execute("repo_clone_shallow", {"url": "http://x", "dest": "d"}).output["ok"] is False
+    assert EX.execute("recent_changes", {"max_count": 2}).ok               # read-only git works
+
+    # (5) Prime Directive 1 still holds on the LIVE (now 37-tool) catalog: never more than max_tools exposed
+    chosen = RT.select_tools("edit this file and run the tests", max_tools=6)
+    assert len(chosen) <= 6, len(chosen)
+    print("PASS test_cat100_ad_group_functional (16 net-new A+D tools all PLAIN with no delegate claim; "
+          "ast_outline/symbol_find/reach_closure/import_graph run on real repo files; file_patch refuses a "
+          "non-unique edit; git_stash_ops/repo_clone_shallow refuse bad input honestly; router still caps "
+          "exposure at <=6 on the live 37-tool catalog)")
 
 
 def test_10h_swebench_reach():
